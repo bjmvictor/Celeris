@@ -1,0 +1,60 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Entrar - Celeris</title>
+    <script>
+      localStorage.removeItem("celeris-tabs");
+    </script>
+    <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
+  </head>
+  <body class="login-page">
+    <form class="login-card" method="post">
+      {% csrf_token %}
+      <img src="{% static 'img/logo.png' %}" alt="Celeris">
+      <h1>Celeris</h1>
+      <p>Acesse com seu usuário e senha.</p>
+      {{ form.non_field_errors }}
+      <label>Usuário {{ form.username }}</label>
+      <label>Senha {{ form.password }}</label>
+      <label data-company-field hidden>Empresa {{ form.empresa }}</label>
+      <button class="button button-primary" type="submit">Entrar</button>
+    </form>
+    <script>
+      const usuarioInput = document.querySelector("[data-company-user]");
+      const empresaSelect = document.querySelector("select[name='empresa']");
+      function normalizeLogin(value) {
+        return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+      }
+      async function carregarEmpresas() {
+        const empresaField = document.querySelector("[data-company-field]");
+        if (!usuarioInput || !empresaSelect || !usuarioInput.value.trim()) {
+          if (empresaField) empresaField.hidden = true;
+          empresaSelect.innerHTML = "";
+          return;
+        }
+        usuarioInput.value = normalizeLogin(usuarioInput.value);
+        const response = await fetch(`/accounts/empresas-usuario/?usuario=${encodeURIComponent(usuarioInput.value)}`);
+        const data = await response.json();
+        if (!data.empresas.length) {
+          empresaSelect.innerHTML = "";
+          if (empresaField) empresaField.hidden = true;
+          return;
+        }
+        empresaSelect.innerHTML = data.empresas.map((empresa) => `<option value="${empresa.cd_empresa}">${empresa.cd_empresa} - ${empresa.nm_empresa}</option>`).join("");
+        const padrao = data.empresas.find((empresa) => empresa.sn_padrao) || data.empresas[0];
+        empresaSelect.value = padrao.cd_empresa;
+        if (empresaField) empresaField.hidden = false;
+      }
+      usuarioInput?.addEventListener("blur", carregarEmpresas);
+      usuarioInput?.addEventListener("input", () => {
+        usuarioInput.value = normalizeLogin(usuarioInput.value);
+        const empresaField = document.querySelector("[data-company-field]");
+        if (empresaField) empresaField.hidden = true;
+        if (empresaSelect) empresaSelect.innerHTML = "";
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card report-filter" data-table="relatorio">
+    <label>Relatório
+      <select data-field-table="relatorio" data-field-name="cd_relatorio" name="cd_relatorio">
+        {% for report in reports %}
+          <option>{{ report }}</option>
+        {% empty %}
+          <option>Nenhum relatório ativo</option>
+        {% endfor %}
+      </select>
+    </label>
+  </section>
+  <section class="card empty-state">
+    <strong>Resultado</strong>
+    <p>Os dados serão exibidos aqui após a execução da consulta interna.</p>
+  </section>
+{% endblock %}

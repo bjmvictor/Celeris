@@ -1,0 +1,35 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Tela</th><th>Campo</th><th>Tabela</th><th>Tipo</th><th>Regras</th><th></th></tr></thead>
+      <tbody>
+        {% for screen in screens %}
+          {% for field in screen.fields.all %}
+            <tr>
+              <td>{{ screen.title }}</td>
+              <td>{{ field.label }}</td>
+              <td>{{ field.table_name|default:screen.table_name|default:"-" }}</td>
+              <td>{{ field.get_field_type_display }}</td>
+              <td>
+                {% if field.required %}Obrigatorio {% endif %}
+                {% if field.consultable %}Consultavel {% endif %}
+                {% if field.editable %}Editavel {% endif %}
+                {% if field.primary_key %}PK{% endif %}
+              </td>
+              <td><a class="button button-secondary" href="{% url 'core:system_field_edit' field.pk %}">Editar</a></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td>{{ screen.title }}</td>
+              <td colspan="5" class="empty-cell">Nenhum campo configurado.</td>
+            </tr>
+          {% endfor %}
+        {% empty %}
+          <tr><td colspan="6" class="empty-cell">Nenhuma tela configurada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

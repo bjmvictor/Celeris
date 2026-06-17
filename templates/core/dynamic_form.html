@@ -1,0 +1,97 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card form-grid dynamic-screen-form" data-screen-type="{{ screen.screen_type }}" data-table="{{ screen.table_name }}">
+    {% for field in fields %}
+      <label{% if field.field_type == "textarea" %} class="span-2"{% endif %}>
+        {{ field.label }}
+        {% if field.field_name == "sn_ativo" %}
+          <select
+            data-field-table="{{ field.table_name|default:screen.table_name }}"
+            data-field-name="{{ field.field_name }}"
+            data-consultable="{{ field.consultable|yesno:'true,false' }}"
+            data-editable="{{ field.editable|yesno:'true,false' }}"
+            data-primary-key="{{ field.primary_key|yesno:'true,false' }}"
+            name="{{ field.field_name }}"
+            {% if field.required %}required{% endif %}
+            {% if field.primary_key or not field.editable %}disabled{% endif %}
+          >
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        {% elif field.field_type == "textarea" %}
+          <textarea
+            data-field-table="{{ field.table_name|default:screen.table_name }}"
+            data-field-name="{{ field.field_name }}"
+            data-consultable="{{ field.consultable|yesno:'true,false' }}"
+            data-editable="{{ field.editable|yesno:'true,false' }}"
+            data-primary-key="{{ field.primary_key|yesno:'true,false' }}"
+            data-lookup-table="{{ field.lookup_table }}"
+            data-lookup-value-field="{{ field.lookup_value_field }}"
+            data-lookup-display-field="{{ field.lookup_display_field }}"
+            name="{{ field.field_name }}"
+            rows="4"
+            {% if field.required %}required{% endif %}
+            {% if field.primary_key or not field.editable %}readonly{% endif %}
+          ></textarea>
+        {% elif field.field_type == "select" %}
+          <select
+            data-field-table="{{ field.table_name|default:screen.table_name }}"
+            data-field-name="{{ field.field_name }}"
+            data-consultable="{{ field.consultable|yesno:'true,false' }}"
+            data-editable="{{ field.editable|yesno:'true,false' }}"
+            data-primary-key="{{ field.primary_key|yesno:'true,false' }}"
+            data-lookup-table="{{ field.lookup_table }}"
+            data-lookup-value-field="{{ field.lookup_value_field }}"
+            data-lookup-display-field="{{ field.lookup_display_field }}"
+            name="{{ field.field_name }}"
+            {% if field.required %}required{% endif %}
+            {% if field.primary_key or not field.editable %}disabled{% endif %}
+          >
+            <option value=""></option>
+          </select>
+        {% elif field.field_type == "checkbox" %}
+          <input
+            data-field-table="{{ field.table_name|default:screen.table_name }}"
+            data-field-name="{{ field.field_name }}"
+            data-consultable="{{ field.consultable|yesno:'true,false' }}"
+            data-editable="{{ field.editable|yesno:'true,false' }}"
+            data-primary-key="{{ field.primary_key|yesno:'true,false' }}"
+            data-lookup-table="{{ field.lookup_table }}"
+            data-lookup-value-field="{{ field.lookup_value_field }}"
+            data-lookup-display-field="{{ field.lookup_display_field }}"
+            name="{{ field.field_name }}"
+            type="checkbox"
+            {% if field.required %}required{% endif %}
+            {% if field.primary_key or not field.editable %}disabled{% endif %}
+          >
+        {% else %}
+          <span class="field-lookup-wrap">
+            <input
+              data-field-table="{{ field.table_name|default:screen.table_name }}"
+              data-field-name="{{ field.field_name }}"
+              data-consultable="{{ field.consultable|yesno:'true,false' }}"
+              data-editable="{{ field.editable|yesno:'true,false' }}"
+              data-primary-key="{{ field.primary_key|yesno:'true,false' }}"
+              data-lookup-table="{{ field.lookup_table }}"
+              data-lookup-value-field="{{ field.lookup_value_field }}"
+              data-lookup-display-field="{{ field.lookup_display_field }}"
+              name="{{ field.field_name }}"
+              type="{{ field.field_type }}"
+              {% if field.required %}required{% endif %}
+              {% if field.primary_key or not field.editable %}readonly{% endif %}
+            >
+            {% if field.lookup_table %}
+              <button class="field-lookup-button" data-lookup-trigger type="button" title="Pesquisar {{ field.label }}">...</button>
+            {% endif %}
+          </span>
+        {% endif %}
+      </label>
+    {% empty %}
+      <div class="empty-state span-2">
+        <strong>Nenhum campo configurado</strong>
+        <p>Inclua campos no cadastro da tela para habilitar o formulário.</p>
+      </div>
+    {% endfor %}
+  </section>
+{% endblock %}

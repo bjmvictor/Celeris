@@ -1,0 +1,26 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="metric-grid">
+    <article class="metric-card"><span>Total</span><strong>{{ machines|length }}</strong><small>maquinas mapeadas</small></article>
+  </section>
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Maquina</th><th>Status</th><th>IP</th><th>Usuario</th><th>Sistema</th><th>Ultimo sinal</th></tr></thead>
+      <tbody>
+        {% for machine in machines %}
+          <tr>
+            <td>{{ machine.machine_name }}</td>
+            <td>{{ machine.get_status_display }}</td>
+            <td>{{ machine.ip|default:"-" }}</td>
+            <td>{{ machine.username|default:"-" }}</td>
+            <td>{{ machine.operating_system|default:"-" }}</td>
+            <td>{{ machine.last_seen_at|date:"d/m/Y H:i"|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty-cell">Nenhuma maquina encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

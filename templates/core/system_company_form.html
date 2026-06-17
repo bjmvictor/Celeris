@@ -1,0 +1,15 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card form-grid" data-table="empresa" data-preserve-input method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <label>
+        {{ field.label }}
+        {{ field }}
+        {{ field.errors }}
+      </label>
+    {% endfor %}
+  </form>
+{% endblock %}

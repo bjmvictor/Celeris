@@ -1,0 +1,30 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card form-grid dynamic-screen-form" data-screen-type="{{ screen.screen_type }}" data-table="{{ screen.table_name }}">
+    {% for field in fields %}
+      <label>
+        {{ field.label }}
+        <input
+          data-field-table="{{ field.table_name|default:screen.table_name }}"
+          data-field-name="{{ field.field_name }}"
+          data-lookup-table="{{ field.lookup_table }}"
+          data-lookup-value-field="{{ field.lookup_value_field }}"
+          data-lookup-display-field="{{ field.lookup_display_field }}"
+          name="{{ field.field_name }}"
+          type="{{ field.field_type }}"
+          {% if field.required %}required{% endif %}
+        >
+      </label>
+    {% empty %}
+      <div class="empty-state span-2">
+        <strong>Nenhum parâmetro configurado</strong>
+        <p>Inclua os parâmetros do relatório no cadastro da tela.</p>
+      </div>
+    {% endfor %}
+  </section>
+  <section class="card empty-state">
+    <strong>Resultado do relatório</strong>
+    <p>A execução será conectada à consulta configurada para esta tela.</p>
+  </section>
+{% endblock %}

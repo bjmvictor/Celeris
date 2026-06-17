@@ -1,0 +1,49 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="empresa" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead>
+        <tr><th>Código</th><th>Empresa</th><th>CNPJ</th><th>Cidade</th><th>UF</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for empresa in empresas %}
+          <tr data-editable-row>
+            <td>
+              <input name="code_{{ empresa.pk }}" value="{{ empresa.cd_empresa }}" readonly data-primary-key="true">
+              <input data-row-delete name="delete_{{ empresa.pk }}" type="hidden" value="0">
+            </td>
+            <td><input name="name_{{ empresa.pk }}" value="{{ empresa.nm_empresa }}"></td>
+            <td><input name="cnpj_{{ empresa.pk }}" value="{{ empresa.nr_cnpj }}"></td>
+            <td><input name="city_{{ empresa.pk }}" value="{{ empresa.ds_cidade }}"></td>
+            <td><input name="state_{{ empresa.pk }}" value="{{ empresa.sg_estado }}" maxlength="2"></td>
+            <td>
+              <select name="active_{{ empresa.pk }}">
+                <option value="true" {% if empresa.sn_ativo %}selected{% endif %}>Ativo</option>
+                <option value="false" {% if not empresa.sn_ativo %}selected{% endif %}>Inativo</option>
+              </select>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty-cell">Nenhuma empresa cadastrada. Clique em + para adicionar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input name="new_code" type="number" placeholder="Código"></td>
+        <td><input name="new_name" placeholder="Empresa"></td>
+        <td><input name="new_cnpj" placeholder="CNPJ"></td>
+        <td><input name="new_city" placeholder="Cidade"></td>
+        <td><input name="new_state" maxlength="2" placeholder="UF"></td>
+        <td>
+          <select name="new_active">
+            <option value="true" selected>Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </td>
+      </tr>
+    </template>
+  </form>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="dashboard-grid">
+    <article class="card metric-card">
+      <span>Total agendado hoje</span>
+      <strong>{{ total_agendado }}</strong>
+    </article>
+    <article class="card metric-card">
+      <span>Confirmados</span>
+      <strong>{{ total_confirmado }}</strong>
+    </article>
+    <article class="card metric-card">
+      <span>Pendentes</span>
+      <strong>{{ total_pendente }}</strong>
+    </article>
+  </section>
+
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Especialidade</th><th>Total do dia</th></tr></thead>
+      <tbody>
+        {% for especialidade, total in especialidade_totais %}
+          <tr><td>{{ especialidade }}</td><td>{{ total }}</td></tr>
+        {% empty %}
+          <tr><td colspan="2" class="empty-cell">Nenhum atendimento agendado hoje.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Data</th><th>Horário</th><th>Profissional</th><th>Especialidade</th><th>Escala</th></tr></thead>
+      <tbody>
+        {% for horario in horarios %}
+          <tr>
+            <td>{{ horario.dh_agendamento|date:"d/m/Y" }}</td>
+            <td>{{ horario.dh_agendamento|date:"H:i" }}</td>
+            <td>{{ horario.agenda.cd_prestador.nm_prestador }}</td>
+            <td>{{ horario.agenda.cd_prestador.ds_especialidade|default:"-" }}</td>
+            <td>{{ horario.agenda.ds_agenda }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Cadastre profissionais e escalas para gerar horários disponíveis.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

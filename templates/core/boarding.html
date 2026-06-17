@@ -1,0 +1,31 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <div class="metric-grid">
+    <article class="metric-card status-{{ current.status|default:'green' }}">
+      <span>Status atual</span>
+      <strong>{{ current.level|default:"Rotina" }}</strong>
+      <small>{{ current.quantity|default:0 }} pacientes em boarding</small>
+    </article>
+    <article class="card compact-form">
+      <label>Quantidade <input data-field-table="boarding_status" data-field-name="quantity" name="quantity" type="number" min="0" value="{{ current.quantity|default:0 }}"></label>
+    </article>
+  </div>
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Data</th><th>Nivel</th><th>Quantidade</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for item in history %}
+          <tr>
+            <td>{{ item.created_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ item.level }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.changed_by|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty-cell">Sem historico.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

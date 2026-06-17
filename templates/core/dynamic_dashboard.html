@@ -1,0 +1,21 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="metric-grid">
+    <article class="metric-card">
+      <span>Tipo</span>
+      <strong>Dashboard</strong>
+      <small>{{ screen.module.title }}</small>
+    </article>
+    <article class="metric-card">
+      <span>Tela</span>
+      <strong>{{ screen.title }}</strong>
+      <small>configuravel</small>
+    </article>
+    <article class="metric-card">
+      <span>Campos</span>
+      <strong>{{ fields|length }}</strong>
+      <small>filtros configurados</small>
+    </article>
+  </section>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Código</th><th>Nome</th><th>Módulo</th><th>Destino</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for report in reports %}
+          <tr>
+            <td>{{ report.code }}</td>
+            <td>{{ report }}</td>
+            <td>{{ report.module }}</td>
+            <td>{{ report.destination|default:"-" }}</td>
+            <td>{% if report.active %}Ativo{% else %}Inativo{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Nenhum relatório cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

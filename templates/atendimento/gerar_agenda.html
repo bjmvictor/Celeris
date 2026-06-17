@@ -1,0 +1,32 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card compact-form" method="get">
+    <label>Data inicial <input name="data_inicio" type="date" value="{{ data_inicio|date:'Y-m-d' }}"></label>
+    <label>Data final <input name="data_fim" type="date" value="{{ data_fim|date:'Y-m-d' }}"></label>
+    <button class="button button-secondary" type="submit">Consultar horários</button>
+  </form>
+
+  <form class="card table-card" method="post">
+    {% csrf_token %}
+    <table>
+      <thead><tr><th>Data</th><th>Horário</th><th>Profissional</th><th>Especialidade</th><th>Escala</th></tr></thead>
+      <tbody>
+        {% for horario in horarios %}
+          <tr>
+            <td>{{ horario.dh_agendamento|date:"d/m/Y" }}</td>
+            <td>{{ horario.dh_agendamento|date:"H:i" }}</td>
+            <td>{{ horario.agenda.cd_prestador.nm_prestador }}</td>
+            <td>{{ horario.agenda.cd_prestador.ds_especialidade|default:"-" }}</td>
+            <td>{{ horario.agenda.ds_agenda }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Nenhum horário disponível para o período. Cadastre profissionais e escalas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="table-actions">
+      <button class="button button-primary" type="submit">Gerar agenda</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Tela</th><th>Módulo</th><th>Tipo</th><th>Submódulo</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for screen in screens %}
+          <tr>
+            <td>{{ screen.title }}</td>
+            <td>{{ screen.module.title }}</td>
+            <td>{{ screen.get_screen_type_display }}</td>
+            <td>{{ screen.parent_label|default:"-" }}</td>
+            <td>{% if screen.active %}Ativa{% else %}Inativa{% endif %}</td>
+            <td><a class="button button-secondary" href="{% url 'core:system_screen_edit' screen.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty-cell">Nenhuma tela configurada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

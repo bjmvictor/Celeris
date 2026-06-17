@@ -1,0 +1,10 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card form-grid" data-table="atendimento">
+    <label>Paciente <input data-field-table="paciente" data-field-name="cd_paciente" name="cd_paciente" type="text" placeholder="Nome do paciente"></label>
+    <label>Atendimento <input data-field-table="atendimento" data-field-name="cd_atendimento" name="cd_atendimento" type="text" placeholder="Código interno"></label>
+    <label>Setor <input data-field-table="setor" data-field-name="cd_setor" name="cd_setor" type="text" placeholder="Setor"></label>
+    <label class="span-2">Observacoes <textarea data-field-table="atendimento" data-field-name="observacoes" name="observacoes" rows="5"></textarea></label>
+  </section>
+{% endblock %}
