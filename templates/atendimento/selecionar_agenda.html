@@ -6,6 +6,19 @@
     <p>{{ paciente.nr_cpf|default:"CPF não informado" }} · {{ paciente.nr_celular|default:"celular não informado" }}</p>
   </section>
 
+  <form class="card compact-form" method="get">
+    <label>Data <input name="data" type="date" value="{{ data_filtro }}"></label>
+    <label>Especialidade
+      <select name="especialidade">
+        <option value=""></option>
+        {% for especialidade in especialidades %}
+          <option value="{{ especialidade.cd_valor }}" {% if especialidade.cd_valor == especialidade_filtro %}selected{% endif %}>{{ especialidade.ds_valor }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button button-secondary" type="submit">Mostrar horários</button>
+  </form>
+
   <section class="card table-card">
     <table>
       <thead>
@@ -24,6 +37,10 @@
                 {% csrf_token %}
                 <input type="hidden" name="cd_agenda_profissional" value="{{ horario.agenda.cd_agenda_profissional }}">
                 <input type="hidden" name="dh_agendamento" value="{{ horario.dh_agendamento|date:'c' }}">
+                <input name="ds_plano" placeholder="Plano">
+                <label><input name="sn_particular" type="checkbox" value="1"> Particular</label>
+                <label><input name="sn_encaixe" type="checkbox" value="1"> Encaixe</label>
+                <input name="ds_observacao" placeholder="Observação">
                 <button class="button button-secondary" type="submit">Selecionar</button>
               </form>
             </td>

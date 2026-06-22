@@ -1,0 +1,138 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="provider-form" data-table="prestador" data-provider-id="{{ prestador.cd_prestador|default:'' }}" data-query-url="{{ request.path }}" data-has-errors="{{ form.errors|yesno:'true,false' }}" method="post" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    {{ form.non_field_errors }}
+    {% if form.errors %}
+      <div class="form-error-summary" role="alert">
+        <strong>Revise os campos destacados antes de salvar.</strong>
+        {% for field in form %}
+          {% for error in field.errors %}<span>{{ field.label }}: {{ error }}</span>{% endfor %}
+        {% endfor %}
+      </div>
+    {% endif %}
+    {{ form.ds_especialidade }}
+
+    <details class="card form-section" data-provider-section="1" open>
+      <summary>1. Dados pessoais</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código {{ form.cd_prestador }}</label>
+        <label class="field-sm">Ativo/Inativo {{ form.sn_ativo }}</label>
+        <label class="field-lg">Nome * {{ form.nm_prestador }} {{ form.nm_prestador.errors }}</label>
+        <label class="field-md">Nome de guerra * {{ form.nm_guerra }} {{ form.nm_guerra.errors }}</label>
+        <label class="field-sm">Data de nascimento * {{ form.dt_nascimento }} {{ form.dt_nascimento.errors }}</label>
+        <label class="field-sm">Sexo {{ form.tp_sexo }}</label>
+        <label class="field-md">Raça/Cor {{ form.ds_cor_raca }}</label>
+        <label class="field-md">CPF {{ form.nr_cpf }} {{ form.nr_cpf.errors }}</label>
+        <label class="field-md">RG {{ form.nr_rg }}</label>
+        <label class="field-md">Órgão Emissor {{ form.ds_orgao_emissor }}</label>
+        <label class="field-sm">Data de Expedição {{ form.dt_expedicao }}</label>
+        <label class="field-xl">Nome da Mãe {{ form.nm_mae }}</label>
+        <label class="field-xl">Nome do Pai {{ form.nm_pai }}</label>
+        <label class="field-md">Cartão Nacional de Saúde {{ form.nr_cartao_sus }}</label>
+        <label class="field-md">Grau de Instrução {{ form.ds_grau_instrucao }}</label>
+        <label class="field-md">Identidade de Gênero {{ form.tp_genero }}</label>
+        <label class="field-md">Nacionalidade {{ form.ds_nacionalidade }}</label>
+        <label class="field-md">Naturalidade {{ form.ds_naturalidade }}</label>
+        <label class="field-xl">Observação {{ form.ds_observacao }}</label>
+      </div>
+      {% if prestador %}
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ prestador.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ prestador.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ prestador.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ prestador.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      {% endif %}
+    </details>
+
+    <details class="card form-section" data-provider-section="2" open>
+      <summary>2. Informações profissionais</summary>
+      <div class="form-grid">
+        <label class="field-md">Tipo de Prestador * {{ form.tp_prestador }} {{ form.tp_prestador.errors }}</label>
+        <label class="field-sm">Conselho {{ form.ds_conselho }}</label>
+        <label class="field-md">Número do Conselho {{ form.nr_conselho }} {{ form.nr_conselho.errors }}</label>
+        <label class="field-xs">UF do Conselho {{ form.sg_conselho }}</label>
+        <div class="field-fluid specialty-manager" data-specialty-manager>
+          <span>Especialidades <a class="field-overlay-link" data-screen-overlay-link href="/global/tabelas/auxiliares/especialidade/">Gerenciar</a></span>
+          <div class="specialty-toolbar">
+            <div class="specialty-chips" data-specialty-chips></div>
+            <button class="button button-secondary specialty-open-button" data-specialty-open type="button">+ Adicionar especialidade</button>
+            <div class="specialty-add-row" data-specialty-add-row hidden>
+              <select data-specialty-picker><option value="">Adicionar especialidade...</option></select>
+              <button class="button button-secondary" data-specialty-add type="button">Incluir</button>
+            </div>
+          </div>
+          <div class="specialty-storage" hidden>{{ form.ds_especialidades }}</div>
+          {{ form.ds_especialidades.errors }}
+        </div>
+        <label class="field-lg">Especialidade Principal {{ form.ds_especialidade_principal }} {{ form.ds_especialidade_principal.errors }}</label>
+        <label class="field-md">Tipo de Vínculo {{ form.tp_vinculo }}</label>
+        <div class="field-fluid provider-permissions">
+          <label class="provider-checkbox">{{ form.sn_permite_agenda }} <span>Permite agenda</span></label>
+          <label class="provider-checkbox">{{ form.sn_permite_atendimento }} <span>Permite atendimento</span></label>
+          <label class="provider-checkbox">{{ form.sn_permite_prescricao }} <span>Permite prescrição</span></label>
+          <label class="provider-checkbox">{{ form.sn_permite_classificacao }} <span>Permite classificação</span></label>
+        </div>
+      </div>
+    </details>
+
+    <details class="card form-section" data-provider-section="3">
+      <summary>3. Contato</summary>
+      <div class="form-grid">
+        <label class="field-sm">Telefone {{ form.nr_telefone }}</label>
+        <label class="field-sm">Celular {{ form.nr_celular }}</label>
+        <label class="field-sm">Celular 2 {{ form.nr_celular_2 }}</label>
+        <label class="field-lg">E-mail {{ form.ds_email }} {{ form.ds_email.errors }}</label>
+        <label class="field-sm">Contato Principal {{ form.ds_contato_principal }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section" data-provider-section="4">
+      <summary>4. Endereço Residencial</summary>
+      <div class="form-grid">
+        <label class="field-sm">CEP <a class="field-overlay-link" data-screen-overlay-link href="{% url 'core:global_ceps' %}">Gerenciar</a> {{ form.cd_cep }}</label>
+        <label class="field-xs">Estado {{ form.sg_estado }}</label>
+        <label class="field-lg">Cidade {{ form.ds_cidade }}</label>
+        <label class="field-md">Tipo de Logradouro {{ form.tp_logradouro }}</label>
+        <label class="field-xl">Endereço {{ form.ds_endereco }}</label>
+        <label class="field-xs">Número {{ form.nr_endereco }}</label>
+        <label class="field-lg">Complemento {{ form.ds_complemento }}</label>
+        <label class="field-lg">Bairro {{ form.ds_bairro }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section" data-provider-section="5">
+      <summary>5. Endereço Comercial</summary>
+      <div class="form-grid">
+        <label class="field-fluid provider-checkbox same-address-field">{{ form.sn_mesmo_endereco }} <span>Usar o mesmo endereço residencial</span></label>
+        <label class="field-sm">CEP Comercial <a class="field-overlay-link" data-screen-overlay-link href="{% url 'core:global_ceps' %}">Gerenciar</a> {{ form.cd_cep_comercial }}</label>
+        <label class="field-xs">Estado Comercial {{ form.sg_estado_comercial }}</label>
+        <label class="field-lg">Cidade Comercial {{ form.ds_cidade_comercial }}</label>
+        <label class="field-md">Tipo de Logradouro Comercial {{ form.tp_logradouro_comercial }}</label>
+        <label class="field-xl">Endereço Comercial {{ form.ds_endereco_comercial }}</label>
+        <label class="field-xs">Número Comercial {{ form.nr_endereco_comercial }}</label>
+        <label class="field-lg">Complemento Comercial {{ form.ds_complemento_comercial }}</label>
+        <label class="field-lg">Bairro Comercial {{ form.ds_bairro_comercial }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section" data-provider-section="6">
+      <summary>6. Dados Bancários</summary>
+      <div class="form-grid">
+        <label class="field-lg">Banco {{ form.cd_banco }}</label>
+        <label class="field-md">Número da Agência {{ form.nr_agencia }}</label>
+        <label class="field-xs">Dígito da Agência {{ form.nr_digito_agencia }}</label>
+        <label class="field-lg">Nome da Agência {{ form.nm_agencia }}</label>
+        <label class="field-md">Número da Conta {{ form.nr_conta }}</label>
+        <label class="field-xs">Dígito da Conta {{ form.nr_digito_conta }}</label>
+        <label class="field-md">Tipo de Conta {{ form.tp_conta }}</label>
+        <label class="field-xl">Favorecido {{ form.nm_favorecido }}</label>
+        <label class="field-md">CPF/CNPJ do Favorecido {{ form.nr_documento_favorecido }}</label>
+        <label class="field-xl">Chave PIX {{ form.ds_chave_pix }}</label>
+      </div>
+    </details>
+  </form>
+{% endblock %}

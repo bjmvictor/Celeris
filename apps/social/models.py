@@ -10,6 +10,7 @@ class SocialPeriod(TimeStampedModel):
     active = models.BooleanField(default=True)
 
     class Meta:
+        db_table = "periodo_social"
         unique_together = ("month", "year")
         ordering = ("-year", "-month")
 
@@ -51,6 +52,7 @@ class SocialAttendance(TimeStampedModel):
     discharge_transport_request = models.PositiveIntegerField(default=0)
 
     class Meta:
+        db_table = "atendimento_social"
         ordering = ("-created_at",)
 
     def __str__(self) -> str:

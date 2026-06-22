@@ -1,0 +1,39 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card form-grid query-card" data-table="prestador" method="get">
+    {% for field in form %}
+      <label>{{ field.label }} {{ field }}</label>
+    {% endfor %}
+  </form>
+  <section class="card table-card">
+    <table>
+      <thead>
+        <tr>
+          <th><a href="?ordem={% if request.GET.ordem == 'cd_prestador' %}-{% endif %}cd_prestador">Código</a></th>
+          <th><a href="?ordem={% if request.GET.ordem == 'nm_prestador' %}-{% endif %}nm_prestador">Prestador</a></th>
+          <th><a href="?ordem={% if request.GET.ordem == 'nr_cpf' %}-{% endif %}nr_cpf">CPF</a></th>
+          <th><a href="?ordem={% if request.GET.ordem == 'ds_conselho' %}-{% endif %}ds_conselho">Conselho</a></th>
+          <th><a href="?ordem={% if request.GET.ordem == 'ds_especialidade' %}-{% endif %}ds_especialidade">Especialidade</a></th>
+          <th><a href="?ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for registro in registros %}
+          <tr>
+            <td>{{ registro.cd_prestador }}</td>
+            <td><a href="{% url 'atendimento:cadastro-profissional' registro.cd_prestador %}">{{ registro.nm_prestador }}</a></td>
+            <td>{{ registro.nr_cpf|default:"-" }}</td>
+            <td>{{ registro.ds_conselho|default:"-" }} {{ registro.nr_conselho|default:"" }}</td>
+            <td>{{ registro.nm_especialidade|default:"-" }}</td>
+            <td>{% if registro.sn_ativo %}Ativo{% else %}Inativo{% endif %}</td>
+            <td><a class="button button-secondary table-edit-action" data-preserve-list-context href="{% url 'atendimento:cadastro-profissional' registro.cd_prestador %}?return_to={{ request.get_full_path|urlencode }}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="empty-cell">Nenhum registro encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

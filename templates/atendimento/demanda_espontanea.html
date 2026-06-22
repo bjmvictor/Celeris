@@ -1,0 +1,31 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card form-grid" method="get">
+    {% for field in form %}<label>{{ field.label }} {{ field }}</label>{% endfor %}
+  </form>
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>Nascimento</th><th>Ação</th></tr></thead>
+      <tbody>
+        {% for paciente in pacientes %}
+          <tr>
+            <td>{{ paciente.cd_paciente }}</td>
+            <td>{{ paciente.nm_paciente }}</td>
+            <td>{{ paciente.nr_cpf|default:"-" }}</td>
+            <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
+            <td>
+              <form method="post">
+                {% csrf_token %}
+                <input name="cd_paciente" type="hidden" value="{{ paciente.cd_paciente }}">
+                <button class="button button-primary" type="submit">Iniciar pré-atendimento</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Pesquise o paciente para iniciar a classificação.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

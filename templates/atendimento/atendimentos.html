@@ -1,0 +1,10 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card table-card">
+    <table><thead><tr><th>Atendimento</th><th>Paciente</th><th>Abertura</th><th>Prestador</th><th>Status</th></tr></thead><tbody>
+      {% for item in registros %}
+        <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.cd_paciente.nm_paciente }}</td><td>{{ item.dh_inicio|date:"d/m/Y H:i" }}</td><td>{{ item.cd_prestador|default:"-" }}</td><td><span class="status-badge">{{ item.get_ds_status_display }}</span></td></tr>
+      {% empty %}<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+{% endblock %}

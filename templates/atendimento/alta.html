@@ -1,0 +1,9 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="flow-banner">EM ATENDIMENTO → ALTA → FINALIZADO</section>
+  <form class="card" method="post">{% csrf_token %}
+    <strong>{{ atendimento.cd_paciente.nm_paciente }}</strong>
+    <label>Destino do paciente <input name="ds_destino" value="{{ atendimento.ds_destino }}" required></label>
+    <div class="table-actions"><button class="button button-primary" type="submit">Conceder alta</button></div>
+  </form>
+{% endblock %}

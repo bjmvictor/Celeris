@@ -1,0 +1,7 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card" method="post">{% csrf_token %}
+    <div class="form-grid">{% for field in form %}<label>{{ field.label }} {{ field }} {{ field.errors }}</label>{% endfor %}</div>
+    <div class="table-actions"><button class="button button-primary" type="submit">Gerar solicitação</button></div>
+  </form>
+{% endblock %}

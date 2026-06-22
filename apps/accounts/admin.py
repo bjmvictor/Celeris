@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Empresa, User, UsuarioEmpresa
+from .models import Empresa, Papel, PapelModulo, PapelTela, User, UsuarioEmpresa
 
 
 class UsuarioEmpresaInline(admin.TabularInline):
@@ -29,3 +29,21 @@ class UsuarioEmpresaAdmin(admin.ModelAdmin):
     list_display = ("usuario", "empresa", "sn_padrao", "sn_ativo")
     list_filter = ("empresa", "sn_ativo", "sn_padrao")
     autocomplete_fields = ("usuario", "empresa")
+
+
+class PapelModuloInline(admin.TabularInline):
+    model = PapelModulo
+    extra = 0
+
+
+class PapelTelaInline(admin.TabularInline):
+    model = PapelTela
+    extra = 0
+
+
+@admin.register(Papel)
+class PapelAdmin(admin.ModelAdmin):
+    list_display = ("grupo", "ds_descricao", "sn_ativo")
+    list_filter = ("sn_ativo",)
+    search_fields = ("grupo__name", "ds_descricao")
+    inlines = (PapelModuloInline, PapelTelaInline)

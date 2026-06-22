@@ -3,33 +3,10 @@
 {% block title %}Início - Celeris{% endblock %}
 
 {% block content %}
-  <div class="metric-grid">
-    <article class="metric-card">
-      <span>Módulos</span>
-      <strong>{{ modules_menu|length }}</strong>
-      <small>estrutura local</small>
-    </article>
-    <article class="metric-card">
-      <span>Banco</span>
-      <strong>Principal</strong>
-      <small>sem Oracle</small>
-    </article>
-    <article class="metric-card">
-      <span>Interface</span>
-      <strong>Local</strong>
-      <small>sem CDN</small>
-    </article>
-  </div>
-
-  <section class="card">
-    <div class="module-grid">
-      {% for module in modules_menu %}
-        <a class="module-tile" href="#">
-          <span>{{ module.icon|slice:":1"|upper }}</span>
-          <strong>{{ module.title }}</strong>
-          <small>{{ module.items|length }} tela(s)</small>
-        </a>
-      {% endfor %}
-    </div>
+  <section class="card welcome-card">
+    <h1>Bem-vindo, {{ request.user.display_name|default:request.user.username }}.</h1>
+    <p>{% if current_empresa %}{{ current_empresa.nm_empresa }}{% else %}Empresa não selecionada{% endif %}</p>
+    <p><span data-current-datetime></span></p>
+    <small>Versão 1.0.0</small>
   </section>
 {% endblock %}

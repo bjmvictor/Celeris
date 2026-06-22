@@ -1,0 +1,21 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="flow-banner">RECEPCIONADO → CLASSIFICAÇÃO EM ANDAMENTO → AGUARDANDO CONSULTA</section>
+  <section class="card">
+    <strong>{{ paciente.nm_paciente }}</strong>
+    <p>{{ paciente.nr_cpf|default:"CPF não informado" }} · {% if agendamento.dh_agendamento %}{{ agendamento.dh_agendamento|date:"d/m/Y H:i" }}{% else %}Demanda espontânea{% endif %}</p>
+  </section>
+  <form class="card" method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="form-grid">
+      {% for field in form %}
+        <label>{{ field.label }} {{ field }} {{ field.errors }}</label>
+      {% endfor %}
+    </div>
+    <div class="table-actions">
+      <button class="button button-primary" type="submit">Concluir pré-atendimento</button>
+    </div>
+  </form>
+{% endblock %}

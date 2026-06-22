@@ -15,6 +15,9 @@ class Module(TimeStampedModel):
     title = models.CharField(max_length=120)
     active = models.BooleanField(default=True)
 
+    class Meta:
+        db_table = "modulo"
+
     def __str__(self) -> str:
         return self.title
 
@@ -24,6 +27,7 @@ class UserModule(TimeStampedModel):
     module = models.ForeignKey(Module, on_delete=models.CASCADE)
 
     class Meta:
+        db_table = "modulo_usuario"
         unique_together = ("user", "module")
 
 
@@ -34,7 +38,7 @@ class TabelaAuxiliarGlobal(TimeStampedModel):
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "tabela_auxiliar_global"
+        db_table = "tabela_auxiliar"
         ordering = ("ds_tabela",)
 
     def __str__(self) -> str:
@@ -55,12 +59,44 @@ class ValorAuxiliarGlobal(TimeStampedModel):
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "valor_auxiliar_global"
+        db_table = "valor_auxiliar"
         ordering = ("cd_tabela_auxiliar_global__ds_tabela", "ds_valor")
         unique_together = ("cd_tabela_auxiliar_global", "cd_valor")
 
     def __str__(self) -> str:
         return f"{self.cd_valor} - {self.ds_valor}"
+
+
+class Cep(TimeStampedModel):
+    cd_cep = models.BigAutoField(primary_key=True)
+    nr_cep = models.CharField(max_length=8, unique=True)
+    sg_estado = models.CharField(max_length=2, blank=True)
+    cd_cidade = models.CharField(max_length=40, blank=True)
+    ds_cidade = models.CharField(max_length=160, blank=True)
+    tp_logradouro = models.CharField(max_length=40, blank=True)
+    ds_logradouro = models.CharField(max_length=220, blank=True)
+    ds_bairro = models.CharField(max_length=160, blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "cep"
+        ordering = ("nr_cep",)
+
+    def __str__(self) -> str:
+        return f"{self.nr_cep} - {self.ds_logradouro or self.ds_cidade}"
+
+
+class TipoPrestadorConselho(TimeStampedModel):
+    tp_prestador = models.CharField(max_length=40, unique=True)
+    ds_conselho = models.CharField(max_length=20)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "tipo_prestador_conselho"
+        ordering = ("tp_prestador",)
+
+    def __str__(self) -> str:
+        return f"{self.tp_prestador} - {self.ds_conselho}"
 
 
 class ScreenDefinition(TimeStampedModel):
@@ -87,6 +123,7 @@ class ScreenDefinition(TimeStampedModel):
     module = models.ForeignKey(Module, related_name="screens", on_delete=models.CASCADE)
     title = models.CharField(max_length=140)
     slug = models.SlugField(max_length=160, unique=True)
+    access_key = models.CharField(max_length=220, null=True, blank=True, unique=True, db_index=True)
     screen_type = models.CharField(max_length=30, choices=SCREEN_TYPES, default=TYPE_FORM)
     parent_label = models.CharField(max_length=120, blank=True)
     table_name = models.CharField(max_length=80, blank=True)
@@ -99,6 +136,7 @@ class ScreenDefinition(TimeStampedModel):
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
+        db_table = "definicao_tela"
         ordering = ("module__title", "parent_label", "order", "title")
 
     def __str__(self) -> str:
@@ -139,6 +177,7 @@ class ScreenField(TimeStampedModel):
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
+        db_table = "campo_tela"
         ordering = ("order", "label")
 
     def __str__(self) -> str:

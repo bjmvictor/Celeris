@@ -1,15 +1,44 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-  <form class="card form-grid" data-table="empresa" data-preserve-input method="post">
+  <form class="company-form" data-table="empresa" data-preserve-input method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}
-      <label>
-        {{ field.label }}
-        {{ field }}
-        {{ field.errors }}
-      </label>
-    {% endfor %}
+    <details class="card form-section" open>
+      <summary>Identificação</summary>
+      <div class="form-grid">
+        <label class="field-xs">Código {{ form.cd_empresa }}</label>
+        <label class="field-sm">Status {{ form.sn_ativo }}</label>
+        <label class="field-xl">Nome {{ form.nm_empresa }}</label>
+        <label class="field-lg">Razão social {{ form.ds_razao_social }}</label>
+        <label class="field-lg">Nome fantasia {{ form.ds_nome_fantasia }}</label>
+        <label class="field-md">CNPJ {{ form.nr_cnpj }}</label>
+        <label class="field-sm">CNES {{ form.nr_cnes }}</label>
+      </div>
+    </details>
+    <details class="card form-section">
+      <summary>Contato e endereço</summary>
+      <div class="form-grid">
+        <label class="field-lg">E-mail {{ form.ds_email }}</label>
+        <label class="field-md">Telefone {{ form.nr_telefone }}</label>
+        <label class="field-sm">CEP {{ form.nr_cep }}</label>
+        <label class="field-xs">UF {{ form.sg_estado }}</label>
+        <label class="field-lg">Cidade {{ form.ds_cidade }}</label>
+        <label class="field-xl">Endereço {{ form.ds_endereco }}</label>
+        <label class="field-xs">Número {{ form.nr_endereco }}</label>
+        <label class="field-lg">Bairro {{ form.ds_bairro }}</label>
+      </div>
+    </details>
+    {% if empresa %}
+      <details class="card form-section">
+        <summary>Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ empresa.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ empresa.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ empresa.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ empresa.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
+    {% endif %}
   </form>
 {% endblock %}

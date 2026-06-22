@@ -1,9 +1,11 @@
 from django.db import OperationalError, ProgrammingError
 from django.urls import reverse
+from urllib.parse import urlencode
 
 from apps.accounts.models import Empresa
+from apps.accounts.access import user_access_keys
 
-from .models import ScreenDefinition
+from .models import Module, ScreenDefinition
 from .navigation import MODULES, item
 
 
@@ -56,6 +58,8 @@ def _configured_screen_items():
 
     configured = {}
     for screen in screens:
+        if screen.slug == "cadastros-profissionais" or screen.slug.startswith("acesso-"):
+            continue
         configured.setdefault(screen.module.code, {})
         parent_label = screen.parent_label or ""
         configured[screen.module.code].setdefault(parent_label, [])
@@ -72,20 +76,54 @@ def _configured_screen_items():
 
 def _merge_configured_menu():
     configured = _configured_screen_items()
-    menu = []
+    merged = []
+    known_codes = set()
     for module in MODULES:
-        module_copy = {
-            **module,
-            "items": [*module["items"]],
-        }
-        module_screens = configured.get(module["code"], {})
-        for parent_label, screen_items in module_screens.items():
+        known_codes.add(module["code"])
+        items = [*module["items"]]
+        for parent_label, screens in configured.get(module["code"], {}).items():
             if parent_label:
-                module_copy["items"].append(item(parent_label, children=screen_items))
+                items.append(item(parent_label, children=screens))
             else:
-                module_copy["items"].extend(screen_items)
-        menu.append(module_copy)
-    return menu
+                items.extend(screens)
+        merged.append({**module, "items": items})
+    try:
+        modules = Module.objects.filter(active=True).order_by("title")
+    except (OperationalError, ProgrammingError):
+        modules = []
+    for module in modules:
+        if module.code in known_codes or module.code not in configured:
+            continue
+        items = []
+        for parent_label, screens in configured[module.code].items():
+            if parent_label:
+                items.append(item(parent_label, children=screens))
+            else:
+                items.extend(screens)
+        merged.append({"code": module.code, "title": module.title, "icon": "grid", "items": items})
+    return merged
+
+
+def _filter_menu_for_user(menu, user):
+    allowed_keys = user_access_keys(user) if user.is_authenticated and not user.is_superuser else set()
+
+    def filter_items(items):
+        visible = []
+        for nav_item in items:
+            children = filter_items(nav_item.get("children", []))
+            if nav_item.get("children"):
+                if not children:
+                    continue
+            elif not user.is_superuser and nav_item.get("access_key") not in allowed_keys:
+                continue
+            visible.append({**nav_item, "children": children})
+        return visible
+
+    return [
+        {**module, "items": filter_items(module["items"])}
+        for module in menu
+        if filter_items(module["items"])
+    ]
 
 
 def navigation(request):
@@ -97,17 +135,32 @@ def navigation(request):
         "core:system_fields": reverse("core:system_field_new"),
         "atendimento:agendar": reverse("atendimento:cadastro-paciente-agendamento"),
         "atendimento:cadastro-paciente": reverse("atendimento:cadastro-paciente-novo"),
+        "atendimento:profissionais": reverse("atendimento:cadastro-profissional-novo"),
+        "atendimento:cadastro-profissional": reverse("atendimento:cadastro-profissional-novo"),
+        "atendimento:cadastro-profissional-novo": reverse("atendimento:cadastro-profissional-novo"),
+        "usuarios": reverse("usuario_novo"),
+        "perfis": reverse("perfil_novo"),
     }
     workflow_routes = {
         "atendimento:revisar-paciente-agendamento",
-        "atendimento:cadastro-paciente-agendamento",
         "atendimento:selecionar-agenda",
         "atendimento:confirmar-agendamento",
     }
     tab_key = request.path
     close_mode = ""
+    unified_tab_routes = {
+        "atendimento:cadastro-paciente": reverse("atendimento:cadastro-paciente-novo"),
+        "atendimento:cadastro-paciente-novo": reverse("atendimento:cadastro-paciente-novo"),
+        "atendimento:cadastro-profissional": reverse("atendimento:cadastro-profissional-novo"),
+        "atendimento:cadastro-profissional-novo": reverse("atendimento:cadastro-profissional-novo"),
+    }
+    if route_name in unified_tab_routes:
+        tab_key = unified_tab_routes[route_name]
     if route_name in workflow_routes:
         tab_key = reverse("atendimento:agendar")
+        close_mode = "back"
+    return_url = getattr(request, "current_return_url", "")
+    if return_url:
         close_mode = "back"
     tab_root_title = getattr(request, "current_tab_root_title", None)
     if not tab_root_title and route_name in workflow_routes:
@@ -119,17 +172,32 @@ def navigation(request):
         current_empresa = Empresa.objects.get(cd_empresa=cd_empresa, sn_ativo=True)
     except (Empresa.DoesNotExist, OperationalError, ProgrammingError):
         current_empresa = None
+    current_new_url = new_url_by_route.get(route_name, "")
+    if route_name in {"usuarios", "perfis", "atendimento:profissionais"} and current_new_url:
+        current_new_url = f"{current_new_url}?{urlencode({'return_to': request.get_full_path()})}"
     return {
-        "modules_menu": _merge_configured_menu(),
+        "modules_menu": _filter_menu_for_user(_merge_configured_menu(), request.user),
         "current_tab_title": current_tab_title,
         "current_module_title": current_module_title,
         "current_can_query": getattr(request, "current_can_query", current_tab_title not in {"Início", "Alterar senha"}),
         "current_can_remove": getattr(request, "current_can_remove", False),
-        "current_new_url": new_url_by_route.get(route_name, ""),
+        "current_new_url": current_new_url,
         "current_continue_url": getattr(request, "current_continue_url", ""),
         "current_empresa": current_empresa,
         "current_tab_key": tab_key,
         "current_tab_root_title": tab_root_title,
         "current_close_mode": close_mode,
         "current_start_query": getattr(request, "current_start_query", False),
+        "current_previous_url": getattr(request, "current_previous_url", ""),
+        "current_next_url": getattr(request, "current_next_url", ""),
+        "current_first_url": getattr(request, "current_first_url", ""),
+        "current_last_url": getattr(request, "current_last_url", ""),
+        "current_record_status": getattr(request, "current_record_status", ""),
+        "current_toggle_active_url": getattr(request, "current_toggle_active_url", ""),
+        "current_toggle_active_label": getattr(request, "current_toggle_active_label", ""),
+        "current_password_url": getattr(request, "current_password_url", ""),
+        "current_return_url": return_url,
+        "current_close_url": return_url or (tab_key if close_mode == "back" else ""),
+        "current_query_message": getattr(request, "current_query_message", ""),
+        "current_overlay_mode": request.GET.get("overlay") == "1",
     }

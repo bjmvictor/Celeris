@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <title>Ficha de atendimento {{ atendimento.cd_atendimento }}</title>
+    <style>
+      body { font: 14px Arial, sans-serif; margin: 32px; color: #111; }
+      header { border-bottom: 2px solid #111; margin-bottom: 20px; padding-bottom: 12px; }
+      h1, h2 { margin: 0 0 10px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+      section { margin-top: 22px; }
+      .box { min-height: 100px; border: 1px solid #555; padding: 12px; white-space: pre-wrap; }
+      .actions { margin-bottom: 20px; }
+      @media print { .actions { display: none; } body { margin: 12mm; } }
+    </style>
+  </head>
+  <body>
+    <div class="actions"><button onclick="window.print()">Imprimir</button></div>
+    <header>
+      <h1>{{ empresa.nm_empresa }}</h1>
+      <strong>Ficha de atendimento nº {{ atendimento.cd_atendimento }}</strong>
+    </header>
+    <div class="grid">
+      <span>Paciente: {{ atendimento.cd_paciente.nm_paciente }}</span>
+      <span>Prontuário: {{ atendimento.cd_paciente.cd_paciente }}</span>
+      <span>CPF: {{ atendimento.cd_paciente.nr_cpf|default:"-" }}</span>
+      <span>Data: {{ atendimento.dh_inicio|date:"d/m/Y H:i" }}</span>
+      <span>Profissional: {{ atendimento.cd_prestador|default:"-" }}</span>
+      <span>Status: {{ atendimento.ds_status }}</span>
+    </div>
+    {% if atendimento.cd_pre_atendimento %}
+      <section>
+        <h2>Pré-atendimento</h2>
+        <div class="grid">
+          <span>Prioridade: {{ atendimento.cd_pre_atendimento.get_nr_prioridade_display }}</span>
+          <span>Pressão arterial: {{ atendimento.cd_pre_atendimento.nr_pressao_arterial|default:"-" }}</span>
+          <span>Temperatura: {{ atendimento.cd_pre_atendimento.nr_temperatura|default:"-" }}</span>
+          <span>Saturação: {{ atendimento.cd_pre_atendimento.nr_saturacao|default:"-" }}</span>
+        </div>
+      </section>
+    {% endif %}
+    <section><h2>Anamnese</h2><div class="box">{{ atendimento.ds_anamnese }}</div></section>
+    <section><h2>Conduta</h2><div class="box">{{ atendimento.ds_conduta }}</div></section>
+  </body>
+</html>

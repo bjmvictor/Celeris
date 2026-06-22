@@ -22,6 +22,7 @@ class Ticket(TimeStampedModel):
     closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        db_table = "chamado"
         ordering = ("-created_at",)
 
     def __str__(self) -> str:

@@ -1,0 +1,60 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="role-form" method="post" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    {{ form.non_field_errors }}
+
+    <details class="card form-section" open>
+      <summary>1. Dados do Papel</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código do Papel <input value="{{ perfil.pk|default:'' }}" readonly data-primary-key="true"></label>
+        <label class="field-lg">Nome do Papel * {{ form.name }} {{ form.name.errors }}</label>
+        <label class="field-xl">Descrição {{ form.ds_descricao }} {{ form.ds_descricao.errors }}</label>
+        <label class="field-sm">Status <input value="{% if perfil.papel.sn_ativo %}Ativo{% elif perfil %}Inativo{% else %}Ativo{% endif %}" readonly></label>
+      </div>
+    </details>
+
+    <details class="card form-section" open>
+      <summary>2. Módulos Permitidos</summary>
+      <div class="provider-permissions role-modules">
+        {% for module in modules %}
+          <label class="provider-checkbox">
+            <input type="checkbox" name="modulos" value="{{ module.pk }}" data-role-module="{{ module.pk }}"
+              {% if module.pk in selected_modules %}checked{% endif %}>
+            <span>{{ module.title }}</span>
+          </label>
+        {% empty %}
+          <p>Nenhum módulo ativo cadastrado.</p>
+        {% endfor %}
+      </div>
+      {{ form.modulos.errors }}
+    </details>
+
+    <details class="card form-section" open>
+      <summary>3. Permissões por Tela</summary>
+      <div class="role-screen-groups">
+        {% for module in modules %}
+          <section class="role-screen-module" data-role-screen-module="{{ module.pk }}"
+            {% if module.pk not in selected_modules %}hidden{% endif %}>
+            <h3>{{ module.title|upper }}</h3>
+            <div class="provider-permissions">
+              {% for screen in module.screens.all %}
+                {% if screen.active and screen.access_key %}
+                  <label class="provider-checkbox">
+                    <input type="checkbox" name="telas" value="{{ screen.pk }}"
+                      {% if screen.pk in selected_screens %}checked{% endif %}>
+                    <span>{{ screen.title }}</span>
+                  </label>
+                {% endif %}
+              {% empty %}
+                <p>Nenhuma tela disponível neste módulo.</p>
+              {% endfor %}
+            </div>
+          </section>
+        {% endfor %}
+      </div>
+      {{ form.telas.errors }}
+    </details>
+  </form>
+{% endblock %}

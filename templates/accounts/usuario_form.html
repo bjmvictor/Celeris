@@ -1,0 +1,88 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="user-form" data-user-id="{{ usuario.pk|default:'' }}" method="post" autocomplete="off">
+    {% csrf_token %}{{ form.non_field_errors }}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+
+    <details class="card form-section" open>
+      <summary>1. Dados do Usuário</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código <input value="{{ usuario.pk|default:'' }}" readonly></label>
+        <label class="field-md">Login {{ form.username }} {{ form.username.errors }}</label>
+        <label class="field-xl">Nome Completo * {{ form.full_name }} {{ form.full_name.errors }}</label>
+        <label class="field-sm">Status {{ form.is_active }}</label>
+        <label class="field-lg">Prestador {{ form.cd_prestador }}</label>
+        <label class="field-sm">Data de Nascimento {{ form.dt_nascimento }}</label>
+        <label class="field-md">CPF * {{ form.nr_cpf }} {{ form.nr_cpf.errors }}</label>
+        <label class="field-md">Idioma {{ form.ds_idioma }}</label>
+        <label class="field-lg">Profissão {{ form.ds_profissao }}</label>
+        <label class="field-md">Matrícula RH {{ form.nr_matricula_rh }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>2. Contato</summary>
+      <div class="form-grid">
+        <label class="field-lg">E-mail {{ form.email }} {{ form.email.errors }}</label>
+        <label class="field-md">Celular {{ form.nr_celular }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>3. Segurança</summary>
+      <div class="form-grid">
+        <label class="provider-checkbox field-md">{{ form.must_change_password }} <span>Alterar senha no próximo login</span></label>
+        <label class="field-sm">Usuário Bloqueado {{ form.is_blocked }}</label>
+        <label class="field-md">Data do Último Login <input value="{{ usuario.last_login|date:'d/m/Y H:i'|default:'-' }}" readonly></label>
+        <label class="field-md">Tentativas Inválidas {{ form.invalid_login_attempts }}</label>
+        <label class="field-md">Senha Expira em {{ form.password_expires_at }}</label>
+        {% if form.password1 %}<label class="field-md">Senha Inicial {{ form.password1 }} {{ form.password1.errors }}</label>{% endif %}
+        {% if form.password2 %}<label class="field-md">Confirmar Senha {{ form.password2 }} {{ form.password2.errors }}</label>{% endif %}
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>4. Permissões Individuais</summary>
+      <div class="provider-permissions">
+        <label class="provider-checkbox">{{ form.can_register_patient }} <span>Cadastra Paciente</span></label>
+        <label class="provider-checkbox">{{ form.can_change_patient }} <span>Altera Paciente</span></label>
+        <label class="provider-checkbox">{{ form.can_create_users }} <span>Cria Usuários</span></label>
+        <label class="provider-checkbox">{{ form.can_deactivate_users }} <span>Desativa Usuários</span></label>
+        <label class="provider-checkbox">{{ form.can_manage_auxiliary_tables }} <span>Gerencia Tabelas Auxiliares</span></label>
+        <label class="provider-checkbox">{{ form.can_configure_system }} <span>Configura Sistema</span></label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>5. Papéis e Acessos</summary>
+      <div class="form-grid">
+        <div class="field-xl specialty-manager" data-assignment-manager data-assignment-empty="Nenhum papel atribuído.">
+          <span>Papéis atribuídos</span>
+          <div class="specialty-toolbar">
+            <div class="specialty-chips" data-assignment-chips></div>
+            <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar papel</button>
+            <div class="specialty-add-row" data-assignment-add-row hidden>
+              <select data-assignment-picker><option value="">Selecionar papel...</option></select>
+              <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
+            </div>
+          </div>
+          <div class="specialty-storage" hidden>{{ form.grupos }}</div>
+          {{ form.grupos.errors }}
+        </div>
+        <div class="field-xl specialty-manager" data-assignment-manager data-assignment-empty="Nenhuma empresa vinculada.">
+          <span>Empresas vinculadas</span>
+          <div class="specialty-toolbar">
+            <div class="specialty-chips" data-assignment-chips></div>
+            <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar empresa</button>
+            <div class="specialty-add-row" data-assignment-add-row hidden>
+              <select data-assignment-picker><option value="">Selecionar empresa...</option></select>
+              <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
+            </div>
+          </div>
+          <div class="specialty-storage" hidden>{{ form.empresas }}</div>
+          {{ form.empresas.errors }}
+        </div>
+      </div>
+    </details>
+  </form>
+{% endblock %}

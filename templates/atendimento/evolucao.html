@@ -1,0 +1,5 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card"><strong>{{ atendimento.cd_paciente.nm_paciente }}</strong><p>Status: {{ atendimento.get_ds_status_display }}</p></section>
+  <form class="card" method="post">{% csrf_token %}<div class="form-grid">{% for field in form %}<label class="span-2">{{ field.label }} {{ field }} {{ field.errors }}</label>{% endfor %}</div><div class="table-actions"><button class="button button-primary" type="submit">Salvar evolução</button></div></form>
+{% endblock %}

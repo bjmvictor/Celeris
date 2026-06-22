@@ -4,15 +4,19 @@
   <form class="card table-card" data-editable-table data-table="valor_auxiliar_global" method="post">
     {% csrf_token %}
     <table class="editable-table">
-      <thead><tr><th>Código</th><th>Descrição</th><th>Status</th></tr></thead>
+      <thead><tr>
+        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_valor_auxiliar_global' %}-{% endif %}cd_valor_auxiliar_global">Código</a></th>
+        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_valor' %}-{% endif %}ds_valor">Descrição</a></th>
+        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+      </tr></thead>
       <tbody>
         {% for valor in valores %}
           <tr data-editable-row>
             <td>
-              <input name="code_{{ valor.pk }}" value="{{ valor.cd_valor }}">
+              <input value="{{ valor.pk }}" readonly data-primary-key="true">
               <input data-row-delete name="delete_{{ valor.pk }}" type="hidden" value="0">
             </td>
-            <td><input name="description_{{ valor.pk }}" value="{{ valor.ds_valor }}"></td>
+            <td><input name="description_{{ valor.pk }}" value="{{ valor.ds_valor }}" required></td>
             <td>
               <select name="active_{{ valor.pk }}">
                 <option value="true" {% if valor.sn_ativo %}selected{% endif %}>Ativo</option>
@@ -21,14 +25,14 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="3" class="empty-cell">Nenhum item cadastrado. Clique em + para adicionar.</td></tr>
+          <tr><td colspan="3" class="empty-cell">Nenhum dado encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
     <template data-table-new-row>
       <tr data-editable-row>
-        <td><input name="new_code" placeholder="Código"></td>
-        <td><input name="new_description" placeholder="Descrição"></td>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_description" placeholder="Descrição" required></td>
         <td>
           <select name="new_active">
             <option value="true" selected>Ativo</option>

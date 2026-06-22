@@ -22,6 +22,7 @@ class AgentMachine(TimeStampedModel):
     display_enabled = models.BooleanField(default=True)
 
     class Meta:
+        db_table = "maquina_agente"
         ordering = ("machine_name",)
 
     def __str__(self) -> str:
@@ -36,4 +37,5 @@ class AgentEvent(TimeStampedModel):
     payload = models.JSONField(default=dict, blank=True)
 
     class Meta:
+        db_table = "evento_agente"
         ordering = ("-created_at",)

@@ -1,0 +1,29 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card table-card">
+    <table>
+      <thead><tr><th>Prioridade</th><th>Horário</th><th>Paciente</th><th>Profissional</th><th>Status</th><th>Ação</th></tr></thead>
+      <tbody>
+        {% for item in fila %}
+          <tr>
+            <td>{% if item.pre_atendimento %}{{ item.pre_atendimento.get_nr_prioridade_display }}{% else %}-{% endif %}</td>
+            <td>{{ item.dh_agendamento|date:"d/m/Y H:i"|default:"Demanda espontânea" }}</td>
+            <td>{{ item.cd_paciente.nm_paciente }}</td>
+            <td>{{ item.ds_profissional|default:"-" }}</td>
+            <td>{{ item.get_ds_status_display }}</td>
+            <td>
+              {% if item.ds_status == "AGUARDANDO_ATENDIMENTO" %}
+                <a class="button button-primary" href="{% url 'atendimento:iniciar-atendimento' item.cd_agendamento %}">Gerar atendimento</a>
+              {% else %}
+                <a class="button button-secondary" href="{% url 'atendimento:pre-atendimento' item.cd_agendamento %}">Pré-atendimento</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty-cell">Nenhum paciente aguardando atendimento.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card table-card">
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Tabela</th><th>Descrição</th><th>Registros</th><th>Ação</th></tr>
+      </thead>
+      <tbody>
+        {% for table in tables %}
+          <tr>
+            <td>{{ table.cd_tabela_auxiliar_global }}</td>
+            <td>{{ table.ds_tabela }}</td>
+            <td>{{ table.ds_descricao|default:table.ds_tabela }}</td>
+            <td>{{ table.valores.count }}</td>
+            <td><a class="button button-secondary" href="{% url 'core:global_auxiliar' table.ds_tabela %}">Abrir</a></td>
+          </tr>
+        {% empty %}
+          <tr><td class="empty-cell" colspan="5">Nenhuma tabela auxiliar cadastrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="cep" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead>
+        <tr>
+          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'cd_cep' %}-{% endif %}cd_cep">Código</a></th>
+          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'nr_cep' %}-{% endif %}nr_cep">CEP</a></th>
+          <th>UF</th><th>Código Cidade</th><th>Cidade</th><th>Tipo</th><th>Logradouro</th><th>Bairro</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+          <tr data-editable-row>
+            <td><input value="{{ record.cd_cep }}" readonly data-primary-key="true"></td>
+            <td><input name="postal_code_{{ record.pk }}" value="{{ record.nr_cep }}" required></td>
+            <td><input name="state_{{ record.pk }}" value="{{ record.sg_estado }}"></td>
+            <td><input name="city_code_{{ record.pk }}" value="{{ record.cd_cidade }}"></td>
+            <td><input name="city_{{ record.pk }}" value="{{ record.ds_cidade }}"></td>
+            <td><input name="street_type_{{ record.pk }}" value="{{ record.tp_logradouro }}"></td>
+            <td><input name="street_{{ record.pk }}" value="{{ record.ds_logradouro }}"></td>
+            <td><input name="district_{{ record.pk }}" value="{{ record.ds_bairro }}"></td>
+            <td><select name="active_{{ record.pk }}"><option value="true" {% if record.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not record.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="empty-cell">Nenhum CEP carregado. Use Consultar ou Novo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_postal_code" required></td>
+        <td><input name="new_state"></td>
+        <td><input name="new_city_code"></td>
+        <td><input name="new_city"></td>
+        <td><input name="new_street_type"></td>
+        <td><input name="new_street"></td>
+        <td><input name="new_district"></td>
+        <td><select name="new_active"><option value="true">Ativo</option><option value="false">Inativo</option></select></td>
+      </tr>
+    </template>
+  </form>
+{% endblock %}

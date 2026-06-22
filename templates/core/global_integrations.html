@@ -1,0 +1,48 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card integration-form" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <label>Tipo de importação
+      <select name="table_name" required>
+        <option value=""></option>
+        {% for code, label in import_tables.items %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Arquivo CSV ou XLSX
+      <input name="file" type="file" accept=".csv,.xlsx" required>
+    </label>
+    <div class="integration-actions">
+      <button class="button" type="submit">Importar dados</button>
+    </div>
+    <details class="field-fluid import-guide-dropdown">
+      <summary>Guia de importação</summary>
+      <div class="import-guide-content">
+        <p>Arquivos aceitos: <strong>CSV UTF-8</strong> e <strong>XLSX</strong>. A primeira linha deve conter os nomes das colunas.</p>
+        <p><strong>Colunas gerais:</strong> codigo, descricao ou nome, grupo e ativo.</p>
+        <ul>
+          <li>Estados: sigla e descricao.</li>
+          <li>Cidades: codigo, descricao e uf.</li>
+          <li>CEPs: cep, descricao, uf, cidade, bairro e tipo_logradouro.</li>
+          <li>Logradouros: codigo e descricao.</li>
+        </ul>
+        <p>Códigos existentes são atualizados. Linhas inválidas aparecem no relatório do processamento.</p>
+      </div>
+    </details>
+  </form>
+
+  {% if report %}
+    <section class="card import-report">
+      <h2>Resultado da importação</h2>
+      <div class="metric-grid">
+        <div><strong>{{ report.processed }}</strong><span>Processados</span></div>
+        <div><strong>{{ report.created }}</strong><span>Incluídos</span></div>
+        <div><strong>{{ report.updated }}</strong><span>Atualizados</span></div>
+      </div>
+      {% if report.errors %}
+        <h3>Erros encontrados</h3>
+        <ul>{% for error in report.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

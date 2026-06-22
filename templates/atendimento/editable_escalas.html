@@ -5,7 +5,17 @@
     {% csrf_token %}
     <table class="editable-table">
       <thead>
-        <tr><th>Código</th><th>Profissional</th><th>Escala</th><th>Dia</th><th>Início</th><th>Fim</th><th>Tempo</th><th>Intervalo</th><th>Status</th></tr>
+        <tr>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_agenda_profissional' %}-{% endif %}cd_agenda_profissional">Código</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_prestador__nm_prestador' %}-{% endif %}cd_prestador__nm_prestador">Profissional</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_agenda' %}-{% endif %}ds_agenda">Escala</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_dia_semana' %}-{% endif %}nr_dia_semana">Dia</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_inicio' %}-{% endif %}hr_inicio">Início</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_fim' %}-{% endif %}hr_fim">Fim</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_tempo_atendimento' %}-{% endif %}nr_tempo_atendimento">Tempo</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_intervalo' %}-{% endif %}nr_intervalo">Intervalo</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        </tr>
       </thead>
       <tbody>
         {% for registro in registros %}
@@ -15,13 +25,13 @@
               <input data-row-delete name="delete_{{ registro.pk }}" type="hidden" value="0">
             </td>
             <td>
-              <select name="provider_{{ registro.pk }}">
+              <select name="provider_{{ registro.pk }}" required>
                 {% for prestador in prestadores %}
                   <option value="{{ prestador.pk }}" {% if prestador.pk == registro.cd_prestador_id %}selected{% endif %}>{{ prestador.nm_prestador }}</option>
                 {% endfor %}
               </select>
             </td>
-            <td><input name="name_{{ registro.pk }}" value="{{ registro.ds_agenda }}"></td>
+            <td><input name="name_{{ registro.pk }}" value="{{ registro.ds_agenda }}" required></td>
             <td>
               <select name="weekday_{{ registro.pk }}">
                 {% for value, label in dias_semana %}
@@ -29,9 +39,9 @@
                 {% endfor %}
               </select>
             </td>
-            <td><input name="start_{{ registro.pk }}" type="time" value="{{ registro.hr_inicio|time:'H:i' }}"></td>
-            <td><input name="end_{{ registro.pk }}" type="time" value="{{ registro.hr_fim|time:'H:i' }}"></td>
-            <td><input name="duration_{{ registro.pk }}" type="number" min="1" value="{{ registro.nr_tempo_atendimento }}"></td>
+            <td><input name="start_{{ registro.pk }}" type="time" value="{{ registro.hr_inicio|time:'H:i' }}" required></td>
+            <td><input name="end_{{ registro.pk }}" type="time" value="{{ registro.hr_fim|time:'H:i' }}" required></td>
+            <td><input name="duration_{{ registro.pk }}" type="number" min="1" value="{{ registro.nr_tempo_atendimento }}" required></td>
             <td><input name="interval_{{ registro.pk }}" type="number" min="0" value="{{ registro.nr_intervalo }}"></td>
             <td>
               <select name="active_{{ registro.pk }}">
@@ -41,7 +51,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="empty-cell">Nenhuma escala cadastrada. Cadastre profissionais e clique em + para adicionar escala.</td></tr>
+          <tr><td colspan="9" class="empty-cell">Nenhum dado encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -49,14 +59,14 @@
       <tr data-editable-row>
         <td><input readonly placeholder="Automático" data-primary-key="true"></td>
         <td>
-          <select name="new_provider">
+          <select name="new_provider" required>
             <option value=""></option>
             {% for prestador in prestadores %}
               <option value="{{ prestador.pk }}">{{ prestador.nm_prestador }}</option>
             {% endfor %}
           </select>
         </td>
-        <td><input name="new_name" placeholder="Escala"></td>
+        <td><input name="new_name" placeholder="Escala" required></td>
         <td>
           <select name="new_weekday">
             {% for value, label in dias_semana %}
@@ -64,9 +74,9 @@
             {% endfor %}
           </select>
         </td>
-        <td><input name="new_start" type="time" value="08:00"></td>
-        <td><input name="new_end" type="time" value="12:00"></td>
-        <td><input name="new_duration" type="number" min="1" value="30"></td>
+        <td><input name="new_start" type="time" value="08:00" required></td>
+        <td><input name="new_end" type="time" value="12:00" required></td>
+        <td><input name="new_duration" type="number" min="1" value="30" required></td>
         <td><input name="new_interval" type="number" min="0" value="0"></td>
         <td>
           <select name="new_active">

@@ -8,6 +8,7 @@
     coins: '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1.5a1.5 1.5 0 0 1 0 3H7V6Z"/><path d="M7 9h2a1.5 1.5 0 0 1 0 3H7V9Z"/>',
     monitor: '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8"/><path d="M12 18v4"/>',
     table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/>',
     syringe: '<path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3a2.4 2.4 0 0 1-3.4 0l-.6-.6a2.4 2.4 0 0 1 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/>',
     handshake: '<path d="m11 17 2 2a2.8 2.8 0 0 0 4 0l3-3a2.8 2.8 0 0 0 0-4l-2-2"/><path d="m14 14 2 2"/><path d="m3 12 6-6 4 4-6 6H3v-4Z"/><path d="m14 6 2-2 5 5-2 2"/>',
     headset: '<path d="M3 13a9 9 0 0 1 18 0"/><path d="M21 13v4a2 2 0 0 1-2 2h-2v-6h4Z"/><path d="M3 13v4a2 2 0 0 0 2 2h2v-6H3Z"/><path d="M13 21h3a3 3 0 0 0 3-3"/>',
@@ -23,12 +24,15 @@
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    eraser: '<path d="m7 21-4-4L14 6l4 4L7 21Z"/><path d="m11 10 4 4"/><path d="M7 21h14"/>',
     play: '<path d="m6 3 14 9-14 9V3Z"/>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
     "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    "chevrons-left": '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     "corner-up-left": '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
     "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    "chevrons-right": '<path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     check: '<path d="m20 6-11 11-5-5"/>',
     help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4"/><path d="M12 17h.01"/>',
@@ -46,7 +50,7 @@
 
   function setQueryMode(enabled) {
     document.body.classList.toggle("screen-query-mode", enabled);
-    setActionStatus(enabled ? "CONSULTAR" : "EDITAR");
+    setActionStatus(enabled ? "CONSULTA" : "EDIÇÃO");
     const queryButton = document.querySelector("[data-query-toggle]");
     const cancelButton = document.querySelector("[data-query-cancel]");
     if (queryButton) {
@@ -77,14 +81,51 @@
 
   function clearFormFields(form) {
     form?.querySelectorAll("input, select, textarea").forEach((field) => {
-      if (field.type === "hidden" || field.type === "checkbox") {
-        if (field.type === "checkbox") field.checked = false;
+      if (field.type === "hidden") {
+        if (field.name !== "csrfmiddlewaretoken") field.value = "";
+        return;
+      }
+      if (field.type === "checkbox" || field.type === "radio") {
+        field.checked = false;
+        return;
+      }
+      if (field instanceof HTMLSelectElement) {
+        if (field.multiple) {
+          Array.from(field.options).forEach((option) => {
+            option.selected = false;
+          });
+        } else {
+          field.selectedIndex = 0;
+        }
+        field.dispatchEvent(new Event("change", { bubbles: true }));
         return;
       }
       field.value = "";
+      field.classList.remove("field-invalid", "field-duplicate");
+      field.setCustomValidity?.("");
     });
+    form?.querySelectorAll("details").forEach((section, index) => {
+      section.open = index === 0;
+    });
+    form?.dispatchEvent(new CustomEvent("celeris:reset-multiselects", { bubbles: true }));
+    closeFloatingSelect();
+    setQueryMode(false);
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = true;
+    form?.setAttribute("data-dirty", "false");
+  }
+
+  function clearScreenData() {
+    const form = getPrimaryForm();
+    if (!form) return;
+    if (form.matches("[data-editable-table]")) {
+      form.querySelectorAll("tbody tr").forEach((row) => row.remove());
+      addEditableTableRow(form);
+      form.dataset.dirty = "false";
+    } else {
+      clearFormFields(form);
+    }
+    setActionStatus("EDIÇÃO");
   }
 
   const savedTheme = localStorage.getItem("celeris-theme");
@@ -93,11 +134,15 @@
   if (localStorage.getItem("celeris-sidebar") === "collapsed") {
     shell?.classList.add("sidebar-collapsed");
   }
+  root.classList.remove("sidebar-state-collapsed");
 
   let sidebarFlyout = null;
   let sidebarFlyoutTrigger = null;
   let activeLookupField = null;
   let activeFloatingSelect = null;
+  let floatingSelectSearch = "";
+  let floatingSelectSearchTimer = null;
+  let reverseEnterRequested = false;
   let sidebarAutoCollapseTimer = null;
 
   function scheduleSidebarAutoCollapse() {
@@ -259,8 +304,45 @@
   function markInvalidFields(form) {
     form?.classList.add("form-submitted");
     const firstInvalid = form?.querySelector(":invalid");
-    firstInvalid?.focus();
+    if (firstInvalid) {
+      const section = firstInvalid.closest("details");
+      if (section) section.open = true;
+      firstInvalid.focus();
+    }
     return Boolean(firstInvalid);
+  }
+
+  function setupServerValidationErrors() {
+    let errors = {};
+    try {
+      errors = JSON.parse(document.body.dataset.formErrors || "{}");
+    } catch (error) {
+      errors = {};
+    }
+    const firstErrorName = Object.keys(errors)[0];
+    Object.entries(errors).forEach(([fieldName, fieldErrors]) => {
+      const field = document.querySelector(`[name="${CSS.escape(fieldName)}"]`);
+      if (!field) return;
+      field.classList.add("field-server-invalid");
+      field.setAttribute("aria-invalid", "true");
+      const label = field.closest("label");
+      label?.classList.add("field-server-error");
+      if (label && !label.querySelector(".field-error-message")) {
+        const message = document.createElement("span");
+        message.className = "field-error-message";
+        message.textContent = (fieldErrors || []).map((item) => item.message || item).join(" ");
+        label.appendChild(message);
+      }
+    });
+    if (!firstErrorName) return;
+    const firstField = document.querySelector(`[name="${CSS.escape(firstErrorName)}"]`);
+    const section = firstField?.closest("details");
+    if (section) section.open = true;
+    firstField?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const blockingNotification = document.querySelector("[data-blocking-notification]");
+    if (!blockingNotification || blockingNotification.hidden) {
+      window.requestAnimationFrame(() => firstField?.focus());
+    }
   }
 
   function ensureBlockingNotification() {
@@ -363,6 +445,8 @@
       onConfirm = null,
       store = false,
       type = "info",
+      focusTarget = null,
+      initialFocus = "confirm",
     } = options;
     const notification = ensureBlockingNotification();
     const titleElement = notification.querySelector("[data-blocking-title]");
@@ -386,7 +470,16 @@
         notification.hidden = true;
         confirmButton.removeEventListener("click", confirmHandler);
         cancelButton.removeEventListener("click", cancelHandler);
+        notification.removeEventListener("keydown", keyHandler);
         extra.innerHTML = "";
+        if (focusTarget?.isConnected) {
+          window.requestAnimationFrame(() => {
+            const section = focusTarget.closest("details");
+            if (section) section.open = true;
+            focusTarget.focus();
+            focusTarget.select?.();
+          });
+        }
         resolve(result);
       };
       const confirmHandler = () => {
@@ -394,11 +487,19 @@
         finish(true);
       };
       const cancelHandler = () => finish(false);
+      const keyHandler = (event) => {
+        if (event.key === "Escape" && !cancelButton.hidden) {
+          event.preventDefault();
+          cancelHandler();
+        }
+      };
       confirmButton.addEventListener("click", confirmHandler);
       cancelButton.addEventListener("click", cancelHandler);
+      notification.addEventListener("keydown", keyHandler);
       window.requestAnimationFrame(() => {
         const firstField = extra.querySelector("select, input, textarea");
-        (firstField || confirmButton).focus();
+        const preferredButton = initialFocus === "cancel" && !cancelButton.hidden ? cancelButton : confirmButton;
+        (firstField || preferredButton).focus();
       });
     });
   }
@@ -466,7 +567,7 @@
     form.dataset.dirty = "true";
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
-    setActionStatus("EDITAR");
+    setActionStatus("EDIÇÃO");
   }
 
   function addEditableTableRow(form) {
@@ -477,9 +578,35 @@
     const row = fragment.querySelector("tr");
     tbody.querySelector(".empty-cell")?.closest("tr")?.remove();
     tbody.appendChild(fragment);
+    setupEditableTableActions(form);
     markFormDirty(form);
     row?.querySelector("input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])")?.focus();
     return true;
+  }
+
+  function setupEditableTableActions(scope = document) {
+    scope.querySelectorAll?.("form[data-editable-table] table").forEach((table) => {
+      const headerRow = table.querySelector("thead tr");
+      if (headerRow && !headerRow.querySelector("[data-edit-action-header]")) {
+        const header = document.createElement("th");
+        header.dataset.editActionHeader = "true";
+        header.textContent = "Ações";
+        headerRow.appendChild(header);
+      }
+      table.querySelectorAll("tbody tr[data-editable-row]").forEach((row) => {
+        if (row.querySelector("[data-edit-row]")) return;
+        const cell = document.createElement("td");
+        cell.innerHTML = '<button class="button button-secondary table-edit-action" data-edit-row type="button">Editar</button>';
+        row.appendChild(cell);
+      });
+      const emptyRow = table.querySelector("tbody .empty-cell")?.closest("tr");
+      if (emptyRow) {
+        emptyRow.querySelector(".empty-cell")?.setAttribute(
+          "colspan",
+          String((headerRow?.children.length || 1))
+        );
+      }
+    });
   }
 
   function removeEditableTableRow(form) {
@@ -505,6 +632,10 @@
     const rows = Array.from(table.querySelectorAll("tbody tr[data-editable-row]:not([hidden])"));
     const rowIndex = rows.indexOf(row);
     const nextRow = rows[rowIndex + direction];
+    if (!nextRow && direction > 0) {
+      const form = currentField.closest("form[data-editable-table]");
+      if (form && addEditableTableRow(form)) return true;
+    }
     const nextCell = nextRow?.children[cellIndex];
     const nextField = nextCell?.querySelector("input, select, textarea");
     if (!nextField) return false;
@@ -519,7 +650,7 @@
       const shouldSave = await showBlockingNotification({
         title: "Dados alterados",
         message: "Existem dados digitados. Deseja salvar antes de sair?",
-        confirmText: "Confirmar",
+        confirmText: "Salvar",
         cancelText: "Cancelar",
       });
       if (shouldSave) {
@@ -535,13 +666,38 @@
       if (!shouldDiscard) return;
     }
     if (document.body.dataset.closeMode === "back") {
-      window.location.href = document.body.dataset.tabKey || "/";
+      window.location.href = document.body.dataset.closeUrl || document.body.dataset.tabKey || "/";
       return;
     }
     closeCurrentTab();
   }
 
   document.addEventListener("click", async function (event) {
+    const overlayLink = event.target.closest("[data-screen-overlay-link]");
+    if (overlayLink) {
+      event.preventDefault();
+      const overlay = document.querySelector("[data-screen-overlay]");
+      const frame = overlay?.querySelector("[data-overlay-frame]");
+      const title = overlay?.querySelector("[data-overlay-title]");
+      if (overlay && frame) {
+        const url = new URL(overlayLink.href, window.location.origin);
+        url.searchParams.set("overlay", "1");
+        frame.src = url.toString();
+        if (title) title.textContent = overlayLink.textContent.trim() || "Cadastro auxiliar";
+        overlay.hidden = false;
+      }
+      return;
+    }
+
+    const overlayClose = event.target.closest("[data-overlay-close]");
+    if (overlayClose) {
+      const overlay = overlayClose.closest("[data-screen-overlay]");
+      const frame = overlay?.querySelector("[data-overlay-frame]");
+      if (frame) frame.src = "about:blank";
+      if (overlay) overlay.hidden = true;
+      return;
+    }
+
     const themeButton = event.target.closest("[data-theme-toggle]");
     if (themeButton) {
       root.classList.toggle("dark");
@@ -569,15 +725,15 @@
           const shouldSave = await showBlockingNotification({
             title: "Dados alterados",
             message: "Existem dados alterados. Deseja salvar antes de abrir consulta?",
-            confirmText: "Confirmar",
-            cancelText: "Cancelar",
+            confirmText: "Salvar",
+            cancelText: "Não salvar",
           });
           if (shouldSave) {
             sessionStorage.setItem("celeris-open-query-after-save", "true");
             await submitPrimaryForm(form);
             return;
           }
-          return;
+          clearFormFields(form);
         }
         clearFormFields(form);
         if (form?.matches("[data-editable-table]") && !form.querySelector("tbody tr[data-editable-row]:not([hidden])")) {
@@ -598,11 +754,30 @@
           window.location.href = patientQueryTemplate.replace("__ID__", encodeURIComponent(patientCode));
           return;
         }
+        const queryUrl = form?.dataset.queryUrl;
+        if (queryUrl) {
+          const params = new URLSearchParams();
+          Array.from(form.elements).forEach((field) => {
+            if (!field.name || field.type === "hidden" || field.disabled || !String(field.value || "").trim()) return;
+            if (field instanceof HTMLSelectElement && field.multiple) {
+              Array.from(field.selectedOptions).forEach((option) => params.append(field.name, option.value));
+            } else {
+              params.set(field.name, field.value);
+            }
+          });
+          if (["paciente", "prestador"].includes(form.dataset.table)) {
+            params.set("consultar", "1");
+          } else {
+            params.set("abrir", "1");
+          }
+          window.location.href = `${queryUrl}?${params.toString()}`;
+          return;
+        }
         if (form?.matches("[data-editable-table]")) {
           const queryValue = Array.from(form.querySelectorAll("input:not([type='hidden']), select, textarea"))
             .filter((field) => !field.readOnly && !field.disabled && field.value.trim())
             .map((field) => field.value.trim())[0] || "";
-          const params = queryValue ? `?q=${encodeURIComponent(queryValue)}` : "";
+          const params = queryValue ? `?q=${encodeURIComponent(queryValue)}` : "?consultar=1";
           window.location.href = `${window.location.pathname}${params}`;
           return;
         }
@@ -615,7 +790,7 @@
 
     const cancelQueryButton = event.target.closest("[data-query-cancel]");
     if (cancelQueryButton) {
-      setQueryMode(false);
+      clearFormFields(getPrimaryForm());
       setupActionButtons();
       renderIcons();
       return;
@@ -641,7 +816,10 @@
       const tableForm = getEditableTableForm();
       if (tableForm && addEditableTableRow(tableForm)) return;
       const targetUrl = document.body.dataset.newUrl;
-      if (targetUrl) window.location.href = targetUrl;
+      if (targetUrl) {
+        storeCurrentListPosition();
+        window.location.href = targetUrl;
+      }
       return;
     }
 
@@ -656,6 +834,78 @@
     if (removeAction && !removeAction.disabled) {
       const tableForm = getEditableTableForm();
       if (tableForm && removeEditableTableRow(tableForm)) return;
+    }
+
+    const toggleActiveAction = event.target.closest('[data-action="toggle-active"]');
+    if (toggleActiveAction && !toggleActiveAction.disabled && document.body.dataset.toggleActiveUrl) {
+      const confirmed = await showBlockingNotification({
+        title: toggleActiveAction.title,
+        message: `Confirma a ação de ${toggleActiveAction.title.toLowerCase()} este cadastro?`,
+        confirmText: "Confirmar",
+        cancelText: "Cancelar",
+      });
+      if (!confirmed) return;
+      const csrfToken = document.querySelector(".content form [name='csrfmiddlewaretoken']")?.value;
+      const response = await fetch(document.body.dataset.toggleActiveUrl, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken || "" },
+      });
+      if (response.redirected) window.location.href = response.url;
+      return;
+    }
+
+    const changePasswordAction = event.target.closest('[data-action="change-password"]');
+    if (changePasswordAction && !changePasswordAction.disabled && document.body.dataset.passwordUrl) {
+      const overlay = document.querySelector("[data-screen-overlay]");
+      const frame = overlay?.querySelector("[data-overlay-frame]");
+      const title = overlay?.querySelector("[data-overlay-title]");
+      if (overlay && frame) {
+        const url = new URL(document.body.dataset.passwordUrl, window.location.origin);
+        url.searchParams.set("overlay", "1");
+        frame.src = url.toString();
+        if (title) title.textContent = "Alterar Senha";
+        overlay.hidden = false;
+      }
+      return;
+    }
+
+    const editRowAction = event.target.closest("[data-edit-row]");
+    if (editRowAction) {
+      const row = editRowAction.closest("tr");
+      row?.querySelector("input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])")?.focus();
+      return;
+    }
+
+    const clearAction = event.target.closest('[data-action="clear"]');
+    if (clearAction && !clearAction.disabled) {
+      clearScreenData();
+      setupActionButtons();
+      renderIcons();
+      return;
+    }
+
+    const previousAction = event.target.closest('[data-action="previous"]');
+    if (previousAction && !previousAction.disabled && document.body.dataset.previousUrl) {
+      window.location.href = document.body.dataset.previousUrl;
+      return;
+    }
+
+    const firstAction = event.target.closest('[data-action="first"]');
+    if (firstAction && !firstAction.disabled && document.body.dataset.firstUrl) {
+      window.location.href = document.body.dataset.firstUrl;
+      return;
+    }
+
+    const nextAction = event.target.closest('[data-action="next"]');
+    if (nextAction && !nextAction.disabled && document.body.dataset.nextUrl) {
+      window.location.href = document.body.dataset.nextUrl;
+      return;
+    }
+
+    const lastAction = event.target.closest('[data-action="last"]');
+    if (lastAction && !lastAction.disabled && document.body.dataset.lastUrl) {
+      window.location.href = document.body.dataset.lastUrl;
+      return;
     }
 
     const tabClose = event.target.closest("[data-tab-close]");
@@ -724,7 +974,9 @@
     if (sidebarFlyout && !event.target.closest(".sidebar-flyout")) {
       closeSidebarFlyout();
     }
-    if (activeFloatingSelect && !event.target.closest("[data-floating-select]")) {
+    const floatingSourceId = activeFloatingSelect?.dataset.fieldId;
+    const clickedFloatingSource = floatingSourceId && event.target.closest(`#${CSS.escape(floatingSourceId)}`);
+    if (activeFloatingSelect && !event.target.closest("[data-floating-select]") && !clickedFloatingSource) {
       closeFloatingSelect();
     }
 
@@ -740,6 +992,22 @@
     }
   });
 
+  document.addEventListener("mousedown", function (event) {
+    const select = event.target.closest(".content select");
+    if (!select || select.closest("[data-blocking-notification]")) return;
+    event.preventDefault();
+    select.focus();
+    if (activeFloatingSelect?.dataset.fieldId === select.id) return;
+    openFloatingSelect(select);
+  });
+
+  document.addEventListener("click", function (event) {
+    const select = event.target.closest(".content select");
+    if (!select || select.closest("[data-blocking-notification]")) return;
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
   document.addEventListener("submit", function (event) {
     if (event.target.matches("[data-clear-tabs]")) {
       localStorage.removeItem("celeris-tabs");
@@ -748,7 +1016,43 @@
   });
 
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") closeLookup();
+    if (event.key === "Escape") {
+      const overlay = document.querySelector("[data-screen-overlay]:not([hidden])");
+      if (overlay) {
+        const frame = overlay.querySelector("[data-overlay-frame]");
+        if (frame) frame.src = "about:blank";
+        overlay.hidden = true;
+        return;
+      }
+      reverseEnterRequested = true;
+      closeLookup();
+      closeFloatingSelect();
+      window.setTimeout(() => {
+        reverseEnterRequested = false;
+      }, 1200);
+      return;
+    }
+
+    if (
+      /^[1-6]$/.test(event.key)
+      && document.querySelector(".provider-form")
+      && !event.ctrlKey
+      && !event.altKey
+      && !event.metaKey
+      && !event.target.matches("input, select, textarea, button, [contenteditable='true']")
+    ) {
+      const section = document.querySelector(`[data-provider-section="${event.key}"]`);
+      if (section) {
+        event.preventDefault();
+        section.open = true;
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+        const firstField = Array.from(section.querySelectorAll("input, select, textarea"))
+          .find((field) => field.type !== "hidden" && !field.disabled && !field.readOnly);
+        window.setTimeout(() => focusField(firstField), 180);
+      }
+      return;
+    }
+
     if (event.key === "ArrowDown" && event.target.matches("form[data-editable-table] input, form[data-editable-table] select, form[data-editable-table] textarea")) {
       if (!event.target.matches("select")) {
         event.preventDefault();
@@ -767,10 +1071,28 @@
       event.preventDefault();
       runLookup(event.target.closest("[data-lookup-modal]"));
     }
+    if (
+      event.target.matches(".content select")
+      && (event.key === "Enter" || event.key === "ArrowDown" || (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey))
+    ) {
+      event.preventDefault();
+      openFloatingSelect(event.target);
+      if (event.key.length === 1) {
+        window.setTimeout(() => {
+          activeFloatingSelect?.dispatchEvent(new KeyboardEvent("keydown", { key: event.key, bubbles: true }));
+        });
+      }
+      return;
+    }
     if (event.key === "Enter" && event.target.matches(".content input, .content select, .content textarea")) {
       const field = event.target;
       event.preventDefault();
-      focusNextField(field);
+      if (event.shiftKey || reverseEnterRequested) {
+        reverseEnterRequested = false;
+        focusPreviousField(field);
+      } else {
+        focusNextField(field);
+      }
     }
     if (event.key === "Tab" && !event.shiftKey && event.target.matches(".content input, .content select, .content textarea")) {
       const field = event.target;
@@ -798,7 +1120,6 @@
     const nextSection = nextField?.closest("details");
     const currentSection = currentField.closest("details");
     if (nextSection && nextSection !== currentSection) {
-      if (currentSection) currentSection.open = false;
       nextSection.open = true;
     }
     nextField = nextField || fields[0];
@@ -806,9 +1127,22 @@
     window.requestAnimationFrame(() => focusField(nextField));
   }
 
+  function focusPreviousField(currentField) {
+    const fields = getNavigableFields(true);
+    const currentIndex = fields.indexOf(currentField);
+    let previousField = fields[currentIndex - 1];
+    previousField = previousField || fields[fields.length - 1];
+    const previousSection = previousField?.closest("details");
+    if (previousSection) previousSection.open = true;
+    if (!previousField) return;
+    window.requestAnimationFrame(() => focusField(previousField));
+  }
+
   function closeFloatingSelect() {
     activeFloatingSelect?.remove();
     activeFloatingSelect = null;
+    floatingSelectSearch = "";
+    window.clearTimeout(floatingSelectSearchTimer);
   }
 
   function positionFloatingSelect(panel, field) {
@@ -827,23 +1161,36 @@
     const panel = document.createElement("div");
     panel.className = "floating-select-panel";
     panel.dataset.floatingSelect = "true";
-    panel.innerHTML = options.map((option, index) => `
-      <button type="button" data-select-index="${index}" class="${option.value === field.value ? "active" : ""}">
-        ${escapeHTML(option.text || option.value || "—")}
+    if (!field.id) field.id = `floating-select-${Date.now()}`;
+    panel.dataset.fieldId = field.id;
+    panel.innerHTML = options.map((option, index) => {
+      const isEmpty = !option.value && !(option.text || "").trim();
+      return `
+      <button type="button" data-select-index="${index}" ${isEmpty ? 'data-empty-option="true"' : ""} class="${option.selected ? "active" : ""}">
+        ${escapeHTML(option.text || option.value || "EM BRANCO")}
       </button>
-    `).join("");
+    `;
+    }).join("");
     document.body.appendChild(panel);
     activeFloatingSelect = panel;
     positionFloatingSelect(panel, field);
     const selectOption = (button) => {
       const option = options[Number(button.dataset.selectIndex)];
       if (!option) return;
+      if (field.multiple) {
+        option.selected = !option.selected;
+        button.classList.toggle("active", option.selected);
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
       field.value = option.value;
       field.dispatchEvent(new Event("change", { bubbles: true }));
       closeFloatingSelect();
       focusNextField(field);
     };
-    panel.addEventListener("mousedown", (event) => event.preventDefault());
+    panel.addEventListener("mousedown", (event) => {
+      if (event.target.closest("button")) event.preventDefault();
+    });
     panel.addEventListener("click", (event) => {
       const button = event.target.closest("button");
       if (button) selectOption(button);
@@ -860,14 +1207,43 @@
         buttons[Math.max(currentIndex - 1, 0)]?.focus();
       } else if (event.key === "Enter") {
         event.preventDefault();
-        if (current) selectOption(current);
+        if (event.shiftKey || reverseEnterRequested) {
+          reverseEnterRequested = false;
+          closeFloatingSelect();
+          focusPreviousField(field);
+        } else if (current) {
+          selectOption(current);
+        }
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        closeFloatingSelect();
+        if (event.shiftKey) {
+          focusPreviousField(field);
+        } else {
+          focusNextField(field);
+        }
       } else if (event.key === "Escape") {
         closeFloatingSelect();
         field.focus();
+      } else if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        floatingSelectSearch += event.key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        window.clearTimeout(floatingSelectSearchTimer);
+        floatingSelectSearchTimer = window.setTimeout(() => {
+          floatingSelectSearch = "";
+        }, 900);
+        const match = buttons.find((button) => (
+          button.textContent || ""
+        ).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().startsWith(floatingSelectSearch));
+        if (match) {
+          event.preventDefault();
+          match.focus();
+        }
       }
     });
     window.requestAnimationFrame(() => {
-      const activeButton = panel.querySelector("button.active") || panel.querySelector("button");
+      const activeButton = panel.querySelector("button.active:not([data-empty-option='true'])")
+        || panel.querySelector("button:not([data-empty-option='true'])")
+        || panel.querySelector("button");
       activeButton?.focus();
     });
   }
@@ -875,9 +1251,6 @@
   function focusField(field) {
     field.focus();
     if (field instanceof HTMLInputElement) field.select?.();
-    if (field instanceof HTMLSelectElement) {
-      openFloatingSelect(field);
-    }
   }
 
   window.addEventListener("resize", () => {
@@ -886,7 +1259,11 @@
   });
   window.addEventListener("scroll", () => {
     closeSidebarFlyout();
-    closeFloatingSelect();
+    if (activeFloatingSelect) {
+      const fieldId = activeFloatingSelect.dataset.fieldId;
+      const field = fieldId ? document.getElementById(fieldId) : null;
+      if (field) positionFloatingSelect(activeFloatingSelect, field);
+    }
   }, true);
 
   function normalizeFieldName(value) {
@@ -915,12 +1292,9 @@
       return;
     }
 
-    const table = field.dataset.fieldTable || field.closest("[data-table]")?.dataset.table || "";
     const labelText = field.closest("label")?.childNodes?.[0]?.textContent?.trim() || "";
-    const fieldName = field.dataset.fieldName || field.name || field.id || labelText || "campo";
-    const normalizedField = normalizeFieldName(fieldName);
-    const normalizedTable = table ? normalizeFieldName(table) : "";
-    status.textContent = normalizedTable ? `${normalizedTable}.${normalizedField}` : normalizedField;
+    const businessLabel = labelText || field.getAttribute("aria-label") || field.placeholder || "Campo";
+    status.textContent = businessLabel.trim();
   }
 
   function normalizeInputValue(field) {
@@ -942,26 +1316,36 @@
   });
 
   document.addEventListener("focusout", function (event) {
-    const field = event.target.closest("input, select, textarea");
-    if (field && !document.activeElement.matches?.("input, select, textarea")) {
-      updateFieldStatus(null);
-    }
+    return;
   });
 
   document.addEventListener("input", function (event) {
     const field = event.target.closest("input, textarea");
     if (!field) return;
+    if (!field.closest("[data-preserve-input]")) {
+      normalizeInputValue(field);
+    }
+    if (field.matches("[data-war-name]")) {
+      field.dataset.manuallyEdited = "true";
+    }
+    if (field.matches("[data-war-name-source]")) {
+      const warNameField = document.querySelector("[data-war-name]");
+      const providerForm = field.closest(".provider-form");
+      const isNewProvider = providerForm && !providerForm.dataset.providerId;
+      const isQueryMode = document.body.classList.contains("screen-query-mode");
+      if (warNameField && isNewProvider && !isQueryMode && !warNameField.value.trim() && !warNameField.dataset.manuallyEdited) {
+        const nameParts = field.value.trim().split(/\s+/).filter(Boolean);
+        warNameField.value = nameParts[0] || "";
+      }
+    }
     if (field.dataset.mask === "cpf") {
       field.value = formatCPF(field.value);
     } else if (field.dataset.mask === "celular") {
       field.value = formatCellphone(field.value);
     }
-    if (!field.closest("[data-preserve-input]")) {
-      normalizeInputValue(field);
-    }
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
-    setActionStatus("EDITAR");
+    setActionStatus("EDIÇÃO");
     field.closest("form")?.setAttribute("data-dirty", "true");
   });
 
@@ -970,9 +1354,66 @@
     if (event.target.matches("[data-state-select]")) {
       loadCitiesForState(event.target.value);
     }
+    if (event.target.matches("[data-linked-state]")) {
+      loadLinkedCities(event.target.dataset.linkedState, event.target.value);
+    }
+    if (event.target.matches("[data-linked-cep]")) {
+      loadAddressForCep(event.target.dataset.linkedCep, event.target.value);
+    }
+    if (event.target.matches("[data-provider-type]")) {
+      const councilField = document.querySelector("[data-provider-council]");
+      let councilMap = {};
+      try {
+        councilMap = JSON.parse(event.target.dataset.councilMap || "{}");
+      } catch (error) {
+        councilMap = {};
+      }
+      const council = councilMap[event.target.value];
+      if (councilField && council) {
+        councilField.value = council;
+        councilField.dispatchEvent(new Event("change", { bubbles: true }));
+      } else if (event.target.value) {
+        if (councilField) councilField.value = "";
+        showBlockingNotification({
+          title: "Conselho não vinculado",
+          message: "Este tipo de prestador não possui conselho vinculado. O cadastro pode continuar normalmente.",
+          confirmText: "Ignorar",
+          cancelText: "Fechar",
+          type: "info",
+          initialFocus: "cancel",
+        }).then((ignored) => {
+          if (ignored) {
+            focusNextField(event.target);
+          } else {
+            event.target.focus();
+          }
+        });
+      }
+      if (event.target.matches("[data-provider-permissions]")) {
+        applyProviderPermissionSuggestions(event.target.value);
+      }
+    }
+    if (event.target.matches("[data-user-provider]") && event.target.value) {
+      fetch(`/accounts/usuarios/prestador/${encodeURIComponent(event.target.value)}/dados/`)
+        .then((response) => response.json())
+        .then((payload) => {
+          Object.entries(payload).forEach(([fieldName, value]) => {
+            const field = document.querySelector(`[name="${fieldName}"]`);
+            if (!field || field.value || !value) return;
+            if (field instanceof HTMLSelectElement && !Array.from(field.options).some((option) => option.value === value)) {
+              field.add(new Option(value, value));
+            }
+            field.value = value;
+            field.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+        });
+    }
+    if (event.target.matches("[data-same-address]")) {
+      copyResidentialAddressToCommercial(event.target.checked);
+    }
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
-    setActionStatus("EDITAR");
+    setActionStatus("EDIÇÃO");
     event.target.closest("form")?.setAttribute("data-dirty", "true");
   });
 
@@ -988,7 +1429,100 @@
       .join("");
   }
 
+  function isValidCPF(value) {
+    const digits = onlyDigits(value);
+    if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+    const calculate = (size) => {
+      let total = 0;
+      for (let index = 0; index < size; index += 1) {
+        total += Number(digits[index]) * (size + 1 - index);
+      }
+      return (total * 10 % 11) % 10;
+    };
+    return calculate(9) === Number(digits[9]) && calculate(10) === Number(digits[10]);
+  }
+
+  async function loadLinkedCities(group, state, selectedValue = "") {
+    const citySelect = document.querySelector(`[data-linked-city="${CSS.escape(group)}"]`);
+    if (!citySelect) return;
+    citySelect.innerHTML = '<option value=""></option>';
+    if (!state) return;
+    const response = await fetch(`/global/tabelas/auxiliares/cidades-opcoes/?uf=${encodeURIComponent(state)}`);
+    const payload = await response.json();
+    citySelect.innerHTML = '<option value=""></option>' + (payload.cidades || [])
+      .map((city) => `<option value="${escapeHTML(city.value)}">${escapeHTML(city.label)}</option>`)
+      .join("");
+    citySelect.value = selectedValue;
+  }
+
+  async function loadAddressForCep(group, cep) {
+    if (!cep) return;
+    const response = await fetch(`/global/tabelas/auxiliares/cep-opcao/?cep=${encodeURIComponent(cep)}`);
+    const payload = await response.json();
+    if (!payload.estado) {
+      const shouldOpen = await showBlockingNotification({
+        title: "CEP não cadastrado",
+        message: "O CEP informado não existe no cadastro global. Deseja abrir a tela de CEPs?",
+        confirmText: "Abrir CEPs",
+        cancelText: "Continuar manualmente",
+        type: "info",
+      });
+      if (shouldOpen) window.location.href = "/global/ceps/";
+      return;
+    }
+    const stateSelect = document.querySelector(`[data-linked-state="${CSS.escape(group)}"]`);
+    if (stateSelect) {
+      stateSelect.value = payload.estado;
+      await loadLinkedCities(group, payload.estado, payload.cidade || "");
+    }
+    const suffix = group === "comercial" ? "_comercial" : "";
+    const addressFields = {
+      [`tp_logradouro${suffix}`]: payload.tipo_logradouro,
+      [`ds_endereco${suffix}`]: payload.logradouro,
+      [`ds_bairro${suffix}`]: payload.bairro,
+    };
+    Object.entries(addressFields).forEach(([fieldName, value]) => {
+      const field = document.querySelector(`[name="${fieldName}"]`);
+      if (!field || !value) return;
+      if (field instanceof HTMLSelectElement && !Array.from(field.options).some((option) => option.value === value)) {
+        field.add(new Option(value, value));
+      }
+      field.value = value;
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  function validateStructuredField(field, notify = false) {
+    if (!field?.value?.trim()) {
+      field?.classList.remove("field-invalid");
+      field?.setCustomValidity?.("");
+      return true;
+    }
+    let message = "";
+    if (field.matches("[data-validate-cpf]") && !isValidCPF(field.value)) {
+      message = "Informe um CPF válido.";
+    } else if (field.matches("[data-validate-email]") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(field.value)) {
+      message = "Informe um e-mail válido.";
+    } else if (field.matches("[data-validate-cnes]") && !/^\d{7}$/.test(onlyDigits(field.value))) {
+      message = "O CNES deve conter exatamente 7 dígitos.";
+    }
+    field.classList.toggle("field-invalid", Boolean(message));
+    field.setCustomValidity(message);
+    if (message && notify) {
+      showBlockingNotification({
+        title: "Valor inválido",
+        message,
+        confirmText: "OK",
+        type: "error",
+        focusTarget: field,
+      });
+    }
+    return !message;
+  }
+
   document.addEventListener("blur", async function (event) {
+    const structuredField = event.target.closest("[data-validate-cpf], [data-validate-email], [data-validate-cnes]");
+    if (structuredField && !validateStructuredField(structuredField, true)) return;
     const field = event.target.closest("[data-unique-patient]");
     if (!field || !field.value.trim()) return;
     const currentValue = field.value.trim();
@@ -1015,11 +1549,14 @@
       confirmText: "OK",
       store: true,
       type: "error",
+      focusTarget: field,
     });
   }, true);
 
   document.addEventListener("input", function (event) {
     const field = event.target.closest("[data-unique-patient]");
+    const structuredField = event.target.closest("[data-validate-cpf], [data-validate-email], [data-validate-cnes]");
+    if (structuredField) validateStructuredField(structuredField);
     if (!field) return;
     field.classList.remove("field-duplicate");
     field.setCustomValidity("");
@@ -1045,31 +1582,287 @@
     return digits.replace(/^(\d{2})(\d{1})(\d{4})(\d{0,4})/, "($1) $2 $3-$4").trim();
   }
 
+  function setupSpecialtyManager() {
+    const manager = document.querySelector("[data-specialty-manager]");
+    if (!manager) return;
+    const storage = manager.querySelector("[data-specialty-values]");
+    const picker = manager.querySelector("[data-specialty-picker]");
+    const chips = manager.querySelector("[data-specialty-chips]");
+    const addButton = manager.querySelector("[data-specialty-add]");
+    const openButton = manager.querySelector("[data-specialty-open]");
+    const addRow = manager.querySelector("[data-specialty-add-row]");
+    const primary = document.querySelector("[data-primary-specialty]");
+    if (!storage || !picker || !chips || !addButton || !openButton || !addRow) return;
+
+    const options = Array.from(storage.options).map((option) => ({
+      value: option.value,
+      label: option.textContent.trim(),
+    })).filter((option) => option.value);
+
+    const selectedValues = () => Array.from(storage.selectedOptions).map((option) => option.value);
+
+    const render = () => {
+      const selected = new Set(selectedValues());
+      chips.innerHTML = options
+        .filter((option) => selected.has(option.value))
+        .map((option) => (
+          `<span class="specialty-chip">${escapeHTML(option.label)}`
+          + `<button type="button" data-specialty-remove="${escapeHTML(option.value)}" aria-label="Remover ${escapeHTML(option.label)}">&times;</button></span>`
+        ))
+        .join("");
+      if (!chips.children.length) {
+        chips.innerHTML = '<span class="specialty-empty">Nenhuma especialidade adicionada.</span>';
+      }
+
+      const pickerValue = picker.value;
+      picker.innerHTML = '<option value="">Adicionar especialidade...</option>' + options
+        .filter((option) => !selected.has(option.value))
+        .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
+        .join("");
+      picker.value = Array.from(picker.options).some((option) => option.value === pickerValue) ? pickerValue : "";
+
+      if (primary) {
+        const currentPrimary = primary.value;
+        primary.innerHTML = '<option value=""></option>' + options
+          .filter((option) => selected.has(option.value))
+          .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
+          .join("");
+        primary.value = selected.has(currentPrimary) ? currentPrimary : (selectedValues()[0] || "");
+      }
+    };
+
+    const addSelected = () => {
+      if (!picker.value) return;
+      const option = Array.from(storage.options).find((item) => item.value === picker.value);
+      if (option) {
+        option.selected = true;
+        storage.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      render();
+      addRow.hidden = false;
+      openButton.hidden = true;
+      picker.focus();
+    };
+
+    const resetInterface = () => {
+      picker.value = "";
+      addRow.hidden = true;
+      openButton.hidden = false;
+      render();
+    };
+
+    openButton.addEventListener("click", () => {
+      openButton.hidden = true;
+      addRow.hidden = false;
+      picker.focus();
+    });
+    addButton.addEventListener("click", addSelected);
+    picker.addEventListener("change", addSelected);
+    picker.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addSelected();
+    });
+    storage.addEventListener("change", render);
+    manager.closest("form")?.addEventListener("celeris:reset-multiselects", resetInterface);
+    chips.addEventListener("click", (event) => {
+      const removeButton = event.target.closest("[data-specialty-remove]");
+      if (!removeButton) return;
+      const option = Array.from(storage.options).find((item) => item.value === removeButton.dataset.specialtyRemove);
+      if (option) {
+        option.selected = false;
+        storage.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      render();
+    });
+    render();
+  }
+
+  function setupAssignmentManagers() {
+    document.querySelectorAll("[data-assignment-manager]").forEach((manager) => {
+      const storage = manager.querySelector("[data-assignment-values]");
+      const picker = manager.querySelector("[data-assignment-picker]");
+      const chips = manager.querySelector("[data-assignment-chips]");
+      const addButton = manager.querySelector("[data-assignment-add]");
+      const openButton = manager.querySelector("[data-assignment-open]");
+      const addRow = manager.querySelector("[data-assignment-add-row]");
+      if (!storage || !picker || !chips || !addButton || !openButton || !addRow) return;
+      const options = Array.from(storage.options)
+        .filter((option) => option.value)
+        .map((option) => ({ value: option.value, label: option.textContent.trim() }));
+      const selectedValues = () => Array.from(storage.selectedOptions).map((option) => option.value);
+
+      const render = () => {
+        const selected = new Set(selectedValues());
+        chips.innerHTML = options
+          .filter((option) => selected.has(option.value))
+          .map((option) => (
+            `<span class="specialty-chip">${escapeHTML(option.label)}`
+            + `<button type="button" data-assignment-remove="${escapeHTML(option.value)}" aria-label="Remover ${escapeHTML(option.label)}">&times;</button></span>`
+          ))
+          .join("");
+        if (!chips.children.length) {
+          chips.innerHTML = `<span class="specialty-empty">${escapeHTML(manager.dataset.assignmentEmpty || "Nenhum item atribuído.")}</span>`;
+        }
+        picker.innerHTML = '<option value="">Selecionar...</option>' + options
+          .filter((option) => !selected.has(option.value))
+          .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
+          .join("");
+      };
+
+      const addSelected = () => {
+        const option = Array.from(storage.options).find((item) => item.value === picker.value);
+        if (!option) return;
+        option.selected = true;
+        storage.dispatchEvent(new Event("change", { bubbles: true }));
+        render();
+        picker.focus();
+      };
+
+      const resetInterface = () => {
+        picker.value = "";
+        addRow.hidden = true;
+        openButton.hidden = false;
+        render();
+      };
+
+      openButton.addEventListener("click", () => {
+        openButton.hidden = true;
+        addRow.hidden = false;
+        picker.focus();
+      });
+      addButton.addEventListener("click", addSelected);
+      picker.addEventListener("change", addSelected);
+      picker.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        addSelected();
+      });
+      storage.addEventListener("change", render);
+      manager.closest("form")?.addEventListener("celeris:reset-multiselects", resetInterface);
+      chips.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-assignment-remove]");
+        if (!removeButton) return;
+        const option = Array.from(storage.options).find(
+          (item) => item.value === removeButton.dataset.assignmentRemove
+        );
+        if (option) {
+          option.selected = false;
+          storage.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        render();
+      });
+      render();
+    });
+  }
+
+  function setupRoleModuleVisibility() {
+    const moduleFields = document.querySelectorAll("[data-role-module]");
+    if (!moduleFields.length) return;
+    const update = () => {
+      moduleFields.forEach((field) => {
+        const section = document.querySelector(`[data-role-screen-module="${field.dataset.roleModule}"]`);
+        if (!section) return;
+        section.hidden = !field.checked;
+        if (!field.checked) {
+          section.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+            checkbox.checked = false;
+          });
+        }
+      });
+    };
+    moduleFields.forEach((field) => field.addEventListener("change", update));
+    update();
+  }
+
+  function setupStandardCheckboxes() {
+    document.querySelectorAll('form input[type="checkbox"]').forEach((checkbox) => {
+      checkbox.closest("label")?.classList.add("provider-checkbox");
+    });
+  }
+
+  function copyResidentialAddressToCommercial(lockFields) {
+    const fieldMap = {
+      cd_cep: "cd_cep_comercial",
+      sg_estado: "sg_estado_comercial",
+      ds_cidade: "ds_cidade_comercial",
+      tp_logradouro: "tp_logradouro_comercial",
+      ds_endereco: "ds_endereco_comercial",
+      nr_endereco: "nr_endereco_comercial",
+      ds_complemento: "ds_complemento_comercial",
+      ds_bairro: "ds_bairro_comercial",
+    };
+    Object.entries(fieldMap).forEach(([sourceName, targetName]) => {
+      const source = document.querySelector(`[name="${sourceName}"]`);
+      const target = document.querySelector(`[name="${targetName}"]`);
+      if (!target) return;
+      if (lockFields && source) {
+        if (target.tagName === "SELECT" && !Array.from(target.options).some((option) => option.value === source.value)) {
+          target.add(new Option(source.selectedOptions?.[0]?.textContent || source.value, source.value));
+        }
+        target.value = source.value;
+      }
+      target.disabled = Boolean(lockFields);
+    });
+  }
+
+  function applyProviderPermissionSuggestions(providerType) {
+    const suggestions = {
+      MEDICO: ["sn_permite_agenda", "sn_permite_atendimento", "sn_permite_prescricao"],
+      ENFERMEIRO: ["sn_permite_agenda", "sn_permite_atendimento", "sn_permite_classificacao"],
+      TECNICO_ENFERMAGEM: ["sn_permite_classificacao"],
+    };
+    const permissionFields = [
+      "sn_permite_agenda",
+      "sn_permite_atendimento",
+      "sn_permite_prescricao",
+      "sn_permite_classificacao",
+    ];
+    if (!providerType || !suggestions[providerType]) return;
+    permissionFields.forEach((fieldName) => {
+      const field = document.querySelector(`[name="${fieldName}"]`);
+      if (field) field.checked = suggestions[providerType].includes(fieldName);
+    });
+  }
+
   function setupActionButtons() {
     const queryButton = document.querySelector("[data-query-toggle]");
     const newButton = document.querySelector('[data-action="new"]');
     const continueButton = document.querySelector('[data-action="continue"]');
+    const clearButton = document.querySelector('[data-action="clear"]');
     const removeButton = document.querySelector('[data-action="remove"]');
     const previousButton = document.querySelector('[data-action="previous"]');
     const nextButton = document.querySelector('[data-action="next"]');
+    const firstButton = document.querySelector('[data-action="first"]');
+    const lastButton = document.querySelector('[data-action="last"]');
     const closeButton = document.querySelector('[data-action="close"]');
+    const saveButton = document.querySelector('[data-action="save"]');
     const cancelQueryIcon = document.querySelector('[data-query-cancel] [data-nav-icon]');
     const tableForm = getEditableTableForm();
     const isHome = document.body.dataset.tabUrl === "/";
 
     if (isHome) {
-      [queryButton, newButton, continueButton, removeButton, previousButton, nextButton, closeButton].forEach((button) => {
+      [queryButton, clearButton, newButton, continueButton, removeButton, firstButton, previousButton, nextButton, lastButton, closeButton].forEach((button) => {
         if (button) button.disabled = true;
       });
       return;
     }
 
     if (queryButton) queryButton.disabled = document.body.dataset.canQuery !== "true";
+    if (saveButton && document.querySelector(".content form[data-has-errors='true']")) saveButton.disabled = false;
     if (newButton) newButton.disabled = !(document.body.dataset.newUrl || tableForm);
-    if (continueButton) continueButton.disabled = !document.body.dataset.continueUrl;
+    if (continueButton) {
+      continueButton.hidden = !document.body.dataset.continueUrl;
+      continueButton.disabled = !document.body.dataset.continueUrl;
+    }
     if (removeButton) removeButton.disabled = !(document.body.dataset.canRemove === "true" || tableForm);
-    if (previousButton) previousButton.disabled = document.body.dataset.hasPrevious !== "true";
-    if (nextButton) nextButton.disabled = document.body.dataset.hasNext !== "true";
+    if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm);
+    const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
+    if (toggleActiveButton) toggleActiveButton.hidden = !document.body.dataset.toggleActiveUrl;
+    if (previousButton) previousButton.disabled = !document.body.dataset.previousUrl;
+    if (nextButton) nextButton.disabled = !document.body.dataset.nextUrl;
+    if (firstButton) firstButton.disabled = !document.body.dataset.firstUrl;
+    if (lastButton) lastButton.disabled = !document.body.dataset.lastUrl;
     if (closeButton && isHome) closeButton.disabled = true;
     if (cancelQueryIcon) cancelQueryIcon.setAttribute("data-nav-icon", "ban");
     const closeButtonIcon = document.querySelector('[data-action="close"] [data-nav-icon]');
@@ -1095,10 +1888,38 @@
           message,
           confirmText: "OK",
           type: isError ? "error" : "info",
+          focusTarget: isError ? document.querySelector('[aria-invalid="true"]') : null,
         });
       }
     }
     renderPersistedNotifications();
+  }
+
+  function disableBrowserAutocomplete() {
+    document.querySelectorAll("form").forEach((form) => form.setAttribute("autocomplete", "off"));
+    document.querySelectorAll("input, textarea, select").forEach((field) => {
+      field.setAttribute("autocomplete", "off");
+      field.setAttribute("autocapitalize", "off");
+      field.setAttribute("spellcheck", "false");
+    });
+  }
+
+  function setupUserLoginSuggestion() {
+    const fullNameField = document.querySelector("[data-user-full-name]");
+    const loginField = document.querySelector("[data-user-login]");
+    const userForm = fullNameField?.closest(".user-form");
+    if (!fullNameField || !loginField || !userForm || userForm.dataset.userId) return;
+    let timer;
+    fullNameField.addEventListener("input", () => {
+      if (document.body.classList.contains("screen-query-mode") || loginField.value) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(async () => {
+        const params = new URLSearchParams({ nome: fullNameField.value });
+        const response = await fetch(`/accounts/usuarios/login-sugerido/?${params.toString()}`);
+        const payload = await response.json();
+        loginField.value = payload.login || "";
+      }, 250);
+    });
   }
 
   function focusFirstEditableField() {
@@ -1123,16 +1944,35 @@
     } catch (error) {
       savedTabs = [];
     }
-    const tabs = [homeTab, ...savedTabs.filter((tab) => tab.key !== homeTab.url && tab.url !== homeTab.url)];
+    const tabs = [
+      homeTab,
+      ...savedTabs.filter((tab) => (
+        tab.key !== homeTab.url
+        && tab.url !== homeTab.url
+        && (tab.key === key || tab.title !== title)
+      )),
+    ];
     const currentIndex = tabs.findIndex((tab) => (tab.key || tab.url) === key);
 
     if (currentIndex >= 0) {
       tabs[currentIndex] = { title, url, key };
     } else {
+      if (tabs.length >= 10) {
+        const fallbackTab = tabs[tabs.length - 1] || homeTab;
+        showBlockingNotification({
+          title: "Limite de guias abertas",
+          message: "Você atingiu o limite de 10 guias abertas. Feche alguma guia para abrir novas telas.",
+          confirmText: "OK",
+          type: "info",
+        }).then(() => {
+          if (key !== (fallbackTab.key || fallbackTab.url)) window.location.href = fallbackTab.url;
+        });
+        return;
+      }
       tabs.push({ title, url, key });
     }
 
-    const limitedTabs = [homeTab, ...tabs.filter((tab) => (tab.key || tab.url) !== homeTab.url).slice(-7)];
+    const limitedTabs = [homeTab, ...tabs.filter((tab) => (tab.key || tab.url) !== homeTab.url)].slice(0, 10);
     localStorage.setItem("celeris-tabs", JSON.stringify(limitedTabs.filter((tab) => (tab.key || tab.url) !== homeTab.url)));
 
     tabsBar.innerHTML = limitedTabs.map((tab) => {
@@ -1153,6 +1993,23 @@
 
   function setStoredTabs(tabs) {
     localStorage.setItem("celeris-tabs", JSON.stringify(tabs.filter((tab) => (tab.key || tab.url) !== "/")));
+  }
+
+  function storeCurrentListPosition() {
+    const storageKey = `celeris-list-scroll:${window.location.pathname}${window.location.search}`;
+    sessionStorage.setItem(storageKey, String(window.scrollY));
+  }
+
+  function setupListContextPreservation() {
+    const storageKey = `celeris-list-scroll:${window.location.pathname}${window.location.search}`;
+    document.querySelectorAll("[data-preserve-list-context]").forEach((link) => {
+      link.addEventListener("click", storeCurrentListPosition);
+    });
+    const storedPosition = sessionStorage.getItem(storageKey);
+    if (storedPosition !== null) {
+      window.requestAnimationFrame(() => window.scrollTo(0, Number(storedPosition) || 0));
+      sessionStorage.removeItem(storageKey);
+    }
   }
 
   function closeTab(tabUrl, tabKey = tabUrl) {
@@ -1178,6 +2035,46 @@
   }
 
   renderTabs();
+  setupListContextPreservation();
+  setupSpecialtyManager();
+  setupAssignmentManagers();
+  setupRoleModuleVisibility();
+  setupStandardCheckboxes();
+  setupEditableTableActions();
+  const warNameField = document.querySelector("[data-war-name]");
+  if (warNameField?.value.trim()) {
+    warNameField.dataset.manuallyEdited = "true";
+  }
+  const sameAddressField = document.querySelector("[data-same-address]");
+  if (sameAddressField) {
+    copyResidentialAddressToCommercial(sameAddressField.checked);
+    [
+      "cd_cep",
+      "sg_estado",
+      "ds_cidade",
+      "tp_logradouro",
+      "ds_endereco",
+      "nr_endereco",
+      "ds_complemento",
+      "ds_bairro",
+    ].forEach((fieldName) => {
+      const field = document.querySelector(`[name="${fieldName}"]`);
+      field?.addEventListener("input", () => {
+        if (sameAddressField.checked) copyResidentialAddressToCommercial(true);
+      });
+      field?.addEventListener("change", () => {
+        if (sameAddressField.checked) copyResidentialAddressToCommercial(true);
+      });
+    });
+  }
+  const currentDateTime = document.querySelector("[data-current-datetime]");
+  if (currentDateTime) {
+    const renderDateTime = () => {
+      currentDateTime.textContent = new Date().toLocaleString("pt-BR");
+    };
+    renderDateTime();
+    window.setInterval(renderDateTime, 1000);
+  }
   setupActionButtons();
   scheduleSidebarAutoCollapse();
   if (document.body.dataset.startQuery === "true" || sessionStorage.getItem("celeris-open-query-after-save") === "true") {
@@ -1187,6 +2084,9 @@
     firstField?.focus();
   }
   renderIcons();
+  disableBrowserAutocomplete();
+  setupUserLoginSuggestion();
+  setupServerValidationErrors();
   setupNotifications();
   updateFieldStatus(null);
   focusFirstEditableField();

@@ -18,6 +18,31 @@
 
   <section class="card table-card">
     <table>
+      <thead><tr><th>Horário</th><th>Paciente</th><th>Profissional</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for agendamento in agendamentos %}
+          <tr>
+            <td>{{ agendamento.dh_agendamento|date:"H:i" }}</td>
+            <td>{{ agendamento.cd_paciente.nm_paciente }}</td>
+            <td>{{ agendamento.ds_profissional|default:"-" }}</td>
+            <td>{{ agendamento.get_ds_status_display }}</td>
+            <td>
+              {% if agendamento.ds_status == "AGENDADO" or agendamento.ds_status == "AGUARDANDO_PRE_ATENDIMENTO" %}
+                <a class="button button-secondary" href="{% url 'atendimento:pre-atendimento' agendamento.cd_agendamento %}">Pré-atendimento</a>
+              {% elif agendamento.ds_status == "AGUARDANDO_ATENDIMENTO" %}
+                <a class="button button-primary" href="{% url 'atendimento:iniciar-atendimento' agendamento.cd_agendamento %}">Gerar atendimento</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Nenhum paciente agendado hoje.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card table-card">
+    <table>
       <thead><tr><th>Especialidade</th><th>Total do dia</th></tr></thead>
       <tbody>
         {% for especialidade, total in especialidade_totais %}

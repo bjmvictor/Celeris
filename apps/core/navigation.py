@@ -1,9 +1,11 @@
-def item(label, route_name=None, children=None, url=None):
+def item(label, route_name=None, children=None, url=None, roles=None, access_key=None):
     return {
         "label": label,
         "route_name": route_name,
         "url": url,
         "children": children or [],
+        "roles": roles or [],
+        "access_key": access_key or route_name or url,
     }
 
 
@@ -13,163 +15,69 @@ MODULES = [
         "title": "Atendimento",
         "icon": "clipboard-plus",
         "items": [
-            item(
-                "Agendamento",
-                children=[
-                    item("Agendar", "atendimento:agendar"),
-                    item("Atender", "atendimento:atender-agendamento"),
-                    item("Consultar", "atendimento:consultar-agendamento"),
-                    item("Agendas", "atendimento:agendas"),
-                    item("Gerar agenda", "atendimento:gerar-agenda"),
-                    item("Cadastro de paciente", "atendimento:cadastro-paciente-agendamento"),
-                    item(
-                        "Tabelas",
-                        children=[
-                            item("Convênios", "atendimento:convenios-agendamento"),
-                            item("Tipos de Atendimento", "atendimento:tipos-atendimento-agendamento"),
-                            item("Especialidades", "atendimento:especialidades-agendamento"),
-                        ],
-                    ),
-                ],
-            ),
-            item(
-                "Atendimento",
-                children=[
-                    item("Atendimento", "atendimento:atendimento"),
-                    item("Consulta de atendimento", "atendimento:consulta-atendimento"),
-                    item("Cadastro de paciente", "atendimento:cadastro-paciente-atendimento"),
-                    item(
-                        "Tabelas",
-                        children=[
-                            item("Convênios", "atendimento:convenios-atendimento"),
-                            item("Tipos de Atendimento", "atendimento:tipos-atendimento-atendimento"),
-                            item("Especialidades", "atendimento:especialidades-atendimento"),
-                        ],
-                    ),
-                ],
-            ),
-            item(
-                "Tabelas",
-                children=[
-                    item("Convênios", "atendimento:convenios"),
-                    item("Tipos de Atendimento", "atendimento:tipos-atendimento"),
-                    item("Especialidades", "atendimento:especialidades"),
-                    item("Profissionais", "atendimento:profissionais"),
-                    item("Escalas", "atendimento:escalas"),
-                    item("Salas", "atendimento:salas"),
-                ],
-            ),
-            item(
-                "Relatórios",
-                children=[
-                    item("Agendamentos", "atendimento:relatorio-agendamentos"),
-                    item("Atendimentos", "atendimento:relatorio-atendimentos"),
-                    item("Produtividade", "atendimento:relatorio-produtividade"),
-                ],
-            ),
+            item("Agendamentos", "atendimento:agendar", roles=["TI", "Recepcionista"]),
+            item("Recepção", "atendimento:recepcao", roles=["TI", "Recepcionista"]),
+            item("Atendimentos", "atendimento:atendimentos", roles=["TI", "Recepcionista", "Enfermeiro", "Médico"]),
+            item("Classificação de Risco", "atendimento:fila-classificacao", roles=["TI", "Enfermeiro"]),
+            item("Consultas Médicas", "atendimento:fila-medica", roles=["TI", "Médico"]),
         ],
-    },
-    {
-        "code": "TI",
-        "title": "TI",
-        "icon": "monitor",
-        "items": [
-            item("Chamados", "tickets:list"),
-            item("Inventário de Agentes", "ti:agentes"),
-        ],
-    },
-    {
-        "code": "PACIENTES",
-        "title": "Pacientes",
-        "icon": "users",
-        "items": [],
     },
     {
         "code": "CADASTROS",
         "title": "Cadastros",
         "icon": "table",
-        "items": [],
-    },
-    {
-        "code": "FINANCEIRO",
-        "title": "Financeiro",
-        "icon": "coins",
-        "items": [],
-    },
-    {
-        "code": "ESTOQUE",
-        "title": "Estoque",
-        "icon": "shirt",
-        "items": [],
-    },
-    {
-        "code": "COMPRAS",
-        "title": "Compras",
-        "icon": "handshake",
-        "items": [],
-    },
-    {
-        "code": "FISCAL",
-        "title": "Fiscal",
-        "icon": "table",
-        "items": [],
-    },
-    {
-        "code": "RH",
-        "title": "RH",
-        "icon": "users",
-        "items": [],
-    },
-    {
-        "code": "RELACIONAMENTO",
-        "title": "Relacionamento",
-        "icon": "headset",
-        "items": [],
-    },
-    {
-        "code": "BI",
-        "title": "Indicadores",
-        "icon": "activity",
-        "items": [],
+        "items": [
+            item("Pacientes", "atendimento:cadastro-paciente-novo", roles=["TI", "Recepcionista"]),
+            item(
+                "Prestadores",
+                "atendimento:profissionais",
+                roles=["TI"],
+                access_key="atendimento:cadastro-profissional-novo",
+            ),
+            item("Convênios", "atendimento:convenios", roles=["TI", "Recepcionista"]),
+        ],
     },
     {
         "code": "GLOBAL",
         "title": "Global",
-        "icon": "table",
+        "icon": "globe",
         "items": [
             item(
-                "Tabelas",
+                "Auxiliares",
                 children=[
-                    item(
-                        "Auxiliares",
-                        children=[
-                            item("Tipo sanguíneo", "core:global_tipo_sanguineo"),
-                            item("Sexo", "core:global_sexo"),
-                            item("Estado civil", "core:global_estado_civil"),
-                            item("Naturalidade", "core:global_naturalidade"),
-                            item("Nacionalidade", "core:global_nacionalidade"),
-                            item("Cidade", "core:global_cidade"),
-                            item("Estado", "core:global_estado"),
-                            item("Motivos de alteração", "core:global_motivo_alteracao"),
-                        ],
-                    ),
+                    item("Estados", url="/global/tabelas/auxiliares/estado/", roles=["TI"]),
+                    item("Cidades", url="/global/tabelas/auxiliares/cidade/", roles=["TI"]),
+                    item("Tipos de Logradouro", url="/global/tabelas/auxiliares/tipo_logradouro/", roles=["TI"]),
+                    item("Especialidades", url="/global/tabelas/auxiliares/especialidade/", roles=["TI"]),
+                    item("Conselhos Profissionais", url="/global/tabelas/auxiliares/conselho_profissional/", roles=["TI"]),
+                    item("Órgãos Emissores", url="/global/tabelas/auxiliares/orgao_emissor/", roles=["TI"]),
+                    item("Bancos", url="/global/tabelas/auxiliares/banco/", roles=["TI"]),
+                    item("Nacionalidades", url="/global/tabelas/auxiliares/pais/", roles=["TI"]),
+                    item("Tipos de Prestador", url="/global/tabelas/auxiliares/tipo_prestador/", roles=["TI"]),
+                    item("Tipos de Vínculo", url="/global/tabelas/auxiliares/tipo_vinculo/", roles=["TI"]),
+                    item("Outras tabelas auxiliares", "core:global_tables", roles=["TI"]),
                 ],
+                roles=["TI"],
             ),
+            item(
+                "Integrações",
+                children=[
+                    item("Importação de dados", "core:global_integrations", roles=["TI"]),
+                ],
+                roles=["TI"],
+            ),
+            item("CEPs", "core:global_ceps", roles=["TI"]),
+            item("Tipo de Prestador x Conselho", "core:tipo_prestador_conselho", roles=["TI"]),
         ],
     },
     {
-        "code": "CONFIGURACAO",
-        "title": "Configuração do Sistema",
+        "code": "ADMINISTRACAO",
+        "title": "Administração",
         "icon": "wrench",
         "items": [
-            item(
-                "Configurar Telas",
-                children=[
-                    item("Telas", "core:system_screens"),
-                    item("Campos", "core:system_fields"),
-                ],
-            ),
-            item("Empresas", "core:system_companies"),
+            item("Usuários", "usuarios", roles=["TI"]),
+            item("Papéis", "perfis", roles=["TI"]),
+            item("Permissões", "permissoes", roles=["TI"]),
         ],
     },
 ]

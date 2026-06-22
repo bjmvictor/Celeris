@@ -1,0 +1,12 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="flow-banner">AGUARDANDO CLASSIFICAÇÃO → CLASSIFICAR → AGUARDANDO CONSULTA</section>
+  <section class="card table-card">
+    <table><thead><tr><th>Atendimento</th><th>Paciente</th><th>Abertura</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
+      {% for item in registros %}
+        <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.cd_paciente.nm_paciente }}</td><td>{{ item.dh_inicio|date:"H:i" }}</td><td>{{ item.get_ds_origem_display }}</td>
+          <td><a class="button button-primary" href="{% url 'atendimento:pre-atendimento' item.cd_agendamento_id %}">Classificar</a></td></tr>
+      {% empty %}<tr><td colspan="5">Nenhum paciente aguardando classificação.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+{% endblock %}

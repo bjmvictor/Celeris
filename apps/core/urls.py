@@ -26,6 +26,12 @@ urlpatterns = [
     path("global/tabelas/auxiliares/nacionalidade/", views.global_auxiliary_values, {"tabela": "nacionalidade"}, name="global_nacionalidade"),
     path("global/tabelas/auxiliares/cidade/", views.global_auxiliary_values, {"tabela": "cidade"}, name="global_cidade"),
     path("global/tabelas/auxiliares/cidades-opcoes/", views.city_options, name="global_city_options"),
+    path("global/tabelas/auxiliares/cep-opcao/", views.cep_option, name="global_cep_option"),
     path("global/tabelas/auxiliares/estado/", views.global_auxiliary_values, {"tabela": "estado"}, name="global_estado"),
     path("global/tabelas/auxiliares/motivos-alteracao/", views.global_auxiliary_values, {"tabela": "motivo_alteracao"}, name="global_motivo_alteracao"),
+    path("global/tabelas/tipo-prestador-conselho/", views.tipo_prestador_conselho, name="tipo_prestador_conselho"),
+    path("global/ceps/", views.global_ceps, name="global_ceps"),
+    path("global/tabelas/", views.global_tables, name="global_tables"),
+    path("global/integracoes/", views.global_integrations, name="global_integrations"),
+    path("global/tabelas/auxiliares/<slug:tabela>/", views.global_auxiliary_values, name="global_auxiliar"),
 ]

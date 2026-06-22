@@ -4,7 +4,7 @@
   <form class="card table-card" data-editable-table data-table="prestador" method="post">
     {% csrf_token %}
     <table class="editable-table">
-      <thead><tr><th>Código</th><th>Profissional</th><th>Especialidade</th><th>Status</th></tr></thead>
+      <thead><tr><th>Código</th><th>Prestador</th><th>Especialidade</th><th>Status</th></tr></thead>
       <tbody>
         {% for registro in registros %}
           <tr data-editable-row>
@@ -12,7 +12,7 @@
               <input value="{{ registro.cd_prestador }}" readonly data-primary-key="true">
               <input data-row-delete name="delete_{{ registro.pk }}" type="hidden" value="0">
             </td>
-            <td><input name="name_{{ registro.pk }}" value="{{ registro.nm_prestador }}"></td>
+            <td><input name="name_{{ registro.pk }}" value="{{ registro.nm_prestador }}" required></td>
             <td><input name="specialty_{{ registro.pk }}" value="{{ registro.ds_especialidade }}"></td>
             <td>
               <select name="active_{{ registro.pk }}">
@@ -22,14 +22,14 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="4" class="empty-cell">Nenhum profissional cadastrado. Clique em + para adicionar.</td></tr>
+          <tr><td colspan="4" class="empty-cell">Nenhum prestador cadastrado. Clique em + para adicionar.</td></tr>
         {% endfor %}
       </tbody>
     </table>
     <template data-table-new-row>
       <tr data-editable-row>
         <td><input readonly placeholder="Automático" data-primary-key="true"></td>
-        <td><input name="new_name" placeholder="Profissional"></td>
+        <td><input name="new_name" placeholder="Prestador" required></td>
         <td><input name="new_specialty" placeholder="Especialidade"></td>
         <td>
           <select name="new_active">

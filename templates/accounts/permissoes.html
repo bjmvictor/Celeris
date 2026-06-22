@@ -1,0 +1,8 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card table-card"><table>
+    <thead><tr><th>Aplicação</th><th>Modelo</th><th>Permissão</th></tr></thead><tbody>
+    {% for registro in registros %}<tr><td>{{ registro.content_type.app_label }}</td><td>{{ registro.content_type.model }}</td><td>{{ registro.name }}</td></tr>{% endfor %}
+    </tbody>
+  </table></section>
+{% endblock %}

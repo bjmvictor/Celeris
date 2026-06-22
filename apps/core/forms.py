@@ -54,6 +54,7 @@ class EmpresaForm(forms.ModelForm):
             "cd_empresa",
             "nm_empresa",
             "nr_cnpj",
+            "nr_cnes",
             "ds_razao_social",
             "ds_nome_fantasia",
             "ds_email",
@@ -69,3 +70,8 @@ class EmpresaForm(forms.ModelForm):
         widgets = {
             "sn_ativo": forms.Select(choices=((True, "Ativo"), (False, "Inativo"))),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["nr_cnes"].widget.attrs.update({"inputmode": "numeric", "maxlength": "7", "data-validate-cnes": "true"})
+        self.fields["ds_email"].widget.attrs["data-validate-email"] = "true"

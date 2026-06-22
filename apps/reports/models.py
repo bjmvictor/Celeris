@@ -26,6 +26,7 @@ class ReportQuery(TimeStampedModel):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
 
     class Meta:
+        db_table = "consulta_relatorio"
         ordering = ("module", "name")
 
     def __str__(self) -> str:
@@ -39,4 +40,5 @@ class ReportQueryVersion(TimeStampedModel):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
 
     class Meta:
+        db_table = "versao_consulta_relatorio"
         ordering = ("-created_at",)

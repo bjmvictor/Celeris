@@ -1,0 +1,8 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card"><strong>{{ solicitacao.ds_exame }}</strong><p>{{ solicitacao.cd_atendimento.cd_paciente.nm_paciente }}</p></section>
+  <form class="card" method="post" enctype="multipart/form-data">{% csrf_token %}
+    <div class="form-grid">{% for field in form %}<label>{{ field.label }} {{ field }} {{ field.errors }}</label>{% endfor %}</div>
+    <div class="table-actions"><button class="button button-primary" type="submit">Salvar resultado</button></div>
+  </form>
+{% endblock %}

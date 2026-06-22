@@ -5,6 +5,7 @@
     class="patient-form"
     data-table="paciente"
     data-patient-id="{{ paciente.cd_paciente|default:'' }}"
+    data-query-url="{{ request.path }}"
     data-patient-query-template="{% if fluxo_agendamento %}/atendimento/agendamento/pacientes/__ID__/{% else %}/atendimento/pacientes/cadastro/__ID__/{% endif %}"
     data-requires-change-reason="{% if paciente %}true{% else %}false{% endif %}"
     method="post"
@@ -13,39 +14,41 @@
     {{ form.non_field_errors }}
 
     <details class="card form-section" open>
-      <summary>Dados pessoais</summary>
+      <summary>1. Dados Pessoais</summary>
       <div class="form-grid">
         <label class="pk-label field-xs">Código {{ form.cd_paciente }}</label>
-        <label class="field-sm">Status {{ form.sn_ativo }}</label>
-        <label class="field-xl">Nome {{ form.nm_paciente }}</label>
-        <label class="field-lg">Nome social {{ form.nm_social }}</label>
-        <label class="field-sm">Data de nascimento {{ form.dt_nascimento }}</label>
+        <label class="field-sm">Ativo/Inativo {{ form.sn_ativo }}</label>
+        <label class="field-xl">Nome * {{ form.nm_paciente }}</label>
+        <label class="field-lg">Nome Social {{ form.nm_social }}</label>
+        <label class="field-sm">Data de Nascimento * {{ form.dt_nascimento }}</label>
         <label class="field-sm">Sexo {{ form.tp_sexo }}</label>
         <label class="field-md">Gênero {{ form.tp_genero }}</label>
         <label class="field-md">Cor/Raça {{ form.ds_cor_raca }}</label>
-        <label class="field-md">Estado civil {{ form.tp_estado_civil }}</label>
-        <label class="field-sm">Tipo sanguíneo {{ form.tp_sanguineo }}</label>
+        <label class="field-md">Estado Civil {{ form.tp_estado_civil }}</label>
+        <label class="field-sm">Tipo Sanguíneo {{ form.tp_sanguineo }}</label>
         <label class="field-xl">Observação {{ form.ds_observacao }}</label>
       </div>
     </details>
 
     <details class="card form-section">
-      <summary>Documentos e convênio</summary>
+      <summary>2. Documentos e Convênio</summary>
       <div class="form-grid">
         <label class="field-md">CPF {{ form.nr_cpf }}</label>
         <label class="field-md">RG {{ form.nr_rg }}</label>
+        <label class="field-md">Órgão Emissor {{ form.ds_orgao_emissor }}</label>
+        <label class="field-sm">Data de Expedição {{ form.dt_expedicao }}</label>
         <label class="field-md">Cartão SUS {{ form.nr_cartao_sus }}</label>
-        <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
-        <label class="field-md">Número do convênio {{ form.nr_convenio }}</label>
+        <label class="field-lg">Convênio <a class="field-overlay-link" data-screen-overlay-link href="{% url 'atendimento:convenios' %}">Gerenciar</a> {{ form.cd_convenio }}</label>
+        <label class="field-md">Número do Convênio {{ form.nr_convenio }}</label>
       </div>
     </details>
 
     <details class="card form-section">
-      <summary>Filiação e família</summary>
+      <summary>3. Filiação e Dados Complementares</summary>
       <div class="form-grid">
-        <label class="field-xl">Nome da mãe {{ form.nm_mae }}</label>
-        <label class="field-xl">Nome do pai {{ form.nm_pai }}</label>
-        <label class="field-xl">Nome do cônjuge {{ form.nm_conjuge }}</label>
+        <label class="field-xl">Nome da Mãe {{ form.nm_mae }}</label>
+        <label class="field-xl">Nome do Pai {{ form.nm_pai }}</label>
+        <label class="field-xl">Nome do Cônjuge {{ form.nm_conjuge }}</label>
         <label class="field-md">Nacionalidade {{ form.ds_nacionalidade }}</label>
         <label class="field-md">Naturalidade {{ form.ds_naturalidade }}</label>
         <label class="field-lg">Profissão {{ form.ds_profissao }}</label>
@@ -53,21 +56,39 @@
     </details>
 
     <details class="card form-section">
-      <summary>Contato e endereço</summary>
+      <summary>4. Contato</summary>
       <div class="form-grid">
-        <label class="field-md">Telefone {{ form.nr_telefone }}</label>
-        <label class="field-md">Celular {{ form.nr_celular }}</label>
-        <label class="field-lg">Email {{ form.ds_email }}</label>
+        <label class="field-sm">Telefone {{ form.nr_telefone }}</label>
+        <label class="field-sm">Celular {{ form.nr_celular }}</label>
+        <label class="field-sm">Celular 2 {{ form.nr_celular_2 }}</label>
+        <label class="field-lg">E-mail {{ form.ds_email }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>5. Endereço</summary>
+      <div class="form-grid">
+        <label class="field-sm">CEP <a class="field-overlay-link" data-screen-overlay-link href="{% url 'core:global_ceps' %}">Gerenciar</a> {{ form.cd_cep }}</label>
+        <label class="field-xs">Estado {{ form.sg_estado }}</label>
+        <label class="field-lg">Cidade {{ form.ds_cidade }}</label>
+        <label class="field-md">Tipo de Logradouro {{ form.tp_logradouro }}</label>
         <label class="field-xl">Endereço {{ form.ds_endereco }}</label>
         <label class="field-xs">Número {{ form.nr_endereco }}</label>
         <label class="field-lg">Complemento {{ form.ds_complemento }}</label>
         <label class="field-lg">Bairro {{ form.ds_bairro }}</label>
-        <label class="field-xs">UF {{ form.sg_estado }}</label>
-        <label class="field-lg">Cidade {{ form.ds_cidade }}</label>
-        <label class="field-sm">CEP {{ form.nr_cep }}</label>
       </div>
     </details>
+
     {% if paciente %}
+      <details class="card form-section">
+        <summary>Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ paciente.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ paciente.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ paciente.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ paciente.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
       <div hidden data-change-reason-fields>
         {{ form.motivo_alteracao }}
         {{ form.observacao_alteracao }}
