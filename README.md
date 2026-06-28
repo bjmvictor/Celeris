@@ -1,14 +1,25 @@
 # Celeris
 
-Reestruturação do SGR em Django, mantendo uma aplicação monolítica com banco principal da própria aplicação e sem dependência de Oracle.
+Sistema de gestão hospitalar e clínica com suporte multiempresa, módulos integrados e controle de acesso por perfil.
 
 ## Objetivo
 
-- Centralizar backend e frontend em Django.
-- Manter estilos, menus e telas base de forma local, sem CDN.
-- Preservar a organização por módulos do SGR.
-- Usar apenas o banco principal da aplicação.
-- Preparar tabelas próprias para chamados, relatórios, serviço social, boarding e agentes.
+O Celeris tem como objetivo centralizar rotinas administrativas, assistenciais e operacionais em uma plataforma simples, moderna e segura.
+
+Principais pontos:
+
+* Gestão hospitalar e clínica.
+* Suporte multiempresa.
+* Controle de usuários, perfis e permissões.
+* Estrutura modular para evolução gradual.
+* Base preparada para adequação à LGPD.
+
+## Tecnologias
+
+* Python
+* Django
+* HTML, CSS e JavaScript
+* SQLite/PostgreSQL
 
 ## Rodar localmente
 
@@ -23,14 +34,27 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+Acesse:
+
+```text
+http://127.0.0.1:8000/
+```
+
 ## Estrutura
 
-- `apps/core`: navegação, painel inicial, permissões de módulos.
-- `apps/accounts`: usuário customizado.
-- `apps/reports`: consultas SQL internas e destinos de relatório.
-- `apps/tickets`: chamados genéricos por módulo.
-- `apps/social`: atendimentos e prestações sociais.
-- `apps/enfermagem`: boarding e histórico.
-- `apps/ti`: agentes conectados e inventário.
+```text
+apps/
+├── core          # Base do sistema, menu, módulos e painel inicial
+├── accounts      # Usuários, autenticação e permissões
+├── reports       # Relatórios e consultas internas
+├── tickets       # Chamados por módulo
+├── enfermagem    # Boarding e histórico assistencial
+└── ti            # Inventário, agentes e suporte técnico
+```
 
-As telas ainda são base para evolução gradual. Nenhuma conexão Oracle foi criada.
+## Status
+
+Projeto em fase inicial de desenvolvimento.
+
+As telas atuais são bases para evolução dos módulos.
+Nenhuma conexão Oracle foi implementada até o momento.
