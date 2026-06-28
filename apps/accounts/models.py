@@ -150,6 +150,43 @@ class UsuarioEmpresa(models.Model):
         return f"{self.usuario} - {self.empresa}"
 
 
+class Setor(models.Model):
+    class TipoSetor(models.TextChoices):
+        EMPRESA = "EMPRESA", "Setor da empresa"
+        ATENDIMENTO = "ATENDIMENTO", "Setor de atendimento"
+
+    cd_setor = models.BigAutoField("codigo", primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa", related_name="setores")
+    nm_setor = models.CharField("nome", max_length=120)
+    tp_setor = models.CharField("tipo", max_length=20, choices=TipoSetor.choices)
+    ds_observacao = models.CharField("observacao", max_length=240, blank=True)
+    sn_ativo = models.BooleanField("ativo", default=True)
+    dh_criacao = models.DateTimeField("data de criacao", default=timezone.now, editable=False)
+    dh_atualizacao = models.DateTimeField("data de alteracao", auto_now=True)
+    usuarios = models.ManyToManyField(User, through="SetorUsuario", related_name="setores", blank=True)
+
+    class Meta:
+        db_table = "setor"
+        ordering = ("cd_empresa", "tp_setor", "nm_setor")
+        unique_together = ("cd_empresa", "tp_setor", "nm_setor")
+
+    def __str__(self) -> str:
+        return f"{self.nm_setor} ({self.get_tp_setor_display()})"
+
+
+class SetorUsuario(models.Model):
+    cd_setor_usuario = models.BigAutoField("codigo", primary_key=True)
+    cd_setor = models.ForeignKey(Setor, on_delete=models.CASCADE, db_column="cd_setor")
+    cd_usuario = models.ForeignKey(User, on_delete=models.CASCADE, db_column="cd_usuario")
+
+    class Meta:
+        db_table = "setor_usuario"
+        unique_together = ("cd_setor", "cd_usuario")
+
+    def __str__(self) -> str:
+        return f"{self.cd_setor} - {self.cd_usuario}"
+
+
 class Papel(models.Model):
     grupo = models.OneToOneField(Group, on_delete=models.CASCADE, related_name="papel")
     ds_descricao = models.CharField("descrição", max_length=240, blank=True)

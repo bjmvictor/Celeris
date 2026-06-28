@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
+from django.forms import modelform_factory
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,18 +11,19 @@ from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from datetime import datetime, timedelta
+import calendar
 import logging
 import re
 import unicodedata
 from urllib.parse import urlencode
 
-from apps.accounts.models import Empresa
+from apps.accounts.models import Empresa, Setor
 from apps.core.models import TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 from apps.core.permissions import role_required
 from apps.core.table_utils import paginate_table
 
-from .forms import AgendamentoForm, AtendimentoForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, PrestadorSearchForm, ResultadoExameForm, SolicitacaoExameForm
-from .models import Atendimento, AgendaProfissional, Agendamento, Convenio, EvolucaoAtendimento, HistoricoAlteracaoPaciente, Paciente, PreAtendimento, Prescricao, Prestador, ResultadoExame, SolicitacaoExame
+from .forms import AgendamentoForm, AtendimentoForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, ResultadoExameForm, SolicitacaoExameForm
+from .models import Atendimento, AtendimentoFluxo, AtendimentoPrestador, AgendaProfissional, Agendamento, ChamadaPainel, Convenio, DocumentoClinico, EvolucaoAtendimento, HistoricoAlteracaoPaciente, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PreAtendimento, Prescricao, Prestador, ResultadoExame, SolicitacaoExame
 
 
 logger = logging.getLogger("celeris.atendimento")
@@ -32,6 +34,188 @@ def _safe_return_url(request):
     if candidate and url_has_allowed_host_and_scheme(candidate, allowed_hosts={request.get_host()}):
         return candidate
     return ""
+
+
+def _idade(data_nascimento):
+    if not data_nascimento:
+        return ""
+    hoje = timezone.localdate()
+    return hoje.year - data_nascimento.year - ((hoje.month, hoje.day) < (data_nascimento.month, data_nascimento.day))
+
+
+def _parse_date(value, fallback=None):
+    try:
+        return datetime.fromisoformat(value).date() if value else fallback
+    except ValueError:
+        return fallback
+
+
+def _feriados():
+    valores = ValorAuxiliarGlobal.objects.filter(
+        cd_tabela_auxiliar_global__ds_tabela="feriado",
+        sn_ativo=True,
+    )
+    datas = set()
+    for valor in valores:
+        for raw in (valor.cd_valor, valor.ds_valor):
+            texto = str(raw or "").strip()
+            for formato in ("%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    datas.add(datetime.strptime(texto[:10], formato).date())
+                    break
+                except ValueError:
+                    continue
+    return datas
+
+
+def _dias_com_agenda(empresa, inicio, fim):
+    agendas = AgendaProfissional.objects.filter(cd_empresa=empresa, sn_ativo=True)
+    weekdays = set(agendas.values_list("nr_dia_semana", flat=True))
+    dias = set()
+    atual = inicio
+    while atual <= fim:
+        if atual.weekday() in weekdays:
+            dias.add(atual)
+        atual += timedelta(days=1)
+    dias.update(
+        Agendamento.objects.filter(cd_empresa=empresa, dh_agendamento__date__gte=inicio, dh_agendamento__date__lte=fim)
+        .values_list("dh_agendamento__date", flat=True)
+    )
+    return dias
+
+
+def _calendario_mensal(empresa, data_selecionada, data_final=None):
+    primeiro = data_selecionada.replace(day=1)
+    ultimo_dia = calendar.monthrange(primeiro.year, primeiro.month)[1]
+    ultimo = primeiro.replace(day=ultimo_dia)
+    feriados = _feriados()
+    dias_com_agenda = _dias_com_agenda(empresa, primeiro, ultimo)
+    semanas = []
+    for semana in calendar.Calendar(firstweekday=6).monthdatescalendar(primeiro.year, primeiro.month):
+        semanas.append([
+            {
+                "date": dia,
+                "iso": dia.isoformat(),
+                "day": dia.day,
+                "in_month": dia.month == primeiro.month,
+                "selected": dia == data_selecionada or (data_final and data_selecionada <= dia <= data_final),
+                "holiday": dia in feriados,
+                "has_schedule": dia in dias_com_agenda,
+                "today": dia == timezone.localdate(),
+            }
+            for dia in semana
+        ])
+    anterior = (primeiro - timedelta(days=1)).replace(day=1)
+    proximo = (ultimo + timedelta(days=1)).replace(day=1)
+    return {
+        "month": primeiro,
+        "weeks": semanas,
+        "previous": anterior,
+        "next": proximo,
+        "weekdays": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
+    }
+
+
+def _criar_documento_clinico(atendimento, tipo, titulo, conteudo, user, status="RASCUNHO", origem=None):
+    return DocumentoClinico.objects.create(
+        cd_empresa=atendimento.cd_empresa,
+        cd_atendimento=atendimento,
+        cd_documento_origem=origem,
+        tp_documento=tipo,
+        ds_titulo=titulo,
+        ds_conteudo=conteudo,
+        ds_status=status,
+        dh_finalizacao=timezone.now() if status in {"FINALIZADO", "ASSINADO"} else None,
+        cd_usuario_emissor=user,
+        cd_usuario_criacao=user,
+        cd_usuario_atualizacao=user,
+        ds_campos_bloqueados={
+            "paciente.codigo": atendimento.cd_paciente_id,
+            "paciente.nome": atendimento.cd_paciente.nm_paciente,
+            "atendimento.codigo": atendimento.pk,
+            "empresa.nome": atendimento.cd_empresa.nm_empresa,
+            "usuario.nome": user.display_name() if hasattr(user, "display_name") else user.get_username(),
+        },
+    )
+
+
+ModeloDocumentoForm = modelform_factory(
+    ModeloDocumento,
+    fields=("nm_modelo", "tp_documento", "ds_cabecalho", "ds_corpo", "ds_rodape", "ds_variaveis", "ds_campos_bloqueados", "sn_ativo"),
+)
+
+
+STATUS_TIMESTAMP_FIELDS = {
+    "RECEPCIONADO": "dh_recepcao",
+    "EM_CLASSIFICACAO": "dh_inicio_classificacao",
+    "AGUARDANDO_CONSULTA": "dh_fim_classificacao",
+    "EM_ATENDIMENTO": "dh_inicio_atendimento",
+    "ALTA_MEDICA": "dh_alta_medica",
+    "ALTA_HOSPITALAR": "dh_alta_hospitalar",
+    "FINALIZADO": "dh_fim",
+    "CANCELADO": "dh_cancelamento",
+}
+
+
+def _registrar_fluxo(atendimento, status_anterior, status_novo, user=None, *, setor=None, prestador=None, origem="", observacao=""):
+    AtendimentoFluxo.objects.create(
+        cd_empresa=atendimento.cd_empresa,
+        cd_atendimento=atendimento,
+        ds_status_anterior=status_anterior or "",
+        ds_status_novo=status_novo,
+        cd_setor=setor or atendimento.cd_setor_atual,
+        cd_prestador=prestador or atendimento.cd_prestador,
+        cd_usuario=user,
+        ds_origem=origem,
+        ds_observacao=observacao,
+    )
+
+
+def _mudar_status_atendimento(atendimento, status_novo, user=None, *, setor=None, prestador=None, origem="", observacao="", save=True):
+    status_anterior = atendimento.ds_status
+    agora = timezone.now()
+    atendimento.ds_status = status_novo
+    if setor:
+        atendimento.cd_setor_atual = setor
+    timestamp_field = STATUS_TIMESTAMP_FIELDS.get(status_novo)
+    if timestamp_field and not getattr(atendimento, timestamp_field):
+        setattr(atendimento, timestamp_field, agora)
+    if status_novo == "CANCELADO":
+        atendimento.cd_usuario_cancelamento = user
+        atendimento.sn_ativo = False
+    if user:
+        atendimento.cd_usuario_atualizacao = user
+    if save:
+        atendimento.save()
+    if status_anterior != status_novo:
+        _registrar_fluxo(
+            atendimento,
+            status_anterior,
+            status_novo,
+            user,
+            setor=setor,
+            prestador=prestador,
+            origem=origem,
+            observacao=observacao,
+        )
+    return atendimento
+
+
+def _vincular_prestador_atendimento(atendimento, prestador, user=None, papel="MEDICO", principal=False):
+    if not prestador:
+        return
+    AtendimentoPrestador.objects.update_or_create(
+        cd_empresa=atendimento.cd_empresa,
+        cd_atendimento=atendimento,
+        cd_prestador=prestador,
+        tp_papel=papel,
+        defaults={
+            "sn_responsavel_principal": principal,
+            "sn_ativo": True,
+            "cd_usuario_atualizacao": user,
+            "cd_usuario_criacao": user,
+        },
+    )
 
 
 FORM_SCREENS = {
@@ -150,7 +334,9 @@ def _editable_convenios(request, title):
     if request.method == "POST":
         for convenio in registros:
             if request.POST.get(f"delete_{convenio.pk}") == "1":
-                convenio.delete()
+                convenio.sn_ativo = False
+                _apply_audit(convenio, request.user)
+                convenio.save(update_fields=["sn_ativo", "cd_usuario_atualizacao", "dh_atualizacao"])
                 continue
             if f"name_{convenio.pk}" not in request.POST:
                 continue
@@ -168,7 +354,7 @@ def _editable_convenios(request, title):
                 defaults={"sn_ativo": request.POST.getlist("new_active")[index] == "true" if index < len(request.POST.getlist("new_active")) else True},
             )
         messages.success(request, "Convênios salvos com sucesso.")
-        return redirect(request.path)
+        return redirect(f"{request.path}?consultar=1")
     return render(request, "atendimento/editable_convenios.html", {"title": title, "registros": registros})
 
 
@@ -207,56 +393,14 @@ def _editable_prestadores(request, title):
                 sn_ativo=(new_actives[index] if index < len(new_actives) else "true") == "true",
             )
         messages.success(request, "Prestadores salvos com sucesso.")
-        return redirect(request.path)
+        return redirect(f"{request.path}?consultar=1")
     return render(request, "atendimento/editable_prestadores.html", {"title": title, "registros": registros})
 
 
 @login_required
 @role_required("TI")
 def profissionais(request):
-    request.current_tab_title = "Cadastros > Prestadores"
-    request.current_tab_root_title = "Prestadores"
-    request.current_module_title = "Cadastros"
-    request.current_can_query = True
-    empresa = _empresa_logada(request)
-    form = PrestadorSearchForm(request.GET or None)
-    try:
-        registros = Prestador.objects.filter(cd_empresa=empresa)
-        if form.is_valid():
-            data = form.cleaned_data
-            if data.get("cd_prestador"):
-                registros = registros.filter(cd_prestador=data["cd_prestador"])
-            if data.get("nm_prestador"):
-                registros = registros.filter(nm_prestador__icontains=data["nm_prestador"].replace("%", ""))
-            if data.get("nr_cpf"):
-                registros = registros.filter(nr_cpf__icontains=data["nr_cpf"].replace("%", ""))
-            if data.get("nr_conselho"):
-                registros = registros.filter(nr_conselho__icontains=data["nr_conselho"].replace("%", ""))
-            if data.get("ds_especialidade"):
-                registros = registros.filter(
-                    Q(ds_especialidade__icontains=data["ds_especialidade"].replace("%", ""))
-                    | Q(ds_especialidades__icontains=data["ds_especialidade"].replace("%", ""))
-                )
-            if data.get("sn_ativo") in {"True", "False"}:
-                registros = registros.filter(sn_ativo=data["sn_ativo"] == "True")
-            elif data.get("sn_ativo") != "todos":
-                registros = registros.filter(sn_ativo=True)
-        registros = paginate_table(
-            request,
-            registros,
-            {"cd_prestador", "nm_prestador", "nr_cpf", "nr_conselho", "ds_especialidade", "sn_ativo"},
-            "cd_prestador",
-            load_on_open=True,
-        )
-    except Exception:
-        logger.exception("Erro ao executar consulta de prestadores")
-        registros = []
-        request.current_query_message = "Erro ao executar consulta."
-    return render(
-        request,
-        "atendimento/profissionais.html",
-        {"form": form, "registros": registros},
-    )
+    return redirect("atendimento:cadastro-profissional-novo")
 
 
 @login_required
@@ -330,8 +474,6 @@ def cadastro_profissional(request, cd_prestador=None):
         specialties = request.GET.getlist("ds_especialidades")
         if specialties:
             has_filter = True
-        if not has_filter:
-            registros = registros.filter(sn_ativo=True)
         ordered_records = registros.order_by("cd_prestador")
         if specialties:
             specialty_set = set(specialties)
@@ -352,21 +494,24 @@ def cadastro_profissional(request, cd_prestador=None):
         if not result_ids:
             messages.warning(request, "Nenhum prestador encontrado para os filtros informados.")
             return redirect(request.path)
-        return redirect("atendimento:cadastro-profissional", cd_prestador=result_ids[0])
+        return redirect(
+            f"{reverse('atendimento:cadastro-profissional', args=[result_ids[0]])}?origem=consulta"
+        )
     prestador = get_object_or_404(Prestador, cd_empresa=empresa, cd_prestador=cd_prestador) if cd_prestador else None
     if prestador:
         request.current_toggle_active_url = reverse("atendimento:alternar-status-prestador", args=[prestador.pk])
         request.current_toggle_active_label = "Desativar" if prestador.sn_ativo else "Ativar"
-    result_ids = request.session.get("consulta_prestadores", [])
+    query_context = request.GET.get("origem") == "consulta"
+    result_ids = request.session.get("consulta_prestadores", []) if query_context else []
     if prestador and prestador.cd_prestador in result_ids:
         current_index = result_ids.index(prestador.cd_prestador)
         request.current_record_status = f"Item {current_index + 1} de {len(result_ids)}"
         if current_index > 0:
-            request.current_first_url = reverse("atendimento:cadastro-profissional", args=[result_ids[0]])
-            request.current_previous_url = reverse("atendimento:cadastro-profissional", args=[result_ids[current_index - 1]])
+            request.current_first_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[current_index - 1]])}?origem=consulta"
         if current_index < len(result_ids) - 1:
-            request.current_next_url = reverse("atendimento:cadastro-profissional", args=[result_ids[current_index + 1]])
-            request.current_last_url = reverse("atendimento:cadastro-profissional", args=[result_ids[-1]])
+            request.current_next_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[current_index + 1]])}?origem=consulta"
+            request.current_last_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[-1]])}?origem=consulta"
     form = PrestadorForm(request.POST or None, instance=prestador)
     if request.method == "POST":
         logger.info(
@@ -394,6 +539,8 @@ def cadastro_profissional(request, cd_prestador=None):
                 edit_url = reverse("atendimento:cadastro-profissional", args=[saved.cd_prestador])
                 if request.current_return_url:
                     edit_url = f"{edit_url}?{urlencode({'return_to': request.current_return_url})}"
+                elif query_context:
+                    edit_url = f"{edit_url}?origem=consulta"
                 return redirect(edit_url)
             except Exception:
                 logger.exception(
@@ -456,13 +603,52 @@ def iniciar_pre_atendimento(request, cd_agendamento):
         saved.save()
         agendamento.ds_status = "RECEPCIONADO"
         agendamento.save(update_fields=["ds_status", "dh_atualizacao"])
-        Atendimento.objects.filter(cd_agendamento=agendamento).update(ds_status="AGUARDANDO_CONSULTA")
+        atendimento = Atendimento.objects.filter(cd_empresa=empresa, cd_agendamento=agendamento).first()
+        if atendimento:
+            atendimento.cd_pre_atendimento = saved
+            atendimento.ds_queixa_principal = saved.ds_queixa_principal
+            atendimento.save(update_fields=["cd_pre_atendimento", "ds_queixa_principal", "dh_atualizacao"])
+            _mudar_status_atendimento(atendimento, "AGUARDANDO_CONSULTA", request.user, origem="pre_atendimento")
         messages.success(request, "Pré-atendimento concluído e paciente encaminhado por prioridade.")
         return redirect("atendimento:atender-agendamento")
     return render(
         request,
         "atendimento/pre_atendimento.html",
         {"form": form, "agendamento": agendamento, "paciente": agendamento.cd_paciente},
+    )
+
+
+@login_required
+@role_required("Enfermeiro")
+def iniciar_pre_atendimento_atendimento(request, cd_atendimento):
+    empresa = _empresa_logada(request)
+    atendimento = get_object_or_404(
+        Atendimento.objects.select_related("cd_paciente", "cd_agendamento"),
+        cd_empresa=empresa,
+        cd_atendimento=cd_atendimento,
+    )
+    request.current_tab_title = "Atendimento > Pré-atendimento"
+    request.current_tab_root_title = "Pré-atendimento"
+    request.current_module_title = "Atendimento"
+    form = PreAtendimentoForm(request.POST or None, instance=atendimento.cd_pre_atendimento, empresa=empresa)
+    if request.method == "POST" and form.is_valid():
+        saved = form.save(commit=False)
+        saved.cd_empresa = empresa
+        saved.cd_paciente = atendimento.cd_paciente
+        saved.cd_agendamento = atendimento.cd_agendamento
+        saved.dh_fim = timezone.now()
+        _apply_audit(saved, request.user)
+        saved.save()
+        atendimento.cd_pre_atendimento = saved
+        atendimento.ds_queixa_principal = saved.ds_queixa_principal
+        atendimento.save(update_fields=["cd_pre_atendimento", "ds_queixa_principal", "dh_atualizacao"])
+        _mudar_status_atendimento(atendimento, "AGUARDANDO_CONSULTA", request.user, origem="pre_atendimento")
+        messages.success(request, "Pré-atendimento concluído e paciente encaminhado por prioridade.")
+        return redirect("atendimento:fila-classificacao")
+    return render(
+        request,
+        "atendimento/pre_atendimento.html",
+        {"form": form, "agendamento": atendimento.cd_agendamento, "paciente": atendimento.cd_paciente, "atendimento": atendimento},
     )
 
 
@@ -475,17 +661,26 @@ def iniciar_atendimento(request, cd_agendamento):
         cd_empresa=empresa,
         cd_agendamento=cd_agendamento,
     )
-    atendimento, _ = Atendimento.objects.get_or_create(
+    atendimento, created = Atendimento.objects.get_or_create(
         cd_empresa=empresa,
         cd_agendamento=agendamento,
         defaults={
             "cd_paciente": agendamento.cd_paciente,
             "cd_pre_atendimento": getattr(agendamento, "pre_atendimento", None),
             "cd_prestador": agendamento.cd_agenda_profissional.cd_prestador if agendamento.cd_agenda_profissional else None,
+            "cd_convenio": agendamento.cd_paciente.cd_convenio,
+            "ds_origem": "AGENDADO",
+            "ds_tipo_atendimento": agendamento.ds_tipo_atendimento,
+            "ds_especialidade": agendamento.ds_especialidade,
+            "ds_plano": agendamento.ds_plano,
+            "ds_status": "AGUARDANDO_CLASSIFICACAO",
             "cd_usuario_criacao": request.user,
             "cd_usuario_atualizacao": request.user,
         },
     )
+    if created:
+        _registrar_fluxo(atendimento, "", atendimento.ds_status, request.user, origem="iniciar_atendimento")
+    _vincular_prestador_atendimento(atendimento, atendimento.cd_prestador, request.user, principal=True)
     agendamento.ds_status = "EM_ATENDIMENTO"
     agendamento.save(update_fields=["ds_status"])
     return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.cd_atendimento)
@@ -509,13 +704,92 @@ def recepcao(request):
 
 @login_required
 @role_required("Recepcionista")
+def agendamentos_operacionais(request):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Atendimento > Agendamentos"
+    request.current_tab_root_title = "Agendamentos"
+    request.current_module_title = "Atendimento"
+    hoje = timezone.localdate()
+    data = request.GET.get("data") or hoje.isoformat()
+    data_inicio = _parse_date(data, hoje)
+    selecionar_intervalo = request.GET.get("intervalo") == "1"
+    data_final = _parse_date(request.GET.get("data_fim"), data_inicio) if selecionar_intervalo else data_inicio
+    mes = int(request.GET.get("mes") or data_inicio.month)
+    ano = int(request.GET.get("ano") or data_inicio.year)
+    data_calendario = data_inicio.replace(year=ano, month=mes, day=min(data_inicio.day, calendar.monthrange(ano, mes)[1]))
+    termo = request.GET.get("q", "").strip().replace("%", "")
+    todos = request.GET.get("todas_especialidades", "1") == "1" and not request.GET.getlist("especialidades")
+    especialidades_selecionadas = [value for value in request.GET.getlist("especialidades") if value]
+    registros = (
+        Agendamento.objects.select_related(
+            "cd_paciente",
+            "cd_paciente__cd_convenio",
+            "cd_agenda_profissional__cd_prestador",
+            "atendimento",
+        )
+        .filter(cd_empresa=empresa, dh_agendamento__date__gte=data_inicio, dh_agendamento__date__lte=data_final)
+        .order_by("dh_agendamento")
+    )
+    if not todos and especialidades_selecionadas:
+        registros = registros.filter(ds_especialidade__in=especialidades_selecionadas)
+    if termo:
+        filtros = (
+            Q(cd_paciente__nm_paciente__icontains=termo)
+            | Q(cd_paciente__nr_cpf__icontains=termo)
+            | Q(cd_paciente__nr_cartao_sus__icontains=termo)
+            | Q(cd_paciente__nr_rg__icontains=termo)
+            | Q(ds_profissional__icontains=termo)
+            | Q(cd_agenda_profissional__cd_prestador__nm_prestador__icontains=termo)
+            | Q(ds_especialidade__icontains=termo)
+            | Q(cd_paciente__nm_mae__icontains=termo)
+        )
+        if termo.isdigit():
+            filtros |= Q(cd_paciente_id=int(termo))
+        if re.match(r"^\d{1,2}:\d{2}$", termo):
+            filtros |= Q(dh_agendamento__time=datetime.strptime(termo, "%H:%M").time())
+        registros = registros.filter(filtros)
+    especialidades_qs = ValorAuxiliarGlobal.objects.filter(cd_tabela_auxiliar_global__ds_tabela="especialidade", sn_ativo=True).order_by("ds_valor")
+    especialidades = [{"codigo": item.cd_valor, "descricao": item.ds_valor} for item in especialidades_qs]
+    if not especialidades:
+        especialidades = [
+            {"codigo": value, "descricao": value}
+            for value in Agendamento.objects.filter(cd_empresa=empresa)
+            .exclude(ds_especialidade="")
+            .order_by("ds_especialidade")
+            .values_list("ds_especialidade", flat=True)
+            .distinct()
+        ]
+    calendario = _calendario_mensal(empresa, data_calendario, data_final if selecionar_intervalo else None)
+    return render(
+        request,
+        "atendimento/agendamentos_operacionais.html",
+        {
+            "registros": registros[:200],
+            "data": data_inicio.isoformat(),
+            "data_fim": data_final.isoformat(),
+            "selecionar_intervalo": selecionar_intervalo,
+            "termo": termo,
+            "todos": todos,
+            "especialidades": especialidades,
+            "especialidades_selecionadas": especialidades_selecionadas,
+            "calendario": calendario,
+        },
+    )
+
+
+@login_required
+@role_required("Recepcionista")
 def recepcionar_agendamento(request, cd_agendamento):
     empresa = _empresa_logada(request)
     agendamento = get_object_or_404(Agendamento, cd_empresa=empresa, cd_agendamento=cd_agendamento)
+    atendimento_existente = Atendimento.objects.filter(cd_empresa=empresa, cd_agendamento=agendamento).first()
+    if atendimento_existente:
+        messages.warning(request, "Este agendamento já possui atendimento gerado.")
+        return redirect("atendimento:recepcao")
     agendamento.ds_status = "RECEPCIONADO"
     agendamento.cd_usuario_atualizacao = request.user
     agendamento.save(update_fields=["ds_status", "cd_usuario_atualizacao", "dh_atualizacao"])
-    atendimento, _ = Atendimento.objects.get_or_create(
+    atendimento, created = Atendimento.objects.get_or_create(
         cd_empresa=empresa,
         cd_agendamento=agendamento,
         defaults={
@@ -531,6 +805,9 @@ def recepcionar_agendamento(request, cd_agendamento):
             "cd_usuario_atualizacao": request.user,
         },
     )
+    if created:
+        _mudar_status_atendimento(atendimento, "AGUARDANDO_CLASSIFICACAO", request.user, origem="recepcao")
+    _vincular_prestador_atendimento(atendimento, atendimento.cd_prestador, request.user, principal=True)
     messages.success(request, "Paciente recepcionado e encaminhado para classificação.")
     return redirect("atendimento:atender-agendamento")
 
@@ -552,27 +829,41 @@ def ficha_atendimento(request, cd_atendimento):
     request.current_tab_title = "Atendimento > Ficha de atendimento"
     request.current_tab_root_title = f"Atendimento {atendimento.cd_atendimento}"
     request.current_module_title = "Atendimento"
-    if request.method == "POST" and request.POST.get("finalizar") == "1":
-        atendimento.ds_status = request.POST.get("status_final") or "FINALIZADO"
+    request.current_return_url = _safe_return_url(request)
+    status_final = request.POST.get("status_final") or "FINALIZADO"
     form = AtendimentoForm(request.POST or None, instance=atendimento, empresa=empresa)
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
         saved.cd_usuario_atualizacao = request.user
         saved.save()
+        _vincular_prestador_atendimento(saved, saved.cd_prestador, request.user, principal=True)
         if saved.cd_agendamento:
             saved.cd_agendamento.ds_status = "EM_ATENDIMENTO"
             saved.cd_agendamento.cd_usuario_atualizacao = request.user
             saved.cd_agendamento.save(update_fields=["ds_status", "cd_usuario_atualizacao", "dh_atualizacao"])
         messages.success(request, "Consulta salva. Continue com prescrição, evolução ou alta.")
         if request.POST.get("finalizar") == "1":
-            saved.dh_fim = timezone.now()
-            saved.save(update_fields=["ds_status", "dh_fim", "dh_atualizacao"])
+            _mudar_status_atendimento(saved, status_final, request.user, origem="ficha_atendimento")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=saved.cd_atendimento)
     historico = Atendimento.objects.filter(cd_empresa=empresa, cd_paciente=atendimento.cd_paciente).exclude(pk=atendimento.pk)[:10]
+    grupos = set(request.user.groups.values_list("name", flat=True))
+    clinical_permissions = {
+        "medico": request.user.is_superuser or bool(grupos.intersection({"TI", "Médico", "MÃ©dico"})),
+        "enfermeiro": request.user.is_superuser or bool(grupos.intersection({"TI", "Enfermeiro"})),
+        "laboratorio": request.user.is_superuser or bool(grupos.intersection({"TI", "Laboratório", "Laboratorio"})),
+    }
     return render(
         request,
         "atendimento/ficha_atendimento.html",
-        {"form": form, "atendimento": atendimento, "paciente": atendimento.cd_paciente, "historico": historico},
+        {
+            "form": form,
+            "atendimento": atendimento,
+            "paciente": atendimento.cd_paciente,
+            "idade": _idade(atendimento.cd_paciente.dt_nascimento),
+            "historico": historico,
+            "documentos": atendimento.documentos.all(),
+            "clinical_permissions": clinical_permissions,
+        },
     )
 
 
@@ -588,8 +879,14 @@ def solicitar_exame(request, cd_atendimento):
         saved.cd_atendimento = atendimento
         _apply_audit(saved, request.user)
         saved.save()
-        atendimento.ds_status = "AGUARDANDO_EXAMES"
-        atendimento.save(update_fields=["ds_status", "dh_atualizacao"])
+        _criar_documento_clinico(
+            atendimento,
+            "SOLICITACAO_EXAME",
+            f"Solicitação de exame {saved.cd_solicitacao_exame}",
+            f"Exame: {saved.ds_exame}\nPrioridade: {saved.get_ds_prioridade_display()}\nJustificativa: {saved.ds_justificativa}",
+            request.user,
+        )
+        _mudar_status_atendimento(atendimento, "AGUARDANDO_EXAMES", request.user, origem="solicitacao_exame")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
     return render(request, "atendimento/solicitar_exame.html", {"form": form, "atendimento": atendimento})
 
@@ -611,6 +908,8 @@ def resultado_exame(request, cd_solicitacao):
             solicitacao.save(update_fields=["ds_status", "dh_atualizacao"])
         _apply_audit(saved, request.user)
         saved.save()
+        if saved.sn_liberado:
+            _mudar_status_atendimento(solicitacao.cd_atendimento, "RETORNO_EXAMES", request.user, origem="resultado_exame")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=solicitacao.cd_atendimento_id)
     return render(request, "atendimento/resultado_exame.html", {"form": form, "solicitacao": solicitacao})
 
@@ -627,6 +926,13 @@ def prescrever(request, cd_atendimento):
         saved.cd_atendimento = atendimento
         _apply_audit(saved, request.user)
         saved.save()
+        _criar_documento_clinico(
+            atendimento,
+            "PRESCRICAO",
+            f"Prescrição {saved.cd_prescricao}",
+            f"{saved.ds_prescricao}\n\nOrientações: {saved.ds_orientacoes}",
+            request.user,
+        )
         messages.success(request, "Prescrição registrada.")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
     return render(request, "atendimento/prescricao.html", {"form": form, "atendimento": atendimento})
@@ -648,6 +954,13 @@ def evoluir(request, cd_atendimento):
         saved.cd_prestador = atendimento.cd_prestador
         _apply_audit(saved, request.user)
         saved.save()
+        _criar_documento_clinico(
+            atendimento,
+            "EVOLUCAO",
+            f"Evolução {saved.cd_evolucao_atendimento}",
+            saved.ds_evolucao,
+            request.user,
+        )
         messages.success(request, "Evolução registrada.")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
     return render(request, "atendimento/evolucao.html", {"form": form, "atendimento": atendimento})
@@ -662,9 +975,14 @@ def conceder_alta(request, cd_atendimento):
         if not atendimento.cd_prestador or not atendimento.ds_conduta or not (atendimento.ds_diagnostico or atendimento.ds_hipotese_diagnostica) or not atendimento.ds_destino:
             messages.error(request, "Informe profissional, diagnóstico ou hipótese, conduta e destino antes da alta.")
             return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
-        atendimento.ds_status = "ALTA"
-        atendimento.cd_usuario_atualizacao = request.user
-        atendimento.save()
+        _criar_documento_clinico(
+            atendimento,
+            "RESUMO_ALTA",
+            f"Resumo de alta {atendimento.pk}",
+            f"Diagnóstico/Hipótese: {atendimento.ds_diagnostico or atendimento.ds_hipotese_diagnostica}\nConduta: {atendimento.ds_conduta}\nDestino: {atendimento.ds_destino}",
+            request.user,
+        )
+        _mudar_status_atendimento(atendimento, "ALTA_MEDICA", request.user, origem="alta_medica")
         messages.success(request, "Alta concedida. Finalize o atendimento para concluir o fluxo.")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
     return render(request, "atendimento/alta.html", {"atendimento": atendimento})
@@ -676,13 +994,10 @@ def finalizar_atendimento(request, cd_atendimento):
     atendimento = get_object_or_404(Atendimento, cd_empresa=_empresa_logada(request), cd_atendimento=cd_atendimento)
     if request.method != "POST":
         return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
-    if atendimento.ds_status != "ALTA":
+    if atendimento.ds_status not in {"ALTA", "ALTA_MEDICA"}:
         messages.error(request, "Conceda a alta antes de finalizar o atendimento.")
         return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
-    atendimento.ds_status = "FINALIZADO"
-    atendimento.dh_fim = timezone.now()
-    atendimento.cd_usuario_atualizacao = request.user
-    atendimento.save(update_fields=["ds_status", "dh_fim", "cd_usuario_atualizacao", "dh_atualizacao"])
+    _mudar_status_atendimento(atendimento, "FINALIZADO", request.user, origem="finalizar_atendimento")
     if atendimento.cd_agendamento:
         atendimento.cd_agendamento.ds_status = "FINALIZADO"
         atendimento.cd_agendamento.save(update_fields=["ds_status", "dh_atualizacao"])
@@ -701,6 +1016,55 @@ def imprimir_atendimento(request, cd_atendimento):
     return render(request, "atendimento/imprimir_atendimento.html", {"atendimento": atendimento, "empresa": empresa})
 
 
+@login_required
+@role_required("TI")
+def modelos_documento(request, cd_modelo=None):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Atendimento > Modelos de documentos"
+    request.current_tab_root_title = "Modelos de documentos"
+    request.current_module_title = "Atendimento"
+    modelo = ModeloDocumento.objects.filter(cd_empresa=empresa, pk=cd_modelo).first() if cd_modelo else None
+    form = ModeloDocumentoForm(request.POST or None, instance=modelo)
+    if request.method == "POST" and form.is_valid():
+        saved = form.save(commit=False)
+        saved.cd_empresa = empresa
+        _apply_audit(saved, request.user)
+        saved.save()
+        messages.success(request, "Modelo de documento salvo com sucesso.")
+        return redirect("atendimento:modelos-documento")
+    modelos = ModeloDocumento.objects.filter(cd_empresa=empresa).order_by("tp_documento", "nm_modelo")
+    return render(request, "atendimento/modelos_documento.html", {"form": form, "modelos": modelos, "modelo": modelo})
+
+
+@login_required
+@role_required("TI", "Médico", "MÃ©dico", "Enfermeiro")
+def imprimir_documento_clinico(request, cd_documento):
+    empresa = _empresa_logada(request)
+    documento = get_object_or_404(
+        DocumentoClinico.objects.select_related("cd_atendimento__cd_paciente", "cd_atendimento__cd_prestador", "cd_usuario_emissor"),
+        cd_empresa=empresa,
+        cd_documento_clinico=cd_documento,
+    )
+    return render(request, "atendimento/documento_clinico.html", {"documento": documento, "atendimento": documento.cd_atendimento, "empresa": empresa})
+
+
+@login_required
+@role_required("TI", "Médico", "MÃ©dico")
+def copiar_documento_clinico(request, cd_documento):
+    empresa = _empresa_logada(request)
+    origem = get_object_or_404(DocumentoClinico, cd_empresa=empresa, cd_documento_clinico=cd_documento)
+    copia = _criar_documento_clinico(
+        origem.cd_atendimento,
+        origem.tp_documento,
+        f"Cópia de {origem.ds_titulo}",
+        origem.ds_conteudo,
+        request.user,
+        origem=origem,
+    )
+    messages.success(request, "Documento copiado como rascunho.")
+    return redirect("atendimento:imprimir-documento-clinico", cd_documento=copia.pk)
+
+
 def _editable_auxiliary(request, table_name, title):
     request.current_tab_title = title
     request.current_module_title = "Atendimento"
@@ -714,7 +1078,8 @@ def _editable_auxiliary(request, table_name, title):
     if request.method == "POST":
         for valor in tabela.valores.all():
             if request.POST.get(f"delete_{valor.pk}") == "1":
-                valor.delete()
+                valor.sn_ativo = False
+                valor.save(update_fields=["sn_ativo", "updated_at"])
                 continue
             if f"description_{valor.pk}" not in request.POST:
                 continue
@@ -742,10 +1107,13 @@ def _editable_auxiliary(request, table_name, title):
             messages.error(request, "Informe a descrição obrigatória antes de salvar.")
         else:
             messages.success(request, f"{title} salvo com sucesso.")
-        return redirect(request.path)
+        return redirect(f"{request.path}?consultar=1")
     valores = tabela.valores.all()
     if query:
-        valores = valores.filter(Q(cd_valor__icontains=query) | Q(ds_valor__icontains=query))
+        value_filter = Q(cd_valor__icontains=query) | Q(ds_valor__icontains=query)
+        if query.isdigit():
+            value_filter |= Q(cd_valor_auxiliar_global=int(query))
+        valores = valores.filter(value_filter)
     valores = paginate_table(
         request,
         valores,
@@ -817,7 +1185,7 @@ def _editable_escalas(request, title):
             _apply_audit(escala, request.user)
             escala.save()
         messages.success(request, "Escalas salvas com sucesso.")
-        return redirect(request.path)
+        return redirect(f"{request.path}?consultar=1")
     return render(
         request,
         "atendimento/editable_escalas.html",
@@ -881,6 +1249,199 @@ def atendimentos(request):
 
 
 @login_required
+@role_required("TI", "Médico", "Enfermeiro")
+def pep(request):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Atendimento > PEP"
+    request.current_tab_root_title = "PEP"
+    request.current_module_title = "Atendimento"
+    request.current_can_query = False
+    setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO, sn_ativo=True)
+    if not request.user.groups.filter(name="TI").exists():
+        setores = setores.filter(usuarios=request.user)
+    setores = setores.distinct().order_by("nm_setor")
+    aba = request.GET.get("aba", "atendimentos")
+    setor_ids = [value for value in request.GET.getlist("setores") if value.isdigit()]
+    usar_todos_setores = request.GET.get("todos_setores", "1") == "1" and not setor_ids
+    setores_filtrados = setores if usar_todos_setores else setores.filter(pk__in=setor_ids)
+    atendimentos_setor = (
+        Atendimento.objects.select_related("cd_paciente", "cd_paciente__cd_convenio", "cd_convenio", "cd_prestador", "cd_pre_atendimento", "cd_setor_atual")
+        .prefetch_related("solicitacoes_exames", "prescricoes")
+        .filter(cd_empresa=empresa, sn_ativo=True)
+        .filter(ds_status__in=["AGUARDANDO_CONSULTA", "EM_ATENDIMENTO", "AGUARDANDO_EXAMES", "RETORNO_EXAMES", "EM_OBSERVACAO"])
+        .order_by("cd_pre_atendimento__nr_prioridade", "dh_inicio")
+    )
+    if setores_filtrados.exists():
+        atendimentos_setor = atendimentos_setor.filter(Q(cd_setor_atual__in=setores_filtrados) | Q(cd_setor_atual__isnull=True))
+    elif setores.exists():
+        atendimentos_setor = atendimentos_setor.none()
+    if getattr(request.user, "cd_prestador_id", None) and not request.user.groups.filter(name="TI").exists():
+        atendimentos_setor = atendimentos_setor.filter(Q(cd_prestador=request.user.cd_prestador) | Q(cd_prestador__isnull=True))
+    busca_atendimento = request.GET.get("q_atendimento", "").strip().replace("%", "")
+    nr_atendimento = request.GET.get("nr_atendimento", "").strip()
+    if nr_atendimento.isdigit():
+        atendimentos_setor = atendimentos_setor.filter(cd_atendimento=int(nr_atendimento))
+        busca_atendimento = ""
+    elif busca_atendimento:
+        filtros_atendimento = (
+            Q(cd_paciente__nm_paciente__icontains=busca_atendimento)
+            | Q(cd_paciente__nr_cpf__icontains=busca_atendimento)
+            | Q(cd_paciente__nr_cartao_sus__icontains=busca_atendimento)
+            | Q(cd_paciente__nr_rg__icontains=busca_atendimento)
+        )
+        if busca_atendimento.isdigit():
+            filtros_atendimento |= Q(cd_paciente_id=int(busca_atendimento))
+        atendimentos_setor = atendimentos_setor.filter(filtros_atendimento)
+
+    pacientes_geral = Paciente.objects.none()
+    paciente_selecionado = None
+    atendimentos_paciente = Atendimento.objects.none()
+    atendimento_selecionado = None
+    busca = request.GET.get("q", "").strip().replace("%", "")
+    data_inicio = request.GET.get("data_inicio", "")
+    data_fim = request.GET.get("data_fim", "")
+    paciente_id = request.GET.get("paciente")
+    atendimento_id = request.GET.get("atendimento")
+    if aba == "todos":
+        pacientes_geral = Paciente.objects.filter(cd_empresa=empresa, sn_ativo=True)
+        if busca:
+            filtros = (
+                Q(nm_paciente__icontains=busca)
+                | Q(nr_cpf__icontains=busca)
+                | Q(nr_cartao_sus__icontains=busca)
+                | Q(nr_rg__icontains=busca)
+                | Q(atendimento__cd_atendimento__icontains=busca)
+            )
+            if busca.isdigit():
+                filtros |= Q(cd_paciente=int(busca))
+            pacientes_geral = pacientes_geral.filter(filtros)
+        elif not data_inicio and not data_fim:
+            pacientes_geral = pacientes_geral.none()
+        if data_inicio:
+            pacientes_geral = pacientes_geral.filter(atendimento__dh_inicio__date__gte=data_inicio)
+        if data_fim:
+            pacientes_geral = pacientes_geral.filter(atendimento__dh_inicio__date__lte=data_fim)
+        pacientes_geral = pacientes_geral.distinct().order_by("nm_paciente")[:50]
+        if paciente_id:
+            paciente_selecionado = get_object_or_404(Paciente, cd_empresa=empresa, pk=paciente_id)
+            atendimentos_paciente = (
+                Atendimento.objects.select_related("cd_prestador", "cd_pre_atendimento", "cd_convenio")
+                .prefetch_related("solicitacoes_exames__resultado", "prescricoes", "evolucoes")
+                .filter(cd_empresa=empresa, cd_paciente=paciente_selecionado)
+                .order_by("-dh_inicio")
+            )
+        if atendimento_id:
+            atendimento_selecionado = get_object_or_404(
+                Atendimento.objects.select_related("cd_paciente", "cd_prestador", "cd_pre_atendimento", "cd_convenio")
+                .prefetch_related("solicitacoes_exames__resultado", "prescricoes", "evolucoes"),
+                cd_empresa=empresa,
+                pk=atendimento_id,
+            )
+            paciente_selecionado = atendimento_selecionado.cd_paciente
+            atendimentos_paciente = Atendimento.objects.filter(cd_empresa=empresa, cd_paciente=paciente_selecionado).order_by("-dh_inicio")
+    return render(
+        request,
+        "atendimento/pep.html",
+        {
+            "setores": setores,
+            "setores_filtrados": setores_filtrados,
+            "setor_ids": [str(value) for value in setores_filtrados.values_list("pk", flat=True)],
+            "setor_chamada_padrao": setores_filtrados.first(),
+            "usar_todos_setores": usar_todos_setores,
+            "atendimentos": atendimentos_setor[:80],
+            "aba": aba,
+            "busca_atendimento": busca_atendimento,
+            "nr_atendimento": nr_atendimento,
+            "busca": busca,
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
+            "pacientes_geral": pacientes_geral,
+            "paciente_selecionado": paciente_selecionado,
+            "atendimentos_paciente": atendimentos_paciente,
+            "atendimento_selecionado": atendimento_selecionado,
+            "agora": timezone.now(),
+        },
+    )
+
+
+@login_required
+@role_required("TI", "Médico", "Enfermeiro")
+def pep_chamar(request, cd_atendimento):
+    empresa = _empresa_logada(request)
+    atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
+    setor = get_object_or_404(Setor, cd_empresa=empresa, pk=request.POST.get("setor"))
+    ChamadaPainel.objects.create(
+        cd_empresa=empresa,
+        cd_atendimento=atendimento,
+        cd_setor=setor,
+        ds_local=f"{setor.nm_setor}",
+        cd_usuario_criacao=request.user,
+        cd_usuario_atualizacao=request.user,
+    )
+    messages.success(request, "Paciente enviado para o painel de chamada.")
+    return redirect(f"{reverse('atendimento:pep')}?aba=atendimentos&todos_setores=0&setores={setor.pk}")
+
+
+@login_required
+@role_required("TI")
+def paineis_chamada(request):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Atendimento > Painéis de chamada"
+    request.current_tab_root_title = "Painéis de chamada"
+    request.current_module_title = "Atendimento"
+    setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO, sn_ativo=True).order_by("nm_setor")
+    if request.method == "POST":
+        painel_id = request.POST.get("painel")
+        painel = PainelChamada.objects.filter(cd_empresa=empresa, pk=painel_id).first() if painel_id else PainelChamada(cd_empresa=empresa)
+        painel.nm_painel = request.POST.get("nm_painel", "").strip()
+        painel.ds_descricao = request.POST.get("ds_descricao", "").strip()
+        painel.nm_maquina = request.POST.get("nm_maquina", "").strip()
+        painel.tp_painel = request.POST.get("tp_painel") or "PAINEL"
+        painel.nr_referencia = request.POST.get("nr_referencia", "").strip()
+        painel.ds_local_exibicao = request.POST.get("ds_local_exibicao", "").strip()
+        painel.ds_mensagem_padrao = request.POST.get("ds_mensagem_padrao", "").strip()
+        painel.nr_tempo_exibicao = int(request.POST.get("nr_tempo_exibicao") or 10)
+        painel.ds_layout = request.POST.get("ds_layout", "padrao").strip() or "padrao"
+        painel.ds_tamanho = request.POST.get("ds_tamanho", "medio").strip() or "medio"
+        painel.ds_cor = request.POST.get("ds_cor", "azul").strip() or "azul"
+        painel.ds_prioridade_visual = request.POST.get("ds_prioridade_visual", "normal").strip() or "normal"
+        painel.sn_voz = request.POST.get("sn_voz") == "on"
+        painel.ds_midia_url = request.POST.get("ds_midia_url", "").strip()
+        painel.ds_observacao = request.POST.get("ds_observacao", "").strip()
+        painel.sn_ativo = request.POST.get("sn_ativo") == "on"
+        if painel.nm_painel and painel.nm_maquina:
+            painel.cd_usuario_atualizacao = request.user
+            if not painel.pk:
+                painel.cd_usuario_criacao = request.user
+            painel.save()
+            painel.setores.set(setores.filter(pk__in=request.POST.getlist("setores")))
+            messages.success(request, "Painel de chamada salvo com sucesso.")
+            return redirect("atendimento:paineis-chamada")
+        messages.error(request, "Informe nome do painel e nome da máquina.")
+    paineis = PainelChamada.objects.prefetch_related("setores").filter(cd_empresa=empresa).order_by("nm_painel")
+    return render(request, "atendimento/paineis_chamada.html", {"paineis": paineis, "setores": setores, "tipos": PainelChamada.TIPOS})
+
+
+def painel_chamada_publico(request):
+    painel = None
+    painel_id = request.GET.get("painel") or request.COOKIES.get("celeris_painel_chamada")
+    if painel_id:
+        painel = PainelChamada.objects.prefetch_related("setores").filter(pk=painel_id, sn_ativo=True).first()
+    paineis = PainelChamada.objects.filter(sn_ativo=True).order_by("nm_painel")
+    chamadas = ChamadaPainel.objects.none()
+    if painel:
+        chamadas = (
+            ChamadaPainel.objects.select_related("cd_atendimento__cd_paciente", "cd_setor")
+            .filter(cd_setor__in=painel.setores.all(), ds_status="CHAMADO")
+            .order_by("-dh_chamada")[:8]
+        )
+    response = render(request, "atendimento/painel_chamada_publico.html", {"painel": painel, "paineis": paineis, "chamadas": chamadas})
+    if painel:
+        response.set_cookie("celeris_painel_chamada", str(painel.pk), max_age=60 * 60 * 24 * 365)
+    return response
+
+
+@login_required
 @role_required("Enfermeiro")
 def fila_classificacao(request):
     empresa = _empresa_logada(request)
@@ -913,9 +1474,8 @@ def fila_medica(request):
 def abrir_consulta(request, cd_atendimento):
     atendimento = get_object_or_404(Atendimento, cd_empresa=_empresa_logada(request), cd_atendimento=cd_atendimento)
     if atendimento.ds_status == "AGUARDANDO_CONSULTA":
-        atendimento.ds_status = "EM_ATENDIMENTO"
-        atendimento.cd_usuario_atualizacao = request.user
-        atendimento.save(update_fields=["ds_status", "cd_usuario_atualizacao", "dh_atualizacao"])
+        _mudar_status_atendimento(atendimento, "EM_ATENDIMENTO", request.user, origem="consulta_medica")
+        _vincular_prestador_atendimento(atendimento, atendimento.cd_prestador, request.user, principal=True)
     return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
 
 
@@ -1047,8 +1607,6 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
         if request.GET.get("cd_cep", "").isdigit():
             registros = registros.filter(cd_cep_id=int(request.GET["cd_cep"]))
             has_filter = True
-        if not has_filter:
-            registros = registros.filter(sn_ativo=True)
         result_ids = list(registros.order_by("cd_paciente").values_list("cd_paciente", flat=True)[:200])
         request.session["consulta_pacientes"] = result_ids
         if not result_ids:
@@ -1145,24 +1703,52 @@ def alternar_status_paciente(request, cd_paciente):
 @role_required("Recepcionista")
 def selecionar_agenda(request, cd_paciente):
     request.current_tab_title = "Atendimento > Agendamento > Agendar > Selecionar agenda"
+    request.current_tab_root_title = "Selecionar agenda"
     request.current_module_title = "Atendimento"
     empresa = _empresa_logada(request)
     paciente = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=cd_paciente)
-    data_filtro = request.GET.get("data", "")
-    especialidade_filtro = request.GET.get("especialidade", "")
-    horarios = _horarios_disponiveis(empresa)
-    if data_filtro:
-        horarios = [horario for horario in horarios if horario["dh_agendamento"].date().isoformat() == data_filtro]
-    if especialidade_filtro:
+    hoje = timezone.localdate()
+    data_filtro = _parse_date(request.GET.get("data"), hoje)
+    selecionar_intervalo = request.GET.get("intervalo") == "1"
+    data_fim = _parse_date(request.GET.get("data_fim"), data_filtro) if selecionar_intervalo else data_filtro
+    dias = max((data_fim - hoje).days + 1, 1)
+    horarios = [
+        horario
+        for horario in _horarios_disponiveis(empresa, dias=dias)
+        if data_filtro <= horario["dh_agendamento"].date() <= data_fim
+    ]
+    especialidades_selecionadas = [value for value in request.GET.getlist("especialidades") if value]
+    todas_especialidades = request.GET.get("todas_especialidades", "1") == "1" and not especialidades_selecionadas
+    termo = request.GET.get("q", "").strip().replace("%", "")
+    if especialidades_selecionadas:
         horarios = [
             horario
             for horario in horarios
-            if horario["agenda"].cd_prestador.ds_especialidade == especialidade_filtro
+            if horario["agenda"].cd_prestador.ds_especialidade in especialidades_selecionadas
+            or set(especialidades_selecionadas).intersection(horario["agenda"].cd_prestador.ds_especialidades or [])
+        ]
+    if termo:
+        termo_lower = termo.lower()
+        horarios = [
+            horario
+            for horario in horarios
+            if termo_lower in horario["agenda"].cd_prestador.nm_prestador.lower()
+            or termo_lower in (horario["agenda"].cd_prestador.nm_guerra or "").lower()
+            or termo_lower in (horario["agenda"].cd_prestador.ds_especialidade or "").lower()
+            or termo_lower in horario["dh_agendamento"].strftime("%H:%M")
         ]
     especialidades = ValorAuxiliarGlobal.objects.filter(
         cd_tabela_auxiliar_global__ds_tabela="especialidade",
         sn_ativo=True,
     ).order_by("ds_valor")
+    agenda_id = request.GET.get("agenda")
+    horario_iso = request.GET.get("horario")
+    horario_selecionado = None
+    if agenda_id and horario_iso:
+        for horario in horarios:
+            if str(horario["agenda"].pk) == agenda_id and horario["dh_agendamento"].isoformat() == horario_iso:
+                horario_selecionado = horario
+                break
     if request.method == "POST":
         agenda = get_object_or_404(AgendaProfissional, cd_empresa=empresa, cd_agenda_profissional=request.POST.get("cd_agenda_profissional"))
         dh_agendamento = parse_datetime(request.POST["dh_agendamento"])
@@ -1175,6 +1761,7 @@ def selecionar_agenda(request, cd_paciente):
             dh_agendamento=dh_agendamento,
             ds_profissional=agenda.cd_prestador.nm_prestador,
             ds_especialidade=agenda.cd_prestador.ds_especialidade,
+            ds_tipo_atendimento=request.POST.get("ds_tipo_atendimento", ""),
             ds_plano=request.POST.get("ds_plano", ""),
             sn_particular=request.POST.get("sn_particular") == "1",
             sn_encaixe=request.POST.get("sn_encaixe") == "1",
@@ -1184,16 +1771,51 @@ def selecionar_agenda(request, cd_paciente):
         _apply_audit(agendamento, request.user)
         agendamento.save()
         messages.success(request, "Agendamento confirmado.")
-        return redirect("atendimento:agendas")
+        return redirect("atendimento:comprovante-agendamento", cd_agendamento=agendamento.pk)
+    mes = int(request.GET.get("mes") or data_filtro.month)
+    ano = int(request.GET.get("ano") or data_filtro.year)
+    data_calendario = data_filtro.replace(year=ano, month=mes, day=min(data_filtro.day, calendar.monthrange(ano, mes)[1]))
     return render(
         request,
         "atendimento/selecionar_agenda.html",
         {
             "paciente": paciente,
+            "idade": _idade(paciente.dt_nascimento),
             "horarios": horarios,
             "especialidades": especialidades,
-            "data_filtro": data_filtro,
-            "especialidade_filtro": especialidade_filtro,
+            "data_filtro": data_filtro.isoformat(),
+            "data_fim": data_fim.isoformat(),
+            "selecionar_intervalo": selecionar_intervalo,
+            "especialidades_selecionadas": especialidades_selecionadas,
+            "todas_especialidades": todas_especialidades,
+            "termo": termo,
+            "calendario": _calendario_mensal(empresa, data_calendario, data_fim if selecionar_intervalo else None),
+            "horario_selecionado": horario_selecionado,
+        },
+    )
+
+
+@login_required
+@role_required("Recepcionista")
+def comprovante_agendamento(request, cd_agendamento):
+    empresa = _empresa_logada(request)
+    agendamento = get_object_or_404(
+        Agendamento.objects.select_related("cd_paciente", "cd_paciente__cd_convenio", "cd_agenda_profissional__cd_prestador"),
+        cd_empresa=empresa,
+        cd_agendamento=cd_agendamento,
+    )
+    request.current_tab_title = "Atendimento > Agendamento > Comprovante"
+    request.current_tab_root_title = "Comprovante"
+    request.current_module_title = "Atendimento"
+    return render(
+        request,
+        "atendimento/comprovante_agendamento.html",
+        {
+            "agendamento": agendamento,
+            "paciente": agendamento.cd_paciente,
+            "empresa": empresa,
+            "idade": _idade(agendamento.cd_paciente.dt_nascimento),
+            "emitido_em": timezone.now(),
         },
     )
 
@@ -1268,16 +1890,20 @@ def demanda_espontanea(request):
         pacientes = pacientes.none()
     if request.method == "POST":
         paciente = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=request.POST.get("cd_paciente"))
-        agendamento = Agendamento(
+        atendimento = Atendimento(
             cd_empresa=empresa,
             cd_paciente=paciente,
+            cd_convenio=paciente.cd_convenio,
+            ds_origem="DEMANDA_ESPONTANEA",
             ds_tipo_atendimento="DEMANDA_ESPONTANEA",
-            ds_status="AGUARDANDO_PRE_ATENDIMENTO",
-            sn_confirmado=True,
+            ds_status="AGUARDANDO_CLASSIFICACAO",
+            cd_usuario_criacao=request.user,
+            cd_usuario_atualizacao=request.user,
         )
-        _apply_audit(agendamento, request.user)
-        agendamento.save()
-        return redirect("atendimento:pre-atendimento", cd_agendamento=agendamento.cd_agendamento)
+        atendimento.save()
+        _registrar_fluxo(atendimento, "", atendimento.ds_status, request.user, origem="demanda_espontanea")
+        messages.success(request, "Atendimento de demanda espontânea criado e encaminhado para classificação.")
+        return redirect("atendimento:recepcao")
     return render(request, "atendimento/demanda_espontanea.html", {"form": form, "pacientes": pacientes})
 
 

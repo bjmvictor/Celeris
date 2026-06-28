@@ -1,0 +1,88 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="schedule-page">
+    <aside class="card calendar-card">
+      <div class="calendar-header">
+        <a class="button button-secondary" href="?data={{ calendario.previous|date:'Y-m-d' }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}">‹</a>
+        <strong>{{ calendario.month|date:"F/Y" }}</strong>
+        <a class="button button-secondary" href="?data={{ calendario.next|date:'Y-m-d' }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}">›</a>
+      </div>
+      <div class="calendar-grid">
+        {% for label in calendario.weekdays %}<span class="calendar-weekday">{{ label }}</span>{% endfor %}
+        {% for week in calendario.weeks %}
+          {% for day in week %}
+            <a class="calendar-day{% if not day.in_month %} muted{% endif %}{% if day.selected %} selected{% endif %}{% if day.holiday %} holiday{% endif %}{% if day.has_schedule %} has-schedule{% endif %}{% if day.today %} today{% endif %}"
+               href="?data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}">
+              {{ day.day }}
+            </a>
+          {% endfor %}
+        {% endfor %}
+      </div>
+      <div class="calendar-legend">
+        <span><i class="legend-selected"></i>Selecionada</span>
+        <span><i class="legend-holiday"></i>Feriado</span>
+        <span><i class="legend-schedule"></i>Agenda gerada</span>
+      </div>
+    </aside>
+
+    <form class="card schedule-filters" method="get" autocomplete="off">
+      <label class="provider-checkbox"><input type="checkbox" name="intervalo" value="1" {% if selecionar_intervalo %}checked{% endif %}><span>Selecionar intervalo de datas</span></label>
+      <label>Data inicial <input type="date" name="data" value="{{ data }}"></label>
+      <label>Data final <input type="date" name="data_fim" value="{{ data_fim }}" {% if not selecionar_intervalo %}disabled{% endif %}></label>
+      <details class="multi-filter" open>
+        <summary>Especialidades</summary>
+        <label class="provider-checkbox"><input type="checkbox" name="todas_especialidades" value="1" {% if todos %}checked{% endif %}><span>Todas</span></label>
+        <div class="multi-filter-options">
+          {% for item in especialidades %}
+            <label class="provider-checkbox">
+              <input type="checkbox" name="especialidades" value="{{ item.codigo }}" {% if item.codigo in especialidades_selecionadas %}checked{% endif %}>
+              <span>{{ item.descricao }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </details>
+      <label class="field-lg">Pesquisar
+        <input name="q" value="{{ termo }}" placeholder="Paciente, prontuário, documento, CNS, mãe, prestador, horário ou especialidade">
+      </label>
+      <button class="button button-primary" type="submit">Consultar</button>
+    </form>
+  </section>
+
+  <section class="card table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Horário</th><th>Paciente</th><th>Prontuário</th><th>Documento</th><th>Mãe</th><th>Convênio</th><th>Especialidade</th><th>Prestador</th><th>Tipo</th><th>Status agenda</th><th>Status atendimento</th><th>Ação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in registros %}
+          <tr>
+            <td>{{ item.dh_agendamento|date:"d/m/Y" }}</td>
+            <td>{{ item.dh_agendamento|date:"H:i" }}</td>
+            <td>{{ item.cd_paciente.nm_paciente }}</td>
+            <td>{{ item.cd_paciente_id }}</td>
+            <td>{% if item.cd_paciente.nr_cpf %}{{ item.cd_paciente.nr_cpf }}{% elif item.cd_paciente.nr_cartao_sus %}{{ item.cd_paciente.nr_cartao_sus }}{% elif item.cd_paciente.nr_rg %}{{ item.cd_paciente.nr_rg }}{% else %}-{% endif %}</td>
+            <td>{{ item.cd_paciente.nm_mae|default:"-" }}</td>
+            <td>{{ item.cd_paciente.cd_convenio.nm_convenio|default:"-" }}</td>
+            <td>{{ item.ds_especialidade|default:"-" }}</td>
+            <td>{{ item.ds_profissional|default:item.cd_agenda_profissional.cd_prestador.nm_prestador|default:"-" }}</td>
+            <td>{{ item.ds_tipo_atendimento|default:"-" }}</td>
+            <td>{{ item.get_ds_status_display }}</td>
+            <td>{% if item.atendimento %}{{ item.atendimento.get_ds_status_display }}{% else %}-{% endif %}</td>
+            <td>
+              {% if item.atendimento %}
+                <a class="button button-secondary" href="{% url 'atendimento:ficha-atendimento' item.atendimento.pk %}">Abrir atendimento</a>
+              {% else %}
+                <a class="button button-primary" href="{% url 'atendimento:recepcionar-agendamento' item.pk %}">Atender</a>
+              {% endif %}
+              <a class="button button-secondary" href="{% url 'atendimento:comprovante-agendamento' item.pk %}">Comprovante</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="13">Nenhum agendamento encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

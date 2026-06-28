@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.apps import apps
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -10,7 +11,7 @@ import csv
 import re
 import unicodedata
 
-from apps.accounts.models import Empresa
+from apps.accounts.models import Empresa, Setor
 from .permissions import role_required
 
 from .forms import EmpresaForm, ScreenDefinitionForm, ScreenFieldForm
@@ -50,6 +51,18 @@ def dynamic_screen(request, slug):
     request.current_module_title = screen.module.title
     request.current_can_query = screen.allow_query
     request.current_can_remove = screen.allow_delete
+    auxiliary_screens = {
+        "cadastros-planos": ("plano", "Planos", "Cadastros"),
+        "cadastros-procedimentos": ("procedimento", "Procedimentos", "Cadastros"),
+    }
+    if slug in auxiliary_screens:
+        table_name, title, module_title = auxiliary_screens[slug]
+        return global_auxiliary_values(
+            request,
+            table_name,
+            custom_title=title,
+            custom_module=module_title,
+        )
 
     template_by_type = {
         ScreenDefinition.TYPE_FORM: "core/dynamic_form.html",
@@ -199,7 +212,7 @@ def system_companies(request):
             )
             next_code += 1
         messages.success(request, "Empresas salvas com sucesso.")
-        return redirect(request.path)
+        return redirect(f"{request.path}?consultar=1")
     return render(request, "core/system_companies.html", {"empresas": empresas})
 
 
@@ -219,7 +232,62 @@ def system_company_edit(request, pk=None):
 
 
 @login_required
-def global_auxiliary_values(request, tabela):
+@role_required("TI")
+def setores(request, tipo=None):
+    empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
+    request.current_can_query = True
+    request.current_can_remove = True
+    request.current_tab_title = "Global > Empresa > Setores de Atendimento" if tipo == Setor.TipoSetor.ATENDIMENTO else "Global > Empresa > Setores"
+    request.current_tab_root_title = "Setores de Atendimento" if tipo == Setor.TipoSetor.ATENDIMENTO else "Setores"
+    request.current_module_title = "Global"
+    registros = Setor.objects.filter(cd_empresa=empresa)
+    if tipo:
+        registros = registros.filter(tp_setor=tipo)
+    query = _query_text(request)
+    if query:
+        registros = registros.filter(Q(nm_setor__icontains=query) | Q(ds_observacao__icontains=query))
+    registros = paginate_table(
+        request,
+        registros,
+        {"cd_setor", "nm_setor", "tp_setor", "sn_ativo"},
+        "cd_setor",
+    )
+    if request.method == "POST":
+        for setor in registros:
+            if request.POST.get(f"delete_{setor.pk}") == "1":
+                setor.sn_ativo = False
+                setor.save(update_fields=["sn_ativo", "dh_atualizacao"])
+                continue
+            if f"name_{setor.pk}" not in request.POST:
+                continue
+            setor.nm_setor = request.POST.get(f"name_{setor.pk}", setor.nm_setor).strip()
+            setor.tp_setor = tipo or request.POST.get(f"type_{setor.pk}", setor.tp_setor)
+            setor.ds_observacao = request.POST.get(f"note_{setor.pk}", setor.ds_observacao).strip()
+            setor.sn_ativo = request.POST.get(f"active_{setor.pk}") == "true"
+            setor.save()
+        new_names = request.POST.getlist("new_name")
+        new_types = request.POST.getlist("new_type")
+        new_notes = request.POST.getlist("new_note")
+        for index, name in enumerate(new_names):
+            name = name.strip()
+            if not name:
+                continue
+            Setor.objects.update_or_create(
+                cd_empresa=empresa,
+                tp_setor=tipo or (new_types[index] if index < len(new_types) and new_types[index] else Setor.TipoSetor.EMPRESA),
+                nm_setor=name,
+                defaults={
+                    "ds_observacao": new_notes[index].strip() if index < len(new_notes) else "",
+                    "sn_ativo": True,
+                },
+            )
+        messages.success(request, "Setores salvos com sucesso.")
+        return redirect(f"{request.path}?consultar=1")
+    return render(request, "core/setores.html", {"registros": registros, "tipo": tipo, "tipos": Setor.TipoSetor.choices})
+
+
+@login_required
+def global_auxiliary_values(request, tabela, custom_title=None, custom_module=None):
     labels = {
         "tipo_sanguineo": "Tipo sanguíneo",
         "sexo": "Sexo",
@@ -240,18 +308,26 @@ def global_auxiliary_values(request, tabela):
         "tipo_vinculo": "Tipos de Vínculo",
         "motivo_alteracao": "Motivos de alteração",
     }
-    label = labels.get(tabela, tabela.replace("_", " ").title())
-    request.current_tab_title = f"Global > Tabelas > Auxiliares > {label}"
+    label = custom_title or labels.get(tabela, tabela.replace("_", " ").title())
+    request.current_tab_title = (
+        f"{custom_module} > {label}"
+        if custom_module
+        else f"Global > Tabelas > Auxiliares > {label}"
+    )
     request.current_tab_root_title = label
-    request.current_module_title = "Global"
+    request.current_module_title = custom_module or "Global"
     request.current_can_query = True
     request.current_can_remove = True
-    tabela_auxiliar = get_object_or_404(TabelaAuxiliarGlobal.objects.prefetch_related("valores"), ds_tabela=tabela)
+    tabela_auxiliar, _ = TabelaAuxiliarGlobal.objects.get_or_create(
+        ds_tabela=tabela,
+        defaults={"ds_descricao": label, "sn_ativo": True},
+    )
     query = _query_text(request)
     if request.method == "POST":
         for valor in tabela_auxiliar.valores.all():
             if request.POST.get(f"delete_{valor.pk}") == "1":
-                valor.delete()
+                valor.sn_ativo = False
+                valor.save(update_fields=["sn_ativo", "updated_at"])
                 continue
             if f"description_{valor.pk}" not in request.POST:
                 continue
@@ -285,14 +361,29 @@ def global_auxiliary_values(request, tabela):
         return redirect(f"{request.path}?consultar=1")
     valores = tabela_auxiliar.valores.all()
     if query:
-        valores = valores.filter(Q(cd_valor__icontains=query) | Q(ds_valor__icontains=query) | Q(ds_grupo__icontains=query))
+        value_filter = Q(cd_valor__icontains=query) | Q(ds_valor__icontains=query) | Q(ds_grupo__icontains=query)
+        if query.isdigit():
+            value_filter |= Q(cd_valor_auxiliar_global=int(query))
+        valores = valores.filter(value_filter)
     valores = paginate_table(
         request,
         valores,
         {"cd_valor_auxiliar_global", "cd_valor", "ds_valor", "ds_grupo", "sn_ativo"},
         "cd_valor_auxiliar_global",
     )
-    return render(request, "core/global_auxiliary_values.html", {"tabela": tabela_auxiliar, "valores": valores})
+    estados = []
+    if tabela == "cidade":
+        estados = list(
+            ValorAuxiliarGlobal.objects.filter(
+                cd_tabela_auxiliar_global__ds_tabela="estado",
+                sn_ativo=True,
+            ).order_by("ds_valor")
+        )
+    return render(
+        request,
+        "core/global_auxiliary_values.html",
+        {"tabela": tabela_auxiliar, "valores": valores, "estados": estados},
+    )
 
 
 @login_required
@@ -317,41 +408,63 @@ def global_ceps(request):
     query = _query_text(request)
     if query:
         digits = "".join(character for character in query if character.isdigit())
-        records = records.filter(
-            Q(nr_cep__icontains=digits)
-            | Q(ds_logradouro__icontains=query)
+        cep_filter = (
+            Q(ds_logradouro__icontains=query)
             | Q(ds_bairro__icontains=query)
             | Q(ds_cidade__icontains=query)
+            | Q(cd_cidade__icontains=query)
+            | Q(tp_logradouro__icontains=query)
             | Q(sg_estado__icontains=query)
         )
+        if digits:
+            cep_filter |= Q(nr_cep__icontains=digits)
+        records = records.filter(cep_filter)
     if request.method == "POST":
         for record in Cep.objects.all():
-            if f"postal_code_{record.pk}" not in request.POST:
+            if request.POST.get(f"delete_{record.pk}") == "1":
+                try:
+                    record.delete()
+                except ProtectedError:
+                    record.sn_ativo = False
+                    record.save(update_fields=["sn_ativo", "updated_at"])
                 continue
-            record.nr_cep = "".join(character for character in request.POST.get(f"postal_code_{record.pk}", "") if character.isdigit())[:8]
-            record.sg_estado = request.POST.get(f"state_{record.pk}", "").strip().upper()[:2]
-            record.cd_cidade = request.POST.get(f"city_code_{record.pk}", "").strip()[:40]
-            record.ds_cidade = request.POST.get(f"city_{record.pk}", "").strip()[:160]
-            record.tp_logradouro = request.POST.get(f"street_type_{record.pk}", "").strip()[:40]
-            record.ds_logradouro = request.POST.get(f"street_{record.pk}", "").strip()[:220]
-            record.ds_bairro = request.POST.get(f"district_{record.pk}", "").strip()[:160]
-            record.sn_ativo = request.POST.get(f"active_{record.pk}") == "true"
+            if f"nr_cep_{record.pk}" not in request.POST and f"postal_code_{record.pk}" not in request.POST:
+                continue
+            record.nr_cep = "".join(
+                character
+                for character in request.POST.get(f"nr_cep_{record.pk}", request.POST.get(f"postal_code_{record.pk}", ""))
+                if character.isdigit()
+            )[:8]
+            record.sg_estado = request.POST.get(f"sg_estado_{record.pk}", request.POST.get(f"state_{record.pk}", "")).strip().upper()[:2]
+            record.cd_cidade = request.POST.get(f"cd_cidade_{record.pk}", request.POST.get(f"city_code_{record.pk}", "")).strip()[:40]
+            record.ds_cidade = request.POST.get(f"ds_cidade_{record.pk}", request.POST.get(f"city_{record.pk}", "")).strip()[:160]
+            record.tp_logradouro = request.POST.get(f"tp_logradouro_{record.pk}", request.POST.get(f"street_type_{record.pk}", "")).strip()[:40]
+            record.ds_logradouro = request.POST.get(f"ds_logradouro_{record.pk}", request.POST.get(f"street_{record.pk}", "")).strip()[:220]
+            record.ds_bairro = request.POST.get(f"ds_bairro_{record.pk}", request.POST.get(f"district_{record.pk}", "")).strip()[:160]
+            record.sn_ativo = request.POST.get(f"sn_ativo_{record.pk}", request.POST.get(f"active_{record.pk}")) == "true"
             record.save()
-        new_codes = request.POST.getlist("new_postal_code")
+        new_codes = request.POST.getlist("new_nr_cep") or request.POST.getlist("new_postal_code")
         for index, postal_code in enumerate(new_codes):
             digits = "".join(character for character in postal_code if character.isdigit())[:8]
             if not digits:
                 continue
+            new_states = request.POST.getlist("new_sg_estado") or request.POST.getlist("new_state")
+            new_city_codes = request.POST.getlist("new_cd_cidade") or request.POST.getlist("new_city_code")
+            new_cities = request.POST.getlist("new_ds_cidade") or request.POST.getlist("new_city")
+            new_street_types = request.POST.getlist("new_tp_logradouro") or request.POST.getlist("new_street_type")
+            new_streets = request.POST.getlist("new_ds_logradouro") or request.POST.getlist("new_street")
+            new_districts = request.POST.getlist("new_ds_bairro") or request.POST.getlist("new_district")
+            new_actives = request.POST.getlist("new_sn_ativo") or request.POST.getlist("new_active")
             Cep.objects.update_or_create(
                 nr_cep=digits,
                 defaults={
-                    "sg_estado": (request.POST.getlist("new_state")[index] if index < len(request.POST.getlist("new_state")) else "").strip().upper()[:2],
-                    "cd_cidade": (request.POST.getlist("new_city_code")[index] if index < len(request.POST.getlist("new_city_code")) else "").strip()[:40],
-                    "ds_cidade": (request.POST.getlist("new_city")[index] if index < len(request.POST.getlist("new_city")) else "").strip()[:160],
-                    "tp_logradouro": (request.POST.getlist("new_street_type")[index] if index < len(request.POST.getlist("new_street_type")) else "").strip()[:40],
-                    "ds_logradouro": (request.POST.getlist("new_street")[index] if index < len(request.POST.getlist("new_street")) else "").strip()[:220],
-                    "ds_bairro": (request.POST.getlist("new_district")[index] if index < len(request.POST.getlist("new_district")) else "").strip()[:160],
-                    "sn_ativo": (request.POST.getlist("new_active")[index] if index < len(request.POST.getlist("new_active")) else "true") == "true",
+                    "sg_estado": (new_states[index] if index < len(new_states) else "").strip().upper()[:2],
+                    "cd_cidade": (new_city_codes[index] if index < len(new_city_codes) else "").strip()[:40],
+                    "ds_cidade": (new_cities[index] if index < len(new_cities) else "").strip()[:160],
+                    "tp_logradouro": (new_street_types[index] if index < len(new_street_types) else "").strip()[:40],
+                    "ds_logradouro": (new_streets[index] if index < len(new_streets) else "").strip()[:220],
+                    "ds_bairro": (new_districts[index] if index < len(new_districts) else "").strip()[:160],
+                    "sn_ativo": (new_actives[index] if index < len(new_actives) else "true") == "true",
                 },
             )
         messages.success(request, "CEPs salvos com sucesso.")
@@ -362,7 +475,20 @@ def global_ceps(request):
         {"cd_cep", "nr_cep", "sg_estado", "ds_cidade", "ds_logradouro", "ds_bairro", "sn_ativo"},
         "cd_cep",
     )
-    return render(request, "core/global_ceps.html", {"records": records})
+    auxiliary_values = ValorAuxiliarGlobal.objects.filter(sn_ativo=True).select_related("cd_tabela_auxiliar_global")
+    estados = auxiliary_values.filter(cd_tabela_auxiliar_global__ds_tabela="estado").order_by("ds_valor")
+    cidades = auxiliary_values.filter(cd_tabela_auxiliar_global__ds_tabela="cidade").order_by("ds_valor")
+    tipos_logradouro = auxiliary_values.filter(cd_tabela_auxiliar_global__ds_tabela="tipo_logradouro").order_by("ds_valor")
+    return render(
+        request,
+        "core/global_ceps.html",
+        {
+            "records": records,
+            "estados": estados,
+            "cidades": cidades,
+            "tipos_logradouro": tipos_logradouro,
+        },
+    )
 
 
 IMPORT_TABLES = {
@@ -528,7 +654,8 @@ def tipo_prestador_conselho(request):
     if request.method == "POST":
         for registro in registros:
             if request.POST.get(f"delete_{registro.pk}") == "1":
-                registro.delete()
+                registro.sn_ativo = False
+                registro.save(update_fields=["sn_ativo", "updated_at"])
                 continue
             if f"type_{registro.pk}" not in request.POST:
                 continue

@@ -20,7 +20,18 @@
               <input data-row-delete name="delete_{{ valor.pk }}" type="hidden" value="0">
             </td>
             <td><input name="description_{{ valor.pk }}" value="{{ valor.ds_valor }}" required></td>
-            <td><input name="group_{{ valor.pk }}" value="{{ valor.ds_grupo }}"></td>
+            <td>
+              {% if tabela.ds_tabela == "cidade" %}
+                <select name="group_{{ valor.pk }}">
+                  <option value=""></option>
+                  {% for estado in estados %}
+                    <option value="{{ estado.cd_valor }}" {% if valor.ds_grupo == estado.cd_valor %}selected{% endif %}>{{ estado.ds_valor }}</option>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <input name="group_{{ valor.pk }}" value="{{ valor.ds_grupo }}">
+              {% endif %}
+            </td>
             <td>
               <select name="active_{{ valor.pk }}">
                 <option value="true" {% if valor.sn_ativo %}selected{% endif %}>Ativo</option>
@@ -37,7 +48,16 @@
       <tr data-editable-row>
         <td><input readonly data-primary-key="true" placeholder="Automático"></td>
         <td><input name="new_description" placeholder="Descrição" required></td>
-        <td><input name="new_group" placeholder="Grupo/UF"></td>
+        <td>
+          {% if tabela.ds_tabela == "cidade" %}
+            <select name="new_group">
+              <option value=""></option>
+              {% for estado in estados %}<option value="{{ estado.cd_valor }}">{{ estado.ds_valor }}</option>{% endfor %}
+            </select>
+          {% else %}
+            <input name="new_group" placeholder="Grupo/UF">
+          {% endif %}
+        </td>
         <td>
           <select name="new_active">
             <option value="true" selected>Ativo</option>
@@ -46,5 +66,6 @@
         </td>
       </tr>
     </template>
+    {% include "components/table_pager.html" %}
   </form>
 {% endblock %}

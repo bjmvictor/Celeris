@@ -17,7 +17,7 @@ Os nomes podem ser digitados em letras minúsculas. O sistema normaliza o identi
 
 1. Entrar como `recepcao`.
 2. Abrir **Cadastros > Pacientes** e cadastrar ou localizar o paciente.
-3. Abrir **Atendimento > Agendamentos**.
+3. Abrir **Atendimento > Agendar**.
 4. Selecionar paciente, data, especialidade, profissional e horário.
 5. Abrir **Atendimento > Recepção**.
 6. Clicar em **Recepcionar**.
@@ -55,9 +55,11 @@ AGENDADO
   -> AGUARDANDO CLASSIFICAÇÃO
   -> AGUARDANDO CONSULTA
   -> EM ATENDIMENTO
-  -> ALTA
+  -> ALTA MÉDICA
   -> FINALIZADO
 ```
+
+O histórico de cada transição é gravado em `atendimento_fluxo`. A tela **Atendimento > Agendamentos** é a lista operacional por data/especialidade para recepcionar pacientes já agendados.
 
 ## Dados mínimos
 
@@ -68,3 +70,13 @@ A migração de homologação cria:
 - especialidade Clínica Geral;
 - médico de homologação;
 - agenda de segunda a sexta, das 08:00 às 18:00.
+## Homologação — agenda, PEP e documentos
+
+- Validar calendário mensal abrindo na data atual, troca de mês, feriados em vermelho e dias com agenda em destaque.
+- Validar filtro por intervalo, múltiplas especialidades e opção Todas em `Atendimento > Agendamentos` e seleção de agenda.
+- Validar comprovante após confirmar agendamento e reimpressão por protocolo.
+- Validar PEP pesquisando por número de atendimento e por busca geral, garantindo que agendamentos sem atendimento não aparecem.
+- Validar ficha abrindo por `cd_atendimento`, botão Voltar retornando para a lista anterior e ações clínicas por permissão.
+- Validar geração de `documento_clinico` ao solicitar exame, prescrever, evoluir e conceder alta.
+- Validar marca d'água de rascunho/cancelado e cópia de documento como novo rascunho.
+- Validar isolamento por empresa em agenda, atendimento, documento e modelo.

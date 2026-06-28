@@ -17,7 +17,7 @@
   </form>
   <section class="card table-card">
     <table>
-      <thead><tr><th>Código</th><th>Papel</th><th>Descrição</th><th>Status</th><th>Módulos</th><th>Telas</th><th>Ações</th></tr></thead>
+      <thead><tr><th data-sort-field="id">Código</th><th data-sort-field="name">Papel</th><th>Descrição</th><th data-sort-field="papel__sn_ativo">Status</th><th>Módulos</th><th>Telas</th><th>Ações</th></tr></thead>
       <tbody>
         {% for registro in registros %}
           <tr>

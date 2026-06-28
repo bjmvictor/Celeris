@@ -2,79 +2,161 @@
 
 {% block content %}
   <section class="flow-banner">{{ atendimento.get_ds_status_display|upper }} → PRESCREVER / EVOLUIR → ALTA → FINALIZAR</section>
-  <section class="card">
+
+  <section class="card patient-summary">
     <strong>{{ paciente.nm_paciente }}</strong>
-    <p>Prontuário {{ paciente.cd_paciente }} · {{ paciente.nr_cpf|default:"CPF não informado" }}</p>
+    <span>Prontuário {{ paciente.pk }}{% if idade %} · {{ idade }} anos{% endif %}</span>
+    <span>Atendimento {{ atendimento.pk }} · {{ atendimento.dh_inicio|date:"d/m/Y H:i" }}</span>
+    <span>CPF {{ paciente.nr_cpf|default:"não informado" }} · CNS {{ paciente.nr_cartao_sus|default:"não informado" }}</span>
     {% if atendimento.cd_pre_atendimento %}
-      <p>Prioridade: {{ atendimento.cd_pre_atendimento.get_nr_prioridade_display }} · Queixa: {{ atendimento.cd_pre_atendimento.ds_queixa_principal }}</p>
+      <span>Prioridade {{ atendimento.cd_pre_atendimento.get_nr_prioridade_display }} · Queixa {{ atendimento.cd_pre_atendimento.ds_queixa_principal }}</span>
     {% endif %}
   </section>
-  <form class="attendance-form" data-table="atendimento" method="post">
-    {% csrf_token %}
-    {{ form.non_field_errors }}
-    <details class="card form-section" open>
-      <summary>Dados do atendimento</summary>
-      <div class="form-grid">
-        <label class="field-xl">Profissional {{ form.cd_prestador }}</label>
-        <label class="field-md">Origem {{ form.ds_origem }}</label>
-        <label class="field-md">Tipo de atendimento {{ form.ds_tipo_atendimento }}</label>
-        <label class="field-md">Especialidade {{ form.ds_especialidade }}</label>
-        <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
-        <label class="field-md">Plano {{ form.ds_plano }}</label>
-        <label class="field-md">Unidade/Setor {{ form.ds_unidade_setor }}</label>
+
+  <section class="clinical-layout">
+    <aside class="card clinical-nav">
+      <a href="#dados">Dados</a>
+      <a href="#classificacao">Classificação</a>
+      <a href="#anamnese">Anamnese</a>
+      <a href="#diagnostico">Diagnóstico</a>
+      <a href="#conduta">Conduta</a>
+      <a href="#exames">Exames</a>
+      <a href="#prescricoes">Prescrições</a>
+      <a href="#evolucoes">Evoluções</a>
+      <a href="#documentos">Documentos</a>
+      <a href="#historico">Histórico</a>
+    </aside>
+
+    <main class="clinical-main">
+      <div class="card clinical-actions">
+        {% if clinical_permissions.medico %}
+          <a class="button button-secondary" href="{% url 'atendimento:solicitar-exame' atendimento.cd_atendimento %}">Solicitar exame</a>
+          <a class="button button-secondary" href="{% url 'atendimento:prescrever' atendimento.cd_atendimento %}">Prescrever</a>
+          <a class="button button-secondary" href="{% url 'atendimento:evoluir' atendimento.cd_atendimento %}">Evoluir</a>
+          <a class="button button-secondary" href="{% url 'atendimento:conceder-alta' atendimento.pk %}">Conceder alta</a>
+        {% endif %}
+        <a class="button button-secondary" href="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}">Imprimir ficha</a>
       </div>
-    </details>
-    <details class="card form-section" open>
-      <summary>Registro clínico</summary>
-      <div class="form-grid">
-        <label class="span-2">Anamnese {{ form.ds_anamnese }}</label>
-        <label class="span-2">Hipótese diagnóstica {{ form.ds_hipotese_diagnostica }}</label>
-        <label class="span-2">Diagnóstico {{ form.ds_diagnostico }}</label>
-        <label class="span-2">Conduta {{ form.ds_conduta }}</label>
-        <label class="field-xl">Destino {{ form.ds_destino }}</label>
-      </div>
-    </details>
-    <details class="card form-section">
-      <summary>Histórico e exames</summary>
-      <div class="table-actions">
-        <a class="button button-secondary" href="{% url 'atendimento:solicitar-exame' atendimento.cd_atendimento %}">Solicitar exame</a>
-        <a class="button button-secondary" href="{% url 'atendimento:prescrever' atendimento.cd_atendimento %}">Prescrever</a>
-        <a class="button button-secondary" href="{% url 'atendimento:evoluir' atendimento.cd_atendimento %}">Evoluir</a>
-      </div>
-      <table>
-        <thead><tr><th>Exame</th><th>Prioridade</th><th>Status</th><th>Resultado</th></tr></thead>
-        <tbody>
-          {% for exame in atendimento.solicitacoes_exames.all %}
-            <tr><td>{{ exame.ds_exame }}</td><td>{{ exame.get_ds_prioridade_display }}</td><td>{{ exame.get_ds_status_display }}</td><td><a href="{% url 'atendimento:resultado-exame' exame.pk %}">Abrir</a></td></tr>
-          {% empty %}<tr><td colspan="4">Nenhum exame solicitado.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>Prescrição</th><th>Data</th></tr></thead><tbody>
-        {% for item in atendimento.prescricoes.all %}<tr><td>{{ item.ds_prescricao|truncatechars:100 }}</td><td>{{ item.dh_criacao|date:"d/m/Y H:i" }}</td></tr>{% empty %}<tr><td colspan="2">Sem prescrições.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>Evolução</th><th>Profissional</th><th>Data</th></tr></thead><tbody>
-        {% for item in atendimento.evolucoes.all %}<tr><td>{{ item.ds_evolucao|truncatechars:100 }}</td><td>{{ item.cd_prestador }}</td><td>{{ item.dh_criacao|date:"d/m/Y H:i" }}</td></tr>{% empty %}<tr><td colspan="3">Sem evoluções.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>Atendimento anterior</th><th>Data</th><th>Diagnóstico</th><th>Conduta</th></tr></thead>
-        <tbody>
-          {% for item in historico %}
-            <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.dh_inicio|date:"d/m/Y H:i" }}</td><td>{{ item.ds_diagnostico|default:item.ds_hipotese_diagnostica }}</td><td>{{ item.ds_conduta|default:"-" }}</td></tr>
-          {% empty %}<tr><td colspan="4">Sem atendimentos anteriores.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </details>
-    <div class="table-actions">
-      <button class="button button-primary" type="submit">Salvar e imprimir ficha</button>
-      {% if atendimento.ds_status == "ALTA" %}
-        <button class="button button-secondary" formaction="{% url 'atendimento:finalizar-atendimento' atendimento.pk %}" formmethod="post" type="submit">Finalizar atendimento</button>
-      {% else %}
-        <a class="button button-secondary" href="{% url 'atendimento:conceder-alta' atendimento.pk %}">Conceder alta</a>
-      {% endif %}
-    </div>
-  </form>
+
+      <form class="attendance-form" data-table="atendimento" method="post" autocomplete="off">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <details id="dados" class="card form-section" open>
+          <summary>Dados do atendimento</summary>
+          <div class="form-grid">
+            <label class="field-xl">Profissional {{ form.cd_prestador }}</label>
+            <label class="field-md">Origem {{ form.ds_origem }}</label>
+            <label class="field-md">Tipo de atendimento {{ form.ds_tipo_atendimento }}</label>
+            <label class="field-md">Especialidade {{ form.ds_especialidade }}</label>
+            <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
+            <label class="field-md">Plano {{ form.ds_plano }}</label>
+            <label class="field-md">Unidade/Setor {{ form.ds_unidade_setor }}</label>
+          </div>
+        </details>
+
+        <details id="classificacao" class="card form-section" open>
+          <summary>Classificação e sinais vitais</summary>
+          {% if atendimento.cd_pre_atendimento %}
+            <div class="summary-grid">
+              <span><strong>Prioridade:</strong> {{ atendimento.cd_pre_atendimento.get_nr_prioridade_display }}</span>
+              <span><strong>Cor:</strong> {{ atendimento.cd_pre_atendimento.ds_cor_prioridade|default:"-" }}</span>
+              <span><strong>PA:</strong> {{ atendimento.cd_pre_atendimento.ds_pressao_arterial|default:"-" }}</span>
+              <span><strong>Temperatura:</strong> {{ atendimento.cd_pre_atendimento.vl_temperatura|default:"-" }}</span>
+              <span><strong>FC:</strong> {{ atendimento.cd_pre_atendimento.nr_frequencia_cardiaca|default:"-" }}</span>
+              <span><strong>SpO2:</strong> {{ atendimento.cd_pre_atendimento.nr_saturacao|default:"-" }}</span>
+            </div>
+          {% else %}
+            <p class="empty-state">Atendimento sem pré-atendimento/classificação registrada.</p>
+          {% endif %}
+        </details>
+
+        <details class="card form-section" open>
+          <summary>Registro clínico</summary>
+          <div class="form-grid">
+            <label id="anamnese" class="span-2">Anamnese {{ form.ds_anamnese }}</label>
+            <label id="diagnostico" class="span-2">Hipótese diagnóstica {{ form.ds_hipotese_diagnostica }}</label>
+            <label class="span-2">Diagnóstico {{ form.ds_diagnostico }}</label>
+            <label id="conduta" class="span-2">Conduta {{ form.ds_conduta }}</label>
+            <label class="field-xl">Destino {{ form.ds_destino }}</label>
+          </div>
+        </details>
+
+        <div class="table-actions">
+          <button class="button button-primary" type="submit">Salvar ficha</button>
+          {% if atendimento.ds_status == "ALTA" or atendimento.ds_status == "ALTA_MEDICA" %}
+            <button class="button button-secondary" formaction="{% url 'atendimento:finalizar-atendimento' atendimento.pk %}" formmethod="post" type="submit">Finalizar atendimento</button>
+          {% endif %}
+        </div>
+      </form>
+
+      <section id="exames" class="card table-card">
+        <h2>Exames</h2>
+        <table>
+          <thead><tr><th>Exame</th><th>Prioridade</th><th>Status</th><th>Resultado</th></tr></thead>
+          <tbody>
+            {% for exame in atendimento.solicitacoes_exames.all %}
+              <tr><td>{{ exame.ds_exame }}</td><td>{{ exame.get_ds_prioridade_display }}</td><td>{{ exame.get_ds_status_display }}</td><td><a href="{% url 'atendimento:resultado-exame' exame.pk %}">Abrir</a></td></tr>
+            {% empty %}<tr><td colspan="4">Nenhum exame solicitado.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section id="prescricoes" class="card table-card">
+        <h2>Prescrições</h2>
+        <table>
+          <thead><tr><th>Prescrição</th><th>Orientações</th><th>Data</th></tr></thead>
+          <tbody>
+            {% for item in atendimento.prescricoes.all %}
+              <tr><td>{{ item.ds_prescricao|truncatechars:120 }}</td><td>{{ item.ds_orientacoes|truncatechars:80|default:"-" }}</td><td>{{ item.dh_criacao|date:"d/m/Y H:i" }}</td></tr>
+            {% empty %}<tr><td colspan="3">Sem prescrições.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section id="evolucoes" class="card table-card">
+        <h2>Evoluções</h2>
+        <table>
+          <thead><tr><th>Evolução</th><th>Profissional</th><th>Data</th></tr></thead>
+          <tbody>
+            {% for item in atendimento.evolucoes.all %}
+              <tr><td>{{ item.ds_evolucao|truncatechars:120 }}</td><td>{{ item.cd_prestador }}</td><td>{{ item.dh_criacao|date:"d/m/Y H:i" }}</td></tr>
+            {% empty %}<tr><td colspan="3">Sem evoluções.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section id="documentos" class="card table-card">
+        <h2>Documentos</h2>
+        <table>
+          <thead><tr><th>Tipo</th><th>Título</th><th>Status</th><th>Emissão</th><th>Ação</th></tr></thead>
+          <tbody>
+            {% for documento in documentos %}
+              <tr>
+                <td>{{ documento.tp_documento }}</td>
+                <td>{{ documento.ds_titulo }}</td>
+                <td>{{ documento.get_ds_status_display }}</td>
+                <td>{{ documento.dh_emissao|date:"d/m/Y H:i" }}</td>
+                <td>
+                  <a class="button button-secondary" href="{% url 'atendimento:imprimir-documento-clinico' documento.pk %}">Imprimir</a>
+                  <a class="button button-secondary" href="{% url 'atendimento:copiar-documento-clinico' documento.pk %}">Copiar</a>
+                </td>
+              </tr>
+            {% empty %}<tr><td colspan="5">Nenhum documento clínico gerado.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section id="historico" class="card table-card">
+        <h2>Histórico do paciente</h2>
+        <table>
+          <thead><tr><th>Atendimento</th><th>Data</th><th>Diagnóstico</th><th>Conduta</th></tr></thead>
+          <tbody>
+            {% for item in historico %}
+              <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.dh_inicio|date:"d/m/Y H:i" }}</td><td>{{ item.ds_diagnostico|default:item.ds_hipotese_diagnostica }}</td><td>{{ item.ds_conduta|default:"-" }}</td></tr>
+            {% empty %}<tr><td colspan="4">Sem atendimentos anteriores.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </section>
 {% endblock %}

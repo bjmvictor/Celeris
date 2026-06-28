@@ -6,7 +6,6 @@ from django.core.paginator import Paginator
 def paginate_table(request, queryset, allowed_ordering, default_ordering, *, load_on_open=False):
     if request.method == "GET" and not request.GET and not load_on_open:
         request.current_record_status = "Nenhum item carregado"
-        request.current_query_message = ""
         return queryset.none()
 
     ordering = request.GET.get("ordem", default_ordering)
@@ -22,11 +21,6 @@ def paginate_table(request, queryset, allowed_ordering, default_ordering, *, loa
     request.current_record_status = (
         f"{paginator.count} encontrado(s) · {len(page.object_list)} exibido(s) · "
         f"Página {page.number} de {paginator.num_pages}"
-    )
-    request.current_query_message = (
-        f"{paginator.count} registro(s) encontrado(s)."
-        if paginator.count
-        else "Nenhum registro encontrado."
     )
 
     def page_url(number):

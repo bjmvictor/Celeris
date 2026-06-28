@@ -31,10 +31,11 @@ class AdministrationScreenTests(TestCase):
         session.save()
 
     def test_telas_de_usuarios_perfis_e_permissoes_abrem(self):
-        for route in ("usuarios", "perfis", "permissoes"):
+        for route in ("perfis", "permissoes"):
             with self.subTest(route=route):
                 response = self.client.get(reverse(route))
                 self.assertEqual(response.status_code, 200)
+        self.assertRedirects(self.client.get(reverse("usuarios")), reverse("usuario_novo"))
 
     def test_perfil_pode_ser_criado_e_editado(self):
         permission = Permission.objects.first()
@@ -364,7 +365,7 @@ class PapelAcessoTests(TestCase):
         self.client.force_login(user)
         response = self.client.get(reverse("core:home"))
         menu_text = str(response.context["modules_menu"])
-        self.assertIn("Agendamentos", menu_text)
+        self.assertIn("Agendar", menu_text)
         self.assertNotIn("Recepção", menu_text)
 
     def test_multiplos_papeis_acumulam_permissoes(self):
@@ -376,7 +377,7 @@ class PapelAcessoTests(TestCase):
         user.groups.add(second_group)
         self.client.force_login(user)
         menu_text = str(self.client.get(reverse("core:home")).context["modules_menu"])
-        self.assertIn("Agendamentos", menu_text)
+        self.assertIn("Agendar", menu_text)
         self.assertIn("Recepção", menu_text)
 
     def test_modulo_sem_tela_nao_aparece(self):
@@ -442,7 +443,8 @@ class ConsultaCadastroNavigationTests(TestCase):
         response = self.client.get(reverse("perfis"))
         self.assertContains(response, active_group.name)
         self.assertNotContains(response, inactive_group.name)
-        self.assertContains(response, "registro(s) encontrado(s)")
+        self.assertContains(response, "encontrado(s)")
+        self.assertNotContains(response, "query-result-message")
 
     def test_consulta_de_papeis_por_codigo_nome_e_status(self):
         group = Group.objects.create(name="RECEPÇÃO CONSULTA")
@@ -492,11 +494,53 @@ class ConsultaCadastroNavigationTests(TestCase):
             full_name="Usuário Consulta",
             nr_cpf="529.982.247-25",
         )
-        response = self.client.get(reverse("usuarios"), {"q": "USUARIOCONSULTA"})
-        self.assertContains(response, "1 registro(s) encontrado(s).")
-        self.assertContains(response, reverse("usuario_editar", args=[user.pk]))
-        edit_response = self.client.get(
-            reverse("usuario_editar", args=[user.pk]),
-            {"return_to": f"{reverse('usuarios')}?q=USUARIOCONSULTA"},
+        response = self.client.get(
+            reverse("usuario_novo"),
+            {"consultar": "1", "username": "USUARIOCONSULTA"},
         )
+        self.assertRedirects(
+            response,
+            f"{reverse('usuario_editar', args=[user.pk])}?origem=consulta",
+        )
+        edit_response = self.client.get(response.url)
         self.assertEqual(edit_response.context["usuario"], user)
+
+    def test_consulta_integrada_de_usuarios_sem_filtro_retorna_ativos_e_inativos(self):
+        active = User.objects.create_user(username="ATIVOCONSULTA", password="senha", is_active=True)
+        inactive = User.objects.create_user(username="INATIVOCONSULTA", password="senha", is_active=False)
+        response = self.client.get(reverse("usuario_novo"), {"consultar": "1"})
+        first_id = self.client.session["consulta_usuarios"][0]
+        self.assertRedirects(
+            response,
+            f"{reverse('usuario_editar', args=[first_id])}?origem=consulta",
+        )
+        self.assertIn(active.pk, self.client.session["consulta_usuarios"])
+        self.assertIn(inactive.pk, self.client.session["consulta_usuarios"])
+
+    def test_usuario_aberto_diretamente_nao_herda_navegacao(self):
+        user = User.objects.create_user(username="DIRETO", password="senha")
+        session = self.client.session
+        session["consulta_usuarios"] = [self.admin.pk, user.pk]
+        session.save()
+        response = self.client.get(reverse("usuario_editar", args=[user.pk]))
+        self.assertEqual(response.context["current_previous_url"], "")
+        self.assertEqual(response.context["current_next_url"], "")
+
+    def test_botao_senha_so_habilita_com_usuario_carregado(self):
+        new_response = self.client.get(reverse("usuario_novo"))
+        self.assertNotContains(new_response, 'data-password-url="/')
+        self.assertContains(new_response, 'data-action="change-password" type="button" title="Alterar Senha" disabled')
+        loaded_response = self.client.get(reverse("usuario_editar", args=[self.admin.pk]))
+        self.assertContains(loaded_response, 'data-password-url="/')
+
+    def test_copia_usuario_origem_sem_destino_nao_redireciona_nem_autosubmit(self):
+        response = self.client.get(reverse("copia_usuario"), {"origem": self.admin.pk, "destino": ""})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Visualizar permissões")
+        self.assertNotContains(response, "onchange=\"this.form.submit()\"")
+
+    def test_status_sessao_retorna_401_para_usuario_desconectado(self):
+        self.client.logout()
+        response = self.client.get(reverse("session_status"))
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(response.json()["authenticated"])

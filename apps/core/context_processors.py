@@ -46,6 +46,21 @@ def _current_navigation(request):
     return "Celeris", "Sistema"
 
 
+def _short_tab_title(title):
+    if not title:
+        return title
+    short_title = title.split(">")[-1].strip() or title
+    return short_title.title() if short_title.isupper() else short_title
+
+
+def _short_user_name(user):
+    if not getattr(user, "is_authenticated", False):
+        return ""
+    name = getattr(user, "display_name", lambda: "")() or user.get_username()
+    parts = [part for part in name.split() if part]
+    return " ".join(parts[:2]).upper() if parts else user.get_username().upper()
+
+
 def _configured_screen_items():
     try:
         screens = (
@@ -109,15 +124,15 @@ def _filter_menu_for_user(menu, user):
 
     def filter_items(items):
         visible = []
-        for nav_item in items:
+        for index, nav_item in enumerate(items):
             children = filter_items(nav_item.get("children", []))
             if nav_item.get("children"):
                 if not children:
                     continue
             elif not user.is_superuser and nav_item.get("access_key") not in allowed_keys:
                 continue
-            visible.append({**nav_item, "children": children})
-        return visible
+            visible.append((index, {**nav_item, "children": children}))
+        return [nav_item for _, nav_item in sorted(visible, key=lambda item: (bool(item[1].get("children")), item[0]))]
 
     return [
         {**module, "items": filter_items(module["items"])}
@@ -142,6 +157,7 @@ def navigation(request):
         "perfis": reverse("perfil_novo"),
     }
     workflow_routes = {
+        "atendimento:cadastro-paciente-agendamento",
         "atendimento:revisar-paciente-agendamento",
         "atendimento:selecionar-agenda",
         "atendimento:confirmar-agendamento",
@@ -166,14 +182,14 @@ def navigation(request):
     if not tab_root_title and route_name in workflow_routes:
         tab_root_title = "Agendar"
     if not tab_root_title:
-        tab_root_title = current_tab_title
+        tab_root_title = _short_tab_title(current_tab_title)
     cd_empresa = request.session.get("cd_empresa") or 1
     try:
         current_empresa = Empresa.objects.get(cd_empresa=cd_empresa, sn_ativo=True)
     except (Empresa.DoesNotExist, OperationalError, ProgrammingError):
         current_empresa = None
     current_new_url = new_url_by_route.get(route_name, "")
-    if route_name in {"usuarios", "perfis", "atendimento:profissionais"} and current_new_url:
+    if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
         current_new_url = f"{current_new_url}?{urlencode({'return_to': request.get_full_path()})}"
     return {
         "modules_menu": _filter_menu_for_user(_merge_configured_menu(), request.user),
@@ -198,6 +214,6 @@ def navigation(request):
         "current_password_url": getattr(request, "current_password_url", ""),
         "current_return_url": return_url,
         "current_close_url": return_url or (tab_key if close_mode == "back" else ""),
-        "current_query_message": getattr(request, "current_query_message", ""),
         "current_overlay_mode": request.GET.get("overlay") == "1",
+        "current_user_short_name": _short_user_name(request.user),
     }

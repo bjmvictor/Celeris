@@ -1,0 +1,11 @@
+{% if current_first_url or current_previous_url or current_next_url or current_last_url %}
+  <nav class="table-pager" data-table-pager aria-label="Paginação da tabela">
+    <span class="table-pager-current">{{ current_record_status }}</span>
+    <span class="table-pager-actions">
+      <a class="table-pager-link {% if not current_first_url %}disabled{% endif %}" aria-label="Primeira página" title="Primeira" {% if current_first_url %}href="{{ current_first_url }}"{% endif %}>«</a>
+      <a class="table-pager-link {% if not current_previous_url %}disabled{% endif %}" aria-label="Página anterior" title="Anterior" {% if current_previous_url %}href="{{ current_previous_url }}"{% endif %}>←</a>
+      <a class="table-pager-link {% if not current_next_url %}disabled{% endif %}" aria-label="Próxima página" title="Próxima" {% if current_next_url %}href="{{ current_next_url }}"{% endif %}>→</a>
+      <a class="table-pager-link {% if not current_last_url %}disabled{% endif %}" aria-label="Última página" title="Última" {% if current_last_url %}href="{{ current_last_url }}"{% endif %}>»</a>
+    </span>
+  </nav>
+{% endif %}

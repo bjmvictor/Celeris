@@ -33,6 +33,8 @@ Para homologação, o fluxo médico obrigatório é: abrir consulta, salvar regi
 
 Na recepção, o agendamento muda para `RECEPCIONADO` e o atendimento nasce como `AGUARDANDO_CLASSIFICACAO`. A triagem o encaminha para `AGUARDANDO_CONSULTA`; a consulta pode alterar para `AGUARDANDO_EXAMES`, `EM_ATENDIMENTO` ou um estado final.
 
+Toda transição operacional do atendimento registra um evento em `atendimento_fluxo`, com empresa, atendimento, status anterior, status novo, setor, prestador, usuário, origem e data/hora. O PEP e a ficha clínica sempre operam pelo `cd_atendimento`, nunca apenas por paciente ou agendamento.
+
 ## Exames
 
 ```text
@@ -51,7 +53,7 @@ Consulta
 ```text
 Demanda espontânea
   -> selecionar paciente
-  -> criar recepção
+  -> criar atendimento sem agendamento
   -> pré-atendimento e classificação
   -> fila por prioridade
   -> abrir ficha de atendimento
@@ -117,3 +119,28 @@ Abrir tabela vazia
 - Auditoria automática via middleware para operações administrativas e importações.
 - Regras clínicas configuráveis de classificação de risco.
 - Modelagem de faturamento, estoque, compras e prontuário eletrônico.
+## Agendamento com calendário
+
+```text
+Agendar paciente
+  -> revisar/cadastrar paciente
+  -> selecionar agenda com calendário mensal
+  -> filtrar por data, intervalo, especialidades e pesquisa
+  -> escolher horário vago
+  -> exibir confirmação
+  -> salvar agendamento
+  -> abrir comprovante para impressão/reimpressão
+```
+
+## PEP e documentos
+
+```text
+PEP
+  -> consultar por atendimento OU busca geral
+  -> listar apenas atendimentos sem alta
+  -> abrir ficha pelo cd_atendimento mantendo return_to
+  -> registrar prescrição/exame/evolução/alta
+  -> gerar documento clínico em rascunho
+  -> imprimir com marca d'água se rascunho/cancelado
+  -> copiar documento criando novo rascunho
+```

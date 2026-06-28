@@ -14,6 +14,13 @@
 | `agendamento` | Fluxo de agendamento | `cd_agendamento` | horário, tipo, especialidade, profissional, observação, confirmação, status | empresa, paciente, agenda |
 | `pre_atendimento` | Fila > Pré-atendimento | `cd_pre_atendimento` | prioridade, queixa, sinais vitais, antropometria, observação | empresa, paciente, agendamento |
 | `atendimento` | Atendimento | `cd_atendimento` | prestador, anamnese, conduta, status | empresa, paciente, agendamento, pré-atendimento |
+| `atendimento_fluxo` | Gerado automaticamente nas transições assistenciais | `cd_atendimento_fluxo` | não editável | empresa, atendimento, setor, prestador, usuário |
+| `atendimento_prestador` | Ficha/fluxo assistencial | `cd_atendimento_prestador` | papel, início, fim, responsável principal e ativo | empresa, atendimento, prestador |
+| `atendimento_procedimento` | Ficha/fluxo assistencial | `cd_atendimento_procedimento` | procedimento, quantidade, valor, executante, principal e ativo | empresa, atendimento, prestador |
+| `setor` | Global > Empresa > Setores | `cd_setor` | nome, tipo, observação e ativo | empresa, usuários |
+| `painel_chamada` | Global > Empresa > Painel de Chamada | `cd_painel_chamada` | nome, descrição, máquina, tipo, local, mensagem, tempo, layout, mídia, som e ativo | empresa, setores |
+| `painel_chamada_setor` | Global > Empresa > Painel de Chamada | `cd_painel_chamada_setor` | setores que enviam chamadas | painel, setor |
+| `chamada_painel` | PEP/Painel público | `cd_chamada_painel` | status, local e data/hora da chamada | empresa, atendimento, setor, painel |
 | `tabela_auxiliar` | Global > Tabelas auxiliares | `cd_tabela_auxiliar_global` | nome, descrição, ativo | valores auxiliares |
 | `valor_auxiliar` | Global e tabelas do Atendimento | `cd_valor_auxiliar_global` | código, descrição, grupo, ativo | tabela auxiliar |
 | `definicao_tela` | Configuração > Telas | `id` | módulo, título, rota, tipo, tabela, capacidades e ordem | módulo |
@@ -71,3 +78,11 @@ python manage.py importar_tabela_auxiliar tipo_logradouro arquivo.csv
 Formato: `codigo;descricao;grupo`. A coluna `grupo` é opcional.
 
 Para CEP, use `grupo` no formato `UF|CODIGO_CIDADE`, permitindo preencher Estado e Cidade automaticamente no cadastro do prestador.
+## Documentos clínicos
+
+| Tabela | Tela | PK | Campos editáveis | Relacionamentos |
+|---|---|---|---|---|
+| `modelo_documento` | Atendimento > Modelos de documentos | `cd_modelo_documento` | nome, tipo, cabeçalho, corpo, rodapé, variáveis, campos bloqueados e ativo | empresa, auditoria |
+| `documento_clinico` | Ficha de atendimento > Documentos | `cd_documento_clinico` | título, conteúdo, status e referência de cópia | empresa, atendimento, modelo, documento origem, emissor |
+
+Estados de `documento_clinico`: `RASCUNHO`, `FINALIZADO`, `ASSINADO` e `CANCELADO`. Impressões de rascunho e cancelado exibem marca d'água visual. Cópias sempre geram novo rascunho e mantêm vínculo com `cd_documento_origem`.

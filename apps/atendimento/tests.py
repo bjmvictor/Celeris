@@ -9,7 +9,7 @@ from apps.accounts.models import Empresa, User, UsuarioEmpresa
 from apps.core.models import Cep, TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 
 from .forms import PrestadorForm
-from .models import AgendaProfissional, Agendamento, Atendimento, EvolucaoAtendimento, Paciente, Prescricao, Prestador
+from .models import AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, Convenio, DocumentoClinico, EvolucaoAtendimento, Paciente, Prescricao, Prestador
 
 
 class FluxoHomologacaoTests(TestCase):
@@ -129,11 +129,134 @@ class FluxoHomologacaoTests(TestCase):
 
         self.client.post(reverse("atendimento:conceder-alta", args=[atendimento.pk]), {"ds_destino": "DOMICÍLIO"})
         atendimento.refresh_from_db()
-        self.assertEqual(atendimento.ds_status, "ALTA")
+        self.assertEqual(atendimento.ds_status, "ALTA_MEDICA")
 
         self.client.post(reverse("atendimento:finalizar-atendimento", args=[atendimento.pk]))
         atendimento.refresh_from_db()
         self.assertEqual(atendimento.ds_status, "FINALIZADO")
+        self.assertTrue(AtendimentoFluxo.objects.filter(cd_atendimento=atendimento, ds_status_novo="FINALIZADO").exists())
+
+    def test_recepcao_nao_duplica_atendimento_do_mesmo_agendamento(self):
+        self.login_as(self.recepcionista)
+        self.client.get(reverse("atendimento:recepcionar-agendamento", args=[self.agendamento.pk]))
+        self.client.get(reverse("atendimento:recepcionar-agendamento", args=[self.agendamento.pk]))
+        self.assertEqual(Atendimento.objects.filter(cd_agendamento=self.agendamento).count(), 1)
+
+    def test_dados_de_outra_empresa_nao_entram_na_recepcao(self):
+        outra_empresa = Empresa.objects.create(cd_empresa=100, nm_empresa="Outra empresa", sn_ativo=True)
+        outro_paciente = Paciente.objects.create(cd_empresa=outra_empresa, nm_paciente="PACIENTE OUTRA EMPRESA")
+        outro_agendamento = Agendamento.objects.create(
+            cd_empresa=outra_empresa,
+            cd_paciente=outro_paciente,
+            dh_agendamento=timezone.now(),
+            ds_status="AGENDADO",
+        )
+        self.login_as(self.recepcionista)
+        response = self.client.get(reverse("atendimento:recepcao"))
+        self.assertContains(response, self.paciente.nm_paciente)
+        self.assertNotContains(response, outro_paciente.nm_paciente)
+        response = self.client.get(reverse("atendimento:recepcionar-agendamento", args=[outro_agendamento.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_pep_nao_lista_paciente_apenas_agendado(self):
+        self.login_as(self.medico_user)
+        response = self.client.get(reverse("atendimento:pep"))
+        self.assertNotContains(response, self.paciente.nm_paciente)
+
+    def test_pep_exibe_filtros_por_engrenagem_e_lista_atendimentos_sem_alta(self):
+        Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="AGUARDANDO_CONSULTA",
+        )
+        self.login_as(self.medico_user)
+        response = self.client.get(reverse("atendimento:pep"))
+        self.assertContains(response, "⚙")
+        self.assertContains(response, "Todos os setores permitidos")
+        self.assertContains(response, "Atendimentos sem alta")
+        self.assertContains(response, self.paciente.nm_paciente)
+        self.assertContains(response, "Abrir ficha")
+
+    def test_pep_todos_pacientes_consulta_prontuario_e_atendimentos(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="FINALIZADO",
+            ds_diagnostico="Cefaleia",
+        )
+        self.login_as(self.medico_user)
+        response = self.client.get(reverse("atendimento:pep"), {"aba": "todos", "q": "PACIENTE"})
+        self.assertContains(response, "Prontuário")
+        self.assertContains(response, self.paciente.nm_paciente)
+
+        detail = self.client.get(reverse("atendimento:pep"), {"aba": "todos", "paciente": self.paciente.pk, "atendimento": atendimento.pk})
+        self.assertContains(detail, f"Atendimento {atendimento.pk}")
+        self.assertContains(detail, "Cefaleia")
+
+    def test_agendamentos_operacionais_exibe_calendario_e_comprovante(self):
+        self.login_as(self.recepcionista)
+        response = self.client.get(reverse("atendimento:agendamentos-operacionais"))
+        self.assertContains(response, "calendar-day")
+        self.assertContains(response, self.paciente.nm_paciente)
+        self.assertContains(response, "Comprovante")
+
+        comprovante = self.client.get(reverse("atendimento:comprovante-agendamento", args=[self.agendamento.pk]))
+        self.assertContains(comprovante, f"Protocolo {self.agendamento.pk}")
+        self.assertContains(comprovante, "Gerado automaticamente pelo Celeris")
+
+    def test_selecionar_agenda_confirma_apenas_apos_escolher_horario(self):
+        self.login_as(self.recepcionista)
+        response = self.client.get(reverse("atendimento:selecionar-agenda", args=[self.paciente.pk]))
+        self.assertContains(response, "calendar-day")
+        self.assertNotContains(response, "Confirmar agendamento")
+        horario = response.context["horarios"][0]
+        selected = self.client.get(
+            reverse("atendimento:selecionar-agenda", args=[self.paciente.pk]),
+            {
+                "data": horario["dh_agendamento"].date().isoformat(),
+                "agenda": horario["agenda"].pk,
+                "horario": horario["dh_agendamento"].isoformat(),
+            },
+        )
+        self.assertContains(selected, "Confirmar agendamento")
+
+    def test_pep_pesquisa_por_atendimento_e_geral(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="AGUARDANDO_CONSULTA",
+        )
+        self.login_as(self.medico_user)
+        por_codigo = self.client.get(reverse("atendimento:pep"), {"nr_atendimento": atendimento.pk, "q_atendimento": "IGNORAR"})
+        self.assertContains(por_codigo, self.paciente.nm_paciente)
+        self.assertEqual(por_codigo.context["busca_atendimento"], "")
+
+        por_nome = self.client.get(reverse("atendimento:pep"), {"q_atendimento": "PACIENTE"})
+        self.assertContains(por_nome, self.paciente.nm_paciente)
+
+    def test_documento_clinico_rascunho_e_copia(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        self.login_as(self.medico_user)
+        self.client.post(
+            reverse("atendimento:prescrever", args=[atendimento.pk]),
+            {"ds_prescricao": "Dipirona", "ds_orientacoes": "Se dor."},
+        )
+        documento = DocumentoClinico.objects.get(cd_atendimento=atendimento, tp_documento="PRESCRICAO")
+        self.assertEqual(documento.ds_status, "RASCUNHO")
+        impressao = self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]))
+        self.assertContains(impressao, "draft")
+
+        copia = self.client.get(reverse("atendimento:copiar-documento-clinico", args=[documento.pk]))
+        self.assertEqual(copia.status_code, 302)
+        self.assertEqual(DocumentoClinico.objects.filter(cd_atendimento=atendimento).count(), 2)
 
     def test_cadastro_prestador_com_multiespecialidade(self):
         form = PrestadorForm(
@@ -163,33 +286,84 @@ class FluxoHomologacaoTests(TestCase):
         self.assertTrue(provider.sn_permite_atendimento)
         self.assertTrue(provider.sn_permite_prescricao)
 
-    def test_consulta_de_prestadores_exibe_resultado_editar_e_retorno(self):
+    def test_menu_de_prestadores_abre_cadastro_integrado(self):
+        self.login_as(self.ti_user)
+        response = self.client.get(reverse("atendimento:profissionais"))
+        self.assertRedirects(response, reverse("atendimento:cadastro-profissional-novo"))
+
+    def test_consulta_integrada_de_prestadores_habilita_navegacao_de_resultados(self):
+        self.login_as(self.ti_user)
+        second_provider = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="MÉDICO TESTE DOIS",
+            nm_guerra="MÉDICO DOIS",
+            dt_nascimento="1980-01-01",
+            nr_cpf="111.444.777-35",
+            tp_prestador="MEDICO",
+        )
+        response = self.client.get(
+            reverse("atendimento:cadastro-profissional-novo"),
+            {"consultar": "1", "nm_prestador": "MÉDICO TESTE"},
+        )
+        self.assertRedirects(
+            response,
+            f"{reverse('atendimento:cadastro-profissional', args=[self.prestador.pk])}?origem=consulta",
+        )
+        result_response = self.client.get(response.url)
+        self.assertEqual(result_response.context["prestador"], self.prestador)
+        self.assertContains(result_response, reverse("atendimento:cadastro-profissional", args=[second_provider.pk]))
+
+    def test_abertura_direta_de_prestador_carrega_apenas_um_registro(self):
         self.login_as(self.ti_user)
         response = self.client.get(
-            reverse("atendimento:profissionais"),
-            {"nm_prestador": "MÉDICO TESTE"},
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "1 registro(s) encontrado(s).")
-        self.assertContains(response, "Editar")
-        self.assertContains(response, reverse("atendimento:cadastro-profissional", args=[self.prestador.pk]))
-
-        return_url = f"{reverse('atendimento:profissionais')}?nm_prestador=MÉDICO"
-        edit_response = self.client.get(
             reverse("atendimento:cadastro-profissional", args=[self.prestador.pk]),
-            {"return_to": return_url},
         )
-        self.assertEqual(edit_response.context["prestador"], self.prestador)
-        self.assertEqual(edit_response.context["current_return_url"], return_url)
+        self.assertEqual(response.context["prestador"], self.prestador)
+        self.assertEqual(response.context["current_previous_url"], "")
+        self.assertEqual(response.context["current_next_url"], "")
 
-    def test_consulta_de_prestadores_sem_resultados_exibe_mensagem(self):
+    def test_consulta_de_prestadores_sem_resultados_mantem_tela_integrada(self):
         self.login_as(self.ti_user)
         response = self.client.get(
-            reverse("atendimento:profissionais"),
-            {"nm_prestador": "INEXISTENTE"},
+            reverse("atendimento:cadastro-profissional-novo"),
+            {"consultar": "1", "nm_prestador": "INEXISTENTE"},
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Nenhum registro encontrado.")
+        self.assertRedirects(response, reverse("atendimento:cadastro-profissional-novo"))
+
+    def test_consulta_de_prestadores_sem_filtros_retorna_ativos_e_inativos(self):
+        inactive = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="PRESTADOR INATIVO",
+            nm_guerra="INATIVO",
+            dt_nascimento="1980-01-01",
+            nr_cpf="123.456.789-09",
+            sn_ativo=False,
+        )
+        self.login_as(self.ti_user)
+        response = self.client.get(
+            reverse("atendimento:cadastro-profissional-novo"),
+            {"consultar": "1"},
+        )
+        self.assertEqual(response.status_code, 302)
+        result_ids = self.client.session["consulta_prestadores"]
+        self.assertIn(self.prestador.pk, result_ids)
+        self.assertIn(inactive.pk, result_ids)
+
+    def test_consulta_de_prestadores_status_so_filtra_quando_informado(self):
+        inactive = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="PRESTADOR STATUS INATIVO",
+            nm_guerra="STATUS INATIVO",
+            dt_nascimento="1980-01-01",
+            nr_cpf="123.456.789-09",
+            sn_ativo=False,
+        )
+        self.login_as(self.ti_user)
+        self.client.get(
+            reverse("atendimento:cadastro-profissional-novo"),
+            {"consultar": "1", "sn_ativo": "False"},
+        )
+        self.assertEqual(self.client.session["consulta_prestadores"], [inactive.pk])
 
     def test_endereco_comercial_pode_acompanhar_residencial(self):
         provider = Prestador.objects.create(
@@ -253,8 +427,8 @@ class FluxoHomologacaoTests(TestCase):
         provider = Prestador.objects.get(nr_conselho="998877")
         self.assertTrue(provider.cd_prestador)
 
-    def test_consulta_sem_filtros_retorna_prestadores_ativos(self):
-        Prestador.objects.create(
+    def test_consulta_sem_filtros_retorna_todos_os_prestadores(self):
+        inactive = Prestador.objects.create(
             cd_empresa=self.empresa,
             nm_prestador="PRESTADOR INATIVO",
             nm_guerra="PRESTADOR INATIVO",
@@ -266,7 +440,10 @@ class FluxoHomologacaoTests(TestCase):
             {"consultar": "1"},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.session["consulta_prestadores"], [self.prestador.cd_prestador])
+        self.assertEqual(
+            self.client.session["consulta_prestadores"],
+            [self.prestador.cd_prestador, inactive.cd_prestador],
+        )
 
     def test_paciente_e_prestador_referenciam_cep_por_codigo(self):
         cep = Cep.objects.create(nr_cep="01001000", sg_estado="SP", ds_cidade="São Paulo")
@@ -320,7 +497,10 @@ class FluxoHomologacaoTests(TestCase):
             reverse("atendimento:cadastro-profissional-novo"),
             {"consultar": "1", "nm_prestador": "BENJ"},
         )
-        self.assertRedirects(first_response, reverse("atendimento:cadastro-profissional", args=[matching.pk]))
+        self.assertRedirects(
+            first_response,
+            f"{reverse('atendimento:cadastro-profissional', args=[matching.pk])}?origem=consulta",
+        )
         second_response = self.client.get(
             reverse("atendimento:cadastro-profissional-novo"),
             {"consultar": "1", "nm_prestador": "W"},
@@ -365,6 +545,24 @@ class FluxoHomologacaoTests(TestCase):
                 )
                 self.assertEqual(response.status_code, 302)
                 self.assertEqual(self.client.session["consulta_pacientes"], expected_ids)
+
+    def test_consulta_de_pacientes_sem_filtros_retorna_ativos_e_inativos(self):
+        inactive = Paciente.objects.create(
+            cd_empresa=self.empresa,
+            nm_paciente="PACIENTE INATIVO",
+            dt_nascimento="1990-01-01",
+            nr_cpf="111.444.777-35",
+            sn_ativo=False,
+        )
+        self.login_as(self.ti_user)
+        response = self.client.get(
+            reverse("atendimento:cadastro-paciente-novo"),
+            {"consultar": "1"},
+        )
+        self.assertEqual(response.status_code, 302)
+        result_ids = self.client.session["consulta_pacientes"]
+        self.assertIn(self.paciente.pk, result_ids)
+        self.assertIn(inactive.pk, result_ids)
 
     def test_cadastros_reutilizam_a_mesma_chave_de_guia(self):
         self.login_as(self.ti_user)
@@ -470,9 +668,9 @@ class FluxoHomologacaoTests(TestCase):
         session["consulta_prestadores"] = [provider.pk for provider in providers]
         session.save()
 
-        first = self.client.get(reverse("atendimento:cadastro-profissional", args=[providers[0].pk]))
-        middle = self.client.get(reverse("atendimento:cadastro-profissional", args=[providers[1].pk]))
-        last = self.client.get(reverse("atendimento:cadastro-profissional", args=[providers[2].pk]))
+        first = self.client.get(reverse("atendimento:cadastro-profissional", args=[providers[0].pk]), {"origem": "consulta"})
+        middle = self.client.get(reverse("atendimento:cadastro-profissional", args=[providers[1].pk]), {"origem": "consulta"})
+        last = self.client.get(reverse("atendimento:cadastro-profissional", args=[providers[2].pk]), {"origem": "consulta"})
         self.assertFalse(first.context["current_first_url"])
         self.assertFalse(first.context["current_previous_url"])
         self.assertTrue(first.context["current_next_url"])
@@ -498,10 +696,21 @@ class FluxoHomologacaoTests(TestCase):
         self.login_as(self.ti_user)
         provider_response = self.client.get(reverse("atendimento:cadastro-profissional-novo"))
         patient_response = self.client.get(reverse("atendimento:cadastro-paciente-novo"))
-        self.assertContains(provider_response, "data-screen-overlay-link", count=3)
-        self.assertContains(patient_response, "data-screen-overlay-link", count=2)
+        self.assertContains(provider_response, "data-screen-overlay-link", count=2)
+        self.assertContains(patient_response, "data-screen-overlay-link", count=1)
+        self.assertNotContains(provider_response, "Especialidades <a")
+        self.assertNotContains(patient_response, "Convênio <a")
+        self.assertContains(patient_response, "Nenhum convênio cadastrado.")
         overlay_response = self.client.get(reverse("core:global_ceps"), {"overlay": "1"})
         self.assertTrue(overlay_response.context["current_overlay_mode"])
+
+    def test_cadastro_paciente_agendamento_substitui_guia_e_volta_para_agendar(self):
+        self.login_as(self.recepcionista)
+        response = self.client.get(reverse("atendimento:cadastro-paciente-agendamento"))
+        self.assertEqual(response.context["current_tab_key"], reverse("atendimento:agendar"))
+        self.assertEqual(response.context["current_close_mode"], "back")
+        self.assertEqual(response.context["current_close_url"], reverse("atendimento:agendar"))
+        self.assertEqual(response.context["current_tab_root_title"], "Cadastro de paciente")
 
     def test_telas_de_especialidade_e_convenio_abrem(self):
         self.login_as(self.ti_user)
@@ -509,3 +718,24 @@ class FluxoHomologacaoTests(TestCase):
             with self.subTest(route=route):
                 response = self.client.get(reverse(route))
                 self.assertEqual(response.status_code, 200)
+
+    def test_convenios_consulta_em_branco_lista_todos(self):
+        self.login_as(self.ti_user)
+        Convenio.objects.create(cd_empresa=self.empresa, nm_convenio="SUL AMERICA", sn_ativo=True)
+        Convenio.objects.create(cd_empresa=self.empresa, nm_convenio="BRADESCO SAUDE", sn_ativo=True)
+
+        response = self.client.get(reverse("atendimento:convenios"), {"consultar": "1"})
+
+        self.assertContains(response, "SUL AMERICA")
+        self.assertContains(response, "BRADESCO SAUDE")
+        self.assertNotContains(response, "Nenhum dado encontrado.")
+
+    def test_convenios_salvar_mantem_registros_exibidos(self):
+        self.login_as(self.ti_user)
+        response = self.client.post(
+            reverse("atendimento:convenios"),
+            {"new_name": ["SUL AMERICA"], "new_active": ["true"]},
+        )
+        self.assertRedirects(response, f"{reverse('atendimento:convenios')}?consultar=1")
+        list_response = self.client.get(reverse("atendimento:convenios"), {"consultar": "1"})
+        self.assertContains(list_response, "SUL AMERICA")

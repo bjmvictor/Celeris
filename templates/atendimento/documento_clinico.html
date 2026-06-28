@@ -1,0 +1,42 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="print-toolbar">
+    <button class="button button-primary" type="button" onclick="window.print()">Imprimir</button>
+    <a class="button button-secondary" href="{% url 'atendimento:copiar-documento-clinico' documento.pk %}">Copiar como rascunho</a>
+    <a class="button button-secondary" href="{% url 'atendimento:ficha-atendimento' atendimento.pk %}">Voltar para ficha</a>
+  </section>
+
+  <article class="document-page clinical-document {% if documento.ds_status == 'RASCUNHO' %}draft{% elif documento.ds_status == 'CANCELADO' %}cancelled{% endif %}">
+    <header class="document-header">
+      <div>
+        <h1>{{ empresa.nm_empresa }}</h1>
+        <p>Celeris · Documento clínico {{ documento.pk }}</p>
+      </div>
+      <div class="document-protocol">
+        <strong>{{ documento.ds_titulo }}</strong>
+        <span>{{ documento.get_ds_status_display }}</span>
+      </div>
+    </header>
+
+    <section class="document-section">
+      <div class="summary-grid">
+        <span><strong>Paciente:</strong> {{ atendimento.cd_paciente.nm_paciente }}</span>
+        <span><strong>Prontuário:</strong> {{ atendimento.cd_paciente.pk }}</span>
+        <span><strong>Atendimento:</strong> {{ atendimento.pk }}</span>
+        <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
+        <span><strong>Emissão:</strong> {{ documento.dh_emissao|date:"d/m/Y H:i" }}</span>
+        <span><strong>Emissor:</strong> {{ documento.cd_usuario_emissor.get_full_name|default:documento.cd_usuario_emissor.get_username|default:"-" }}</span>
+      </div>
+    </section>
+
+    <section class="document-section document-content">
+      {{ documento.ds_conteudo|linebreaks }}
+    </section>
+
+    <footer class="document-footer">
+      <span>Gerado automaticamente pelo Celeris.</span>
+      <span>Status: {{ documento.get_ds_status_display }}</span>
+    </footer>
+  </article>
+{% endblock %}

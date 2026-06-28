@@ -48,7 +48,7 @@
       {% endif %}
     </details>
 
-    <details class="card form-section" data-provider-section="2" open>
+    <details class="card form-section" data-provider-section="2">
       <summary>2. Informações profissionais</summary>
       <div class="form-grid">
         <label class="field-md">Tipo de Prestador * {{ form.tp_prestador }} {{ form.tp_prestador.errors }}</label>
@@ -56,7 +56,7 @@
         <label class="field-md">Número do Conselho {{ form.nr_conselho }} {{ form.nr_conselho.errors }}</label>
         <label class="field-xs">UF do Conselho {{ form.sg_conselho }}</label>
         <div class="field-fluid specialty-manager" data-specialty-manager>
-          <span>Especialidades <a class="field-overlay-link" data-screen-overlay-link href="/global/tabelas/auxiliares/especialidade/">Gerenciar</a></span>
+          <span>Especialidades</span>
           <div class="specialty-toolbar">
             <div class="specialty-chips" data-specialty-chips></div>
             <button class="button button-secondary specialty-open-button" data-specialty-open type="button">+ Adicionar especialidade</button>

@@ -38,9 +38,14 @@
         <label class="field-md">Órgão Emissor {{ form.ds_orgao_emissor }}</label>
         <label class="field-sm">Data de Expedição {{ form.dt_expedicao }}</label>
         <label class="field-md">Cartão SUS {{ form.nr_cartao_sus }}</label>
-        <label class="field-lg">Convênio <a class="field-overlay-link" data-screen-overlay-link href="{% url 'atendimento:convenios' %}">Gerenciar</a> {{ form.cd_convenio }}</label>
+        <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
         <label class="field-md">Número do Convênio {{ form.nr_convenio }}</label>
       </div>
+      {% if not form.cd_convenio.field.queryset.exists %}
+        <p class="field-help-message">
+          Nenhum convênio cadastrado. Cadastre convênios em Global → Auxiliares → Convênios.
+        </p>
+      {% endif %}
     </details>
 
     <details class="card form-section">

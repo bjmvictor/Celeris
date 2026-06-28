@@ -60,10 +60,6 @@
     }
     if (cancelButton) cancelButton.hidden = !enabled;
     document.querySelectorAll("[data-consultable], [data-primary-key]").forEach((field) => {
-      if (field.closest("[data-editable-table]") && field.dataset.primaryKey === "true") {
-        field.setAttribute("readonly", "readonly");
-        return;
-      }
       const canQuery = field.dataset.consultable === "true" || field.dataset.primaryKey === "true";
       const canEdit = field.dataset.editable !== "false" && field.dataset.primaryKey !== "true";
       if (enabled && canQuery) {
@@ -113,19 +109,50 @@
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = true;
     form?.setAttribute("data-dirty", "false");
+    clearCurrentFormState(form);
   }
 
   function clearScreenData() {
     const form = getPrimaryForm();
     if (!form) return;
+    if (form.method?.toLowerCase() === "get") {
+      window.location.href = window.location.pathname;
+      return;
+    }
     if (form.matches("[data-editable-table]")) {
-      form.querySelectorAll("tbody tr").forEach((row) => row.remove());
-      addEditableTableRow(form);
+      resetEditableTableRows(form, false);
       form.dataset.dirty = "false";
+      window.history.replaceState({}, "", window.location.pathname);
     } else {
       clearFormFields(form);
     }
     setActionStatus("EDIÇÃO");
+  }
+
+  function resetEditableTableRows(form, markDirty = false) {
+    if (!form?.matches("[data-editable-table]")) return false;
+    form.querySelectorAll("tbody tr").forEach((row) => row.remove());
+    addEditableTableRow(form, markDirty);
+    form.dataset.dirty = markDirty ? "true" : "false";
+    updateTablePagerVisibility(form);
+    return true;
+  }
+
+  function prepareEditableTableQueryRow(form) {
+    if (!form?.matches("[data-editable-table]")) return;
+    getEditableTableFields(form).forEach((field) => {
+      if (field instanceof HTMLSelectElement) {
+        if (!Array.from(field.options).some((option) => option.value === "")) {
+          field.add(new Option("", ""), 0);
+        }
+        field.value = "";
+      } else if (field.type === "checkbox" || field.type === "radio") {
+        field.checked = false;
+      } else {
+        field.value = "";
+      }
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    });
   }
 
   const savedTheme = localStorage.getItem("celeris-theme");
@@ -144,6 +171,7 @@
   let floatingSelectSearchTimer = null;
   let reverseEnterRequested = false;
   let sidebarAutoCollapseTimer = null;
+  let isRestoringFormState = false;
 
   function scheduleSidebarAutoCollapse() {
     window.clearTimeout(sidebarAutoCollapseTimer);
@@ -570,7 +598,7 @@
     setActionStatus("EDIÇÃO");
   }
 
-  function addEditableTableRow(form) {
+  function addEditableTableRow(form, markDirty = true) {
     const template = form.querySelector("template[data-table-new-row]");
     const tbody = form.querySelector("tbody");
     if (!template || !tbody) return false;
@@ -578,33 +606,59 @@
     const row = fragment.querySelector("tr");
     tbody.querySelector(".empty-cell")?.closest("tr")?.remove();
     tbody.appendChild(fragment);
-    setupEditableTableActions(form);
-    markFormDirty(form);
+    row?.querySelectorAll("[data-cep-state-select]").forEach(filterCepCitiesForState);
+    updateTablePagerVisibility(form);
+    if (markDirty) {
+      markFormDirty(form);
+    } else {
+      form.dataset.dirty = "false";
+      const saveButton = document.querySelector('[data-action="save"]');
+      if (saveButton) saveButton.disabled = true;
+    }
     row?.querySelector("input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])")?.focus();
     return true;
   }
 
-  function setupEditableTableActions(scope = document) {
-    scope.querySelectorAll?.("form[data-editable-table] table").forEach((table) => {
-      const headerRow = table.querySelector("thead tr");
-      if (headerRow && !headerRow.querySelector("[data-edit-action-header]")) {
-        const header = document.createElement("th");
-        header.dataset.editActionHeader = "true";
-        header.textContent = "Ações";
-        headerRow.appendChild(header);
-      }
-      table.querySelectorAll("tbody tr[data-editable-row]").forEach((row) => {
-        if (row.querySelector("[data-edit-row]")) return;
-        const cell = document.createElement("td");
-        cell.innerHTML = '<button class="button button-secondary table-edit-action" data-edit-row type="button">Editar</button>';
-        row.appendChild(cell);
-      });
-      const emptyRow = table.querySelector("tbody .empty-cell")?.closest("tr");
-      if (emptyRow) {
-        emptyRow.querySelector(".empty-cell")?.setAttribute(
-          "colspan",
-          String((headerRow?.children.length || 1))
-        );
+  function hasLoadedRecord(form = getPrimaryForm()) {
+    if (!form || document.body.classList.contains("screen-query-mode")) return false;
+    const primaryKey = form.querySelector('[data-primary-key="true"], .pk-label input');
+    return Boolean(primaryKey?.value?.trim());
+  }
+
+  function hasSelectedPersistedRow(form = getEditableTableForm()) {
+    if (!form || document.body.classList.contains("screen-query-mode")) return false;
+    const row = getActiveEditableRow();
+    const primaryKey = row?.querySelector('[data-primary-key="true"]');
+    return Boolean(row && !row.hidden && primaryKey?.value?.trim());
+  }
+
+  function hasSelectedEditableRow(form = getEditableTableForm()) {
+    if (!form || document.body.classList.contains("screen-query-mode")) return false;
+    const row = getActiveEditableRow();
+    return Boolean(row && !row.hidden && form.contains(row));
+  }
+
+  function getSelectedRowActiveField(form = getEditableTableForm()) {
+    if (!form || document.body.classList.contains("screen-query-mode")) return null;
+    const row = getActiveEditableRow();
+    if (!row || row.hidden || !form.contains(row)) return null;
+    return row.querySelector('select[name^="sn_ativo_"], select[name^="active_"], select[name="new_sn_ativo"], select[name="new_active"]');
+  }
+
+  function updateTablePagerVisibility(form = getEditableTableForm()) {
+    const pager = form?.querySelector("[data-table-pager]");
+    if (!pager) return;
+    const visibleRows = Array.from(form.querySelectorAll("tbody tr[data-editable-row]:not([hidden])"));
+    const hasLoadedRows = visibleRows.some((row) => row.querySelector('[data-primary-key="true"]')?.value?.trim());
+    const hasPageAction = Boolean(pager.querySelector(".table-pager-link:not(.disabled)"));
+    pager.hidden = !(hasLoadedRows && hasPageAction);
+  }
+
+  function setupInitialEditableRows() {
+    if (window.location.search) return;
+    document.querySelectorAll("form[data-editable-table]").forEach((form) => {
+      if (!form.querySelector("tbody tr[data-editable-row]") && form.querySelector("template[data-table-new-row]")) {
+        addEditableTableRow(form, false);
       }
     });
   }
@@ -620,6 +674,8 @@
       row.remove();
     }
     markFormDirty(form);
+    updateTablePagerVisibility(form);
+    setupActionButtons();
     return true;
   }
 
@@ -641,6 +697,31 @@
     if (!nextField) return false;
     nextField.focus();
     nextField.select?.();
+    return true;
+  }
+
+  function getEditableTableFields(form) {
+    const isQueryMode = document.body.classList.contains("screen-query-mode");
+    return Array.from(form?.querySelectorAll("tbody tr[data-editable-row]:not([hidden]) input, tbody tr[data-editable-row]:not([hidden]) select, tbody tr[data-editable-row]:not([hidden]) textarea") || [])
+      .filter((field) => {
+        if (field.type === "hidden" || field.disabled || field.closest("tr")?.hidden) return false;
+        if (field.readOnly && !(isQueryMode && field.dataset.primaryKey === "true")) return false;
+        return true;
+      });
+  }
+
+  function focusEditableTableNextField(currentField, reverse = false) {
+    const form = currentField.closest("form[data-editable-table]");
+    const fields = getEditableTableFields(form);
+    const currentIndex = fields.indexOf(currentField);
+    let target = fields[currentIndex + (reverse ? -1 : 1)];
+    if (!target && !reverse && !document.body.classList.contains("screen-query-mode") && addEditableTableRow(form)) {
+      target = getEditableTableFields(form).find((field) => !field.readOnly);
+    }
+    target = target || (reverse ? fields[fields.length - 1] : fields[0]);
+    if (!target) return false;
+    target.focus();
+    target.select?.();
     return true;
   }
 
@@ -701,7 +782,11 @@
     const themeButton = event.target.closest("[data-theme-toggle]");
     if (themeButton) {
       root.classList.toggle("dark");
-      localStorage.setItem("celeris-theme", root.classList.contains("dark") ? "dark" : "light");
+      const theme = root.classList.contains("dark") ? "dark" : "light";
+      localStorage.setItem("celeris-theme", theme);
+      if (document.body.dataset.username) {
+        localStorage.setItem(`celeris-theme-user:${document.body.dataset.username}`, theme);
+      }
       return;
     }
 
@@ -735,12 +820,19 @@
           }
           clearFormFields(form);
         }
-        clearFormFields(form);
-        if (form?.matches("[data-editable-table]") && !form.querySelector("tbody tr[data-editable-row]:not([hidden])")) {
-          addEditableTableRow(form);
-          form.dataset.dirty = "false";
+        if (form?.matches("[data-editable-table]")) {
+          resetEditableTableRows(form, false);
+          window.history.replaceState({}, "", window.location.pathname);
+        } else {
+          clearFormFields(form);
         }
         setQueryMode(true);
+        if (form?.matches("[data-editable-table]")) {
+          prepareEditableTableQueryRow(form);
+          const firstField = getEditableTableFields(form)[0];
+          firstField?.focus();
+          firstField?.select?.();
+        }
         if (saveButton) saveButton.disabled = true;
         if (removeButton) removeButton.disabled = true;
       } else {
@@ -759,13 +851,15 @@
           const params = new URLSearchParams();
           Array.from(form.elements).forEach((field) => {
             if (!field.name || field.type === "hidden" || field.disabled || !String(field.value || "").trim()) return;
-            if (field instanceof HTMLSelectElement && field.multiple) {
+            if (field.matches('input[type="checkbox"], input[type="radio"]')) {
+              if (field.checked) params.set(field.name, field.value || "true");
+            } else if (field instanceof HTMLSelectElement && field.multiple) {
               Array.from(field.selectedOptions).forEach((option) => params.append(field.name, option.value));
             } else {
               params.set(field.name, field.value);
             }
           });
-          if (["paciente", "prestador"].includes(form.dataset.table)) {
+          if (["paciente", "prestador", "usuario"].includes(form.dataset.table)) {
             params.set("consultar", "1");
           } else {
             params.set("abrir", "1");
@@ -774,10 +868,15 @@
           return;
         }
         if (form?.matches("[data-editable-table]")) {
-          const queryValue = Array.from(form.querySelectorAll("input:not([type='hidden']), select, textarea"))
-            .filter((field) => !field.readOnly && !field.disabled && field.value.trim())
-            .map((field) => field.value.trim())[0] || "";
+          const queryValue = Array.from(form.querySelectorAll("input:not([type='hidden']), textarea, select"))
+            .filter((field) => !field.readOnly && !field.disabled && String(field.value || "").trim())
+            .map((field) => {
+              if (field instanceof HTMLSelectElement) return field.value.trim();
+              return field.value.trim();
+            })[0] || "";
+          clearCurrentFormState(form);
           const params = queryValue ? `?q=${encodeURIComponent(queryValue)}` : "?consultar=1";
+          storeCurrentListPosition();
           window.location.href = `${window.location.pathname}${params}`;
           return;
         }
@@ -806,6 +905,7 @@
     if (saveAction && !saveAction.disabled) {
       const form = document.querySelector(".content form");
       if (form) {
+        storeCurrentListPosition();
         await submitPrimaryForm(form);
       }
       return;
@@ -818,7 +918,11 @@
       const targetUrl = document.body.dataset.newUrl;
       if (targetUrl) {
         storeCurrentListPosition();
-        window.location.href = targetUrl;
+        const url = new URL(targetUrl, window.location.origin);
+        if (url.origin === window.location.origin && !url.searchParams.has("return_to")) {
+          url.searchParams.set("return_to", `${window.location.pathname}${window.location.search}`);
+        }
+        window.location.href = url.toString();
       }
       return;
     }
@@ -837,7 +941,17 @@
     }
 
     const toggleActiveAction = event.target.closest('[data-action="toggle-active"]');
-    if (toggleActiveAction && !toggleActiveAction.disabled && document.body.dataset.toggleActiveUrl) {
+    if (toggleActiveAction && !toggleActiveAction.disabled) {
+      const tableForm = getEditableTableForm();
+      const rowActiveField = getSelectedRowActiveField(tableForm);
+      if (rowActiveField) {
+        rowActiveField.value = rowActiveField.value === "true" ? "false" : "true";
+        rowActiveField.dispatchEvent(new Event("change", { bubbles: true }));
+        markFormDirty(tableForm);
+        setupActionButtons();
+        return;
+      }
+      if (!document.body.dataset.toggleActiveUrl) return;
       const confirmed = await showBlockingNotification({
         title: toggleActiveAction.title,
         message: `Confirma a ação de ${toggleActiveAction.title.toLowerCase()} este cadastro?`,
@@ -866,13 +980,6 @@
         if (title) title.textContent = "Alterar Senha";
         overlay.hidden = false;
       }
-      return;
-    }
-
-    const editRowAction = event.target.closest("[data-edit-row]");
-    if (editRowAction) {
-      const row = editRowAction.closest("tr");
-      row?.querySelector("input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])")?.focus();
       return;
     }
 
@@ -950,6 +1057,17 @@
       return;
     }
 
+    const notificationsClear = event.target.closest("[data-notifications-clear]");
+    if (notificationsClear) {
+      localStorage.removeItem("celeris-notifications");
+      const empty = document.createElement("div");
+      empty.className = "notification-empty";
+      empty.textContent = "Nenhuma notificação.";
+      document.querySelector(".notifications-list")?.replaceChildren(empty);
+      document.querySelector(".notification-badge")?.remove();
+      return;
+    }
+
     const notificationItem = event.target.closest("[data-notification-item]");
     if (notificationItem) {
       notificationItem.classList.toggle("open");
@@ -984,6 +1102,7 @@
     if (editableCell) {
       editableCell.closest("tbody")?.querySelectorAll("tr.selected").forEach((row) => row.classList.remove("selected"));
       editableCell.closest("tr[data-editable-row]")?.classList.add("selected");
+      setupActionButtons();
     }
 
     const notificationsPanel = document.querySelector("[data-notifications-panel]");
@@ -1011,6 +1130,9 @@
   document.addEventListener("submit", function (event) {
     if (event.target.matches("[data-clear-tabs]")) {
       localStorage.removeItem("celeris-tabs");
+    }
+    if (event.target.matches(".content form") && event.target.method?.toLowerCase() !== "get") {
+      clearCurrentFormState(event.target);
     }
     if (event.target.matches(".content form")) markInvalidFields(event.target);
   });
@@ -1071,13 +1193,33 @@
       event.preventDefault();
       runLookup(event.target.closest("[data-lookup-modal]"));
     }
+    if (event.key === "Enter" && event.target.matches("form[data-editable-table] input, form[data-editable-table] select, form[data-editable-table] textarea")) {
+      event.preventDefault();
+      focusEditableTableNextField(event.target, event.shiftKey || reverseEnterRequested);
+      reverseEnterRequested = false;
+      return;
+    }
+    if (event.key === "Tab" && event.target.matches("form[data-editable-table] input, form[data-editable-table] select, form[data-editable-table] textarea")) {
+      event.preventDefault();
+      focusEditableTableNextField(event.target, event.shiftKey);
+      return;
+    }
     if (
       event.target.matches(".content select")
-      && (event.key === "Enter" || event.key === "ArrowDown" || (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey))
+      && (
+        event.key === "Enter"
+        || event.key === "ArrowDown"
+        || event.key === "ArrowUp"
+        || (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey)
+      )
     ) {
       event.preventDefault();
-      openFloatingSelect(event.target);
-      if (event.key.length === 1) {
+      const field = event.target;
+      const isCurrentFloatingSelect = getFloatingSelectField() === field;
+      if (!isCurrentFloatingSelect) openFloatingSelect(field);
+      if (event.key === "Enter" && isCurrentFloatingSelect) {
+        activeFloatingSelect?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key.length === 1) {
         window.setTimeout(() => {
           activeFloatingSelect?.dispatchEvent(new KeyboardEvent("keydown", { key: event.key, bubbles: true }));
         });
@@ -1145,6 +1287,11 @@
     window.clearTimeout(floatingSelectSearchTimer);
   }
 
+  function getFloatingSelectField() {
+    const fieldId = activeFloatingSelect?.dataset.fieldId;
+    return fieldId ? document.getElementById(fieldId) : null;
+  }
+
   function positionFloatingSelect(panel, field) {
     const rect = field.getBoundingClientRect();
     const gap = 4;
@@ -1174,6 +1321,12 @@
     document.body.appendChild(panel);
     activeFloatingSelect = panel;
     positionFloatingSelect(panel, field);
+    const setActiveOption = (button) => {
+      if (!button) return;
+      panel.querySelectorAll("button").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      button.scrollIntoView({ block: "nearest" });
+    };
     const selectOption = (button) => {
       const option = options[Number(button.dataset.selectIndex)];
       if (!option) return;
@@ -1197,22 +1350,26 @@
     });
     panel.addEventListener("keydown", (event) => {
       const buttons = Array.from(panel.querySelectorAll("button"));
-      const current = document.activeElement.closest?.("button");
+      const current = document.activeElement.closest?.("button") || panel.querySelector("button.active");
       const currentIndex = Math.max(buttons.indexOf(current), 0);
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        buttons[Math.min(currentIndex + 1, buttons.length - 1)]?.focus();
+        const nextButton = buttons[Math.min(currentIndex + 1, buttons.length - 1)];
+        setActiveOption(nextButton);
+        nextButton?.focus();
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        buttons[Math.max(currentIndex - 1, 0)]?.focus();
+        const previousButton = buttons[Math.max(currentIndex - 1, 0)];
+        setActiveOption(previousButton);
+        previousButton?.focus();
       } else if (event.key === "Enter") {
         event.preventDefault();
         if (event.shiftKey || reverseEnterRequested) {
           reverseEnterRequested = false;
           closeFloatingSelect();
           focusPreviousField(field);
-        } else if (current) {
-          selectOption(current);
+        } else {
+          selectOption(current || panel.querySelector("button.active") || buttons[0]);
         }
       } else if (event.key === "Tab") {
         event.preventDefault();
@@ -1236,6 +1393,7 @@
         ).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().startsWith(floatingSelectSearch));
         if (match) {
           event.preventDefault();
+          setActiveOption(match);
           match.focus();
         }
       }
@@ -1244,6 +1402,7 @@
       const activeButton = panel.querySelector("button.active:not([data-empty-option='true'])")
         || panel.querySelector("button:not([data-empty-option='true'])")
         || panel.querySelector("button");
+      setActiveOption(activeButton);
       activeButton?.focus();
     });
   }
@@ -1294,7 +1453,20 @@
 
     const labelText = field.closest("label")?.childNodes?.[0]?.textContent?.trim() || "";
     const businessLabel = labelText || field.getAttribute("aria-label") || field.placeholder || "Campo";
-    status.textContent = businessLabel.trim();
+    const owner = field.closest("form[data-table], section[data-table]");
+    const tableName = owner?.dataset.table;
+    const rawFieldName = field.dataset.fieldName || field.name || "";
+    const fieldName = rawFieldName.replace(/^new_/, "").replace(/_\d+$/, "");
+    const isExactTableField = Boolean(
+      tableName
+      && fieldName
+      && owner?.tagName === "FORM"
+      && owner.method?.toLowerCase() !== "get"
+      && field.type !== "hidden"
+    );
+    status.textContent = isExactTableField
+      ? `${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`
+      : businessLabel.trim();
   }
 
   function normalizeInputValue(field) {
@@ -1343,10 +1515,13 @@
     } else if (field.dataset.mask === "celular") {
       field.value = formatCellphone(field.value);
     }
+    if (isRestoringFormState) return;
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
-    field.closest("form")?.setAttribute("data-dirty", "true");
+    const form = field.closest("form");
+    form?.setAttribute("data-dirty", "true");
+    persistCurrentFormState(form);
   });
 
   document.addEventListener("change", function (event) {
@@ -1360,6 +1535,13 @@
     if (event.target.matches("[data-linked-cep]")) {
       loadAddressForCep(event.target.dataset.linkedCep, event.target.value);
     }
+    if (event.target.matches("[data-option-label-target]")) {
+      syncLinkedOptionLabel(event.target);
+    }
+    if (event.target.matches("[data-cep-state-select]")) {
+      filterCepCitiesForState(event.target);
+    }
+    if (isRestoringFormState) return;
     if (event.target.matches("[data-provider-type]")) {
       const councilField = document.querySelector("[data-provider-council]");
       let councilMap = {};
@@ -1411,10 +1593,13 @@
     if (event.target.matches("[data-same-address]")) {
       copyResidentialAddressToCommercial(event.target.checked);
     }
+    if (isRestoringFormState) return;
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
-    event.target.closest("form")?.setAttribute("data-dirty", "true");
+    const form = event.target.closest("form");
+    form?.setAttribute("data-dirty", "true");
+    persistCurrentFormState(form);
   });
 
   async function loadCitiesForState(state) {
@@ -1781,6 +1966,132 @@
     });
   }
 
+  function setupFormSectionAccordion() {
+    document.querySelectorAll(".provider-form, .patient-form, .user-form, .role-form").forEach((form) => {
+      form.querySelectorAll(":scope > details.form-section").forEach((section) => {
+        section.addEventListener("toggle", () => {
+          if (!section.open) return;
+          form.querySelectorAll(":scope > details.form-section[open]").forEach((otherSection) => {
+            if (otherSection !== section) otherSection.open = false;
+          });
+        });
+      });
+    });
+  }
+
+  function setupSortableTables() {
+    const currentOrdering = new URLSearchParams(window.location.search).get("ordem") || "";
+    const renderIndicator = (element, fieldName) => {
+      element.querySelector(".sort-indicator")?.remove();
+      if (currentOrdering !== fieldName && currentOrdering !== `-${fieldName}`) return;
+      const indicator = document.createElement("span");
+      indicator.className = "sort-indicator";
+      indicator.textContent = currentOrdering.startsWith("-") ? "▼" : "▲";
+      element.appendChild(indicator);
+    };
+
+    document.querySelectorAll("table th a").forEach((link) => {
+      const ordering = new URL(link.href, window.location.origin).searchParams.get("ordem") || "";
+      const fieldName = ordering.replace(/^-/, "");
+      if (fieldName) renderIndicator(link, fieldName);
+      link.addEventListener("click", () => storeCurrentListPosition());
+    });
+    document.querySelectorAll("table th[data-sort-field]").forEach((header) => {
+      const fieldName = header.dataset.sortField;
+      header.classList.add("sortable-column");
+      header.tabIndex = 0;
+      renderIndicator(header, fieldName);
+      const applyOrdering = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("ordem", currentOrdering === fieldName ? `-${fieldName}` : fieldName);
+        storeCurrentListPosition();
+        window.location.href = url.toString();
+      };
+      header.addEventListener("click", applyOrdering);
+      header.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        applyOrdering();
+      });
+    });
+  }
+
+  function setupResizableTables() {
+    document.querySelectorAll("table").forEach((table) => {
+      const headers = Array.from(table.querySelectorAll("thead th"));
+      let colgroup = table.querySelector("colgroup[data-resizable-columns]");
+      if (!colgroup) {
+        colgroup = document.createElement("colgroup");
+        colgroup.dataset.resizableColumns = "true";
+        headers.forEach(() => colgroup.appendChild(document.createElement("col")));
+        table.prepend(colgroup);
+      }
+      headers.forEach((header, index) => {
+        if (index >= headers.length - 1) return;
+        if (header.querySelector(".column-resize-handle")) return;
+        header.style.position = "sticky";
+        const handle = document.createElement("span");
+        handle.className = "column-resize-handle";
+        handle.dataset.columnResize = String(index);
+        handle.addEventListener("click", (event) => event.preventDefault());
+        handle.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const startX = event.clientX;
+          const startWidth = header.getBoundingClientRect().width;
+          const col = colgroup.children[index];
+          document.body.classList.add("column-resizing");
+          const resize = (moveEvent) => {
+            const nextWidth = Math.max(64, startWidth + moveEvent.clientX - startX);
+            if (col) {
+              col.style.width = `${nextWidth}px`;
+              col.style.minWidth = `${nextWidth}px`;
+            }
+          };
+          const stop = () => {
+            document.body.classList.remove("column-resizing");
+            document.removeEventListener("mousemove", resize);
+            document.removeEventListener("mouseup", stop);
+          };
+          document.addEventListener("mousemove", resize);
+          document.addEventListener("mouseup", stop);
+        });
+        header.appendChild(handle);
+      });
+    });
+  }
+
+  function syncLinkedOptionLabel(field) {
+    const targetName = field.dataset.optionLabelTarget;
+    if (!targetName) return;
+    const form = field.closest("form");
+    const target = form?.querySelector(`[name="${CSS.escape(targetName)}"]`);
+    if (target) target.value = field.selectedOptions?.[0]?.textContent?.trim() || "";
+  }
+
+  function filterCepCitiesForState(stateField) {
+    const targetName = stateField.dataset.cityTarget;
+    if (!targetName) return;
+    const form = stateField.closest("form") || document;
+    const citySelect = form.querySelector(`[name="${CSS.escape(targetName)}"]`);
+    if (!citySelect) return;
+    const state = stateField.value;
+    Array.from(citySelect.options).forEach((option) => {
+      const visible = !option.value || (state && option.dataset.state === state);
+      option.hidden = !visible;
+      option.disabled = !visible;
+    });
+    const selectedOption = citySelect.selectedOptions[0];
+    if (selectedOption?.disabled) {
+      citySelect.value = "";
+      syncLinkedOptionLabel(citySelect);
+    }
+  }
+
+  function setupCepCityDependencies() {
+    document.querySelectorAll("[data-cep-state-select]").forEach(filterCepCitiesForState);
+  }
+
   function copyResidentialAddressToCommercial(lockFields) {
     const fieldMap = {
       cd_cep: "cd_cep_comercial",
@@ -1841,6 +2152,13 @@
     const tableForm = getEditableTableForm();
     const isHome = document.body.dataset.tabUrl === "/";
 
+    if (document.querySelector("[data-disable-toolbar-actions='true']")) {
+      document.querySelectorAll(".toolbar-actions .toolbar-button").forEach((button) => {
+        button.disabled = true;
+      });
+      return;
+    }
+
     if (isHome) {
       [queryButton, clearButton, newButton, continueButton, removeButton, firstButton, previousButton, nextButton, lastButton, closeButton].forEach((button) => {
         if (button) button.disabled = true;
@@ -1848,21 +2166,53 @@
       return;
     }
 
-    if (queryButton) queryButton.disabled = document.body.dataset.canQuery !== "true";
+    if (queryButton) {
+      queryButton.hidden = document.body.dataset.canQuery !== "true";
+      queryButton.disabled = document.body.dataset.canQuery !== "true";
+    }
     if (saveButton && document.querySelector(".content form[data-has-errors='true']")) saveButton.disabled = false;
-    if (newButton) newButton.disabled = !(document.body.dataset.newUrl || tableForm);
+    if (newButton) {
+      newButton.hidden = !(document.body.dataset.newUrl || tableForm);
+      newButton.disabled = !(document.body.dataset.newUrl || tableForm);
+    }
     if (continueButton) {
       continueButton.hidden = !document.body.dataset.continueUrl;
       continueButton.disabled = !document.body.dataset.continueUrl;
     }
-    if (removeButton) removeButton.disabled = !(document.body.dataset.canRemove === "true" || tableForm);
+    if (removeButton) removeButton.disabled = tableForm
+      ? !hasSelectedEditableRow(tableForm)
+      : !(document.body.dataset.canRemove === "true" && hasLoadedRecord());
     if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm);
     const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
-    if (toggleActiveButton) toggleActiveButton.hidden = !document.body.dataset.toggleActiveUrl;
-    if (previousButton) previousButton.disabled = !document.body.dataset.previousUrl;
-    if (nextButton) nextButton.disabled = !document.body.dataset.nextUrl;
-    if (firstButton) firstButton.disabled = !document.body.dataset.firstUrl;
-    if (lastButton) lastButton.disabled = !document.body.dataset.lastUrl;
+    if (toggleActiveButton) {
+      const rowActiveField = getSelectedRowActiveField(tableForm);
+      toggleActiveButton.hidden = !(rowActiveField || document.body.dataset.toggleActiveUrl);
+      toggleActiveButton.disabled = !(rowActiveField || (document.body.dataset.toggleActiveUrl && hasLoadedRecord()));
+      if (rowActiveField) {
+        toggleActiveButton.title = rowActiveField.value === "true" ? "Desativar" : "Ativar";
+      }
+      toggleActiveButton.querySelector("[data-nav-icon]")?.setAttribute(
+        "data-nav-icon",
+        toggleActiveButton.title === "Ativar" ? "check" : "ban"
+      );
+    }
+    const changePasswordButton = document.querySelector('[data-action="change-password"]');
+    if (changePasswordButton) {
+      changePasswordButton.hidden = !document.body.dataset.passwordUrl;
+      changePasswordButton.disabled = !document.body.dataset.passwordUrl || !hasLoadedRecord();
+    }
+    if (previousButton) {
+      previousButton.disabled = !document.body.dataset.previousUrl;
+    }
+    if (nextButton) {
+      nextButton.disabled = !document.body.dataset.nextUrl;
+    }
+    if (firstButton) {
+      firstButton.disabled = !document.body.dataset.firstUrl;
+    }
+    if (lastButton) {
+      lastButton.disabled = !document.body.dataset.lastUrl;
+    }
     if (closeButton && isHome) closeButton.disabled = true;
     if (cancelQueryIcon) cancelQueryIcon.setAttribute("data-nav-icon", "ban");
     const closeButtonIcon = document.querySelector('[data-action="close"] [data-nav-icon]');
@@ -1895,12 +2245,53 @@
     renderPersistedNotifications();
   }
 
+  function setupSessionMonitor() {
+    if (!document.body.dataset.username) return;
+    const checkSession = async () => {
+      try {
+        const response = await fetch("/accounts/sessao/status/", {
+          headers: { "Accept": "application/json" },
+          credentials: "same-origin",
+        });
+        if (response.status === 401) {
+          let payload = {};
+          try {
+            payload = await response.json();
+          } catch (error) {
+            payload = {};
+          }
+          window.location.replace(payload.login_url || "/accounts/login/");
+        }
+      } catch (error) {
+        // Falha transitória de rede não encerra a sessão local imediatamente.
+      }
+    };
+    window.setInterval(checkSession, 60000);
+  }
+
   function disableBrowserAutocomplete() {
-    document.querySelectorAll("form").forEach((form) => form.setAttribute("autocomplete", "off"));
-    document.querySelectorAll("input, textarea, select").forEach((field) => {
-      field.setAttribute("autocomplete", "off");
+    document.querySelectorAll("form").forEach((form, formIndex) => {
+      form.setAttribute("autocomplete", "off");
+      form.setAttribute("data-form-type", "other");
+      form.dataset.autocompleteSection = form.dataset.autocompleteSection || `celeris-${formIndex}-${Date.now()}`;
+    });
+    document.querySelectorAll("input, textarea, select").forEach((field, fieldIndex) => {
+      const form = field.closest("form");
+      const type = (field.getAttribute("type") || "").toLowerCase();
+      const shouldPreserveNativeAutocomplete = Boolean(
+        field.matches("[data-company-user]")
+        || type === "password"
+        || field.name === "username"
+      );
+      if (!shouldPreserveNativeAutocomplete) {
+        const section = form?.dataset.autocompleteSection || "celeris";
+        field.setAttribute("autocomplete", `section-${section}-${fieldIndex} new-password`);
+      }
       field.setAttribute("autocapitalize", "off");
       field.setAttribute("spellcheck", "false");
+      field.setAttribute("aria-autocomplete", "none");
+      field.setAttribute("data-lpignore", "true");
+      field.setAttribute("data-1p-ignore", "true");
     });
   }
 
@@ -1933,7 +2324,7 @@
   function renderTabs() {
     const tabsBar = document.querySelector(".tabs-bar");
     const title = document.body.dataset.tabRootTitle || document.body.dataset.tabTitle || "Início";
-    const url = document.body.dataset.tabUrl || "/";
+    const url = `${window.location.pathname}${window.location.search}`;
     const key = document.body.dataset.tabKey || url;
     if (!tabsBar) return;
 
@@ -1995,9 +2386,112 @@
     localStorage.setItem("celeris-tabs", JSON.stringify(tabs.filter((tab) => (tab.key || tab.url) !== "/")));
   }
 
+  function getCurrentFormStateKey(form = getPrimaryForm()) {
+    if (!form || !form.matches(".content form")) return "";
+    const key = document.body.dataset.tabKey || window.location.pathname;
+    return `celeris-form-state:${key}`;
+  }
+
+  function getFormStateFields(form) {
+    return Array.from(form.elements).filter((field) => (
+      field.name
+      && field.type !== "hidden"
+      && field.name !== "csrfmiddlewaretoken"
+      && field.type !== "password"
+      && !field.disabled
+    ));
+  }
+
+  function persistCurrentFormState(form = getPrimaryForm()) {
+    const storageKey = getCurrentFormStateKey(form);
+    if (!storageKey) return;
+    const fields = getFormStateFields(form).map((field) => ({
+      name: field.name,
+      type: field.type || field.tagName.toLowerCase(),
+      checked: Boolean(field.checked),
+      value: field instanceof HTMLSelectElement && field.multiple
+        ? Array.from(field.selectedOptions).map((option) => option.value)
+        : field.value,
+    }));
+    localStorage.setItem(storageKey, JSON.stringify({ fields }));
+  }
+
+  function clearCurrentFormState(form = getPrimaryForm()) {
+    const storageKey = getCurrentFormStateKey(form);
+    if (storageKey) localStorage.removeItem(storageKey);
+  }
+
+  function restoreCurrentFormState(form = getPrimaryForm()) {
+    const storageKey = getCurrentFormStateKey(form);
+    if (!storageKey || document.body.dataset.formErrors !== "{}") return;
+    let payload = null;
+    try {
+      payload = JSON.parse(localStorage.getItem(storageKey) || "null");
+    } catch (error) {
+      payload = null;
+    }
+    if (!payload?.fields?.length) return;
+    if (form.matches("[data-editable-table]")) {
+      const requiredCounts = payload.fields.reduce((counts, field) => {
+        counts[field.name] = Math.max(
+          counts[field.name] || 0,
+          payload.fields.filter((item) => item.name === field.name).length
+        );
+        return counts;
+      }, {});
+      let safety = 20;
+      while (
+        safety > 0
+        && Object.entries(requiredCounts).some(([name, count]) => (
+          form.querySelectorAll(`[name="${CSS.escape(name)}"]`).length < count
+        ))
+      ) {
+        addEditableTableRow(form, false);
+        safety -= 1;
+      }
+    }
+    const fieldsByName = payload.fields.reduce((groups, field) => {
+      groups[field.name] = groups[field.name] || [];
+      groups[field.name].push(field);
+      return groups;
+    }, {});
+    isRestoringFormState = true;
+    try {
+      Object.entries(fieldsByName).forEach(([name, savedFields]) => {
+        const fields = Array.from(form.querySelectorAll(`[name="${CSS.escape(name)}"]`));
+        fields.forEach((field, index) => {
+          const saved = savedFields[index];
+          if (!saved) return;
+          if (field instanceof HTMLSelectElement && field.multiple && Array.isArray(saved.value)) {
+            Array.from(field.options).forEach((option) => {
+              option.selected = saved.value.includes(option.value);
+            });
+          } else if (field.matches('input[type="checkbox"], input[type="radio"]')) {
+            field.checked = saved.checked;
+          } else {
+            field.value = saved.value ?? "";
+          }
+          field.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      });
+    } finally {
+      isRestoringFormState = false;
+    }
+    if (form.method?.toLowerCase() !== "get") {
+      form.dataset.dirty = "true";
+      const saveButton = document.querySelector('[data-action="save"]');
+      if (saveButton) saveButton.disabled = false;
+    }
+  }
+
   function storeCurrentListPosition() {
     const storageKey = `celeris-list-scroll:${window.location.pathname}${window.location.search}`;
-    sessionStorage.setItem(storageKey, String(window.scrollY));
+    const tableCard = document.querySelector("form.table-card[data-editable-table], .table-card");
+    sessionStorage.setItem(storageKey, JSON.stringify({
+      windowY: window.scrollY,
+      tableTop: tableCard?.scrollTop || 0,
+      tableLeft: tableCard?.scrollLeft || 0,
+    }));
   }
 
   function setupListContextPreservation() {
@@ -2005,15 +2499,32 @@
     document.querySelectorAll("[data-preserve-list-context]").forEach((link) => {
       link.addEventListener("click", storeCurrentListPosition);
     });
+    document.querySelectorAll(".table-pager-link[href]").forEach((link) => {
+      link.addEventListener("click", storeCurrentListPosition);
+    });
     const storedPosition = sessionStorage.getItem(storageKey);
     if (storedPosition !== null) {
-      window.requestAnimationFrame(() => window.scrollTo(0, Number(storedPosition) || 0));
+      window.requestAnimationFrame(() => {
+        let payload = {};
+        try {
+          payload = JSON.parse(storedPosition);
+        } catch (error) {
+          payload = { windowY: Number(storedPosition) || 0 };
+        }
+        window.scrollTo(0, Number(payload.windowY) || 0);
+        const tableCard = document.querySelector("form.table-card[data-editable-table], .table-card");
+        if (tableCard) {
+          tableCard.scrollTop = Number(payload.tableTop) || 0;
+          tableCard.scrollLeft = Number(payload.tableLeft) || 0;
+        }
+      });
       sessionStorage.removeItem(storageKey);
     }
   }
 
   function closeTab(tabUrl, tabKey = tabUrl) {
     const currentKey = document.body.dataset.tabKey || document.body.dataset.tabUrl || "/";
+    localStorage.removeItem(`celeris-form-state:${tabKey}`);
     const tabs = getStoredTabs().filter((tab) => (tab.key || tab.url) !== tabKey);
     setStoredTabs(tabs);
     if (tabKey === currentKey) {
@@ -2040,7 +2551,13 @@
   setupAssignmentManagers();
   setupRoleModuleVisibility();
   setupStandardCheckboxes();
-  setupEditableTableActions();
+  setupFormSectionAccordion();
+  setupSortableTables();
+  setupResizableTables();
+  setupCepCityDependencies();
+  setupInitialEditableRows();
+  updateTablePagerVisibility();
+  restoreCurrentFormState();
   const warNameField = document.querySelector("[data-war-name]");
   if (warNameField?.value.trim()) {
     warNameField.dataset.manuallyEdited = "true";
@@ -2079,6 +2596,7 @@
   scheduleSidebarAutoCollapse();
   if (document.body.dataset.startQuery === "true" || sessionStorage.getItem("celeris-open-query-after-save") === "true") {
     sessionStorage.removeItem("celeris-open-query-after-save");
+    clearFormFields(getPrimaryForm());
     setQueryMode(true);
     const firstField = document.querySelector(".content input:not([type='hidden']), .content select, .content textarea");
     firstField?.focus();
@@ -2088,6 +2606,7 @@
   setupUserLoginSuggestion();
   setupServerValidationErrors();
   setupNotifications();
+  setupSessionMonitor();
   updateFieldStatus(null);
   focusFirstEditableField();
 })();

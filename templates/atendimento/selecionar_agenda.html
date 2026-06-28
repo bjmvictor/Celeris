@@ -1,54 +1,104 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-  <section class="card">
+  <section class="card patient-summary">
     <strong>{{ paciente.nm_paciente }}</strong>
-    <p>{{ paciente.nr_cpf|default:"CPF não informado" }} · {{ paciente.nr_celular|default:"celular não informado" }}</p>
+    <span>Prontuário {{ paciente.pk }}{% if idade %} · {{ idade }} anos{% endif %}</span>
+    <span>CPF {{ paciente.nr_cpf|default:"não informado" }} · CNS {{ paciente.nr_cartao_sus|default:"não informado" }}</span>
+    <span>Convênio {{ paciente.cd_convenio.nm_convenio|default:paciente.nm_convenio|default:"não informado" }}</span>
   </section>
 
-  <form class="card compact-form" method="get">
-    <label>Data <input name="data" type="date" value="{{ data_filtro }}"></label>
-    <label>Especialidade
-      <select name="especialidade">
-        <option value=""></option>
-        {% for especialidade in especialidades %}
-          <option value="{{ especialidade.cd_valor }}" {% if especialidade.cd_valor == especialidade_filtro %}selected{% endif %}>{{ especialidade.ds_valor }}</option>
+  <section class="schedule-page">
+    <aside class="card calendar-card">
+      <div class="calendar-header">
+        <a class="button button-secondary" href="?data={{ data_filtro }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}">‹</a>
+        <strong>{{ calendario.month|date:"F/Y" }}</strong>
+        <a class="button button-secondary" href="?data={{ data_filtro }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}">›</a>
+      </div>
+      <div class="calendar-grid">
+        {% for label in calendario.weekdays %}<span class="calendar-weekday">{{ label }}</span>{% endfor %}
+        {% for week in calendario.weeks %}
+          {% for day in week %}
+            <a class="calendar-day{% if not day.in_month %} muted{% endif %}{% if day.selected %} selected{% endif %}{% if day.holiday %} holiday{% endif %}{% if day.has_schedule %} has-schedule{% endif %}{% if day.today %} today{% endif %}"
+               href="?data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}">
+              {{ day.day }}
+            </a>
+          {% endfor %}
         {% endfor %}
-      </select>
-    </label>
-    <button class="button button-secondary" type="submit">Mostrar horários</button>
-  </form>
+      </div>
+      <div class="calendar-legend">
+        <span><i class="legend-selected"></i>Selecionada</span>
+        <span><i class="legend-holiday"></i>Feriado</span>
+        <span><i class="legend-schedule"></i>Agenda gerada</span>
+      </div>
+    </aside>
+
+    <form class="card schedule-filters" method="get" autocomplete="off">
+      <label class="provider-checkbox">
+        <input type="checkbox" name="intervalo" value="1" {% if selecionar_intervalo %}checked{% endif %}>
+        <span>Selecionar intervalo de datas</span>
+      </label>
+      <label>Data inicial <input name="data" type="date" value="{{ data_filtro }}"></label>
+      <label>Data final <input name="data_fim" type="date" value="{{ data_fim }}" {% if not selecionar_intervalo %}disabled{% endif %}></label>
+      <details class="multi-filter" open>
+        <summary>Especialidades</summary>
+        <label class="provider-checkbox">
+          <input type="checkbox" name="todas_especialidades" value="1" {% if todas_especialidades %}checked{% endif %}>
+          <span>Todas</span>
+        </label>
+        <div class="multi-filter-options">
+          {% for especialidade in especialidades %}
+            <label class="provider-checkbox">
+              <input type="checkbox" name="especialidades" value="{{ especialidade.cd_valor }}" {% if especialidade.cd_valor in especialidades_selecionadas %}checked{% endif %}>
+              <span>{{ especialidade.ds_valor }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </details>
+      <label class="field-lg">Pesquisar
+        <input name="q" value="{{ termo }}" placeholder="Prestador, nome de guerra, horário ou especialidade">
+      </label>
+      <button class="button button-primary" type="submit">Mostrar horários</button>
+    </form>
+  </section>
 
   <section class="card table-card">
     <table>
       <thead>
-        <tr><th>Data</th><th>Horário</th><th>Prestador</th><th>Especialidade</th><th>Agenda</th><th></th></tr>
+        <tr><th>Data</th><th>Horário</th><th>Prestador</th><th>Especialidade</th><th>Agenda</th><th>Ação</th></tr>
       </thead>
       <tbody>
         {% for horario in horarios %}
           <tr>
             <td>{{ horario.dh_agendamento|date:"d/m/Y" }}</td>
             <td>{{ horario.dh_agendamento|date:"H:i" }}</td>
-            <td>{{ horario.agenda.cd_prestador.nm_prestador }}</td>
-            <td>{{ horario.agenda.cd_prestador.ds_especialidade|default:"-" }}</td>
+            <td>{{ horario.agenda.cd_prestador.nm_guerra|default:horario.agenda.cd_prestador.nm_prestador }}</td>
+            <td>{{ horario.agenda.cd_prestador.nm_especialidade|default:"-" }}</td>
             <td>{{ horario.agenda.ds_agenda }}</td>
             <td>
-              <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="cd_agenda_profissional" value="{{ horario.agenda.cd_agenda_profissional }}">
-                <input type="hidden" name="dh_agendamento" value="{{ horario.dh_agendamento|date:'c' }}">
-                <input name="ds_plano" placeholder="Plano">
-                <label><input name="sn_particular" type="checkbox" value="1"> Particular</label>
-                <label><input name="sn_encaixe" type="checkbox" value="1"> Encaixe</label>
-                <input name="ds_observacao" placeholder="Observação">
-                <button class="button button-secondary" type="submit">Selecionar</button>
-              </form>
+              <a class="button button-primary" href="?data={{ data_filtro }}&data_fim={{ data_fim }}{% if selecionar_intervalo %}&intervalo=1{% endif %}&agenda={{ horario.agenda.pk }}&horario={{ horario.dh_agendamento|date:'c'|urlencode }}">Escolher</a>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty-cell">Nenhum horário disponível. Cadastre agendas de profissionais para gerar horários.</td></tr>
+          <tr><td colspan="6" class="empty-cell">Nenhum horário disponível para os filtros informados.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
+
+  {% if horario_selecionado %}
+    <form class="card compact-form appointment-confirm" method="post" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="cd_agenda_profissional" value="{{ horario_selecionado.agenda.pk }}">
+      <input type="hidden" name="dh_agendamento" value="{{ horario_selecionado.dh_agendamento|date:'c' }}">
+      <h2>Confirmar agendamento</h2>
+      <p>{{ horario_selecionado.dh_agendamento|date:"d/m/Y H:i" }} · {{ horario_selecionado.agenda.cd_prestador.nm_prestador }} · {{ horario_selecionado.agenda.ds_agenda }}</p>
+      <label>Plano <input name="ds_plano" placeholder="Plano"></label>
+      <label>Tipo de atendimento <input name="ds_tipo_atendimento" placeholder="Consulta, retorno, exame..."></label>
+      <label class="provider-checkbox"><input name="sn_particular" type="checkbox" value="1"><span>Particular</span></label>
+      <label class="provider-checkbox"><input name="sn_encaixe" type="checkbox" value="1"><span>Encaixe</span></label>
+      <label class="field-xl">Observação <input name="ds_observacao" placeholder="Observação"></label>
+      <button class="button button-primary" type="submit">Confirmar e imprimir comprovante</button>
+    </form>
+  {% endif %}
 {% endblock %}

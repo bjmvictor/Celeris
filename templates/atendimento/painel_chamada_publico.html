@@ -1,0 +1,55 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="12">
+  <title>Painel de chamada</title>
+  <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
+</head>
+<body class="public-panel {{ painel.ds_cor|default:'azul' }}">
+  {% if not painel or request.GET.configurar %}
+    <main class="public-panel-config card">
+      <img src="{% static 'img/logo.svg' %}" alt="Celeris">
+      <h1>Configurar painel</h1>
+      <form method="get" autocomplete="off">
+        <label>Painel
+          <select name="painel" required>
+            <option value=""></option>
+            {% for item in paineis %}
+              <option value="{{ item.pk }}" {% if painel.pk == item.pk %}selected{% endif %}>{{ item.nm_painel }} — {{ item.nm_maquina }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Layout <input name="layout" value="{{ painel.ds_layout|default:'padrao' }}"></label>
+        <label>Tamanho <input name="tamanho" value="{{ painel.ds_tamanho|default:'medio' }}"></label>
+        <label>Cor <input name="cor" value="{{ painel.ds_cor|default:'azul' }}"></label>
+        <button class="button" type="submit">Abrir painel</button>
+      </form>
+    </main>
+  {% else %}
+    <a class="public-panel-gear" href="?painel={{ painel.pk }}&configurar=1" title="Configurar">⚙</a>
+    <main class="public-panel-screen">
+      <section class="public-panel-calls">
+        <h1>{{ painel.nm_painel }}</h1>
+        {% for chamada in chamadas %}
+          <article class="public-panel-call">
+            <strong>{{ chamada.cd_atendimento.cd_paciente.nm_paciente }}</strong>
+            <span>{{ chamada.cd_setor.nm_setor }}{% if chamada.ds_local %} — {{ chamada.ds_local }}{% endif %}</span>
+            <small>{{ chamada.dh_chamada|date:"H:i" }}</small>
+          </article>
+        {% empty %}
+          <article class="public-panel-idle">
+            {% if painel.ds_midia_url %}
+              <div class="public-panel-media">{{ painel.ds_midia_url }}</div>
+            {% else %}
+              <strong>Aguardando chamada</strong>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </section>
+    </main>
+  {% endif %}
+</body>
+</html>

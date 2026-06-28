@@ -194,31 +194,6 @@ class PacienteForm(forms.ModelForm):
         return [("", "")] + [(value.cd_valor, value.ds_valor) for value in values]
 
 
-class PrestadorSearchForm(forms.Form):
-    cd_prestador = forms.IntegerField(label="Código", required=False)
-    nm_prestador = forms.CharField(label="Nome", required=False)
-    nr_cpf = forms.CharField(label="CPF", required=False)
-    nr_conselho = forms.CharField(label="Registro profissional", required=False)
-    ds_especialidade = forms.CharField(label="Especialidade", required=False)
-    sn_ativo = forms.ChoiceField(
-        label="Status",
-        required=False,
-        choices=(("", "Ativos"), ("True", "Ativo"), ("False", "Inativo"), ("todos", "Todos")),
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for name, field in self.fields.items():
-            field.widget.attrs.update(
-                {
-                    "data-field-table": "prestador",
-                    "data-field-name": name,
-                    "data-consultable": "true",
-                    "data-editable": "true",
-                }
-            )
-
-
 class PrestadorForm(forms.ModelForm):
     ds_especialidades = forms.MultipleChoiceField(label="Especialidades", required=False)
     ds_especialidade_principal = forms.ChoiceField(label="Especialidade principal", required=False)
@@ -280,7 +255,6 @@ class PrestadorForm(forms.ModelForm):
         self.fields["tp_prestador"].widget.attrs["data-council-map"] = json.dumps(
             {mapping.tp_prestador: mapping.ds_conselho for mapping in mappings}
         )
-        self.fields["tp_prestador"].widget.attrs["data-council-config-url"] = "/global/tabelas/tipo-prestador-conselho/"
         self.fields["ds_conselho"].widget.attrs["data-provider-council"] = "true"
         self.fields["sg_conselho"].widget = forms.Select(choices=self._choices_for("estado"))
         self.fields["cd_banco"].widget = forms.Select(choices=self._choices_for("banco"))

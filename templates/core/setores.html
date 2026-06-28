@@ -1,0 +1,66 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="setor" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Setor</th>
+          <th>Tipo</th>
+          <th>Observação</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for setor in registros %}
+          <tr data-editable-row>
+            <td>
+              <input name="code_{{ setor.pk }}" value="{{ setor.pk }}" readonly data-primary-key="true">
+              <input data-row-delete name="delete_{{ setor.pk }}" type="hidden" value="0">
+            </td>
+            <td><input name="name_{{ setor.pk }}" value="{{ setor.nm_setor }}" required></td>
+            <td>
+              <select name="type_{{ setor.pk }}" {% if tipo %}disabled{% endif %}>
+                {% for value,label in tipos %}
+                  <option value="{{ value }}" {% if setor.tp_setor == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input name="note_{{ setor.pk }}" value="{{ setor.ds_observacao }}"></td>
+            <td>
+              <select name="active_{{ setor.pk }}">
+                <option value="true" {% if setor.sn_ativo %}selected{% endif %}>Ativo</option>
+                <option value="false" {% if not setor.sn_ativo %}selected{% endif %}>Inativo</option>
+              </select>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Nenhum dado encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_name" placeholder="Setor" required></td>
+        <td>
+          <select name="new_type" {% if tipo %}disabled{% endif %}>
+            {% for value,label in tipos %}
+              <option value="{{ value }}" {% if tipo == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if tipo %}<input type="hidden" name="new_type" value="{{ tipo }}">{% endif %}
+        </td>
+        <td><input name="new_note" placeholder="Observação"></td>
+        <td>
+          <select name="new_active">
+            <option value="true" selected>Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </td>
+      </tr>
+    </template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

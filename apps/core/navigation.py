@@ -15,11 +15,15 @@ MODULES = [
         "title": "Atendimento",
         "icon": "clipboard-plus",
         "items": [
-            item("Agendamentos", "atendimento:agendar", roles=["TI", "Recepcionista"]),
+            item("Agendar", "atendimento:agendar", roles=["TI", "Recepcionista"]),
+            item("Agendamentos", "atendimento:agendamentos-operacionais", roles=["TI", "Recepcionista"]),
+            item("Modelos de documentos", "atendimento:modelos-documento", roles=["TI"]),
             item("Recepção", "atendimento:recepcao", roles=["TI", "Recepcionista"]),
             item("Atendimentos", "atendimento:atendimentos", roles=["TI", "Recepcionista", "Enfermeiro", "Médico"]),
+            item("PEP", "atendimento:pep", roles=["TI", "Enfermeiro", "Médico"]),
             item("Classificação de Risco", "atendimento:fila-classificacao", roles=["TI", "Enfermeiro"]),
             item("Consultas Médicas", "atendimento:fila-medica", roles=["TI", "Médico"]),
+            item("Demanda espontânea", "atendimento:demanda-espontanea", roles=["TI", "Recepcionista"]),
         ],
     },
     {
@@ -28,12 +32,7 @@ MODULES = [
         "icon": "table",
         "items": [
             item("Pacientes", "atendimento:cadastro-paciente-novo", roles=["TI", "Recepcionista"]),
-            item(
-                "Prestadores",
-                "atendimento:profissionais",
-                roles=["TI"],
-                access_key="atendimento:cadastro-profissional-novo",
-            ),
+            item("Prestadores", "atendimento:cadastro-profissional-novo", roles=["TI"]),
             item("Convênios", "atendimento:convenios", roles=["TI", "Recepcionista"]),
         ],
     },
@@ -42,6 +41,16 @@ MODULES = [
         "title": "Global",
         "icon": "globe",
         "items": [
+            item(
+                "Empresa",
+                children=[
+                    item("Empresas", "core:system_companies", roles=["TI"]),
+                    item("Setores", "core:setores", roles=["TI"]),
+                    item("Setores de Atendimento", "core:setores_atendimento", roles=["TI"]),
+                    item("Painel de Chamada", "atendimento:paineis-chamada", roles=["TI"]),
+                ],
+                roles=["TI"],
+            ),
             item(
                 "Auxiliares",
                 children=[
@@ -75,7 +84,8 @@ MODULES = [
         "title": "Administração",
         "icon": "wrench",
         "items": [
-            item("Usuários", "usuarios", roles=["TI"]),
+            item("Usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
+            item("Cópia de usuário", "copia_usuario", roles=["TI"], access_key="usuarios"),
             item("Papéis", "perfis", roles=["TI"]),
             item("Permissões", "permissoes", roles=["TI"]),
         ],

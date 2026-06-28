@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Entrar - Celeris</title>
     <script>
+      if (localStorage.getItem("celeris-theme") === "dark") {
+        document.documentElement.classList.add("dark");
+      }
       localStorage.removeItem("celeris-tabs");
     </script>
     <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
@@ -36,6 +39,11 @@
           return;
         }
         usuarioInput.value = normalizeLogin(usuarioInput.value);
+        const userTheme = localStorage.getItem(`celeris-theme-user:${usuarioInput.value}`);
+        if (userTheme) {
+          document.documentElement.classList.toggle("dark", userTheme === "dark");
+          localStorage.setItem("celeris-theme", userTheme);
+        }
         const response = await fetch(`/accounts/empresas-usuario/?usuario=${encodeURIComponent(usuarioInput.value)}`);
         const data = await response.json();
         if (!data.empresas.length) {

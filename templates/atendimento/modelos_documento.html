@@ -1,0 +1,40 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card">
+    <h2>{% if modelo %}Editar modelo{% else %}Novo modelo de documento{% endif %}</h2>
+    <form class="compact-form document-model-form" method="post" autocomplete="off">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <label>Nome {{ form.nm_modelo }}</label>
+      <label>Tipo {{ form.tp_documento }}</label>
+      <label class="provider-checkbox">{{ form.sn_ativo }}<span>Ativo</span></label>
+      <label class="span-2">Cabeçalho {{ form.ds_cabecalho }}</label>
+      <label class="span-2">Corpo {{ form.ds_corpo }}</label>
+      <label class="span-2">Rodapé {{ form.ds_rodape }}</label>
+      <label class="span-2">Variáveis automáticas {{ form.ds_variaveis }}</label>
+      <label class="span-2">Campos bloqueados {{ form.ds_campos_bloqueados }}</label>
+      <button class="button button-primary" type="submit">Salvar modelo</button>
+    </form>
+  </section>
+
+  <section class="card table-card">
+    <h2>Modelos cadastrados</h2>
+    <table>
+      <thead><tr><th>Código</th><th>Tipo</th><th>Nome</th><th>Ativo</th><th>Ação</th></tr></thead>
+      <tbody>
+        {% for item in modelos %}
+          <tr>
+            <td>{{ item.pk }}</td>
+            <td>{{ item.get_tp_documento_display }}</td>
+            <td>{{ item.nm_modelo }}</td>
+            <td>{{ item.sn_ativo|yesno:"Sim,Não" }}</td>
+            <td><a class="button button-secondary" href="{% url 'atendimento:editar-modelo-documento' item.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">Nenhum modelo cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

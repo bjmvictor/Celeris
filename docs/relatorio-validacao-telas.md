@@ -3,7 +3,7 @@
 ## Execução
 
 - Comando principal: `python manage.py test`
-- Resultado mais recente: 70 testes aprovados, 0 falhas.
+- Resultado mais recente: 111 testes aprovados, 0 falhas.
 - Verificações adicionais: `python manage.py check`, `python manage.py makemigrations --check --dry-run`, `node --check static/js/celeris.js` e `git diff --check`.
 
 ## Cobertura automatizada
@@ -21,10 +21,20 @@
 - Navegação: botão Fechar existente assume o comportamento de Voltar por contexto, sem ação textual duplicada.
 - Multiseleção: Papéis, Empresas e Especialidades compartilham limpeza, remoção, inclusão e teclado.
 - Labels: barra de status e cadastro de usuários exibem somente termos de negócio em português.
+- Prestadores: menu abre o cadastro com consulta integrada; abertura direta não herda navegação de resultados.
+- Tabelas auxiliares: linha inicial para inclusão, consulta por PK/código/descrição e exclusão condicionada à seleção.
+- Planos e Procedimentos: persistência e consulta pela infraestrutura de tabelas auxiliares.
+- Usuários: cadastro e consulta integrados, com filtros, navegação por resultados e senha condicionada ao registro.
+- Seções: somente o primeiro agrupamento inicia aberto; recolhidos ficam compactos e horizontais.
+- Ordenação: indicadores crescente/decrescente aplicados às grades ordenáveis.
+- Edição inline: Enter salva e exclusões de auxiliares são lógicas.
+- Consultas integradas: status vazio não aplica filtro; consulta vazia retorna ativos e inativos.
 - Interface: contrato de teclado dos dropdowns, handler único de mouse e estrutura de overlay.
 - Interface visual: menu compacto, distinção entre submódulos e telas finais, autocomplete desativado e rolagem até erros.
 - Barra de ações: estados do primeiro, intermediário e último registro; rótulo dinâmico Ativar/Desativar.
 - Barra de ações: botões condicionais por contexto, ação de status apenas por ícone e alteração de senha em sobreposição.
+- Atendimento central: recepção sem duplicidade, histórico em `atendimento_fluxo`, isolamento por empresa e PEP sem paciente apenas agendado.
+- Sessão: endpoint leve de status e retorno 401 JSON para requisições AJAX/fetch desconectadas.
 
 ## Falhas encontradas e corrigidas
 
@@ -42,6 +52,12 @@
 - Consulta de papéis não filtrava por código e não diferenciava corretamente Ativos de Todos.
 - Empresas utilizavam um seletor múltiplo divergente do padrão de Papéis e Especialidades.
 - Barra inferior priorizava nomes técnicos de campos em vez dos labels apresentados na tela.
+- Consulta exclusiva de prestadores duplicava fluxo, contexto e navegação.
+- Ativação e exclusão permaneciam disponíveis sem registro persistido selecionado.
+- Links Gerenciar de Especialidades e Convênios abriam subtelas inválidas.
+- Consulta pós-salvamento reabria com valores visuais e internos do registro anterior.
+- Botão Alterar Senha permanecia ativo sem usuário carregado.
+- Tela exclusiva de usuários duplicava o mecanismo já disponível no cadastro.
 
 ## Observação
 

@@ -6,41 +6,81 @@
     <table class="editable-table">
       <thead>
         <tr>
-          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'cd_cep' %}-{% endif %}cd_cep">Código</a></th>
-          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'nr_cep' %}-{% endif %}nr_cep">CEP</a></th>
-          <th>UF</th><th>Código Cidade</th><th>Cidade</th><th>Tipo</th><th>Logradouro</th><th>Bairro</th><th>Status</th>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_cep' %}-{% endif %}cd_cep">Código</a></th>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_cep' %}-{% endif %}nr_cep">CEP</a></th>
+          <th>UF</th><th>Cidade</th><th>Tipo</th><th>Logradouro</th><th>Bairro</th><th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for record in records %}
           <tr data-editable-row>
-            <td><input value="{{ record.cd_cep }}" readonly data-primary-key="true"></td>
-            <td><input name="postal_code_{{ record.pk }}" value="{{ record.nr_cep }}" required></td>
-            <td><input name="state_{{ record.pk }}" value="{{ record.sg_estado }}"></td>
-            <td><input name="city_code_{{ record.pk }}" value="{{ record.cd_cidade }}"></td>
-            <td><input name="city_{{ record.pk }}" value="{{ record.ds_cidade }}"></td>
-            <td><input name="street_type_{{ record.pk }}" value="{{ record.tp_logradouro }}"></td>
-            <td><input name="street_{{ record.pk }}" value="{{ record.ds_logradouro }}"></td>
-            <td><input name="district_{{ record.pk }}" value="{{ record.ds_bairro }}"></td>
-            <td><select name="active_{{ record.pk }}"><option value="true" {% if record.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not record.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
+            <td>
+              <input value="{{ record.cd_cep }}" readonly data-primary-key="true">
+              <input data-row-delete name="delete_{{ record.pk }}" type="hidden" value="0">
+            </td>
+            <td><input name="nr_cep_{{ record.pk }}" value="{{ record.nr_cep }}" required></td>
+            <td>
+              <select name="sg_estado_{{ record.pk }}" data-cep-state-select data-city-target="cd_cidade_{{ record.pk }}">
+                <option value=""></option>
+                {% for estado in estados %}
+                  <option value="{{ estado.cd_valor }}" {% if record.sg_estado == estado.cd_valor %}selected{% endif %}>{{ estado.ds_valor }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="cd_cidade_{{ record.pk }}" data-option-label-target="ds_cidade_{{ record.pk }}" data-dependent-city-select>
+                <option value=""></option>
+                {% for cidade in cidades %}
+                  <option value="{{ cidade.cd_valor }}" data-state="{{ cidade.ds_grupo }}" {% if record.cd_cidade == cidade.cd_valor or record.ds_cidade == cidade.ds_valor %}selected{% endif %}>{{ cidade.ds_valor }}</option>
+                {% endfor %}
+              </select>
+              <input name="ds_cidade_{{ record.pk }}" value="{{ record.ds_cidade }}" type="hidden">
+            </td>
+            <td>
+              <select name="tp_logradouro_{{ record.pk }}">
+                <option value=""></option>
+                {% for tipo in tipos_logradouro %}
+                  <option value="{{ tipo.cd_valor }}" {% if record.tp_logradouro == tipo.cd_valor or record.tp_logradouro == tipo.ds_valor %}selected{% endif %}>{{ tipo.ds_valor }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input name="ds_logradouro_{{ record.pk }}" value="{{ record.ds_logradouro }}"></td>
+            <td><input name="ds_bairro_{{ record.pk }}" value="{{ record.ds_bairro }}"></td>
+            <td><select name="sn_ativo_{{ record.pk }}"><option value="true" {% if record.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not record.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="empty-cell">Nenhum CEP carregado. Use Consultar ou Novo.</td></tr>
+          <tr><td colspan="8" class="empty-cell">Nenhum CEP carregado. Use Consultar ou Novo.</td></tr>
         {% endfor %}
       </tbody>
     </table>
     <template data-table-new-row>
       <tr data-editable-row>
         <td><input readonly data-primary-key="true" placeholder="Automático"></td>
-        <td><input name="new_postal_code" required></td>
-        <td><input name="new_state"></td>
-        <td><input name="new_city_code"></td>
-        <td><input name="new_city"></td>
-        <td><input name="new_street_type"></td>
-        <td><input name="new_street"></td>
-        <td><input name="new_district"></td>
-        <td><select name="new_active"><option value="true">Ativo</option><option value="false">Inativo</option></select></td>
+        <td><input name="new_nr_cep" required></td>
+        <td>
+          <select name="new_sg_estado" data-cep-state-select data-city-target="new_cd_cidade">
+            <option value=""></option>
+            {% for estado in estados %}<option value="{{ estado.cd_valor }}">{{ estado.ds_valor }}</option>{% endfor %}
+          </select>
+        </td>
+        <td>
+          <select name="new_cd_cidade" data-option-label-target="new_ds_cidade" data-dependent-city-select>
+            <option value=""></option>
+            {% for cidade in cidades %}<option value="{{ cidade.cd_valor }}" data-state="{{ cidade.ds_grupo }}">{{ cidade.ds_valor }}</option>{% endfor %}
+          </select>
+          <input name="new_ds_cidade" type="hidden">
+        </td>
+        <td>
+          <select name="new_tp_logradouro">
+            <option value=""></option>
+            {% for tipo in tipos_logradouro %}<option value="{{ tipo.cd_valor }}">{{ tipo.ds_valor }}</option>{% endfor %}
+          </select>
+        </td>
+        <td><input name="new_ds_logradouro"></td>
+        <td><input name="new_ds_bairro"></td>
+        <td><select name="new_sn_ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></td>
       </tr>
     </template>
+    {% include "components/table_pager.html" %}
   </form>
 {% endblock %}

@@ -1,13 +1,13 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <form class="user-form" data-user-id="{{ usuario.pk|default:'' }}" method="post" autocomplete="off">
+  <form class="user-form" data-table="usuario" data-user-id="{{ usuario.pk|default:'' }}" data-query-url="{{ request.path }}" method="post" autocomplete="off">
     {% csrf_token %}{{ form.non_field_errors }}
     <input type="hidden" name="return_to" value="{{ return_to }}">
 
     <details class="card form-section" open>
       <summary>1. Dados do Usuário</summary>
       <div class="form-grid">
-        <label class="pk-label field-xs">Código <input value="{{ usuario.pk|default:'' }}" readonly></label>
+        <label class="pk-label field-xs">Código <input name="codigo" value="{{ usuario.pk|default:'' }}" data-primary-key="true" data-consultable="true" readonly></label>
         <label class="field-md">Login {{ form.username }} {{ form.username.errors }}</label>
         <label class="field-xl">Nome Completo * {{ form.full_name }} {{ form.full_name.errors }}</label>
         <label class="field-sm">Status {{ form.is_active }}</label>
@@ -81,6 +81,19 @@
           </div>
           <div class="specialty-storage" hidden>{{ form.empresas }}</div>
           {{ form.empresas.errors }}
+        </div>
+        <div class="field-xl specialty-manager" data-assignment-manager data-assignment-empty="Nenhum setor vinculado.">
+          <span>Setores vinculados</span>
+          <div class="specialty-toolbar">
+            <div class="specialty-chips" data-assignment-chips></div>
+            <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar setor</button>
+            <div class="specialty-add-row" data-assignment-add-row hidden>
+              <select data-assignment-picker><option value="">Selecionar setor...</option></select>
+              <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
+            </div>
+          </div>
+          <div class="specialty-storage" hidden>{{ form.setores }}</div>
+          {{ form.setores.errors }}
         </div>
       </div>
     </details>

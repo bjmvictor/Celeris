@@ -18,7 +18,7 @@
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}" defer></script>
     <script src="{% static 'js/celeris.js' %}" defer></script>
   </head>
-  <body class="app-shell{% if current_overlay_mode %} overlay-page{% endif %}" data-tab-title="{{ current_tab_title }}" data-tab-root-title="{{ current_tab_root_title }}" data-tab-url="{{ request.path }}" data-tab-key="{{ current_tab_key|default:request.path }}" data-module-title="{{ current_module_title }}" data-can-query="{{ current_can_query|yesno:'true,false' }}" data-can-remove="{{ current_can_remove|yesno:'true,false' }}" data-new-url="{{ current_new_url }}" data-continue-url="{{ current_continue_url }}" data-first-url="{{ current_first_url }}" data-previous-url="{{ current_previous_url }}" data-next-url="{{ current_next_url }}" data-last-url="{{ current_last_url }}" data-toggle-active-url="{{ current_toggle_active_url }}" data-password-url="{{ current_password_url }}" data-close-url="{{ current_close_url }}" data-close-mode="{{ current_close_mode }}" data-start-query="{{ current_start_query|yesno:'true,false' }}" data-form-errors="{{ form.errors.as_json|default:'{}'|escape }}">
+  <body class="app-shell{% if current_overlay_mode %} overlay-page{% endif %}" data-tab-title="{{ current_tab_title }}" data-tab-root-title="{{ current_tab_root_title }}" data-tab-url="{{ request.path }}" data-tab-key="{{ current_tab_key|default:request.path }}" data-module-title="{{ current_module_title }}" data-can-query="{{ current_can_query|yesno:'true,false' }}" data-can-remove="{{ current_can_remove|yesno:'true,false' }}" data-new-url="{{ current_new_url }}" data-continue-url="{{ current_continue_url }}" data-first-url="{{ current_first_url }}" data-previous-url="{{ current_previous_url }}" data-next-url="{{ current_next_url }}" data-last-url="{{ current_last_url }}" data-toggle-active-url="{{ current_toggle_active_url }}" data-password-url="{{ current_password_url }}" data-close-url="{{ current_close_url }}" data-close-mode="{{ current_close_mode }}" data-start-query="{{ current_start_query|yesno:'true,false' }}" data-form-errors="{{ form.errors.as_json|default:'{}'|escape }}" data-username="{{ request.user.username|default:'' }}">
     <header class="topbar">
       <div class="brand">
         <button class="icon-button sidebar-toggle" data-sidebar-toggle type="button" title="Expandir/recolher menu">
@@ -40,7 +40,10 @@
           {% if messages %}<span class="notification-badge">{{ messages|length }}</span>{% endif %}
         </button>
         <div class="notifications-panel" data-notifications-panel hidden>
-          <div class="notifications-header">Notificações</div>
+          <div class="notifications-header">
+            <span>Notificações</span>
+            <button class="button button-ghost notification-clear-button" data-notifications-clear type="button">Limpar</button>
+          </div>
           <div class="notifications-list">
             {% if messages %}
               {% for message in messages %}
@@ -70,7 +73,7 @@
         <div class="dropdown">
           <button class="user-menu-button dropdown-toggle" data-bs-toggle="dropdown" type="button" aria-expanded="false">
             <span class="svg-icon" data-nav-icon="user"></span>
-            <span class="user-chip">{{ request.user.display_name|default:request.user.username }}</span>
+            <span class="user-chip">{{ current_user_short_name|default:request.user.username }}</span>
           </button>
           <div class="dropdown-menu dropdown-menu-end celeris-dropdown">
             <div class="dropdown-header user-company-header">
@@ -186,10 +189,10 @@
           <button class="toolbar-button danger" data-action="remove" type="button" title="Remover" hidden disabled>
             <span class="svg-icon" data-nav-icon="trash"></span>
           </button>
-          <button class="toolbar-button" data-action="toggle-active" type="button" title="{{ current_toggle_active_label|default:'Desativar ou reativar' }}" {% if not current_toggle_active_url %}hidden disabled{% endif %}>
+          <button class="toolbar-button" data-action="toggle-active" type="button" title="{{ current_toggle_active_label|default:'Desativar ou reativar' }}" {% if not current_toggle_active_url %}disabled{% endif %}>
             <span class="svg-icon" data-nav-icon="ban"></span>
           </button>
-          <button class="toolbar-button" data-action="change-password" type="button" title="Alterar Senha" {% if not current_password_url %}hidden disabled{% endif %}>
+          <button class="toolbar-button" data-action="change-password" type="button" title="Alterar Senha" {% if not current_password_url %}disabled{% endif %}>
             <span class="svg-icon" data-nav-icon="key"></span>
           </button>
           <button class="toolbar-button compact" data-action="first" type="button" title="Primeiro item" disabled>
@@ -210,9 +213,6 @@
         </div>
       </div>
       <section class="content">
-        {% if current_query_message %}
-          <div class="query-result-message" role="status">{{ current_query_message }}</div>
-        {% endif %}
         {% block content %}{% endblock %}
       </section>
     </main>

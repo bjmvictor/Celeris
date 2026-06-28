@@ -1,0 +1,60 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="print-toolbar">
+    <button class="button button-primary" type="button" onclick="window.print()">Imprimir comprovante</button>
+    <a class="button button-secondary" href="{% url 'atendimento:agendamentos-operacionais' %}?data={{ agendamento.dh_agendamento|date:'Y-m-d' }}">Voltar para agendamentos</a>
+  </section>
+
+  <article class="document-page appointment-receipt">
+    <header class="document-header">
+      <div>
+        <strong>Celeris</strong>
+        <h1>{{ empresa.nm_empresa }}</h1>
+        <p>CNPJ {{ empresa.nr_cnpj|default:"não informado" }}</p>
+      </div>
+      <div class="document-protocol">
+        <strong>Comprovante de agendamento</strong>
+        <span>Protocolo {{ agendamento.pk }}</span>
+      </div>
+    </header>
+
+    <section class="document-section">
+      <h2>Paciente</h2>
+      <div class="summary-grid">
+        <span><strong>Nome:</strong> {{ paciente.nm_paciente }}</span>
+        <span><strong>Prontuário:</strong> {{ paciente.pk }}</span>
+        <span><strong>CPF:</strong> {{ paciente.nr_cpf|default:"-" }}</span>
+        <span><strong>CNS:</strong> {{ paciente.nr_cartao_sus|default:"-" }}</span>
+        <span><strong>Mãe:</strong> {{ paciente.nm_mae|default:"-" }}</span>
+        <span><strong>Data de nascimento:</strong> {{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</span>
+        <span><strong>Idade:</strong> {{ idade|default:"-" }}</span>
+        <span><strong>Telefone:</strong> {{ paciente.nr_celular|default:paciente.nr_telefone|default:"-" }}</span>
+        <span><strong>Convênio:</strong> {{ paciente.cd_convenio.nm_convenio|default:paciente.nm_convenio|default:"-" }}</span>
+      </div>
+    </section>
+
+    <section class="document-section">
+      <h2>Agendamento</h2>
+      <div class="summary-grid">
+        <span><strong>Data:</strong> {{ agendamento.dh_agendamento|date:"d/m/Y" }}</span>
+        <span><strong>Horário:</strong> {{ agendamento.dh_agendamento|date:"H:i" }}</span>
+        <span><strong>Prestador:</strong> {{ agendamento.ds_profissional|default:agendamento.cd_agenda_profissional.cd_prestador.nm_prestador|default:"-" }}</span>
+        <span><strong>Especialidade:</strong> {{ agendamento.ds_especialidade|default:"-" }}</span>
+        <span><strong>Agenda:</strong> {{ agendamento.cd_agenda_profissional.ds_agenda|default:"-" }}</span>
+        <span><strong>Tipo:</strong> {{ agendamento.ds_tipo_atendimento|default:"-" }}</span>
+        <span><strong>Plano:</strong> {{ agendamento.ds_plano|default:"-" }}</span>
+        <span><strong>Status:</strong> {{ agendamento.get_ds_status_display }}</span>
+      </div>
+      {% if agendamento.ds_observacao %}
+        <p><strong>Observação:</strong> {{ agendamento.ds_observacao }}</p>
+      {% endif %}
+    </section>
+
+    <footer class="document-footer">
+      <span>Emitido em {{ emitido_em|date:"d/m/Y H:i" }}</span>
+      <span>Usuário: {{ request.user.get_full_name|default:request.user.get_username }}</span>
+      <span>Gerado automaticamente pelo Celeris.</span>
+    </footer>
+  </article>
+{% endblock %}

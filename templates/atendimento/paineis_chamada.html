@@ -1,0 +1,58 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card panel-call-form" method="post" autocomplete="off">
+    {% csrf_token %}
+    <div class="form-grid">
+      <label class="field-md">Nome do painel <input name="nm_painel" required></label>
+      <label class="field-lg">Descrição <input name="ds_descricao"></label>
+      <label class="field-md">Nome da máquina <input name="nm_maquina" required></label>
+      <label class="field-sm">Tipo
+        <select name="tp_painel">
+          {% for value,label in tipos %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field-sm">Número <input name="nr_referencia"></label>
+      <label class="field-md">Local de exibição <input name="ds_local_exibicao"></label>
+      <label class="field-md">Mensagem padrão <input name="ds_mensagem_padrao"></label>
+      <label class="field-sm">Tempo da chamada <input name="nr_tempo_exibicao" type="number" min="3" value="10"></label>
+      <label class="field-sm">Layout <input name="ds_layout" value="padrao"></label>
+      <label class="field-sm">Tamanho <input name="ds_tamanho" value="medio"></label>
+      <label class="field-sm">Cor <input name="ds_cor" value="azul"></label>
+      <label class="field-sm">Prioridade visual <input name="ds_prioridade_visual" value="normal"></label>
+      <label class="provider-checkbox field-sm"><input name="sn_voz" type="checkbox" checked><span>Voz ativa</span></label>
+      <label class="provider-checkbox field-sm"><input name="sn_ativo" type="checkbox" checked><span>Ativo</span></label>
+      <label class="field-xl">Mídia ociosa <input name="ds_midia_url" placeholder="URL de imagem, áudio ou vídeo"></label>
+      <label class="field-xl">Observações <input name="ds_observacao"></label>
+    </div>
+    <div class="assignment-inline">
+      <strong>Setores que chamam neste painel</strong>
+      {% for setor in setores %}
+        <label class="provider-checkbox"><input name="setores" type="checkbox" value="{{ setor.pk }}"><span>{{ setor.nm_setor }}</span></label>
+      {% empty %}
+        <span class="empty-state">Cadastre setores de atendimento antes de criar o painel.</span>
+      {% endfor %}
+    </div>
+    <button class="button" type="submit">Salvar painel</button>
+  </form>
+
+  <section class="card">
+    <h2>Painéis cadastrados</h2>
+    <table class="data-table">
+      <thead><tr><th>Código</th><th>Painel</th><th>Máquina</th><th>Tipo</th><th>Setores</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for painel in paineis %}
+          <tr>
+            <td>{{ painel.pk }}</td>
+            <td>{{ painel.nm_painel }}</td>
+            <td>{{ painel.nm_maquina }}</td>
+            <td>{{ painel.get_tp_painel_display }} {{ painel.nr_referencia }}</td>
+            <td>{% for setor in painel.setores.all %}{{ setor.nm_setor }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</td>
+            <td>{% if painel.sn_ativo %}Ativo{% else %}Inativo{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">Nenhum painel cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card compact-form user-copy-form" method="get" autocomplete="off">
+    <label class="field-lg">Usuário de origem
+      <select name="origem">
+        <option value=""></option>
+        {% for usuario in usuarios %}
+          <option value="{{ usuario.pk }}" {% if origem_id == usuario.pk|stringformat:"s" %}selected{% endif %}>{{ usuario.display_name }} - {{ usuario.username }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field-lg">Usuário de destino
+      <select name="destino">
+        <option value=""></option>
+        {% for usuario in usuarios %}
+          <option value="{{ usuario.pk }}" {% if destino_id == usuario.pk|stringformat:"s" %}selected{% endif %}>{{ usuario.display_name }} - {{ usuario.username }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button button-secondary" type="submit">Visualizar permissões</button>
+  </form>
+
+  <section class="card user-copy-summary">
+    <h2>Permissões da origem</h2>
+    {% if origem %}
+      <div class="summary-grid">
+        <div>
+          <strong>Papéis</strong>
+          <ul>
+            {% for grupo in origem.groups.all %}
+              <li>{{ grupo.name }}</li>
+            {% empty %}
+              <li>Nenhum papel vinculado.</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div>
+          <strong>Setores</strong>
+          <ul>
+            {% for setor in origem.setores.all %}
+              <li>{{ setor.nm_setor }} — {{ setor.get_tp_setor_display }}</li>
+            {% empty %}
+              <li>Nenhum setor vinculado.</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div>
+          <strong>Empresas</strong>
+          <ul>
+            {% for vinculo in origem.usuarioempresa_set.all %}
+              <li>{{ vinculo.empresa.nm_empresa }}{% if vinculo.sn_padrao %} — padrão{% endif %}</li>
+            {% empty %}
+              <li>Nenhuma empresa vinculada.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      <form method="post" autocomplete="off">
+        {% csrf_token %}
+        <input type="hidden" name="origem" value="{{ origem.pk }}">
+        <input type="hidden" name="destino" value="{{ destino.pk|default:'' }}">
+        <button class="button" type="submit" {% if not destino or origem.pk == destino.pk %}disabled{% endif %}>Copiar permissões</button>
+      </form>
+    {% else %}
+      <p class="empty-state">Selecione um usuário de origem para visualizar papéis, setores e empresas.</p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="pep-page" data-disable-toolbar-actions="true">
+    <div class="pep-header card">
+      <div class="pep-tabs">
+        <a class="button {% if aba != 'todos' %}button-primary{% else %}button-secondary{% endif %}" href="{% url 'atendimento:pep' %}?aba=atendimentos">Atendimento</a>
+        <a class="button {% if aba == 'todos' %}button-primary{% else %}button-secondary{% endif %}" href="{% url 'atendimento:pep' %}?aba=todos">Todos os pacientes</a>
+      </div>
+
+      {% if aba != 'todos' %}
+        <form class="pep-filter-form" method="get" autocomplete="off">
+          <input type="hidden" name="aba" value="atendimentos">
+          <label>Atendimento
+            <input name="nr_atendimento" value="{{ nr_atendimento }}" inputmode="numeric" data-exclusive-search="pep" placeholder="Nº atendimento">
+          </label>
+          <label class="field-lg">Paciente
+            <input name="q_atendimento" value="{{ busca_atendimento }}" data-exclusive-search="pep" placeholder="Nome, prontuário, CPF, CNS ou RG">
+          </label>
+          <details class="pep-settings">
+            <summary class="toolbar-button" title="Filtrar setores">⚙</summary>
+            <div class="pep-settings-panel">
+              <label class="provider-checkbox">
+                <input type="checkbox" name="todos_setores" value="1" {% if usar_todos_setores %}checked{% endif %}>
+                <span>Todos os setores permitidos</span>
+              </label>
+              <div class="pep-sector-checks">
+                {% for item in setores %}
+                  <label class="provider-checkbox">
+                    <input type="checkbox" name="setores" value="{{ item.pk }}" {% if item.pk|stringformat:"s" in setor_ids %}checked{% endif %}>
+                    <span>{{ item.nm_setor }}</span>
+                  </label>
+                {% empty %}
+                  <span class="empty-state">Nenhum setor permitido para este usuário.</span>
+                {% endfor %}
+              </div>
+              <button class="button button-primary" type="submit">Aplicar filtros</button>
+            </div>
+          </details>
+        </form>
+      {% else %}
+        <form class="pep-search-form" method="get" autocomplete="off">
+          <input type="hidden" name="aba" value="todos">
+          <label class="field-lg">Paciente, prontuário ou atendimento
+            <input name="q" value="{{ busca }}" placeholder="Nome, CPF, CNS, RG, prontuário ou atendimento">
+          </label>
+          <label>Data inicial <input type="date" name="data_inicio" value="{{ data_inicio }}"></label>
+          <label>Data final <input type="date" name="data_fim" value="{{ data_fim }}"></label>
+          <button class="button button-primary" type="submit">Consultar</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if aba == 'todos' %}
+      <section class="pep-general-grid">
+        <aside class="card pep-patient-list">
+          <h2>Pacientes</h2>
+          {% for paciente in pacientes_geral %}
+            <a class="pep-patient-link{% if paciente_selecionado.pk == paciente.pk %} active{% endif %}" href="{% url 'atendimento:pep' %}?aba=todos&paciente={{ paciente.pk }}&q={{ busca|urlencode }}&data_inicio={{ data_inicio }}&data_fim={{ data_fim }}">
+              <strong>{{ paciente.nm_paciente }}</strong>
+              <span>Prontuário {{ paciente.pk }}{% if paciente.nr_cpf %} · CPF {{ paciente.nr_cpf }}{% endif %}</span>
+            </a>
+          {% empty %}
+            <p class="empty-state">Use a consulta para localizar pacientes.</p>
+          {% endfor %}
+        </aside>
+
+        <section class="card pep-records">
+          {% if paciente_selecionado %}
+            <h2>{{ paciente_selecionado.nm_paciente }}</h2>
+            <div class="summary-grid">
+              <span><strong>Prontuário:</strong> {{ paciente_selecionado.pk }}</span>
+              <span><strong>CPF:</strong> {{ paciente_selecionado.nr_cpf|default:"-" }}</span>
+              <span><strong>CNS:</strong> {{ paciente_selecionado.nr_cartao_sus|default:"-" }}</span>
+              <span><strong>Nascimento:</strong> {{ paciente_selecionado.dt_nascimento|date:"d/m/Y"|default:"-" }}</span>
+              <span><strong>Convênio:</strong> {{ paciente_selecionado.cd_convenio.nm_convenio|default:paciente_selecionado.nm_convenio|default:"-" }}</span>
+              <span><strong>Telefone:</strong> {{ paciente_selecionado.nr_celular|default:paciente_selecionado.nr_telefone|default:"-" }}</span>
+            </div>
+
+            <h3>Atendimentos do paciente</h3>
+            <table class="data-table">
+              <thead><tr><th>Atendimento</th><th>Data</th><th>Status</th><th>Prestador</th><th>Exames</th><th>Ação</th></tr></thead>
+              <tbody>
+                {% for atendimento in atendimentos_paciente %}
+                  <tr>
+                    <td>{{ atendimento.pk }}</td>
+                    <td>{{ atendimento.dh_inicio|date:"d/m/Y H:i" }}</td>
+                    <td>{{ atendimento.get_ds_status_display }}</td>
+                    <td>{{ atendimento.cd_prestador.nm_prestador|default:"-" }}</td>
+                    <td>{{ atendimento.solicitacoes_exames.count }}</td>
+                    <td>
+                      <a class="button button-secondary" href="{% url 'atendimento:pep' %}?aba=todos&paciente={{ paciente_selecionado.pk }}&atendimento={{ atendimento.pk }}">Detalhes</a>
+                      <a class="button button-primary" href="{% url 'atendimento:ficha-atendimento' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Abrir ficha</a>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6">Nenhum atendimento encontrado para este paciente.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="empty-state">Selecione um paciente para visualizar prontuário, documentos, exames, prescrições e evoluções.</p>
+          {% endif %}
+        </section>
+
+        {% if atendimento_selecionado %}
+          <section class="card pep-attendance-detail">
+            <h2>Atendimento {{ atendimento_selecionado.pk }}</h2>
+            <div class="summary-grid">
+              <span><strong>Status:</strong> {{ atendimento_selecionado.get_ds_status_display }}</span>
+              <span><strong>Origem:</strong> {{ atendimento_selecionado.get_ds_origem_display }}</span>
+              <span><strong>Prestador:</strong> {{ atendimento_selecionado.cd_prestador.nm_prestador|default:"-" }}</span>
+              <span><strong>Convênio:</strong> {{ atendimento_selecionado.cd_convenio.nm_convenio|default:"-" }}</span>
+              <span><strong>Diagnóstico:</strong> {{ atendimento_selecionado.ds_diagnostico|default:atendimento_selecionado.ds_hipotese_diagnostica|default:"-" }}</span>
+              <span><strong>Conduta:</strong> {{ atendimento_selecionado.ds_conduta|default:"-" }}</span>
+            </div>
+            <h3>Exames</h3>
+            <ul>{% for exame in atendimento_selecionado.solicitacoes_exames.all %}<li>{{ exame.ds_exame }} — {{ exame.get_ds_status_display }}</li>{% empty %}<li>Nenhum exame.</li>{% endfor %}</ul>
+            <h3>Prescrições</h3>
+            <ul>{% for prescricao in atendimento_selecionado.prescricoes.all %}<li>{{ prescricao.ds_prescricao|truncatechars:120 }}</li>{% empty %}<li>Nenhuma prescrição.</li>{% endfor %}</ul>
+            <h3>Evoluções</h3>
+            <ul>{% for evolucao in atendimento_selecionado.evolucoes.all %}<li>{{ evolucao.dh_criacao|date:"d/m/Y H:i" }} — {{ evolucao.ds_evolucao|truncatechars:120 }}</li>{% empty %}<li>Nenhuma evolução.</li>{% endfor %}</ul>
+          </section>
+        {% endif %}
+      </section>
+    {% else %}
+      <section class="card pep-patients">
+        <h2>Atendimentos sem alta</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Prioridade</th>
+              <th>Atendimento</th>
+              <th>Paciente</th>
+              <th>Prontuário</th>
+              <th>Mãe</th>
+              <th>Convênio</th>
+              <th>Status</th>
+              <th>Setor</th>
+              <th>Tempo</th>
+              <th>Médico responsável</th>
+              <th>Alertas</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for atendimento in atendimentos %}
+              <tr class="urgency-{{ atendimento.cd_pre_atendimento.ds_cor_prioridade|default:'azul'|lower }}">
+                <td>{{ atendimento.cd_pre_atendimento.nr_prioridade|default:"-" }}</td>
+                <td>{{ atendimento.pk }}</td>
+                <td>{{ atendimento.cd_paciente.nm_paciente }}</td>
+                <td>{{ atendimento.cd_paciente.pk }}</td>
+                <td>{{ atendimento.cd_paciente.nm_mae|default:"-" }}</td>
+                <td>{% if atendimento.cd_paciente.cd_convenio %}{{ atendimento.cd_paciente.cd_convenio.nm_convenio }}{% elif atendimento.cd_convenio %}{{ atendimento.cd_convenio.nm_convenio }}{% else %}-{% endif %}</td>
+                <td>{{ atendimento.get_ds_status_display }}</td>
+                <td>{{ atendimento.cd_setor_atual.nm_setor|default:"-" }}</td>
+                <td>{{ atendimento.dh_inicio|timesince }} em espera</td>
+                <td>{{ atendimento.cd_prestador.nm_guerra|default:atendimento.cd_prestador.nm_prestador|default:"-" }}</td>
+                <td>
+                  {% if atendimento.prescricoes.exists %}<span class="status-badge">Medicação pendente</span>{% endif %}
+                  {% if atendimento.solicitacoes_exames.exists %}<span class="status-badge">Exame pendente</span>{% endif %}
+                  {% if atendimento.cd_paciente.ds_observacao %}<span class="status-badge warning">Observação clínica</span>{% endif %}
+                </td>
+                <td class="pep-actions">
+                  <a class="button button-primary" href="{% url 'atendimento:ficha-atendimento' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Abrir ficha</a>
+                  {% if setor_chamada_padrao %}
+                    <form method="post" action="{% url 'atendimento:pep-chamar' atendimento.pk %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="setor" value="{{ atendimento.cd_setor_atual_id|default:setor_chamada_padrao.pk }}">
+                      <button class="button button-secondary" type="submit">Chamar</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="12">Nenhum paciente aguardando atendimento nos setores selecionados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    {% endif %}
+  </section>
+  <script>
+    document.querySelectorAll('[data-exclusive-search="pep"]').forEach((input) => {
+      input.addEventListener('input', () => {
+        if (!input.value) return;
+        document.querySelectorAll('[data-exclusive-search="pep"]').forEach((other) => {
+          if (other !== input) other.value = '';
+        });
+      });
+    });
+  </script>
+{% endblock %}

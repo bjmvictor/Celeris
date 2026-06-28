@@ -6,7 +6,7 @@ from django.db.models import Q
 from apps.atendimento.models import Prestador
 from apps.core.models import Module, ScreenDefinition, ValorAuxiliarGlobal
 
-from .models import Empresa, Papel, PapelModulo, PapelTela, User, UsuarioEmpresa, normalize_identifier
+from .models import Empresa, Papel, PapelModulo, PapelTela, Setor, User, UsuarioEmpresa, normalize_identifier
 
 
 class EmpresaAuthenticationForm(AuthenticationForm):
@@ -53,6 +53,11 @@ class UsuarioForm(UserCreationForm):
         queryset=Group.objects.filter(papel__sn_ativo=True).order_by("name"),
         required=False,
     )
+    setores = forms.ModelMultipleChoiceField(
+        label="Setores",
+        queryset=Setor.objects.none(),
+        required=False,
+    )
 
     class Meta:
         model = User
@@ -61,7 +66,7 @@ class UsuarioForm(UserCreationForm):
             "ds_idioma", "ds_profissao", "nr_matricula_rh", "email", "nr_celular",
             "must_change_password", "is_blocked", "invalid_login_attempts", "password_expires_at",
             "can_register_patient", "can_change_patient", "can_create_users", "can_deactivate_users",
-            "can_manage_auxiliary_tables", "can_configure_system", "empresas", "grupos",
+            "can_manage_auxiliary_tables", "can_configure_system", "empresas", "grupos", "setores",
         )
         widgets = {
             "dt_nascimento": forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
@@ -100,6 +105,9 @@ class UsuarioForm(UserCreationForm):
         self.fields["full_name"].required = False
         self.fields["nr_cpf"].required = False
         self.fields["is_active"].initial = True
+        self.fields["is_active"].widget = forms.Select(
+            choices=(("", ""), ("True", "Ativo"), ("False", "Inativo"))
+        )
         self.fields["is_active"].disabled = True
         self.fields["is_blocked"].disabled = True
         self.fields["invalid_login_attempts"].disabled = True
@@ -116,6 +124,12 @@ class UsuarioForm(UserCreationForm):
         self.fields["cd_prestador"].widget.attrs["data-user-provider"] = "true"
         self.fields["grupos"].widget.attrs["data-assignment-values"] = "true"
         self.fields["empresas"].widget.attrs["data-assignment-values"] = "true"
+        self.fields["setores"].widget.attrs["data-assignment-values"] = "true"
+        self.fields["setores"].queryset = (
+            Setor.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("tp_setor", "nm_setor")
+            if empresa
+            else Setor.objects.none()
+        )
         self.fields["empresas"].label_from_instance = lambda company: company.nm_empresa
         self.fields["nr_cpf"].widget.attrs.update(
             {"data-mask": "cpf", "data-validate-cpf": "true", "required": "required"}
@@ -130,6 +144,7 @@ class UsuarioForm(UserCreationForm):
             self.fields.pop("password2")
             self.fields["empresas"].initial = instance.empresas.all()
             self.fields["grupos"].initial = instance.groups.all()
+            self.fields["setores"].initial = instance.setores.all()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -165,6 +180,11 @@ class UsuarioForm(UserCreationForm):
                 self.add_error("nr_cpf", "CPF já cadastrado para outro usuário.")
         return cleaned_data
 
+    def validate_passwords(self, password1_field_name="password1", password2_field_name="password2"):
+        if self.instance and self.instance.pk:
+            return
+        return super().validate_passwords(password1_field_name, password2_field_name)
+
     def clean_username(self):
         if self.instance and self.instance.pk:
             return self.instance.username
@@ -177,6 +197,7 @@ class UsuarioForm(UserCreationForm):
         if commit:
             user.save()
             user.groups.set(self.cleaned_data.get("grupos", []))
+            user.setores.set(self.cleaned_data.get("setores", []))
             selected = list(self.cleaned_data.get("empresas", []))
             UsuarioEmpresa.objects.filter(usuario=user).exclude(empresa__in=selected).update(sn_ativo=False)
             for index, empresa in enumerate(selected):

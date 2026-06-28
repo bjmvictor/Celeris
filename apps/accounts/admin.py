@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Empresa, Papel, PapelModulo, PapelTela, User, UsuarioEmpresa
+from .models import Empresa, Papel, PapelModulo, PapelTela, Setor, SetorUsuario, User, UsuarioEmpresa
 
 
 class UsuarioEmpresaInline(admin.TabularInline):
@@ -29,6 +29,19 @@ class UsuarioEmpresaAdmin(admin.ModelAdmin):
     list_display = ("usuario", "empresa", "sn_padrao", "sn_ativo")
     list_filter = ("empresa", "sn_ativo", "sn_padrao")
     autocomplete_fields = ("usuario", "empresa")
+
+
+@admin.register(Setor)
+class SetorAdmin(admin.ModelAdmin):
+    list_display = ("cd_setor", "cd_empresa", "nm_setor", "tp_setor", "sn_ativo")
+    list_filter = ("cd_empresa", "tp_setor", "sn_ativo")
+    search_fields = ("nm_setor",)
+
+
+@admin.register(SetorUsuario)
+class SetorUsuarioAdmin(admin.ModelAdmin):
+    list_display = ("cd_setor_usuario", "cd_setor", "cd_usuario")
+    autocomplete_fields = ("cd_setor", "cd_usuario")
 
 
 class PapelModuloInline(admin.TabularInline):
