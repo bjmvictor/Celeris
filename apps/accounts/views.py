@@ -2,6 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
+from django.conf import settings
 from django.http import JsonResponse
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -85,6 +86,10 @@ def user_companies(request):
 def session_status(request):
     if not request.user.is_authenticated:
         return JsonResponse({"authenticated": False, "login_url": reverse("login")}, status=401)
+    request.session.set_expiry(
+        86400 if request.GET.get("editando_documento") == "1" else settings.SESSION_COOKIE_AGE
+    )
+    request.session.modified = True
     return JsonResponse({"authenticated": True})
 
 

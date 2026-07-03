@@ -1,58 +1,76 @@
 {% extends "base/layout.html" %}
-{% block content %}
-  <form class="card panel-call-form" method="post" autocomplete="off">
-    {% csrf_token %}
-    <div class="form-grid">
-      <label class="field-md">Nome do painel <input name="nm_painel" required></label>
-      <label class="field-lg">Descrição <input name="ds_descricao"></label>
-      <label class="field-md">Nome da máquina <input name="nm_maquina" required></label>
-      <label class="field-sm">Tipo
-        <select name="tp_painel">
-          {% for value,label in tipos %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="field-sm">Número <input name="nr_referencia"></label>
-      <label class="field-md">Local de exibição <input name="ds_local_exibicao"></label>
-      <label class="field-md">Mensagem padrão <input name="ds_mensagem_padrao"></label>
-      <label class="field-sm">Tempo da chamada <input name="nr_tempo_exibicao" type="number" min="3" value="10"></label>
-      <label class="field-sm">Layout <input name="ds_layout" value="padrao"></label>
-      <label class="field-sm">Tamanho <input name="ds_tamanho" value="medio"></label>
-      <label class="field-sm">Cor <input name="ds_cor" value="azul"></label>
-      <label class="field-sm">Prioridade visual <input name="ds_prioridade_visual" value="normal"></label>
-      <label class="provider-checkbox field-sm"><input name="sn_voz" type="checkbox" checked><span>Voz ativa</span></label>
-      <label class="provider-checkbox field-sm"><input name="sn_ativo" type="checkbox" checked><span>Ativo</span></label>
-      <label class="field-xl">Mídia ociosa <input name="ds_midia_url" placeholder="URL de imagem, áudio ou vídeo"></label>
-      <label class="field-xl">Observações <input name="ds_observacao"></label>
-    </div>
-    <div class="assignment-inline">
-      <strong>Setores que chamam neste painel</strong>
-      {% for setor in setores %}
-        <label class="provider-checkbox"><input name="setores" type="checkbox" value="{{ setor.pk }}"><span>{{ setor.nm_setor }}</span></label>
-      {% empty %}
-        <span class="empty-state">Cadastre setores de atendimento antes de criar o painel.</span>
-      {% endfor %}
-    </div>
-    <button class="button" type="submit">Salvar painel</button>
-  </form>
 
-  <section class="card">
-    <h2>Painéis cadastrados</h2>
-    <table class="data-table">
-      <thead><tr><th>Código</th><th>Painel</th><th>Máquina</th><th>Tipo</th><th>Setores</th><th>Status</th></tr></thead>
-      <tbody>
-        {% for painel in paineis %}
-          <tr>
-            <td>{{ painel.pk }}</td>
-            <td>{{ painel.nm_painel }}</td>
-            <td>{{ painel.nm_maquina }}</td>
-            <td>{{ painel.get_tp_painel_display }} {{ painel.nr_referencia }}</td>
-            <td>{% for setor in painel.setores.all %}{{ setor.nm_setor }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</td>
-            <td>{% if painel.sn_ativo %}Ativo{% else %}Inativo{% endif %}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="6">Nenhum painel cadastrado.</td></tr>
+{% block content %}
+  <form class="provider-form panel-call-form" data-table="painel_chamada" data-query-url="{{ request.path }}" data-has-errors="{{ form.errors|yesno:'true,false' }}" method="post" autocomplete="off">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% if form.errors %}
+      <div class="form-error-summary" role="alert">
+        <strong>Revise os campos destacados antes de salvar.</strong>
+        {% for field in form %}
+          {% for error in field.errors %}<span>{{ field.label }}: {{ error }}</span>{% endfor %}
         {% endfor %}
-      </tbody>
-    </table>
-  </section>
+      </div>
+    {% endif %}
+
+    <details class="card form-section" open>
+      <summary>1. Identificação do painel</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código {{ form.cd_painel_chamada }}</label>
+        <label class="field-sm">Ativo/Inativo {{ form.sn_ativo }}</label>
+        <label class="field-lg">Nome do painel * {{ form.nm_painel }}</label>
+        <label class="field-lg">Descrição {{ form.ds_descricao }}</label>
+        <label class="field-md">Nome da máquina * {{ form.nm_maquina }}</label>
+        <label class="field-sm">Tipo {{ form.tp_painel }}</label>
+        <label class="field-sm">Número {{ form.nr_referencia }}</label>
+        <label class="field-lg">Local de exibição {{ form.ds_local_exibicao }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>2. Configuração de exibição</summary>
+      <div class="form-grid">
+        <label class="field-lg">Mensagem padrão {{ form.ds_mensagem_padrao }}</label>
+        <label class="field-sm">Tempo da chamada {{ form.nr_tempo_exibicao }}</label>
+        <label class="field-sm">Layout {{ form.ds_layout }}</label>
+        <label class="field-sm">Tamanho {{ form.ds_tamanho }}</label>
+        <label class="field-sm">Cor {{ form.ds_cor }}</label>
+        <label class="field-md">Prioridade visual {{ form.ds_prioridade_visual }}</label>
+        <label class="provider-checkbox field-sm">{{ form.sn_voz }} <span>Voz ativa</span></label>
+        <label class="field-xl">Mídia ociosa {{ form.ds_midia_url }}</label>
+        <label class="field-xl">Observações {{ form.ds_observacao }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>3. Setores de atendimento</summary>
+      <div class="form-grid">
+        <div class="field-fluid specialty-manager" data-assignment-manager data-assignment-empty="Nenhum setor selecionado.">
+          <span>Setores que chamam neste painel</span>
+          <div class="specialty-toolbar">
+            <div class="specialty-chips" data-assignment-chips></div>
+            <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar setor</button>
+            <div class="specialty-add-row" data-assignment-add-row hidden>
+              <select data-assignment-picker><option value="">Selecionar setor...</option></select>
+              <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
+            </div>
+          </div>
+          <div class="specialty-storage" hidden>{{ form.setores }}</div>
+          {{ form.setores.errors }}
+        </div>
+      </div>
+    </details>
+
+    {% if painel %}
+      <details class="card form-section">
+        <summary>4. Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ painel.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ painel.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ painel.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ painel.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
+    {% endif %}
+  </form>
 {% endblock %}

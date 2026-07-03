@@ -4,9 +4,10 @@ from django import forms
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.accounts.models import Setor
 from apps.core.models import Cep, TipoPrestadorConselho, ValorAuxiliarGlobal
 
-from .models import Agendamento, Atendimento, Convenio, EvolucaoAtendimento, Paciente, PreAtendimento, Prescricao, Prestador, ResultadoExame, SolicitacaoExame
+from .models import AgendaProfissional, Agendamento, Atendimento, Convenio, EvolucaoAtendimento, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame
 
 
 class PacienteSearchForm(forms.Form):
@@ -195,6 +196,7 @@ class PacienteForm(forms.ModelForm):
 
 
 class PrestadorForm(forms.ModelForm):
+    tipos_prestador = forms.MultipleChoiceField(label="Tipos de prestador", required=False)
     ds_especialidades = forms.MultipleChoiceField(label="Especialidades", required=False)
     ds_especialidade_principal = forms.ChoiceField(label="Especialidade principal", required=False)
     cd_prestador = forms.IntegerField(label="Código", required=False, disabled=True)
@@ -229,6 +231,14 @@ class PrestadorForm(forms.ModelForm):
         self.fields["tp_sexo"].widget = forms.Select(choices=self._choices_for("sexo"))
         self.fields["ds_cor_raca"].widget = forms.Select(choices=self._choices_for("cor_raca"))
         self.fields["tp_prestador"].widget = forms.Select(choices=self._choices_for("tipo_prestador"))
+        provider_type_choices = self._choices_for("tipo_prestador")[1:]
+        self.fields["tipos_prestador"].choices = provider_type_choices
+        self.fields["tipos_prestador"].initial = (
+            self.instance.tipos_prestador_ativos
+            if self.instance and self.instance.pk
+            else []
+        )
+        self.fields["tipos_prestador"].widget.attrs["data-assignment-values"] = "true"
         self.fields["ds_orgao_emissor"].widget = forms.Select(choices=self._choices_for("orgao_emissor"))
         self.fields["ds_grau_instrucao"].widget = forms.Select(choices=self._choices_for("grau_instrucao"))
         self.fields["tp_genero"].widget = forms.Select(choices=self._choices_for("identidade_genero"))
@@ -362,6 +372,12 @@ class PrestadorForm(forms.ModelForm):
         provider_type = cleaned_data.get("tp_prestador")
         if not provider_type:
             return cleaned_data
+        provider_types = cleaned_data.get("tipos_prestador") or []
+        if not provider_types:
+            provider_types = [provider_type]
+            cleaned_data["tipos_prestador"] = provider_types
+        if provider_type not in provider_types:
+            self.add_error("tipos_prestador", "O tipo principal deve estar entre os tipos adicionados.")
         mapping = TipoPrestadorConselho.objects.filter(tp_prestador=provider_type, sn_ativo=True).first()
         if not mapping:
             cleaned_data["ds_conselho"] = ""
@@ -370,6 +386,212 @@ class PrestadorForm(forms.ModelForm):
             self.add_error("nr_conselho", "Informe o número do conselho para este tipo de prestador.")
         cleaned_data["ds_conselho"] = mapping.ds_conselho
         return cleaned_data
+
+
+class EscalaForm(forms.ModelForm):
+    cd_agenda_profissional = forms.IntegerField(label="Código", required=False, disabled=True)
+    ds_dias_semana = forms.MultipleChoiceField(
+        label="Dias da semana",
+        choices=AgendaProfissional.DIAS_SEMANA,
+        required=True,
+    )
+
+    class Meta:
+        model = AgendaProfissional
+        fields = (
+            "cd_agenda_profissional",
+            "sn_ativo",
+            "ds_agenda",
+            "tp_escala",
+            "cd_prestador",
+            "ds_especialidade",
+            "cd_setor_atendimento",
+            "tp_horario",
+            "ds_dias_semana",
+            "hr_inicio",
+            "hr_fim",
+            "nr_tempo_atendimento",
+            "nr_intervalo",
+            "qt_horarios_dia",
+            "qt_encaixes",
+            "sn_atende_feriado",
+            "convenios",
+            "ds_tipo_agendamento",
+        )
+        widgets = {
+            "sn_ativo": forms.Select(choices=(("", ""), (True, "Ativa"), (False, "Inativa"))),
+            "hr_inicio": forms.TimeInput(format="%H:%M", attrs={"type": "time"}),
+            "hr_fim": forms.TimeInput(format="%H:%M", attrs={"type": "time"}),
+            "convenios": forms.SelectMultiple(),
+        }
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in (
+            "ds_agenda",
+            "tp_escala",
+            "cd_prestador",
+            "ds_especialidade",
+            "cd_setor_atendimento",
+            "tp_horario",
+            "hr_inicio",
+            "hr_fim",
+            "nr_tempo_atendimento",
+            "qt_horarios_dia",
+            "ds_tipo_agendamento",
+        ):
+            self.fields[name].required = True
+        if empresa:
+            prestadores = Prestador.objects.filter(cd_empresa=empresa)
+            setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO)
+            convenios = Convenio.objects.filter(cd_empresa=empresa)
+            if self.instance and self.instance.pk:
+                prestadores = prestadores.filter(Q(sn_ativo=True, sn_permite_agenda=True) | Q(pk=self.instance.cd_prestador_id))
+                setores = setores.filter(Q(sn_ativo=True) | Q(pk=self.instance.cd_setor_atendimento_id))
+                convenios = convenios.filter(Q(sn_ativo=True) | Q(escalas=self.instance))
+            else:
+                prestadores = prestadores.filter(sn_ativo=True, sn_permite_agenda=True)
+                setores = setores.filter(sn_ativo=True)
+                convenios = convenios.filter(sn_ativo=True)
+            self.fields["cd_prestador"].queryset = prestadores.order_by("nm_prestador")
+            self.fields["cd_setor_atendimento"].queryset = setores.order_by("nm_setor")
+            self.fields["convenios"].queryset = convenios.distinct().order_by("nm_convenio")
+        else:
+            self.fields["cd_prestador"].queryset = Prestador.objects.none()
+            self.fields["cd_setor_atendimento"].queryset = Setor.objects.none()
+            self.fields["convenios"].queryset = Convenio.objects.none()
+        self.fields["tp_escala"].widget = forms.Select(choices=self._choices("tipo_escala", [("AMBULATORIAL", "Ambulatorial")]))
+        self.fields["ds_especialidade"].widget = forms.Select(choices=self._choices("especialidade"))
+        self.fields["ds_tipo_agendamento"].widget = forms.Select(
+            choices=self._choices(
+                "tipo_atendimento",
+                [("PRIMEIRA_CONSULTA", "Primeira consulta"), ("RETORNO", "Retorno")],
+            )
+        )
+        for field_name in ("tp_escala", "ds_especialidade", "ds_tipo_agendamento"):
+            current = getattr(self.instance, field_name, "") if self.instance else ""
+            choices = list(self.fields[field_name].widget.choices)
+            if current and current not in {value for value, _label in choices}:
+                choices.append((current, current))
+                self.fields[field_name].widget.choices = choices
+        self.fields["ds_dias_semana"].initial = self.instance.dias_semana if self.instance and self.instance.pk else [0, 1, 2, 3, 4]
+        self.fields["sn_ativo"].initial = True
+        self.fields["sn_ativo"].disabled = True
+        if self.instance and self.instance.pk:
+            self.fields["cd_agenda_profissional"].initial = self.instance.pk
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "agenda_profissional",
+                    "data-field-name": name,
+                    "data-primary-key": "true" if name == "cd_agenda_profissional" else "false",
+                    "data-consultable": "true",
+                    "data-editable": "false" if name in {"cd_agenda_profissional", "sn_ativo"} else "true",
+                }
+            )
+        for name in ("hr_inicio", "hr_fim", "nr_tempo_atendimento", "nr_intervalo", "qt_horarios_dia"):
+            self.fields[name].widget.attrs["data-scale-preview"] = name
+        self.fields["convenios"].widget.attrs["data-assignment-values"] = "true"
+
+    @staticmethod
+    def _choices(table_name, fallback=()):
+        values = list(
+            ValorAuxiliarGlobal.objects.filter(
+                cd_tabela_auxiliar_global__ds_tabela=table_name,
+                sn_ativo=True,
+            ).order_by("ds_valor").values_list("cd_valor", "ds_valor")
+        )
+        return [("", "")] + (values or list(fallback))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        inicio = cleaned_data.get("hr_inicio")
+        fim = cleaned_data.get("hr_fim")
+        duracao = cleaned_data.get("nr_tempo_atendimento") or 0
+        intervalo = cleaned_data.get("nr_intervalo") or 0
+        quantidade = cleaned_data.get("qt_horarios_dia") or 0
+        if inicio and fim:
+            minutos = (fim.hour * 60 + fim.minute) - (inicio.hour * 60 + inicio.minute)
+            if minutos <= 0:
+                self.add_error("hr_fim", "O horário final deve ser posterior ao inicial.")
+            elif duracao > 0:
+                capacidade = max((minutos + intervalo) // (duracao + intervalo), 0)
+                if quantidade > capacidade:
+                    self.add_error(
+                        "qt_horarios_dia",
+                        f"O período comporta no máximo {capacidade} horário(s) com a duração e intervalo informados.",
+                    )
+        if quantidade < 1:
+            self.add_error("qt_horarios_dia", "Informe ao menos um horário por dia.")
+        if cleaned_data.get("qt_encaixes", 0) < 0:
+            self.add_error("qt_encaixes", "A quantidade de encaixes não pode ser negativa.")
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        dias = [int(dia) for dia in self.cleaned_data.get("ds_dias_semana", [])]
+        instance.ds_dias_semana = dias
+        instance.nr_dia_semana = dias[0] if dias else 0
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class PainelChamadaForm(forms.ModelForm):
+    cd_painel_chamada = forms.IntegerField(label="Código", required=False, disabled=True)
+
+    class Meta:
+        model = PainelChamada
+        fields = (
+            "cd_painel_chamada", "sn_ativo", "nm_painel", "ds_descricao", "nm_maquina",
+            "tp_painel", "nr_referencia", "ds_local_exibicao", "ds_mensagem_padrao",
+            "nr_tempo_exibicao", "ds_layout", "ds_tamanho", "ds_cor",
+            "ds_prioridade_visual", "sn_voz", "ds_midia_url", "ds_observacao", "setores",
+        )
+        widgets = {
+            "sn_ativo": forms.Select(choices=(("", ""), (True, "Ativo"), (False, "Inativo"))),
+            "sn_voz": forms.Select(choices=(("", ""), (True, "Sim"), (False, "Não"))),
+            "ds_observacao": forms.TextInput(),
+            "setores": forms.SelectMultiple(),
+        }
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.empresa = empresa
+        setores = Setor.objects.none()
+        if empresa:
+            setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO)
+            if self.instance and self.instance.pk:
+                setores = setores.filter(Q(sn_ativo=True) | Q(paineis_chamada=self.instance))
+            else:
+                setores = setores.filter(sn_ativo=True)
+        self.fields["setores"].queryset = setores.distinct().order_by("nm_setor")
+        self.fields["sn_ativo"].initial = True
+        self.fields["sn_voz"].initial = True
+        self.fields["sn_ativo"].disabled = True
+        if self.instance and self.instance.pk:
+            self.fields["cd_painel_chamada"].initial = self.instance.pk
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "painel_chamada",
+                    "data-field-name": name,
+                    "data-primary-key": "true" if name == "cd_painel_chamada" else "false",
+                    "data-consultable": "true",
+                    "data-editable": "false" if name in {"cd_painel_chamada", "sn_ativo"} else "true",
+                }
+            )
+        self.fields["setores"].widget.attrs["data-assignment-values"] = "true"
+
+    def clean_nm_maquina(self):
+        value = self.cleaned_data["nm_maquina"].strip()
+        duplicate = PainelChamada.objects.filter(cd_empresa=self.empresa, nm_maquina__iexact=value)
+        if self.instance and self.instance.pk:
+            duplicate = duplicate.exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise forms.ValidationError("Já existe um painel cadastrado para esta máquina.")
+        return value
 
 
 class AgendamentoForm(forms.ModelForm):
@@ -436,6 +658,124 @@ class AtendimentoForm(forms.ModelForm):
             else Prestador.objects.none()
         )
         self.fields["cd_convenio"].queryset = Convenio.objects.filter(cd_empresa=empresa, sn_ativo=True) if empresa else Convenio.objects.none()
+
+
+class CadastroAtendimentoForm(forms.ModelForm):
+    cd_atendimento = forms.IntegerField(label="Código", required=False, disabled=True)
+    cd_paciente_exibicao = forms.IntegerField(label="Prontuário", required=False, disabled=True)
+    nm_paciente_exibicao = forms.CharField(label="Paciente", required=False, disabled=True)
+    dh_atendimento_exibicao = forms.DateTimeField(
+        label="Data e hora",
+        required=False,
+        disabled=True,
+        widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
+    )
+
+    class Meta:
+        model = Atendimento
+        fields = (
+            "cd_atendimento", "cd_paciente_exibicao", "nm_paciente_exibicao",
+            "dh_atendimento_exibicao", "cd_prestador", "ds_origem", "ds_recepcao_origem",
+            "cd_convenio", "ds_plano", "ds_subplano", "ds_tipo_atendimento",
+            "ds_local_procedencia", "ds_destino", "ds_especialidade", "ds_cid",
+            "ds_meio_transporte", "ds_procedimento_principal", "ds_cbo_prestador",
+            "nr_senha_chamada", "ds_observacao_recepcao", "sn_visita", "sn_retorno",
+        )
+        widgets = {
+            "ds_observacao_recepcao": forms.TextInput(),
+        }
+
+    def __init__(self, *args, empresa=None, paciente=None, agendamento=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cd_prestador"].label = "Médico/Prestador"
+        self.fields["cd_convenio"].queryset = (
+            Convenio.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_convenio")
+            if empresa else Convenio.objects.none()
+        )
+        self.fields["cd_prestador"].queryset = (
+            Prestador.objects.filter(cd_empresa=empresa, sn_ativo=True, sn_permite_atendimento=True).order_by("nm_prestador")
+            if empresa else Prestador.objects.none()
+        )
+        for field_name, table_name, fallback in (
+            ("ds_tipo_atendimento", "tipo_atendimento", ()),
+            ("ds_local_procedencia", "local_procedencia", (("DOMICILIO", "Domicílio"), ("OUTRA_UNIDADE", "Outra unidade hospitalar"))),
+            ("ds_destino", "destino_atendimento", (("CONSULTORIO", "Consultório"), ("SALA", "Sala"))),
+            ("ds_especialidade", "especialidade", ()),
+            ("ds_meio_transporte", "meio_transporte", (("PROPRIO", "Meios próprios"), ("AMBULANCIA", "Ambulância"))),
+            ("ds_recepcao_origem", "origem_recepcao", (("RECEPCAO_PRINCIPAL", "Recepção principal"),)),
+        ):
+            self.fields[field_name].widget = forms.Select(choices=self._choices(table_name, fallback))
+        if self.instance and self.instance.pk:
+            self.fields["cd_atendimento"].initial = self.instance.pk
+            self.fields["dh_atendimento_exibicao"].initial = self.instance.dh_inicio
+            paciente = self.instance.cd_paciente
+        elif agendamento:
+            self.fields["dh_atendimento_exibicao"].initial = timezone.now()
+        if paciente:
+            self.fields["cd_paciente_exibicao"].initial = paciente.pk
+            self.fields["nm_paciente_exibicao"].initial = paciente.nm_paciente
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "atendimento",
+                    "data-field-name": name.replace("_exibicao", ""),
+                    "data-primary-key": "true" if name == "cd_atendimento" else "false",
+                    "data-consultable": "true",
+                    "data-editable": "false" if name in {
+                        "cd_atendimento", "cd_paciente_exibicao", "nm_paciente_exibicao", "dh_atendimento_exibicao",
+                    } else "true",
+                }
+            )
+
+    @staticmethod
+    def _choices(table_name, fallback=()):
+        values = list(
+            ValorAuxiliarGlobal.objects.filter(
+                cd_tabela_auxiliar_global__ds_tabela=table_name,
+                sn_ativo=True,
+            ).order_by("ds_valor").values_list("cd_valor", "ds_valor")
+        )
+        return [("", "")] + (values or list(fallback))
+
+
+class ResponsavelAtendimentoForm(forms.ModelForm):
+    class Meta:
+        model = ResponsavelAtendimento
+        exclude = (
+            "cd_responsavel_atendimento", "cd_empresa", "cd_atendimento",
+            "dh_criacao", "dh_atualizacao", "cd_usuario_criacao", "cd_usuario_atualizacao",
+        )
+        widgets = {
+            "dt_expedicao": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name, table_name in (
+            ("ds_parentesco", "parentesco"),
+            ("tp_estado_civil", "estado_civil"),
+            ("ds_orgao_emissor", "orgao_emissor"),
+            ("ds_profissao", "profissao"),
+            ("ds_nacionalidade", "nacionalidade"),
+            ("sg_estado", "estado"),
+            ("ds_cidade", "cidade"),
+            ("tp_logradouro", "tipo_logradouro"),
+        ):
+            self.fields[field_name].widget = forms.Select(
+                choices=CadastroAtendimentoForm._choices(table_name)
+            )
+        self.fields["nr_cpf"].widget.attrs["data-mask"] = "cpf"
+        self.fields["nr_celular"].widget.attrs["data-mask"] = "celular"
+        self.fields["sn_mesmo_endereco_paciente"].widget.attrs["data-responsible-same-address"] = "true"
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "responsavel_atendimento",
+                    "data-field-name": name,
+                    "data-consultable": "true",
+                    "data-editable": "true",
+                }
+            )
 
 
 class SolicitacaoExameForm(forms.ModelForm):

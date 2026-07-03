@@ -1,0 +1,47 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card patient-summary patient-summary-detailed">
+    <div class="patient-summary-name">
+      <small>Atendimento {{ atendimento.pk }}</small>
+      <strong>{{ atendimento.cd_paciente.nm_paciente }}</strong>
+    </div>
+    <dl>
+      <div><dt>Prontuário</dt><dd>{{ atendimento.cd_paciente_id }}</dd></div>
+      <div><dt>Tela</dt><dd>{{ item.nm_item }}</dd></div>
+    </dl>
+  </section>
+  <section class="clinical-layout-single">
+    {% if item.sn_permite_criar and not item.sn_somente_historico %}
+      <form method="post" enctype="multipart/form-data" class="card" data-primary-form>
+        {% csrf_token %}
+        <h2>Anexar arquivo</h2>
+        <label>Arquivo
+          <input type="file" name="arquivo" required>
+        </label>
+        <p class="field-help-message">Tipos: {{ tipos_permitidos }} · limite: {{ limite_mb }} MB.</p>
+        <div class="form-actions">
+          <button class="button button-primary" type="submit">Enviar anexo</button>
+        </div>
+      </form>
+    {% endif %}
+    <section class="card table-card">
+      <h2>Histórico de anexos</h2>
+      <table>
+        <thead><tr><th>Arquivo</th><th>Tipo</th><th>Data</th><th>Segurança</th><th>Ação</th></tr></thead>
+        <tbody>
+          {% for anexo in anexos %}
+            <tr>
+              <td>{{ anexo.nm_arquivo }}</td>
+              <td>{{ anexo.ds_tipo_mime }}</td>
+              <td>{{ anexo.dh_criacao|date:"d/m/Y H:i" }}</td>
+              <td>{{ anexo.ds_status_antivirus }}</td>
+              <td><a class="button button-secondary" href="{% url 'atendimento:baixar-anexo-clinico' anexo.pk %}">Baixar</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">Nenhum anexo cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </section>
+{% endblock %}

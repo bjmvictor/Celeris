@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <title>Comprovante de agendamento</title>
+    {% if apresentacao.css %}<style>{{ apresentacao.css }}</style>{% endif %}
+    <style>
+      @page { size: A4; margin: 4mm; }
+      body { margin: 0; padding: 4mm; color: #111; background: #eef2f7; font: 12px Arial, sans-serif; }
+      .document-page { box-sizing: border-box; width: 210mm; min-height: 289mm; margin: 0 auto; padding: 4mm; background: #fff; }
+      .document-print-table { width: 100%; min-height: 281mm; border-collapse: collapse; table-layout: fixed; }
+      .document-print-table td { padding: 0; vertical-align: top; }
+      .document-print-table thead { display: table-header-group; }
+      .document-print-table tfoot { display: table-footer-group; }
+      @media print { body { padding: 0; background: #fff; } .document-page { width: auto; min-height: 0; margin: 0; padding: 0; } }
+    </style>
+  </head>
+  <body>
+    {% if apresentacao %}
+      {% include "atendimento/_modelo_documento_administrativo.html" %}
+    {% else %}
+      {% include "atendimento/_comprovante_agendamento_documento.html" %}
+    {% endif %}
+  </body>
+</html>

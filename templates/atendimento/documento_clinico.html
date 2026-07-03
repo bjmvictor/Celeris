@@ -1,42 +1,197 @@
 {% extends "base/layout.html" %}
 
+{% block extra_head %}
+  {% if apresentacao.css %}<style>{{ apresentacao.css }}</style>{% endif %}
+{% endblock %}
+
 {% block content %}
   <section class="print-toolbar">
-    <button class="button button-primary" type="button" onclick="window.print()">Imprimir</button>
+    {% if modo_impressao %}
+      {% if pode_imprimir %}<button class="button button-primary" type="button" onclick="window.print()">Imprimir</button>{% endif %}
+      <a class="button button-secondary" href="?">Versão em tela</a>
+    {% else %}
+      {% if pode_imprimir %}<a class="button button-primary" href="?modo=impressao">Visualizar impressão</a>{% endif %}
+    {% endif %}
     <a class="button button-secondary" href="{% url 'atendimento:copiar-documento-clinico' documento.pk %}">Copiar como rascunho</a>
+    {% if pode_assumir %}
+      <form method="post" action="{% url 'atendimento:assumir-documento-clinico' documento.pk %}" class="document-inline-action">
+        {% csrf_token %}
+        <input name="motivo" required placeholder="Motivo para assumir">
+        <button class="button button-secondary" type="submit">Assumir</button>
+      </form>
+    {% endif %}
+    {% if pode_fechar %}
+      <form method="post" action="{% url 'atendimento:fechar-documento-clinico' documento.pk %}" class="document-inline-action">
+        {% csrf_token %}
+        <input name="senha" type="password" required autocomplete="current-password" placeholder="Confirme sua senha">
+        <button class="button button-primary" type="submit">Fechar e assinar</button>
+      </form>
+    {% endif %}
+    {% if pode_abandonar %}
+      <form method="post" action="{% url 'atendimento:abandonar-documento-clinico' documento.pk %}" class="document-inline-action">
+        {% csrf_token %}
+        <input name="motivo" required placeholder="Motivo do abandono">
+        <button class="button button-danger" type="submit">Abandonar</button>
+      </form>
+    {% endif %}
+    {% if pode_cancelar %}
+      <form method="post" action="{% url 'atendimento:cancelar-documento-clinico' documento.pk %}" class="document-inline-action">
+        {% csrf_token %}
+        <input name="motivo" required placeholder="Motivo do cancelamento">
+        <button class="button button-danger" type="submit">Cancelar documento</button>
+      </form>
+    {% endif %}
     <a class="button button-secondary" href="{% url 'atendimento:ficha-atendimento' atendimento.pk %}">Voltar para ficha</a>
   </section>
 
-  <article class="document-page clinical-document {% if documento.ds_status == 'RASCUNHO' %}draft{% elif documento.ds_status == 'CANCELADO' %}cancelled{% endif %}">
-    <header class="document-header">
-      <div>
-        <h1>{{ empresa.nm_empresa }}</h1>
-        <p>Celeris · Documento clínico {{ documento.pk }}</p>
-      </div>
-      <div class="document-protocol">
-        <strong>{{ documento.ds_titulo }}</strong>
-        <span>{{ documento.get_ds_status_display }}</span>
-      </div>
-    </header>
-
-    <section class="document-section">
-      <div class="summary-grid">
-        <span><strong>Paciente:</strong> {{ atendimento.cd_paciente.nm_paciente }}</span>
-        <span><strong>Prontuário:</strong> {{ atendimento.cd_paciente.pk }}</span>
-        <span><strong>Atendimento:</strong> {{ atendimento.pk }}</span>
-        <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
-        <span><strong>Emissão:</strong> {{ documento.dh_emissao|date:"d/m/Y H:i" }}</span>
-        <span><strong>Emissor:</strong> {{ documento.cd_usuario_emissor.get_full_name|default:documento.cd_usuario_emissor.get_username|default:"-" }}</span>
-      </div>
-    </section>
-
-    <section class="document-section document-content">
-      {{ documento.ds_conteudo|linebreaks }}
-    </section>
-
-    <footer class="document-footer">
-      <span>Gerado automaticamente pelo Celeris.</span>
-      <span>Status: {{ documento.get_ds_status_display }}</span>
-    </footer>
+  <article class="document-page clinical-document {% if documento.ds_status == 'ABERTO' or documento.ds_status == 'RASCUNHO' %}draft{% elif documento.ds_status == 'CANCELADO' %}cancelled{% endif %}">
+    {% if modo_impressao %}
+      {% if documento.ds_status == "ABERTO" or documento.ds_status == "RASCUNHO" %}
+        <img class="document-draft-watermark" draggable="false" alt="Rascunho" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1400 2000'%3E%3Cg font-family='Arial,sans-serif' font-size='190' font-weight='900' fill='%2394a3b8' fill-opacity='.22' text-anchor='middle'%3E%3Ctext x='700' y='420' transform='rotate(-36 700 420)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1000' transform='rotate(-36 700 1000)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1580' transform='rotate(-36 700 1580)'%3ERASCUNHO%3C/text%3E%3C/g%3E%3C/svg%3E">
+      {% elif documento.ds_status == "CANCELADO" %}
+        <div class="document-cancelled-watermark" aria-hidden="true">CANCELADO</div>
+      {% endif %}
+      <table class="document-print-table">
+        <thead>
+          <tr>
+            <td>
+              {% if apresentacao.cabecalho %}
+                <div class="document-repeat-header">{{ apresentacao.cabecalho }}</div>
+              {% else %}
+                <header class="document-header">
+                  <div>
+                    <h1>{{ empresa.nm_empresa }}</h1>
+                    <p>Celeris · Documento clínico {{ documento.pk }}</p>
+                  </div>
+                  <div class="document-protocol">
+                    <strong>{{ documento.ds_titulo }}</strong>
+                    <span>{{ documento.get_ds_status_display }}</span>
+                  </div>
+                </header>
+              {% endif %}
+            </td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="document-print-body">
+              <section class="document-section document-content">{{ apresentacao.conteudo }}</section>
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>
+              {% if apresentacao.rodape %}
+                <div class="document-repeat-footer">{{ apresentacao.rodape }}</div>
+              {% else %}
+                <footer class="document-footer">
+                  <span>Gerado pelo Celeris.</span>
+                  <span>Status: {{ documento.get_ds_status_display }}</span>
+                </footer>
+              {% endif %}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    {% else %}
+      <section class="document-section screen-document-summary">
+        <div class="summary-grid">
+          <span><strong>Paciente:</strong> {{ atendimento.cd_paciente.nm_paciente }}</span>
+          <span><strong>Prontuário:</strong> {{ atendimento.cd_paciente.pk }}</span>
+          <span><strong>Atendimento:</strong> {{ atendimento.pk }}</span>
+          <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
+          <span><strong>Emissão:</strong> {{ documento.dh_emissao|date:"d/m/Y H:i" }}</span>
+          <span><strong>Emissor:</strong> {{ documento.cd_usuario_emissor.get_full_name|default:documento.cd_usuario_emissor.get_username|default:"-" }}</span>
+        </div>
+      </section>
+      {% if not somente_consulta and documento.ds_status == "ABERTO" or not somente_consulta and documento.ds_status == "RASCUNHO" %}
+        <form method="post" class="document-fill-form" data-document-fill-form>
+          {% csrf_token %}
+          <input type="hidden" name="ds_conteudo" value="{{ documento.ds_conteudo }}">
+          <input type="hidden" name="ds_dados_formulario">
+          <section class="document-section document-content">{{ apresentacao.conteudo }}</section>
+          <div class="document-screen-actions">
+            <button class="button button-primary" type="submit">Salvar preenchimento</button>
+          </div>
+        </form>
+      {% else %}
+        <section class="document-section document-content">{{ apresentacao.conteudo }}</section>
+      {% endif %}
+    {% endif %}
   </article>
+  {% if historico_mesmo_tipo %}
+    <details class="card document-patient-history">
+      <summary>Histórico deste tipo de documento no prontuário</summary>
+      <div class="document-history-list">
+        {% for item in historico_mesmo_tipo %}
+          <a href="{% url 'atendimento:imprimir-documento-clinico' item.pk %}">
+            <strong>{{ item.ds_titulo }}</strong>
+            <span>Atendimento {{ item.cd_atendimento_id }} · {{ item.dh_emissao|date:"d/m/Y H:i" }}</span>
+            <small>{{ item.get_ds_status_display }} · {{ item.cd_usuario_responsavel|default:"Sem responsável" }}</small>
+          </a>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+  {{ documento.ds_dados_formulario|json_script:"document-form-data" }}
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const form = document.querySelector("[data-document-fill-form]");
+      if (!form) return;
+      let saved = {};
+      try { saved = JSON.parse(document.getElementById("document-form-data").textContent); } catch {}
+      Object.entries(saved).forEach(([name, value]) => {
+        form.querySelectorAll(`[name="campo_${CSS.escape(name)}"]`).forEach((field) => {
+          if (field.matches("[data-exclusive-choice]")) field.checked = String(field.value) === String(value);
+          else if (field.type === "checkbox") field.checked = Boolean(value);
+          else field.value = value ?? "";
+        });
+      });
+      const syncExclusive = (fieldset, selected = null) => {
+        const readonly = fieldset.dataset.exclusiveReadonly === "true";
+        fieldset.querySelectorAll("[data-exclusive-choice]").forEach((choice) => {
+          if (selected && choice !== selected) choice.checked = false;
+          const detail = choice.closest("label")?.querySelector("[data-exclusive-detail]");
+          if (!detail) return;
+          detail.disabled = readonly || !choice.checked;
+          detail.tabIndex = detail.disabled ? -1 : 0;
+        });
+      };
+      form.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => syncExclusive(fieldset));
+      form.addEventListener("change", (event) => {
+        const choice = event.target.closest("[data-exclusive-choice]");
+        if (!choice) return;
+        const fieldset = choice.closest("[data-exclusive-group]");
+        if (!fieldset) return;
+        syncExclusive(fieldset, choice.checked ? choice : null);
+        choice.closest("label")?.querySelector("[data-exclusive-detail]:not(:disabled)")?.focus();
+      });
+      form.addEventListener("submit", (event) => {
+        const invalidGroup = [...form.querySelectorAll('[data-exclusive-required="true"]')]
+          .find((fieldset) => !fieldset.querySelector("[data-exclusive-choice]:checked"));
+        if (invalidGroup) {
+          event.preventDefault();
+          invalidGroup.classList.add("is-invalid");
+          invalidGroup.scrollIntoView({ block: "center", behavior: "smooth" });
+          invalidGroup.querySelector("[data-exclusive-choice]")?.focus();
+          return;
+        }
+        const data = {};
+        form.querySelectorAll("[data-document-field][name]").forEach((field) => {
+          const name = field.name.replace(/^campo_/, "");
+          if (field.matches("[data-exclusive-choice]")) {
+            if (field.checked) data[name] = field.value;
+            else if (!(name in data)) data[name] = "";
+            return;
+          }
+          data[name] = field.type === "checkbox" ? field.checked : field.value;
+        });
+        form.elements.ds_dados_formulario.value = JSON.stringify(data);
+      });
+    })();
+  </script>
 {% endblock %}

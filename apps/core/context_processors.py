@@ -153,6 +153,11 @@ def navigation(request):
         "atendimento:profissionais": reverse("atendimento:cadastro-profissional-novo"),
         "atendimento:cadastro-profissional": reverse("atendimento:cadastro-profissional-novo"),
         "atendimento:cadastro-profissional-novo": reverse("atendimento:cadastro-profissional-novo"),
+        "atendimento:escalas": reverse("atendimento:escalas"),
+        "atendimento:cadastro-escala": reverse("atendimento:escalas"),
+        "atendimento:paineis-chamada": reverse("atendimento:paineis-chamada"),
+        "atendimento:cadastro-painel-chamada": reverse("atendimento:paineis-chamada"),
+        "atendimento:perfis-assistenciais": reverse("atendimento:perfis-assistenciais"),
         "usuarios": reverse("usuario_novo"),
         "perfis": reverse("perfil_novo"),
     }
@@ -160,6 +165,7 @@ def navigation(request):
         "atendimento:cadastro-paciente-agendamento",
         "atendimento:revisar-paciente-agendamento",
         "atendimento:selecionar-agenda",
+        "atendimento:confirmar-horario-agenda",
         "atendimento:confirmar-agendamento",
     }
     tab_key = request.path
@@ -169,11 +175,21 @@ def navigation(request):
         "atendimento:cadastro-paciente-novo": reverse("atendimento:cadastro-paciente-novo"),
         "atendimento:cadastro-profissional": reverse("atendimento:cadastro-profissional-novo"),
         "atendimento:cadastro-profissional-novo": reverse("atendimento:cadastro-profissional-novo"),
+        "atendimento:escalas": reverse("atendimento:escalas"),
+        "atendimento:cadastro-escala": reverse("atendimento:escalas"),
+        "atendimento:paineis-chamada": reverse("atendimento:paineis-chamada"),
+        "atendimento:cadastro-painel-chamada": reverse("atendimento:paineis-chamada"),
+        "atendimento:pep-prontuario-paciente": reverse("atendimento:pep"),
+        "atendimento:novo-atendimento-agendado": reverse("atendimento:agendamentos-operacionais"),
+        "atendimento:cadastro-atendimento": reverse("atendimento:agendamentos-operacionais"),
     }
     if route_name in unified_tab_routes:
         tab_key = unified_tab_routes[route_name]
     if route_name in workflow_routes:
         tab_key = reverse("atendimento:agendar")
+        close_mode = "back"
+    if route_name == "atendimento:revisar-paciente-agendamento" and request.GET.get("recepcionar"):
+        tab_key = reverse("atendimento:agendamentos-operacionais")
         close_mode = "back"
     return_url = getattr(request, "current_return_url", "")
     if return_url:
@@ -196,6 +212,7 @@ def navigation(request):
         "current_tab_title": current_tab_title,
         "current_module_title": current_module_title,
         "current_can_query": getattr(request, "current_can_query", current_tab_title not in {"Início", "Alterar senha"}),
+        "current_can_save": getattr(request, "current_can_save", True),
         "current_can_remove": getattr(request, "current_can_remove", False),
         "current_new_url": current_new_url,
         "current_continue_url": getattr(request, "current_continue_url", ""),

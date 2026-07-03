@@ -1,18 +1,18 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <section class="schedule-page">
-    <aside class="card calendar-card">
+  <section class="card schedule-page schedule-filter-panel">
+    <aside class="calendar-card">
       <div class="calendar-header">
-        <a class="button button-secondary" href="?data={{ calendario.previous|date:'Y-m-d' }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}">‹</a>
+        <a class="button button-secondary" href="?data={{ data }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">‹</a>
         <strong>{{ calendario.month|date:"F/Y" }}</strong>
-        <a class="button button-secondary" href="?data={{ calendario.next|date:'Y-m-d' }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}">›</a>
+        <a class="button button-secondary" href="?data={{ data }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">›</a>
       </div>
       <div class="calendar-grid">
         {% for label in calendario.weekdays %}<span class="calendar-weekday">{{ label }}</span>{% endfor %}
         {% for week in calendario.weeks %}
           {% for day in week %}
-            <a class="calendar-day{% if not day.in_month %} muted{% endif %}{% if day.selected %} selected{% endif %}{% if day.holiday %} holiday{% endif %}{% if day.has_schedule %} has-schedule{% endif %}{% if day.today %} today{% endif %}"
-               href="?data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}">
+            <a class="calendar-day{% if not day.in_month %} muted{% endif %}{% if day.selected %} selected{% endif %}{% if day.holiday %} holiday{% endif %}{% if day.has_schedule %} has-schedule{% endif %}{% if day.has_appointment %} has-appointment{% endif %}{% if day.today %} today{% endif %}"
+               href="?data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">
               {{ day.day }}
             </a>
           {% endfor %}
@@ -22,29 +22,41 @@
         <span><i class="legend-selected"></i>Selecionada</span>
         <span><i class="legend-holiday"></i>Feriado</span>
         <span><i class="legend-schedule"></i>Agenda gerada</span>
+        <span><i class="legend-appointment"></i>Com agendamento</span>
       </div>
     </aside>
 
-    <form class="card schedule-filters" method="get" autocomplete="off">
-      <label class="provider-checkbox"><input type="checkbox" name="intervalo" value="1" {% if selecionar_intervalo %}checked{% endif %}><span>Selecionar intervalo de datas</span></label>
-      <label>Data inicial <input type="date" name="data" value="{{ data }}"></label>
-      <label>Data final <input type="date" name="data_fim" value="{{ data_fim }}" {% if not selecionar_intervalo %}disabled{% endif %}></label>
-      <details class="multi-filter" open>
-        <summary>Especialidades</summary>
-        <label class="provider-checkbox"><input type="checkbox" name="todas_especialidades" value="1" {% if todos %}checked{% endif %}><span>Todas</span></label>
-        <div class="multi-filter-options">
-          {% for item in especialidades %}
-            <label class="provider-checkbox">
-              <input type="checkbox" name="especialidades" value="{{ item.codigo }}" {% if item.codigo in especialidades_selecionadas %}checked{% endif %}>
-              <span>{{ item.descricao }}</span>
+    <form id="appointment-filter-form" class="schedule-filters" method="get" autocomplete="off">
+      <input name="data" type="hidden" value="{{ data }}">
+      <div class="schedule-filter-field">
+        <span class="schedule-filter-label">Especialidades</span>
+        <div class="floating-multiselect" data-specialty-filter>
+          <button class="floating-multiselect-toggle" type="button" data-specialty-toggle aria-expanded="false">
+            <strong data-specialty-summary>{% if todos %}Todas{% else %}{{ especialidades_selecionadas|length }} selecionada(s){% endif %}</strong>
+          </button>
+          <div class="floating-multiselect-menu" data-specialty-menu hidden>
+            <input class="floating-multiselect-search" type="search" placeholder="Buscar especialidade" data-specialty-search>
+            <label class="provider-checkbox specialty-all">
+              <input form="appointment-filter-form" type="checkbox" name="todas_especialidades" value="1" data-specialty-all {% if todos %}checked{% endif %}>
+              <span>Todas</span>
             </label>
-          {% endfor %}
+            <div class="multi-filter-options">
+              {% for item in especialidades %}
+                <label class="provider-checkbox" data-specialty-option>
+                  <input form="appointment-filter-form" type="checkbox" name="especialidades" value="{{ item.codigo }}" data-specialty-item {% if todos or item.codigo in especialidades_selecionadas %}checked{% endif %}>
+                  <span>{{ item.descricao }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
         </div>
-      </details>
+      </div>
       <label class="field-lg">Pesquisar
-        <input name="q" value="{{ termo }}" placeholder="Paciente, prontuário, documento, CNS, mãe, prestador, horário ou especialidade">
+        <input name="q" value="{{ termo }}" placeholder="Paciente, prontuário, documento, mãe, prestador ou especialidade">
       </label>
-      <button class="button button-primary" type="submit">Consultar</button>
+      <div class="schedule-filter-actions">
+        <button class="button button-primary" type="submit">Mostrar agendamentos</button>
+      </div>
     </form>
   </section>
 
@@ -65,24 +77,93 @@
             <td>{% if item.cd_paciente.nr_cpf %}{{ item.cd_paciente.nr_cpf }}{% elif item.cd_paciente.nr_cartao_sus %}{{ item.cd_paciente.nr_cartao_sus }}{% elif item.cd_paciente.nr_rg %}{{ item.cd_paciente.nr_rg }}{% else %}-{% endif %}</td>
             <td>{{ item.cd_paciente.nm_mae|default:"-" }}</td>
             <td>{{ item.cd_paciente.cd_convenio.nm_convenio|default:"-" }}</td>
-            <td>{{ item.ds_especialidade|default:"-" }}</td>
+            <td>{{ item.nm_especialidade_exibicao|default:"-" }}</td>
             <td>{{ item.ds_profissional|default:item.cd_agenda_profissional.cd_prestador.nm_prestador|default:"-" }}</td>
             <td>{{ item.ds_tipo_atendimento|default:"-" }}</td>
             <td>{{ item.get_ds_status_display }}</td>
             <td>{% if item.atendimento %}{{ item.atendimento.get_ds_status_display }}{% else %}-{% endif %}</td>
-            <td>
+            <td class="inline-actions">
               {% if item.atendimento %}
-                <a class="button button-secondary" href="{% url 'atendimento:ficha-atendimento' item.atendimento.pk %}">Abrir atendimento</a>
-              {% else %}
-                <a class="button button-primary" href="{% url 'atendimento:recepcionar-agendamento' item.pk %}">Atender</a>
+                <a class="row-icon-action labeled primary" href="{% url 'atendimento:ficha-atendimento' item.atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}" title="Abrir atendimento">
+                  <span class="svg-icon" data-nav-icon="clipboard-plus"></span><span class="row-icon-label">Abrir atendimento</span>
+                </a>
+              {% elif item.ds_status != "CANCELADO" %}
+                <a class="row-icon-action labeled primary" href="{% url 'atendimento:recepcionar-agendamento' item.pk %}" title="Recepcionar paciente">
+                  <span class="svg-icon" data-nav-icon="clipboard-plus"></span><span class="row-icon-label">Recepcionar paciente</span>
+                </a>
               {% endif %}
-              <a class="button button-secondary" href="{% url 'atendimento:comprovante-agendamento' item.pk %}">Comprovante</a>
+              <a class="row-icon-action labeled" href="{% url 'atendimento:comprovante-agendamento' item.pk %}" title="Reimprimir comprovante">
+                <span class="svg-icon" data-nav-icon="printer"></span><span class="row-icon-label">Reimprimir comprovante</span>
+              </a>
+              {% if not item.atendimento and item.ds_status != "CANCELADO" %}
+                <form method="post" action="{% url 'atendimento:cancelar-agendamento' item.pk %}" class="inline-form" data-confirm-message="Deseja realmente cancelar este agendamento?">
+                  {% csrf_token %}
+                  <button class="row-icon-action labeled danger" type="submit" title="Cancelar agendamento">
+                    <span class="svg-icon" data-nav-icon="x"></span><span class="row-icon-label">Cancelar agendamento</span>
+                  </button>
+                </form>
+              {% endif %}
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="13">Nenhum agendamento encontrado.</td></tr>
+          <tr><td colspan="13">Nenhum agendamento encontrado para a data e os filtros informados.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const root = document.querySelector("[data-specialty-filter]");
+      if (!root) return;
+      const toggle = root.querySelector("[data-specialty-toggle]");
+      const menu = root.querySelector("[data-specialty-menu]");
+      const search = root.querySelector("[data-specialty-search]");
+      const all = root.querySelector("[data-specialty-all]");
+      const items = [...root.querySelectorAll("[data-specialty-item]")];
+      const summary = root.querySelector("[data-specialty-summary]");
+      const position = () => {
+        if (menu.hidden) return;
+        const rect = toggle.getBoundingClientRect();
+        menu.style.position = "fixed";
+        menu.style.left = `${rect.left}px`;
+        menu.style.top = `${rect.bottom + 4}px`;
+        menu.style.width = `${Math.max(rect.width, 320)}px`;
+      };
+      const update = () => {
+        const selected = items.filter((item) => item.checked).length;
+        all.checked = selected === items.length && items.length > 0;
+        summary.textContent = all.checked ? "Todas" : `${selected} selecionada(s)`;
+      };
+      toggle.addEventListener("click", () => {
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.hidden = !menu.hidden;
+        toggle.setAttribute("aria-expanded", String(!menu.hidden));
+        position();
+        if (!menu.hidden) search.focus();
+      });
+      all.addEventListener("change", () => {
+        items.forEach((item) => { item.checked = all.checked; });
+        update();
+      });
+      items.forEach((item) => item.addEventListener("change", update));
+      search.addEventListener("input", () => {
+        const term = search.value.trim().toLocaleLowerCase("pt-BR");
+        menu.querySelectorAll("[data-specialty-option]").forEach((option) => {
+          option.hidden = !option.textContent.toLocaleLowerCase("pt-BR").includes(term);
+        });
+      });
+      document.addEventListener("click", (event) => {
+        if (!root.contains(event.target) && !menu.contains(event.target)) {
+          menu.hidden = true;
+          toggle.setAttribute("aria-expanded", "false");
+        }
+      });
+      window.addEventListener("resize", position);
+      document.querySelector(".content")?.addEventListener("scroll", position);
+      update();
+    })();
+  </script>
 {% endblock %}

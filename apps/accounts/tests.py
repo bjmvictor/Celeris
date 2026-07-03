@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from apps.atendimento.models import Prestador
 from apps.core.models import Module, ScreenDefinition
+from apps.core.navigation import MODULES
 
 from .forms import UsuarioForm, UsuarioPasswordForm
 from .models import (
@@ -17,6 +18,17 @@ from .models import (
     available_username,
     generate_username,
 )
+
+
+class LoginBrandingTests(TestCase):
+    def test_login_declara_icone_e_favicon_raiz_redireciona(self):
+        response = self.client.get(reverse("login"))
+        self.assertContains(response, 'rel="icon"')
+        self.assertContains(response, "/static/img/logo.png")
+
+        favicon = self.client.get("/favicon.ico")
+        self.assertEqual(favicon.status_code, 302)
+        self.assertEqual(favicon["Location"], "/static/img/logo.png")
 
 
 class AdministrationScreenTests(TestCase):
@@ -98,6 +110,27 @@ class UsuarioCadastroTests(TestCase):
         self.assertEqual(user.cd_prestador, provider)
         self.assertTrue(user.groups.filter(pk=role.pk).exists())
         self.assertTrue(UsuarioEmpresa.objects.filter(usuario=user, empresa=self.empresa, sn_ativo=True).exists())
+
+    def test_prestador_vinculado_nao_aparece_para_outro_usuario(self):
+        vinculado = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Prestador Vinculado",
+            nm_guerra="Prestador Vinculado",
+            tp_prestador="MEDICO",
+        )
+        disponivel = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Prestador Disponível",
+            nm_guerra="Prestador Disponível",
+            tp_prestador="MEDICO",
+        )
+        usuario = User.objects.create_user(username="VINCULADO", password="senha-forte", cd_prestador=vinculado)
+        novo_form = UsuarioForm(empresa=self.empresa)
+        self.assertNotIn(vinculado, novo_form.fields["cd_prestador"].queryset)
+        self.assertIn(disponivel, novo_form.fields["cd_prestador"].queryset)
+        edicao_form = UsuarioForm(instance=usuario, empresa=self.empresa)
+        self.assertIn(vinculado, edicao_form.fields["cd_prestador"].queryset)
+        self.assertEqual(novo_form.fields["username"].widget.attrs["autocomplete"], "off")
 
     def test_cpf_de_usuario_nao_pode_ser_duplicado(self):
         User.objects.create(username="EXISTENTE", full_name="Existente", nr_cpf="529.982.247-25")
@@ -288,6 +321,40 @@ class PapelAcessoTests(TestCase):
         self.module = Module.objects.get(code="ATENDIMENTO")
         self.agendamento = ScreenDefinition.objects.get(access_key="atendimento:agendar")
         self.recepcao = ScreenDefinition.objects.get(access_key="atendimento:recepcao")
+
+    def test_catalogo_de_papeis_contem_todas_as_telas_do_menu(self):
+        def leaf_access_keys(items):
+            keys = set()
+            for item in items:
+                if item["children"]:
+                    keys.update(leaf_access_keys(item["children"]))
+                else:
+                    keys.add(item["access_key"])
+            return keys
+
+        navigation_keys = set()
+        for module in MODULES:
+            navigation_keys.update(leaf_access_keys(module["items"]))
+        catalog_keys = set(
+            ScreenDefinition.objects.filter(active=True, module__active=True)
+            .exclude(access_key__isnull=True)
+            .values_list("access_key", flat=True)
+        )
+        self.assertTrue(navigation_keys.issubset(catalog_keys), navigation_keys - catalog_keys)
+
+        response = self.client.get(reverse("perfil_novo"))
+        for title in (
+            "Editor de documentos",
+            "Perfis assistenciais",
+            "PEP",
+            "Demanda espontânea",
+            "Empresas",
+            "Setores",
+            "Setores de Atendimento",
+            "Painel de Chamada",
+            "Cópia de usuário",
+        ):
+            self.assertContains(response, title)
 
     def test_criar_consultar_e_editar_papel(self):
         response = self.client.post(
@@ -544,3 +611,9 @@ class ConsultaCadastroNavigationTests(TestCase):
         response = self.client.get(reverse("session_status"))
         self.assertEqual(response.status_code, 401)
         self.assertFalse(response.json()["authenticated"])
+
+    def test_status_sessao_prolonga_expiracao_durante_edicao_de_documento(self):
+        response = self.client.get(reverse("session_status"), {"editando_documento": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["authenticated"])
+        self.assertGreaterEqual(self.client.session.get_expiry_age(), 86390)

@@ -1,0 +1,34 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card patient-summary patient-summary-detailed">
+    <div class="patient-summary-name">
+      <small>Prontuário {{ paciente.pk }}</small>
+      <strong>{{ paciente.nm_paciente }}</strong>
+    </div>
+    <dl>
+      <div><dt>Tela</dt><dd>{{ item.nm_item }}</dd></div>
+      <div><dt>Atendimento atual</dt><dd>{{ atendimento.pk }}</dd></div>
+    </dl>
+  </section>
+  <section class="card table-card">
+    <h2>Histórico longitudinal</h2>
+    <table>
+      <thead><tr><th>Documento</th><th>Tipo</th><th>Atendimento</th><th>Status</th><th>Responsável</th><th>Data</th><th>Ação</th></tr></thead>
+      <tbody>
+        {% for documento in documentos %}
+          <tr>
+            <td>{{ documento.ds_titulo }}</td>
+            <td>{{ documento.tp_documento }}</td>
+            <td>{{ documento.cd_atendimento_id }}</td>
+            <td>{{ documento.get_ds_status_display }}</td>
+            <td>{{ documento.cd_usuario_responsavel|default:"-" }}</td>
+            <td>{{ documento.dh_emissao|date:"d/m/Y H:i" }}</td>
+            <td><a class="button button-secondary" href="{% url 'atendimento:imprimir-documento-clinico' documento.pk %}">Visualizar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">Nenhum documento encontrado para esta configuração.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

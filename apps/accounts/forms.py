@@ -113,14 +113,25 @@ class UsuarioForm(UserCreationForm):
         self.fields["invalid_login_attempts"].disabled = True
         self.fields["password_expires_at"].disabled = True
         self.fields["cd_prestador"].queryset = (
-            Prestador.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_prestador")
+            Prestador.objects.filter(cd_empresa=empresa, sn_ativo=True)
+            .filter(
+                Q(usuarios__isnull=True)
+                | Q(pk=getattr(instance, "cd_prestador_id", None))
+            )
+            .distinct()
+            .order_by("nm_prestador")
             if empresa
             else Prestador.objects.none()
         )
         self.fields["ds_idioma"].widget = forms.Select(choices=self._choices_for("idioma"))
         self.fields["ds_profissao"].widget = forms.Select(choices=self._choices_for("profissao"))
         self.fields["full_name"].widget.attrs.update({"data-user-full-name": "true", "required": "required"})
-        self.fields["username"].widget.attrs["data-user-login"] = "true"
+        self.fields["username"].widget.attrs.update({
+            "data-user-login": "true",
+            "autocomplete": "off",
+            "data-lpignore": "true",
+            "data-1p-ignore": "true",
+        })
         self.fields["cd_prestador"].widget.attrs["data-user-provider"] = "true"
         self.fields["grupos"].widget.attrs["data-assignment-values"] = "true"
         self.fields["empresas"].widget.attrs["data-assignment-values"] = "true"

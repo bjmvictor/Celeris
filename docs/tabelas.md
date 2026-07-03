@@ -10,7 +10,9 @@
 | `cep` | Global > CEPs | `cd_cep` | número imutável do CEP, UF, cidade, tipo/logradouro, bairro e status | paciente; prestador residencial; prestador comercial |
 | `tipo_prestador_conselho` | Global > Tabelas | `id` | tipo de prestador, conselho, ativo | tipo de prestador lógico |
 | `convenio` | Atendimento > Tabelas > Convênios | `cd_convenio` | nome, ativo | empresa |
-| `agenda_profissional` | Atendimento > Tabelas > Escalas | `cd_agenda_profissional` | profissional, descrição, dia, início, fim, duração, intervalo, ativo | empresa, prestador |
+| `agenda_profissional` | Atendimento > Agendamento > Escalas | `cd_agenda_profissional` | tipo, prestador, especialidade, setor, dias, horários, capacidade, encaixes, feriado e ativo | empresa, prestador, setor e convênios |
+| `agenda_gerada` | Atendimento > Agendamento > Geração de agendas | `cd_agenda_gerada` | escala, período, status e observação | empresa, escala |
+| `horario_agenda` | gerado pela agenda | `cd_horario_agenda` | início, fim, status e motivo de cancelamento | empresa, agenda gerada, escala e prestador |
 | `agendamento` | Fluxo de agendamento | `cd_agendamento` | horário, tipo, especialidade, profissional, observação, confirmação, status | empresa, paciente, agenda |
 | `pre_atendimento` | Fila > Pré-atendimento | `cd_pre_atendimento` | prioridade, queixa, sinais vitais, antropometria, observação | empresa, paciente, agendamento |
 | `atendimento` | Atendimento | `cd_atendimento` | prestador, anamnese, conduta, status | empresa, paciente, agendamento, pré-atendimento |
@@ -86,3 +88,24 @@ Para CEP, use `grupo` no formato `UF|CODIGO_CIDADE`, permitindo preencher Estado
 | `documento_clinico` | Ficha de atendimento > Documentos | `cd_documento_clinico` | título, conteúdo, status e referência de cópia | empresa, atendimento, modelo, documento origem, emissor |
 
 Estados de `documento_clinico`: `RASCUNHO`, `FINALIZADO`, `ASSINADO` e `CANCELADO`. Impressões de rascunho e cancelado exibem marca d'água visual. Cópias sempre geram novo rascunho e mantêm vínculo com `cd_documento_origem`.
+
+### Agenda e editor visual
+
+- `agenda_profissional` define a regra recorrente da escala; `agenda_gerada` define o período materializado e `horario_agenda` registra cada vaga.
+- `pasta_documento` organiza pastas do Celeris e da empresa, incluindo cabeçalhos e rodapés protegidos.
+- `modelo_documento` mantém projetos separados para tela e impressão, elementos reutilizáveis e versões cronológicas.
+# Estruturas assistenciais configuráveis
+
+| Tabela | Finalidade | Relacionamentos principais |
+| --- | --- | --- |
+| `prestador_tipo` | Tipos ativos e tipo principal do prestador | empresa, prestador |
+| `perfil_assistencial_tipo` | Vincula exclusivamente um tipo a um perfil | empresa, perfil |
+| `perfil_assistencial_versao` | Rascunhos e publicações imutáveis do perfil | perfil, usuário publicador |
+| `item_menu_assistencial` | Menus, documentos, ações, links, escalas e anexos | perfil, versão, item pai, modelo |
+| `rascunho_editor_documento` | Estado técnico temporário do editor | empresa, usuário, modelo, guia |
+| `evento_documento_clinico` | Trilha imutável do ciclo do documento | documento, usuário |
+| `escala_clinica` | Perguntas, pesos e faixas versionadas | empresa |
+| `resultado_escala_clinica` | Respostas e resultado no prontuário | atendimento, escala, documento |
+| `anexo_clinico` | Arquivos privados com checksum | atendimento, item, documento |
+| `acesso_clinico_auditado` | Visualizações, downloads e acessos excepcionais | usuário, documento, anexo |
+| `dominio_externo_permitido` | Allowlist HTTPS por empresa | empresa |

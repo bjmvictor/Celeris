@@ -1,0 +1,48 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card patient-summary patient-summary-detailed">
+    <div class="patient-summary-name">
+      <small>Paciente</small>
+      <strong>{{ paciente.nm_paciente }}</strong>
+      {% if paciente.nm_social %}<span>Nome social: {{ paciente.nm_social }}</span>{% endif %}
+    </div>
+    <dl>
+      <div><dt>Prontuário</dt><dd>{{ paciente.pk }}</dd></div>
+      <div><dt>Nascimento</dt><dd>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"Não informado" }}{% if idade %} · {{ idade }} anos{% endif %}</dd></div>
+      <div><dt>Sexo</dt><dd>{{ paciente.tp_sexo|default:"Não informado" }}</dd></div>
+      <div><dt>Nome da mãe</dt><dd>{{ paciente.nm_mae|default:"Não informado" }}</dd></div>
+      <div><dt>CPF</dt><dd>{{ paciente.nr_cpf|default:"Não informado" }}</dd></div>
+      <div><dt>Convênio</dt><dd>{{ paciente.cd_convenio.nm_convenio|default:paciente.nm_convenio|default:"Não informado" }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <div class="section-heading">
+      <div>
+        <small>Horário selecionado</small>
+        <h2>{{ horario.dh_inicio|date:"d/m/Y H:i" }}</h2>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div><small>Prestador</small><strong>{{ agenda.cd_prestador.nm_prestador }}</strong></div>
+      <div><small>Especialidade</small><strong>{{ agenda.nm_especialidade }}</strong></div>
+      <div><small>Escala</small><strong>{{ agenda.ds_agenda }}</strong></div>
+      <div><small>Setor</small><strong>{{ agenda.cd_setor_atendimento|default:"Não informado" }}</strong></div>
+    </div>
+  </section>
+
+  <form class="card compact-form appointment-confirm" method="post" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    <h2>Confirmar agendamento</h2>
+    <label>Plano <input name="ds_plano" placeholder="Plano"></label>
+    <label>Tipo de atendimento <input name="ds_tipo_atendimento" value="{{ agenda.ds_tipo_agendamento }}" placeholder="Consulta, retorno, exame..."></label>
+    <label class="provider-checkbox"><input name="sn_particular" type="checkbox" value="1"><span>Particular</span></label>
+    <label class="provider-checkbox"><input name="sn_encaixe" type="checkbox" value="1"><span>Encaixe</span></label>
+    <label class="field-xl">Observação <input name="ds_observacao" placeholder="Observação"></label>
+    <div class="form-actions">
+      <button class="button button-primary" type="submit">Confirmar e imprimir comprovante</button>
+    </div>
+  </form>
+{% endblock %}

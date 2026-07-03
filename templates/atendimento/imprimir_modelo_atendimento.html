@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ modelo.nm_modelo }} — Atendimento {{ atendimento.pk }}</title>
+    {% if apresentacao.css %}<style>{{ apresentacao.css }}</style>{% endif %}
+    <style>
+      @page { size: A4; margin: 4mm; }
+      body { margin: 0; color: #111; background: #fff; font: 12px Arial, sans-serif; }
+      .print-actions { padding: 8px; }
+      .document-print-table { width: 100%; min-height: 289mm; border-collapse: collapse; table-layout: fixed; }
+      .document-print-table td { padding: 0; vertical-align: top; }
+      .document-print-table thead { display: table-header-group; }
+      .document-print-table tfoot { display: table-footer-group; }
+      @media print { .print-actions { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="print-actions"><button type="button" onclick="window.print()">Imprimir</button></div>
+    <table class="document-print-table">
+      <thead><tr><td>{{ apresentacao.cabecalho }}</td></tr></thead>
+      <tbody><tr><td class="document-content">{{ apresentacao.conteudo }}</td></tr></tbody>
+      <tfoot><tr><td>{{ apresentacao.rodape }}</td></tr></tfoot>
+    </table>
+  </body>
+</html>

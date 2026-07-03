@@ -6,6 +6,7 @@
     data-table="paciente"
     data-patient-id="{{ paciente.cd_paciente|default:'' }}"
     data-query-url="{{ request.path }}"
+    {% if agendamento_recepcao %}data-disable-state-persistence data-confirmation-review="true"{% endif %}
     data-patient-query-template="{% if fluxo_agendamento %}/atendimento/agendamento/pacientes/__ID__/{% else %}/atendimento/pacientes/cadastro/__ID__/{% endif %}"
     data-requires-change-reason="{% if paciente %}true{% else %}false{% endif %}"
     method="post"

@@ -123,6 +123,8 @@ Abrir tabela vazia
 
 ```text
 Agendar paciente
+  -> cadastrar e ativar escala recorrente do prestador
+  -> gerar agenda para um intervalo sem conflito
   -> revisar/cadastrar paciente
   -> selecionar agenda com calendário mensal
   -> filtrar por data, intervalo, especialidades e pesquisa
@@ -144,3 +146,9 @@ PEP
   -> imprimir com marca d'água se rascunho/cancelado
   -> copiar documento criando novo rascunho
 ```
+
+O calendário marca uma data somente quando existe agenda ativa cujo dia da semana e intervalo de vigência incluem a data. A seleção de especialidades aceita busca, seleção total ou combinação parcial.
+
+Os modelos são editados visualmente em versões separadas para tela e impressão. Cabeçalhos e rodapés podem ser reutilizados por vários documentos; cada salvamento preserva a versão anterior e registra a alteração.
+
+A biblioteca documental mantém a pasta selecionada como destino, protege itens do sistema e permite criar pasta, documento ou campo. O formulário visual em tela grava os dados estruturados do prontuário e esses valores alimentam as variáveis `campo.*` do relatório de impressão.

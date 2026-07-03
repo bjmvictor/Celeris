@@ -171,7 +171,7 @@ class GlobalIntegrationTests(TestCase):
 class FrontendInteractionContractTests(SimpleTestCase):
     def test_dropdown_possui_um_unico_handler_de_abertura_por_mouse(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
-        self.assertEqual(javascript.count('document.addEventListener("mousedown", function (event) {'), 1)
+        self.assertEqual(javascript.count('document.addEventListener("pointerdown", function (event) {'), 1)
         click_handler = javascript.split('document.addEventListener("click", function (event) {\n    const select = event.target.closest(".content select")', 1)[1].split("});", 1)[0]
         self.assertNotIn("openFloatingSelect(select)", click_handler)
 

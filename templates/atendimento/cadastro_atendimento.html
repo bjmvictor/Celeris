@@ -1,0 +1,190 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form
+    class="provider-form attendance-registration-form"
+    data-table="atendimento"
+    data-patient-address='{"cd_cep":"{{ paciente.cd_cep_id|default:"" }}","sg_estado":"{{ paciente.sg_estado|escapejs }}","ds_cidade":"{{ paciente.ds_cidade|escapejs }}","tp_logradouro":"{{ paciente.tp_logradouro|escapejs }}","ds_endereco":"{{ paciente.ds_endereco|escapejs }}","nr_endereco":"{{ paciente.nr_endereco|escapejs }}","ds_complemento":"{{ paciente.ds_complemento|escapejs }}","ds_bairro":"{{ paciente.ds_bairro|escapejs }}"}'
+    method="post"
+    autocomplete="off"
+  >
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    {{ form.non_field_errors }}
+    {{ responsavel_form.non_field_errors }}
+    {% if form.errors or responsavel_form.errors %}
+      <div class="form-error-summary" role="alert">
+        <strong>Revise os campos destacados antes de salvar.</strong>
+        {% for field in form %}{% for error in field.errors %}<span>{{ field.label }}: {{ error }}</span>{% endfor %}{% endfor %}
+        {% for field in responsavel_form %}{% for error in field.errors %}<span>{{ field.label }}: {{ error }}</span>{% endfor %}{% endfor %}
+      </div>
+    {% endif %}
+
+    {% if agendamento %}
+      <section class="card appointment-origin-summary attendance-document-strip">
+        <strong>Agendamento {{ agendamento.pk }}</strong>
+        <span>{{ agendamento.dh_agendamento|date:"d/m/Y H:i" }}</span>
+        <span>{{ agendamento.ds_profissional|default:agendamento.cd_agenda_profissional.cd_prestador.nm_prestador }}</span>
+        <span>{{ agendamento.ds_especialidade|default:"Especialidade não informada" }}</span>
+        {% if atendimento %}
+          <button class="button button-secondary" type="button" data-attendance-documents-open><span class="svg-icon" data-nav-icon="printer"></span> Imprimir</button>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    <details class="card form-section" open>
+      <summary>1. Atendimento</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código {{ form.cd_atendimento }}</label>
+        <label class="field-sm">Prontuário {{ form.cd_paciente_exibicao }}</label>
+        <label class="field-xl">Paciente {{ form.nm_paciente_exibicao }}</label>
+        <label class="field-sm">Data e hora {{ form.dh_atendimento_exibicao }}</label>
+        <label class="field-xl">Médico/Prestador {{ form.cd_prestador }}</label>
+        <label class="field-md">Origem {{ form.ds_origem }}</label>
+        <label class="field-md">Recepção de origem {{ form.ds_recepcao_origem }}</label>
+        <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
+        <label class="field-md">Plano {{ form.ds_plano }}</label>
+        <label class="field-md">Subplano {{ form.ds_subplano }}</label>
+        <label class="field-md">Tipo de atendimento {{ form.ds_tipo_atendimento }}</label>
+        <label class="field-md">Local de procedência {{ form.ds_local_procedencia }}</label>
+        <label class="field-md">Destino {{ form.ds_destino }}</label>
+        <label class="field-lg">Especialidade {{ form.ds_especialidade }}</label>
+        <label class="field-sm">CID {{ form.ds_cid }}</label>
+        <label class="field-md">Meio de transporte {{ form.ds_meio_transporte }}</label>
+        <label class="field-lg">Procedimento {{ form.ds_procedimento_principal }}</label>
+        <label class="field-sm">CBO do prestador {{ form.ds_cbo_prestador }}</label>
+        <label class="field-sm">Senha de chamada {{ form.nr_senha_chamada }}</label>
+        <label class="field-xl">Observação do atendimento {{ form.ds_observacao_recepcao }}</label>
+        <label class="provider-checkbox field-sm">{{ form.sn_visita }} <span>Visita</span></label>
+        <label class="provider-checkbox field-sm">{{ form.sn_retorno }} <span>Retorno</span></label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>2. Responsável</summary>
+      <div class="form-grid">
+        <label class="field-md">Parentesco {{ responsavel_form.ds_parentesco }}</label>
+        <label class="field-xl">Nome do responsável {{ responsavel_form.nm_responsavel }}</label>
+        <label class="field-md">Estado civil {{ responsavel_form.tp_estado_civil }}</label>
+        <label class="field-md">Identidade {{ responsavel_form.nr_identidade }}</label>
+        <label class="field-md">Órgão emissor {{ responsavel_form.ds_orgao_emissor }}</label>
+        <label class="field-sm">Data de expedição {{ responsavel_form.dt_expedicao }}</label>
+        <label class="field-md">CPF {{ responsavel_form.nr_cpf }}</label>
+        <label class="field-lg">Profissão {{ responsavel_form.ds_profissao }}</label>
+        <label class="field-md">Nacionalidade {{ responsavel_form.ds_nacionalidade }}</label>
+        <label class="field-md">Celular {{ responsavel_form.nr_celular }}</label>
+        <label class="provider-checkbox field-lg">{{ responsavel_form.sn_mesmo_endereco_paciente }} <span>Utilizar o mesmo endereço do paciente</span></label>
+        <label class="field-md">CEP {{ responsavel_form.cd_cep }}</label>
+        <label class="field-sm">UF {{ responsavel_form.sg_estado }}</label>
+        <label class="field-md">Cidade {{ responsavel_form.ds_cidade }}</label>
+        <label class="field-md">Tipo de logradouro {{ responsavel_form.tp_logradouro }}</label>
+        <label class="field-xl">Logradouro {{ responsavel_form.ds_endereco }}</label>
+        <label class="field-sm">Número {{ responsavel_form.nr_endereco }}</label>
+        <label class="field-md">Complemento {{ responsavel_form.ds_complemento }}</label>
+        <label class="field-md">Bairro {{ responsavel_form.ds_bairro }}</label>
+      </div>
+    </details>
+
+    {% if atendimento %}
+      <details class="card form-section">
+        <summary>3. Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ atendimento.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ atendimento.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ atendimento.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ atendimento.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
+    {% endif %}
+  </form>
+
+  {% if atendimento %}
+    <section class="document-move-modal attendance-documents-modal" data-attendance-documents-modal hidden>
+      <div class="card">
+        <header class="section-heading">
+          <div><h2>Documentos do atendimento</h2><small>Selecione o documento que deseja imprimir.</small></div>
+          <button class="toolbar-button" type="button" data-attendance-documents-close title="Fechar">×</button>
+        </header>
+        <div class="attendance-document-list">
+          <button class="button button-secondary" type="button" data-attendance-document-preview-url="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}">
+            <span class="svg-icon" data-nav-icon="file-text"></span> Ficha padrão do sistema
+          </button>
+          {% for modelo in modelos_documentos_atendimento %}
+            <button class="button button-secondary" type="button" data-attendance-document-preview-url="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}?modelo={{ modelo.pk }}">
+              <span class="svg-icon" data-nav-icon="{% if modelo.tp_documento == 'ETIQUETA_ATENDIMENTO' %}table{% else %}file-text{% endif %}"></span> {{ modelo.nm_modelo }}
+            </button>
+          {% empty %}
+            <span class="empty-state">Nenhum modelo adicional configurado no Editor de documentos.</span>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    <section class="document-preview-modal appointment-receipt-modal" data-attendance-print-preview hidden>
+      <div class="document-preview-backdrop" data-attendance-print-close></div>
+      <div class="document-preview-card">
+        <header>
+          <div><strong>Pré-visualização do documento</strong><small>Atendimento {{ atendimento.pk }}</small></div>
+          <button class="toolbar-button" type="button" data-attendance-print-close title="Fechar">×</button>
+        </header>
+        <div class="document-preview-body">
+          <iframe class="appointment-receipt-frame" data-attendance-print-frame title="Documento do atendimento"></iframe>
+        </div>
+        <footer>
+          <button class="button button-secondary" type="button" data-attendance-print-close>Fechar</button>
+          <button class="button button-primary" type="button" data-attendance-print-execute><span class="svg-icon" data-nav-icon="printer"></span> Imprimir</button>
+        </footer>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const form = document.querySelector(".attendance-registration-form");
+      const checkbox = form?.querySelector("[data-responsible-same-address]");
+      if (!form || !checkbox) return;
+      let address = {};
+      try { address = JSON.parse(form.dataset.patientAddress || "{}"); } catch {}
+      const copyAddress = () => {
+        if (!checkbox.checked) return;
+        Object.entries(address).forEach(([name, value]) => {
+          const field = form.elements[`responsavel-${name}`];
+          if (!field) return;
+          if (field instanceof HTMLSelectElement && value && ![...field.options].some((option) => option.value === String(value))) {
+            field.add(new Option(value, value));
+          }
+          field.value = value || "";
+          field.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      };
+      checkbox.addEventListener("change", copyAddress);
+      copyAddress();
+      const documentsModal = document.querySelector("[data-attendance-documents-modal]");
+      document.querySelector("[data-attendance-documents-open]")?.addEventListener("click", () => {
+        documentsModal.hidden = false;
+      });
+      document.querySelectorAll("[data-attendance-documents-close]").forEach((button) => {
+        button.addEventListener("click", () => { documentsModal.hidden = true; });
+      });
+      const printPreview = document.querySelector("[data-attendance-print-preview]");
+      const printFrame = printPreview?.querySelector("[data-attendance-print-frame]");
+      document.querySelectorAll("[data-attendance-document-preview-url]").forEach((button) => {
+        button.addEventListener("click", () => {
+          printFrame.src = button.dataset.attendanceDocumentPreviewUrl;
+          documentsModal.hidden = true;
+          printPreview.hidden = false;
+        });
+      });
+      printPreview?.querySelectorAll("[data-attendance-print-close]").forEach((button) => {
+        button.addEventListener("click", () => {
+          printPreview.hidden = true;
+          printFrame.removeAttribute("src");
+        });
+      });
+      printPreview?.querySelector("[data-attendance-print-execute]")?.addEventListener("click", () => {
+        printFrame.contentWindow?.print();
+      });
+    })();
+  </script>
+{% endblock %}

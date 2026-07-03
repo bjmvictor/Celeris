@@ -120,6 +120,13 @@ class User(AbstractUser):
 
     class Meta:
         db_table = "usuario"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_prestador",),
+                condition=models.Q(cd_prestador__isnull=False),
+                name="usuario_prestador_unico",
+            ),
+        ]
 
     def clean(self):
         super().clean()

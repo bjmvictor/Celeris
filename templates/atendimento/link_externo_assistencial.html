@@ -1,0 +1,19 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="external-clinical-screen">
+    <header class="card section-heading">
+      <div>
+        <h2>{{ item.nm_item }}</h2>
+        <small>Atendimento {{ atendimento.pk }} · conteúdo externo autorizado</small>
+      </div>
+      <a class="button button-secondary" href="{{ url_externa }}" target="_blank" rel="noopener noreferrer">Abrir em nova guia</a>
+    </header>
+    <iframe
+      class="external-clinical-frame"
+      src="{{ url_externa }}"
+      title="{{ item.nm_item }}"
+      sandbox="allow-forms allow-scripts allow-same-origin allow-downloads"
+      referrerpolicy="no-referrer"
+    ></iframe>
+  </section>
+{% endblock %}

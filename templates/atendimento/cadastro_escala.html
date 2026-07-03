@@ -1,0 +1,216 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form
+    id="scale-form"
+    class="provider-form scale-form"
+    data-table="agenda_profissional"
+    data-query-url="{{ request.path }}"
+    data-has-errors="{{ form.errors|yesno:'true,false' }}"
+    method="post"
+    autocomplete="off"
+  >
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% if form.errors %}
+      <div class="form-error-summary" role="alert">
+        <strong>Revise os campos destacados antes de salvar.</strong>
+        {% for field in form %}
+          {% for error in field.errors %}<span>{{ field.label }}: {{ error }}</span>{% endfor %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <details class="card form-section" open>
+      <summary>1. Identificação da escala</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código {{ form.cd_agenda_profissional }}</label>
+        <label class="field-sm">Ativa/Inativa {{ form.sn_ativo }}</label>
+        <label class="field-lg">Nome da escala * {{ form.ds_agenda }}</label>
+        <label class="field-md">Tipo de escala * {{ form.tp_escala }}</label>
+        <label class="field-xl">Prestador * {{ form.cd_prestador }}</label>
+        <label class="field-lg">Especialidade * {{ form.ds_especialidade }}</label>
+        <label class="field-xl">Setor de atendimento * {{ form.cd_setor_atendimento }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>2. Dias e horários</summary>
+      <div class="form-grid">
+        <label class="field-md">Tipo de horário * {{ form.tp_horario }}</label>
+        <div class="field-xl scale-weekdays" data-scale-weekdays>
+          <span>Dias da semana *</span>
+          <button class="floating-multiselect-toggle" type="button" data-scale-weekdays-toggle>
+            <strong data-scale-weekdays-summary></strong>
+          </button>
+          <div class="floating-multiselect-menu scale-weekdays-menu" data-scale-weekdays-menu hidden>
+            {% for value, label in dias_semana %}
+              <label class="provider-checkbox">
+                <input
+                  type="checkbox"
+                  name="ds_dias_semana"
+                  form="scale-form"
+                  value="{{ value }}"
+                  data-scale-weekday
+                  data-field-table="agenda_profissional"
+                  data-field-name="ds_dias_semana"
+                  data-consultable="true"
+                  data-editable="true"
+                  {% if value in dias_selecionados %}checked{% endif %}
+                >
+                <span>{{ label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+          {{ form.ds_dias_semana.errors }}
+        </div>
+        <label class="field-sm">Hora inicial * {{ form.hr_inicio }}</label>
+        <label class="field-sm">Hora final * {{ form.hr_fim }}</label>
+        <label class="field-sm">Duração (minutos) * {{ form.nr_tempo_atendimento }}</label>
+        <label class="field-sm">Intervalo (minutos) {{ form.nr_intervalo }}</label>
+        <label class="field-sm">Quantidade de horários * {{ form.qt_horarios_dia }}</label>
+        <label class="field-sm">Quantidade de encaixes {{ form.qt_encaixes }}</label>
+        <label class="field-md provider-checkbox">{{ form.sn_atende_feriado }} <span>Atende em feriados</span></label>
+        <div class="field-fluid scale-preview-action">
+          <button class="button button-primary" type="button" data-scale-auto-adjust>Ajustar escala automaticamente</button>
+          <button class="button button-secondary" type="button" data-scale-preview-button>Visualizar horários da escala</button>
+        </div>
+        <section class="field-fluid scale-preview" data-scale-preview-panel hidden>
+          <div>
+            <strong>Prévia diária</strong>
+            <span data-scale-preview-description></span>
+          </div>
+          <div class="agenda-slot-grid" data-scale-preview-slots></div>
+        </section>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>3. Aplicabilidade</summary>
+      <div class="form-grid">
+        <label class="field-lg">Tipo de agendamento {{ form.ds_tipo_agendamento }}</label>
+        <div class="field-fluid specialty-manager" data-assignment-manager data-assignment-empty="Todos os convênios são aceitos.">
+          <span>Convênios aceitos</span>
+          <div class="specialty-toolbar">
+            <div class="specialty-chips" data-assignment-chips></div>
+            <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar convênio</button>
+            <div class="specialty-add-row" data-assignment-add-row hidden>
+              <select data-assignment-picker><option value="">Selecionar convênio...</option></select>
+              <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
+            </div>
+          </div>
+          <div class="specialty-storage" hidden>{{ form.convenios }}</div>
+          {{ form.convenios.errors }}
+        </div>
+      </div>
+    </details>
+
+    {% if escala %}
+      <details class="card form-section">
+        <summary>4. Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ escala.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ escala.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ escala.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ escala.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
+    {% endif %}
+  </form>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const root = document.querySelector("[data-scale-weekdays]");
+      const toggle = root?.querySelector("[data-scale-weekdays-toggle]");
+      const menu = root?.querySelector("[data-scale-weekdays-menu]");
+      const days = [...(root?.querySelectorAll("[data-scale-weekday]") || [])];
+      const summary = root?.querySelector("[data-scale-weekdays-summary]");
+      const positionMenu = () => {
+        if (!toggle || !menu || menu.hidden) return;
+        const rect = toggle.getBoundingClientRect();
+        menu.style.position = "fixed";
+        menu.style.left = `${rect.left}px`;
+        menu.style.top = `${rect.bottom + 4}px`;
+        menu.style.width = `${Math.max(rect.width, 280)}px`;
+      };
+      const updateDays = () => {
+        const selected = days.filter((day) => day.checked).map((day) => day.nextElementSibling.textContent.trim());
+        summary.textContent = selected.length === 7 ? "Todos os dias" : (selected.join(", ") || "Selecione...");
+      };
+      toggle?.addEventListener("click", () => {
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.hidden = !menu.hidden;
+        positionMenu();
+      });
+      days.forEach((day) => day.addEventListener("change", updateDays));
+      document.addEventListener("click", (event) => {
+        if (root && !root.contains(event.target) && !menu.contains(event.target)) menu.hidden = true;
+      });
+      window.addEventListener("resize", positionMenu);
+      document.querySelector(".content")?.addEventListener("scroll", positionMenu);
+      updateDays();
+
+      const form = document.querySelector(".scale-form");
+      const previewButton = form?.querySelector("[data-scale-preview-button]");
+      const autoAdjustButton = form?.querySelector("[data-scale-auto-adjust]");
+      const previewPanel = form?.querySelector("[data-scale-preview-panel]");
+      const previewSlots = form?.querySelector("[data-scale-preview-slots]");
+      const previewDescription = form?.querySelector("[data-scale-preview-description]");
+      const minutes = (value) => {
+        if (!value?.includes(":")) return null;
+        const [hour, minute] = value.split(":").map(Number);
+        return hour * 60 + minute;
+      };
+      const format = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+      autoAdjustButton?.addEventListener("click", () => {
+        const start = minutes(form.elements.hr_inicio.value);
+        const end = minutes(form.elements.hr_fim.value);
+        const interval = Number(form.elements.nr_intervalo.value || 0);
+        const quantity = Number(form.elements.qt_horarios_dia.value || 0);
+        const available = start === null || end === null ? 0 : end - start - interval * Math.max(quantity - 1, 0);
+        const duration = quantity > 0 ? Math.floor(available / quantity) : 0;
+        if (start === null || end === null || end <= start || quantity <= 0 || interval < 0 || duration < 1) {
+          previewDescription.textContent = "Não foi possível ajustar. Revise início, fim, intervalo e quantidade.";
+          previewPanel.hidden = false;
+          return;
+        }
+        form.elements.nr_tempo_atendimento.value = duration;
+        form.elements.nr_tempo_atendimento.dispatchEvent(new Event("input", { bubbles: true }));
+        const used = duration * quantity + interval * Math.max(quantity - 1, 0);
+        previewDescription.textContent = `Duração ajustada para ${duration} minuto(s). Sobra final: ${end - start - used} minuto(s).`;
+        previewButton.click();
+      });
+      previewButton?.addEventListener("click", () => {
+        const start = minutes(form.elements.hr_inicio.value);
+        const end = minutes(form.elements.hr_fim.value);
+        const duration = Number(form.elements.nr_tempo_atendimento.value || 0);
+        const interval = Number(form.elements.nr_intervalo.value || 0);
+        const quantity = Number(form.elements.qt_horarios_dia.value || 0);
+        const selectedDays = days.filter((day) => day.checked).map((day) => day.nextElementSibling.textContent.trim());
+        previewSlots.replaceChildren();
+        if (start === null || end === null || end <= start || duration <= 0 || quantity <= 0 || !selectedDays.length) {
+          previewDescription.textContent = "Preencha dias, início, fim, duração e quantidade para visualizar.";
+          previewPanel.hidden = false;
+          return;
+        }
+        let current = start;
+        const generated = [];
+        while (current + duration <= end && generated.length < quantity) {
+          generated.push(current);
+          current += duration + interval;
+        }
+        const occupiedUntil = generated.length ? generated[generated.length - 1] + duration : start;
+        previewDescription.textContent = `${generated.length} horário(s) em ${selectedDays.join(", ")}. Folga final: ${Math.max(end - occupiedUntil, 0)} minuto(s).`;
+        generated.forEach((slot) => {
+          const element = document.createElement("div");
+          element.className = "agenda-slot";
+          element.innerHTML = `<strong>${format(slot)}</strong><span>até ${format(slot + duration)}</span>`;
+          previewSlots.appendChild(element);
+        });
+        previewPanel.hidden = false;
+      });
+    })();
+  </script>
+{% endblock %}

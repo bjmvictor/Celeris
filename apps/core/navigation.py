@@ -15,9 +15,18 @@ MODULES = [
         "title": "Atendimento",
         "icon": "clipboard-plus",
         "items": [
-            item("Agendar", "atendimento:agendar", roles=["TI", "Recepcionista"]),
-            item("Agendamentos", "atendimento:agendamentos-operacionais", roles=["TI", "Recepcionista"]),
-            item("Modelos de documentos", "atendimento:modelos-documento", roles=["TI"]),
+            item(
+                "Agendamento",
+                children=[
+                    item("Agendar", "atendimento:agendar", roles=["TI", "Recepcionista"]),
+                    item("Agendamentos", "atendimento:agendamentos-operacionais", roles=["TI", "Recepcionista"]),
+                    item("Escalas", "atendimento:escalas", roles=["TI"]),
+                    item("Geração de agendas", "atendimento:gerar-agenda", roles=["TI", "Recepcionista"]),
+                ],
+                roles=["TI", "Recepcionista"],
+            ),
+            item("Editor de documentos", "atendimento:modelos-documento", roles=["TI"]),
+            item("Perfis assistenciais", "atendimento:perfis-assistenciais", roles=["TI"]),
             item("Recepção", "atendimento:recepcao", roles=["TI", "Recepcionista"]),
             item("Atendimentos", "atendimento:atendimentos", roles=["TI", "Recepcionista", "Enfermeiro", "Médico"]),
             item("PEP", "atendimento:pep", roles=["TI", "Enfermeiro", "Médico"]),
@@ -85,7 +94,7 @@ MODULES = [
         "icon": "wrench",
         "items": [
             item("Usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
-            item("Cópia de usuário", "copia_usuario", roles=["TI"], access_key="usuarios"),
+            item("Cópia de usuário", "copia_usuario", roles=["TI"]),
             item("Papéis", "perfis", roles=["TI"]),
             item("Permissões", "permissoes", roles=["TI"]),
         ],

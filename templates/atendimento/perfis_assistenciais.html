@@ -1,0 +1,589 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <div class="profile-config-layout">
+    <aside class="card profile-config-list">
+      <header class="section-heading">
+        <h2>Perfis</h2>
+      </header>
+      <form class="compact-filter-form" method="get">
+        <input type="hidden" name="consultar" value="1">
+        <input name="nm_perfil" value="{{ request.GET.nm_perfil }}" placeholder="Nome do perfil">
+        <button class="icon-button" type="submit" title="Consultar perfil" aria-label="Consultar perfil">
+          <span class="svg-icon" data-nav-icon="search"></span>
+        </button>
+      </form>
+      <div class="profile-config-scroll">
+        {% for item in perfis %}
+          <a class="profile-config-link{% if perfil.pk == item.pk %} active{% endif %}" href="?perfil={{ item.pk }}" data-profile-list-item data-profile-id="{{ item.pk }}" data-profile-name="{{ item.nm_perfil }}">
+            <strong>{{ item.nm_perfil }}</strong>
+            <small>{{ item.sn_sigiloso|yesno:"Sigiloso,Compartilhado" }}</small>
+          </a>
+        {% empty %}
+          <p class="empty-state">Nenhum perfil encontrado.</p>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <main class="profile-config-main">
+      <form class="card profile-main-form" method="post" data-primary-form data-query-url="{% url 'atendimento:perfis-assistenciais' %}" data-table="perfil_assistencial">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="salvar_perfil">
+        <input type="hidden" name="perfil" value="{{ perfil.pk|default:'' }}">
+        <header class="section-heading">
+          <div>
+            <h2>Configuração do perfil</h2>
+            {% if versao_atual %}
+              <small>Versão {{ versao_atual.nr_versao }} · {{ versao_atual.get_ds_status_display }}</small>
+            {% endif %}
+          </div>
+        </header>
+        <div class="form-grid">
+          <label class="field-lg">Nome
+            <input name="nm_perfil" value="{{ perfil.nm_perfil|default:'' }}" required data-consultable="true" data-editable="true">
+          </label>
+          <label class="field-xl">Descrição
+            <input name="ds_descricao" value="{{ perfil.ds_descricao|default:'' }}" data-consultable="true" data-editable="true">
+          </label>
+          <label class="field-fluid">Descrição obrigatória da versão
+            <input name="ds_descricao_versao" value="" required data-consultable="true" data-editable="true" placeholder="Descreva as alterações que serão salvas nesta versão">
+            {% if versao_atual.ds_descricao_versao %}<small>Versão anterior: {{ versao_atual.ds_descricao_versao }}</small>{% endif %}
+          </label>
+          <div class="field-fluid specialty-manager" data-assignment-manager data-assignment-empty="Nenhum tipo de prestador vinculado.">
+            <strong>Tipos de prestador</strong>
+            <div class="specialty-toolbar">
+              <div class="specialty-chips" data-assignment-chips></div>
+              <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar tipo</button>
+              <div class="specialty-add-row" data-assignment-add-row hidden>
+                <select data-assignment-picker>
+                  <option value="">Selecione...</option>
+                </select>
+                <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
+              </div>
+            </div>
+            <div class="specialty-storage" hidden>
+              <select name="tipos_prestador" multiple data-assignment-values data-consultable="true" data-editable="true">
+                {% for tipo in tipos_prestador %}
+                  <option value="{{ tipo.cd_valor }}" {% if tipo.cd_valor in tipos_selecionados %}selected{% endif %}>{{ tipo.ds_valor }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <label class="provider-checkbox">
+            <input name="sn_sigiloso" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if perfil.sn_sigiloso %}checked{% endif %}>
+            <span>Perfil sigiloso</span>
+          </label>
+          <label class="provider-checkbox">
+            <input name="sn_ativo" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if not perfil or perfil.sn_ativo %}checked{% endif %}>
+            <span>Ativo</span>
+          </label>
+        </div>
+      </form>
+
+      {% if perfil %}
+        <section class="card profile-tree-card">
+          <header class="section-heading">
+            <div class="profile-tree-title" data-profile-tree-toggle>
+              <h2>Estrutura do PEP</h2>
+              <small>Menus e telas da versão em edição.</small>
+            </div>
+            <div class="profile-tree-heading-actions">
+              <button class="icon-button" type="button" data-profile-tree-toggle title="Exibir ou ocultar estrutura">
+                <span class="svg-icon" data-nav-icon="eye"></span>
+              </button>
+              <button class="button button-secondary" type="button" data-profile-item-open>
+                <span class="svg-icon" data-nav-icon="plus"></span> Adicionar
+              </button>
+            </div>
+          </header>
+          <div class="profile-tree" data-profile-tree data-profile-tree-url="{% url 'atendimento:perfil-assistencial-itens-api' perfil.pk %}">
+            {% for item in itens_versao %}
+              <article class="profile-tree-item" style="--profile-depth:{{ item.nivel_arvore|default:0 }}" draggable="true" data-profile-item="{{ item.pk }}" data-parent="{{ item.cd_item_pai_id|default:'' }}">
+                <span class="profile-tree-handle">⋮⋮</span>
+                <span class="svg-icon" data-nav-icon="{{ item.ds_icone|default:'file-text' }}"></span>
+                <div>
+                  <strong>{{ item.nm_item }}</strong>
+                  <small>{{ item.cd_item_tecnico }} · {{ item.get_tp_item_display }}</small>
+                </div>
+                <div class="profile-tree-badges">
+                  {% if item.sn_privado %}<span>Privado</span>{% endif %}
+                  {% if item.sn_somente_historico %}<span>Histórico</span>{% endif %}
+                  {% if not item.sn_imprimivel %}<span>Sem impressão</span>{% endif %}
+                </div>
+                <button class="icon-button" type="button" data-profile-item-settings title="Configurar item">
+                  <span class="svg-icon" data-nav-icon="wrench"></span>
+                </button>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="acao" value="remover_item">
+                  <input type="hidden" name="perfil" value="{{ perfil.pk }}">
+                  <input type="hidden" name="item" value="{{ item.pk }}">
+                  <button class="icon-button" type="submit" title="Remover do rascunho">
+                    <span class="svg-icon" data-nav-icon="trash"></span>
+                  </button>
+                </form>
+              </article>
+            {% empty %}
+              <p class="empty-state">Nenhum item configurado nesta versão.</p>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section class="document-move-modal profile-item-modal" data-profile-item-modal hidden>
+        <form class="card profile-item-form" method="post" data-profile-item-builder>
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="adicionar_item">
+          <input type="hidden" name="perfil" value="{{ perfil.pk }}">
+          <input type="hidden" name="item" value="" data-profile-edit-item>
+          <input type="hidden" name="tp_item" value="GRUPO" data-profile-item-type>
+          <header class="section-heading">
+            <div>
+              <h2 data-profile-item-modal-title>Adicionar à estrutura do PEP</h2>
+              <small>Crie menus, submenus e telas com configurações específicas.</small>
+            </div>
+            <button class="icon-button" type="button" data-profile-item-close aria-label="Fechar">×</button>
+          </header>
+          <div class="form-grid">
+            <label class="field-md">Elemento
+              <select data-profile-node-kind>
+                <option value="MENU">Menu</option>
+                <option value="SUBMENU">Submenu</option>
+                <option value="TELA">Tela</option>
+              </select>
+            </label>
+            <label class="field-lg">Nome <input name="nm_item" required></label>
+            <label class="field-md">Chave técnica <input name="cd_item_tecnico" placeholder="ATENDER_ADMISSAO"></label>
+            <label class="field-sm">Ordem <input name="nr_ordem" type="number" value="0"></label>
+            <label class="field-md">Ícone
+              <select name="ds_icone" data-profile-icon-select data-native-select>
+                {% for value,label in icones_assistenciais %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="field-lg" data-profile-parent-field hidden>Dentro de
+              <select name="cd_item_pai">
+                <option value="">Sem grupo</option>
+                {% for item in itens_versao %}
+                  {% if item.tp_item == "GRUPO" %}<option value="{{ item.pk }}">{{ item.nm_item }}</option>{% endif %}
+                {% endfor %}
+              </select>
+            </label>
+            <label class="field-lg" data-profile-screen-type hidden>Tipo da tela
+              <select data-profile-screen-type-select>
+                {% for value,label in tipos_item %}
+                  {% if value != "GRUPO" %}<option value="{{ value }}">{{ label }}</option>{% endif %}
+                {% endfor %}
+              </select>
+            </label>
+            <label class="field-lg" data-profile-type="ACAO" hidden>Ação
+              <select name="ds_acao">
+                <option value=""></option>
+                {% for value,label in acoes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="field-xl" data-profile-type="DOCUMENTO" hidden>Modelo de documento
+              <select name="cd_modelo_documento">
+                <option value=""></option>
+                {% for modelo in modelos_documento %}<option value="{{ modelo.pk }}">{{ modelo.nm_modelo }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="field-xl" data-profile-type="ESCALA" hidden>Escala existente
+              <select name="cd_escala_clinica">
+                <option value="">Criar uma nova escala abaixo</option>
+                {% for escala in escalas_clinicas %}<option value="{{ escala.pk }}">{{ escala.nm_escala }} · v{{ escala.nr_versao }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="field-xl" data-profile-type="LINK_EXTERNO" hidden>URL externa
+              <input name="ds_url" placeholder="https://sistema/atendimento/<<atendimento.codigo>>">
+            </label>
+            <section class="profile-scale-builder field-fluid" data-profile-type="ESCALA" hidden>
+              <input type="hidden" name="ds_perguntas_escala" data-scale-questions-json>
+              <input type="hidden" name="ds_faixas_escala" data-scale-ranges-json>
+              <header class="section-heading">
+                <div><strong>Nova escala clínica</strong><small>Use uma escala existente acima ou configure uma nova versão.</small></div>
+              </header>
+              <div class="form-grid">
+                <label class="field-lg">Nome da escala <input name="nm_nova_escala" placeholder="Escala de Braden"></label>
+                <label class="field-xl">Descrição <input name="ds_descricao_nova_escala"></label>
+                <label class="field-md">Cálculo padrão
+                  <select name="tp_calculo_nova_escala"><option value="SOMA">Soma</option><option value="MEDIA">Média</option></select>
+                </label>
+                <label class="field-fluid">Expressão personalizada
+                  <input name="ds_expressao_nova_escala" data-scale-expression placeholder="{% verbatim %}{{pergunta_1}} + {{pergunta_2}}{% endverbatim %}">
+                </label>
+                <div class="field-fluid scale-expression-tokens" data-scale-expression-tokens></div>
+              </div>
+              <div class="scale-builder-heading">
+                <strong>Perguntas e opções</strong>
+                <button class="button button-secondary" type="button" data-scale-add-question><span class="svg-icon" data-nav-icon="plus"></span> Pergunta</button>
+              </div>
+              <div class="scale-question-list" data-scale-question-list></div>
+              <div class="scale-builder-heading">
+                <strong>Faixas de resultado</strong>
+                <button class="button button-secondary" type="button" data-scale-add-range><span class="svg-icon" data-nav-icon="plus"></span> Faixa</button>
+              </div>
+              <div class="scale-range-list" data-scale-range-list></div>
+            </section>
+            <div class="field-fluid profile-screen-permissions" data-profile-screen-options hidden>
+              <label class="provider-checkbox"><input name="sn_privado" type="checkbox"><span>Privado</span></label>
+              <label class="provider-checkbox"><input name="sn_imprimivel" type="checkbox" checked><span>Imprimível</span></label>
+              <label class="provider-checkbox"><input name="sn_permite_criar" type="checkbox" checked><span>Permite criar novo</span></label>
+              <label class="provider-checkbox"><input name="sn_permite_abandonar" type="checkbox" checked><span>Permite excluir rascunho</span></label>
+              <label class="provider-checkbox"><input name="sn_permite_cancelar" type="checkbox"><span>Permite cancelar fechado</span></label>
+              <label class="provider-checkbox"><input name="sn_somente_historico" type="checkbox"><span>Somente histórico</span></label>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="button button-primary" type="submit">
+              <span class="svg-icon" data-nav-icon="plus"></span> Adicionar
+            </button>
+          </div>
+        </form>
+        </section>
+
+        {% if versao_atual.ds_status == "RASCUNHO" %}
+          <form class="card profile-publish-form" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="publicar_perfil">
+            <input type="hidden" name="perfil" value="{{ perfil.pk }}">
+            <input type="hidden" name="ds_descricao_versao" value="{{ versao_atual.ds_descricao_versao }}">
+            <button class="button button-primary" type="submit">Publicar versão {{ versao_atual.nr_versao }}</button>
+          </form>
+        {% endif %}
+      {% endif %}
+
+      <details class="card form-section">
+        <summary>Domínios externos permitidos</summary>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="salvar_dominio">
+          {% if perfil %}<input type="hidden" name="perfil" value="{{ perfil.pk }}">{% endif %}
+          <div class="form-grid">
+            <label class="field-xl">Domínio HTTPS <input name="ds_dominio" required placeholder="sistema.exemplo.com.br"></label>
+            <label class="provider-checkbox"><input name="sn_permite_iframe" type="checkbox"><span>Permitir dentro do PEP</span></label>
+          </div>
+          <div class="form-actions"><button class="button button-primary" type="submit">Autorizar domínio</button></div>
+        </form>
+        <div class="tag-list">
+          {% for dominio in dominios_externos %}
+            <span class="specialty-chip">{{ dominio.ds_dominio }}{% if dominio.sn_permite_iframe %} · iframe{% endif %}</span>
+          {% empty %}<span class="empty-state">Nenhum domínio autorizado.</span>{% endfor %}
+        </div>
+      </details>
+    </main>
+  </div>
+  <div class="document-context-menu" data-profile-context-menu hidden>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="copiar_perfil">
+      <input type="hidden" name="perfil" data-profile-context-id>
+      <button type="submit"><span class="svg-icon" data-nav-icon="file-text"></span> Copiar perfil</button>
+    </form>
+  </div>
+{% endblock %}
+{% block extra_scripts %}
+  <script>
+    {% verbatim %}
+    (() => {
+      const builder = document.querySelector("[data-profile-item-builder]");
+      let openProfileItemModal = () => {};
+      if (builder) {
+        const modal = document.querySelector("[data-profile-item-modal]");
+        const modalTitle = builder.querySelector("[data-profile-item-modal-title]");
+        const editItem = builder.querySelector("[data-profile-edit-item]");
+        const nodeKind = builder.querySelector("[data-profile-node-kind]");
+        const itemType = builder.querySelector("[data-profile-item-type]");
+        const screenTypeField = builder.querySelector("[data-profile-screen-type]");
+        const screenType = builder.querySelector("[data-profile-screen-type-select]");
+        const parentField = builder.querySelector("[data-profile-parent-field]");
+        const screenOptions = builder.querySelector("[data-profile-screen-options]");
+        const scaleSelect = builder.querySelector('[name="cd_escala_clinica"]');
+        const scaleBuilder = builder.querySelector(".profile-scale-builder");
+        const questionsList = builder.querySelector("[data-scale-question-list]");
+        const rangesList = builder.querySelector("[data-scale-range-list]");
+        const expression = builder.querySelector("[data-scale-expression]");
+        const tokens = builder.querySelector("[data-scale-expression-tokens]");
+        const questionsJson = builder.querySelector("[data-scale-questions-json]");
+        const rangesJson = builder.querySelector("[data-scale-ranges-json]");
+        const slug = (value) => String(value || "")
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
+        const setSectionVisible = (section, visible) => {
+          if (!section) return;
+          section.hidden = !visible;
+          section.querySelectorAll("input, select, textarea, button").forEach((field) => {
+            if (!field.matches("[data-scale-add-question], [data-scale-add-range]")) field.disabled = !visible;
+          });
+        };
+        const updateTokens = () => {
+          if (!tokens) return;
+          tokens.innerHTML = "";
+          questionsList.querySelectorAll("[data-scale-question]").forEach((question, index) => {
+            const keyInput = question.querySelector("[data-question-key]");
+            const key = slug(keyInput.value) || `pergunta_${index + 1}`;
+            keyInput.value = key;
+            const token = `{{${key}}}`;
+            const button = document.createElement("button");
+            button.className = "button button-ghost";
+            button.type = "button";
+            button.draggable = true;
+            button.textContent = token;
+            button.addEventListener("click", () => {
+              const start = expression.selectionStart ?? expression.value.length;
+              expression.setRangeText(token, start, expression.selectionEnd ?? start, "end");
+              expression.focus();
+            });
+            button.addEventListener("dragstart", (event) => {
+              event.dataTransfer.setData("text/plain", token);
+              event.dataTransfer.effectAllowed = "copy";
+            });
+            tokens.appendChild(button);
+          });
+        };
+        const addOption = (question, data = {}) => {
+          const list = question.querySelector("[data-question-options]");
+          const option = document.createElement("div");
+          option.className = "scale-option-row";
+          option.dataset.scaleOption = "true";
+          option.innerHTML = `
+            <input data-option-value placeholder="Valor" value="${data.valor || ""}">
+            <input data-option-description placeholder="Descrição exibida" value="${data.descricao || ""}">
+            <input data-option-points type="number" step="0.01" placeholder="Pontos" value="${data.pontos ?? ""}">
+            <button class="icon-button" type="button" data-remove-option title="Remover opção">×</button>`;
+          list.appendChild(option);
+        };
+        const addQuestion = (data = {}) => {
+          const index = questionsList.querySelectorAll("[data-scale-question]").length + 1;
+          const question = document.createElement("article");
+          question.className = "scale-question-card";
+          question.dataset.scaleQuestion = "true";
+          question.innerHTML = `
+            <header>
+              <strong>Pergunta ${index}</strong>
+              <button class="icon-button" type="button" data-remove-question title="Remover pergunta">×</button>
+            </header>
+            <div class="form-grid">
+              <label class="field-md">Chave <input data-question-key value="${data.chave || `pergunta_${index}`}"></label>
+              <label class="field-xl">Pergunta <input data-question-text value="${data.texto || ""}" placeholder="Texto apresentado ao prestador"></label>
+            </div>
+            <div class="scale-option-list" data-question-options></div>
+            <button class="button button-secondary" type="button" data-add-option><span class="svg-icon" data-nav-icon="plus"></span> Opção</button>`;
+          questionsList.appendChild(question);
+          (data.opcoes?.length ? data.opcoes : [{}]).forEach((option) => addOption(question, option));
+          updateTokens();
+        };
+        const addRange = (data = {}) => {
+          const range = document.createElement("div");
+          range.className = "scale-range-row";
+          range.dataset.scaleRange = "true";
+          range.innerHTML = `
+            <select data-range-operator>
+              <option value="INTERVALO">Intervalo</option><option value=">=">Maior ou igual</option>
+              <option value=">">Maior</option><option value="<=">Menor ou igual</option>
+              <option value="<">Menor</option><option value="=">Igual</option>
+            </select>
+            <input data-range-value type="number" step="0.01" placeholder="Valor inicial" value="${data.valor ?? data.min ?? ""}">
+            <input data-range-final type="number" step="0.01" placeholder="Valor final" value="${data.valor_final ?? data.max ?? ""}">
+            <input data-range-description placeholder="Texto exibido" value="${data.descricao || ""}">
+            <span class="color-hex-control"><input data-range-color type="color" value="${data.cor || "#22c55e"}"><input data-range-color-hex value="${data.cor || "#22c55e"}" maxlength="7"></span>
+            <label class="provider-checkbox"><input data-range-bold type="checkbox" ${data.negrito ? "checked" : ""}><span>Negrito</span></label>
+            <button class="icon-button" type="button" data-remove-range title="Remover faixa">×</button>`;
+          range.querySelector("[data-range-operator]").value = data.operador || "INTERVALO";
+          rangesList.appendChild(range);
+          const syncRange = () => {
+            range.querySelector("[data-range-final]").hidden = range.querySelector("[data-range-operator]").value !== "INTERVALO";
+          };
+          range.querySelector("[data-range-operator]").addEventListener("change", syncRange);
+          const color = range.querySelector("[data-range-color]");
+          const hex = range.querySelector("[data-range-color-hex]");
+          color.addEventListener("input", () => { hex.value = color.value.toUpperCase(); });
+          hex.addEventListener("input", () => {
+            if (/^#[0-9a-f]{6}$/i.test(hex.value)) color.value = hex.value;
+          });
+          syncRange();
+        };
+        const syncBuilder = () => {
+          const isScreen = nodeKind.value === "TELA";
+          setSectionVisible(parentField, nodeKind.value !== "MENU");
+          setSectionVisible(screenTypeField, isScreen);
+          setSectionVisible(screenOptions, isScreen);
+          itemType.value = isScreen ? screenType.value : "GRUPO";
+          builder.querySelectorAll("[data-profile-type]").forEach((section) => {
+            setSectionVisible(section, isScreen && section.dataset.profileType === itemType.value);
+          });
+          if (scaleBuilder && itemType.value === "ESCALA") {
+            setSectionVisible(scaleBuilder, !scaleSelect.value);
+          }
+        };
+        const resetScaleBuilder = () => {
+          questionsList.innerHTML = "";
+          rangesList.innerHTML = "";
+          addQuestion();
+          addRange();
+        };
+        const setField = (name, value) => {
+          const field = builder.elements[name];
+          if (!field) return;
+          if (field.type === "checkbox") field.checked = Boolean(value);
+          else field.value = value ?? "";
+        };
+        openProfileItemModal = async (itemId = "") => {
+          builder.reset();
+          editItem.value = itemId;
+          nodeKind.value = "MENU";
+          screenType.selectedIndex = 0;
+          resetScaleBuilder();
+          modalTitle.textContent = itemId ? "Configurar item da estrutura" : "Adicionar à estrutura do PEP";
+          if (itemId) {
+            const response = await fetch(document.querySelector("[data-profile-tree]").dataset.profileTreeUrl, {
+              credentials: "same-origin",
+              headers: {Accept: "application/json"},
+            });
+            const data = await response.json();
+            const item = data.items?.find((value) => String(value.id) === String(itemId));
+            if (!item) return;
+            nodeKind.value = item.type === "GRUPO" ? (item.parent_id ? "SUBMENU" : "MENU") : "TELA";
+            screenType.value = item.type === "GRUPO" ? screenType.options[0].value : item.type;
+            setField("nm_item", item.name);
+            setField("cd_item_tecnico", item.technical_key);
+            setField("nr_ordem", item.order);
+            setField("ds_icone", item.icon || "file-text");
+            setField("cd_item_pai", item.parent_id || "");
+            setField("ds_acao", item.action);
+            setField("ds_url", item.url);
+            setField("cd_modelo_documento", item.document_model_id || "");
+            setField("cd_escala_clinica", item.configuration?.escala || "");
+            setField("sn_privado", item.private);
+            setField("sn_imprimivel", item.printable);
+            setField("sn_permite_criar", item.can_create);
+            setField("sn_permite_abandonar", item.can_abandon);
+            setField("sn_permite_cancelar", item.can_cancel);
+            setField("sn_somente_historico", item.history_only);
+          }
+          syncBuilder();
+          modal.hidden = false;
+          builder.querySelector('[name="nm_item"]')?.focus();
+        };
+        nodeKind.addEventListener("change", syncBuilder);
+        screenType.addEventListener("change", syncBuilder);
+        scaleSelect?.addEventListener("change", syncBuilder);
+        builder.querySelector("[data-scale-add-question]")?.addEventListener("click", () => addQuestion());
+        builder.querySelector("[data-scale-add-range]")?.addEventListener("click", () => addRange());
+        questionsList?.addEventListener("click", (event) => {
+          const question = event.target.closest("[data-scale-question]");
+          if (event.target.closest("[data-add-option]")) addOption(question);
+          if (event.target.closest("[data-remove-option]")) event.target.closest("[data-scale-option]").remove();
+          if (event.target.closest("[data-remove-question]")) {
+            question.remove();
+            updateTokens();
+          }
+        });
+        questionsList?.addEventListener("input", updateTokens);
+        rangesList?.addEventListener("click", (event) => {
+          if (event.target.closest("[data-remove-range]")) event.target.closest("[data-scale-range]").remove();
+        });
+        expression?.addEventListener("dragover", (event) => event.preventDefault());
+        expression?.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const token = event.dataTransfer.getData("text/plain");
+          const start = expression.selectionStart ?? expression.value.length;
+          expression.setRangeText(token, start, expression.selectionEnd ?? start, "end");
+        });
+        builder.addEventListener("submit", () => {
+          questionsJson.value = JSON.stringify([...questionsList.querySelectorAll("[data-scale-question]")].map((question, index) => ({
+            chave: slug(question.querySelector("[data-question-key]").value) || `pergunta_${index + 1}`,
+            texto: question.querySelector("[data-question-text]").value.trim(),
+            opcoes: [...question.querySelectorAll("[data-scale-option]")].map((option, optionIndex) => ({
+              valor: slug(option.querySelector("[data-option-value]").value) || `opcao_${optionIndex + 1}`,
+              descricao: option.querySelector("[data-option-description]").value.trim(),
+              pontos: Number(option.querySelector("[data-option-points]").value || 0),
+            })),
+          })));
+          rangesJson.value = JSON.stringify([...rangesList.querySelectorAll("[data-scale-range]")].map((range) => ({
+            operador: range.querySelector("[data-range-operator]").value,
+            valor: Number(range.querySelector("[data-range-value]").value || 0),
+            valor_final: Number(range.querySelector("[data-range-final]").value || 0),
+            descricao: range.querySelector("[data-range-description]").value.trim(),
+            cor: range.querySelector("[data-range-color]").value,
+            negrito: range.querySelector("[data-range-bold]").checked,
+          })));
+        });
+        builder.querySelector("[data-profile-item-close]")?.addEventListener("click", () => {
+          modal.hidden = true;
+        });
+        modal?.addEventListener("click", (event) => {
+          if (event.target === modal) modal.hidden = true;
+        });
+        document.querySelector("[data-profile-item-open]")?.addEventListener("click", () => openProfileItemModal());
+        resetScaleBuilder();
+        syncBuilder();
+      }
+      const tree = document.querySelector("[data-profile-tree]");
+      const profileContextMenu = document.querySelector("[data-profile-context-menu]");
+      const profileContextId = profileContextMenu?.querySelector("[data-profile-context-id]");
+      document.querySelectorAll("[data-profile-list-item]").forEach((profileLink) => {
+        profileLink.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          profileContextId.value = profileLink.dataset.profileId;
+          profileContextMenu.hidden = false;
+          profileContextMenu.style.position = "fixed";
+          profileContextMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 180)}px`;
+          profileContextMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 60)}px`;
+        });
+      });
+      document.addEventListener("click", (event) => {
+        if (profileContextMenu && !profileContextMenu.contains(event.target)) profileContextMenu.hidden = true;
+      });
+      if (!tree) return;
+      document.querySelectorAll("[data-profile-tree-toggle]").forEach((toggle) => {
+        toggle.addEventListener("click", () => {
+          tree.hidden = !tree.hidden;
+        });
+      });
+      tree.querySelectorAll("[data-profile-item-settings]").forEach((button) => {
+        button.addEventListener("click", () => {
+          openProfileItemModal(button.closest("[data-profile-item]").dataset.profileItem);
+        });
+      });
+      let dragged = null;
+      const csrf = document.querySelector("[name='csrfmiddlewaretoken']")?.value || "";
+      const persist = () => {
+        const items = [...tree.querySelectorAll("[data-profile-item]")].map((item, index) => ({
+          id: Number(item.dataset.profileItem),
+          parent_id: item.dataset.parent ? Number(item.dataset.parent) : null,
+          order: index,
+        }));
+        fetch(tree.dataset.profileTreeUrl, {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+          body: JSON.stringify({items}),
+        });
+      };
+      tree.addEventListener("dragstart", (event) => {
+        dragged = event.target.closest("[data-profile-item]");
+        if (!dragged) return;
+        event.dataTransfer.effectAllowed = "move";
+        dragged.classList.add("dragging");
+      });
+      tree.addEventListener("dragover", (event) => {
+        const target = event.target.closest("[data-profile-item]");
+        if (
+          !dragged
+          || !target
+          || target === dragged
+          || target.dataset.parent !== dragged.dataset.parent
+        ) return;
+        event.preventDefault();
+        const rect = target.getBoundingClientRect();
+        tree.insertBefore(dragged, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+      });
+      tree.addEventListener("dragend", () => {
+        dragged?.classList.remove("dragging");
+        if (dragged) persist();
+        dragged = null;
+      });
+    })();
+    {% endverbatim %}
+  </script>
+{% endblock %}

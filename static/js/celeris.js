@@ -15,15 +15,26 @@
     wrench: '<path d="M14.7 6.3a4 4 0 0 0-5 5L3 18v3h3l6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3 2.4-2.4Z"/>',
     shirt: '<path d="M20.4 7.2 16 4a4 4 0 0 1-8 0L3.6 7.2 6 12l2-1v9h8v-9l2 1 2.4-4.8Z"/>',
     "clipboard-plus": '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14h6"/><path d="M12 11v6"/>',
+    printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+    folder: '<path d="M3 5h6l2 2h10v12H3z"/>',
+    "file-text": '<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h8"/><path d="M9 17h8"/>',
+    library: '<path d="M4 3h5v18H4z"/><path d="M10 3h5v18h-5z"/><path d="m16 4 4-1 3 17-4 1z"/>',
+    move: '<path d="M5 9 2 12l3 3"/><path d="M9 5 12 2l3 3"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
     home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
     menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
     theme: '<path d="M12 3a6 6 0 0 0 9 7.2A9 9 0 1 1 12 3Z"/>',
     bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.38.35.72.64 1 .3.28.7.42 1.1.4H21v4h-.09a1.7 1.7 0 0 0-1.51.6Z"/>',
+    filter: '<path d="M3 4h18l-7 8v6l-4 2v-8Z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     key: '<circle cx="7.5" cy="14.5" r="4.5"/><path d="m11 11 8-8"/><path d="m16 4 4 4"/><path d="m15 8 2 2"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
     eraser: '<path d="m7 21-4-4L14 6l4 4L7 21Z"/><path d="m11 10 4 4"/><path d="M7 21h14"/>',
     play: '<path d="m6 3 14 9-14 9V3Z"/>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
@@ -31,6 +42,7 @@
     "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
     "chevrons-left": '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     "corner-up-left": '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
+    "corner-up-right": '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
     "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     "chevrons-right": '<path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
@@ -322,11 +334,35 @@
   }
 
   function getPrimaryForm() {
-    return document.querySelector(".content form");
+    return document.querySelector(".content form[data-primary-form]") || document.querySelector(".content form");
+  }
+
+  const initialFormSignatures = new WeakMap();
+  function formValueSignature(form) {
+    if (!form) return "";
+    return Array.from(form.elements)
+      .filter((field) => field.name && field.name !== "csrfmiddlewaretoken" && field.type !== "password")
+      .map((field) => {
+        const value = field instanceof HTMLSelectElement && field.multiple
+          ? Array.from(field.selectedOptions).map((option) => option.value).join("\u001f")
+          : field.value;
+        const checked = field.matches?.('input[type="checkbox"], input[type="radio"]') ? field.checked : "";
+        return `${field.name}\u001e${field.type || field.tagName}\u001e${checked}\u001e${value ?? ""}`;
+      })
+      .join("\u001d");
+  }
+  document.querySelectorAll(".content form").forEach((form) => {
+    initialFormSignatures.set(form, formValueSignature(form));
+  });
+  function formHasActualChanges(form) {
+    if (!form) return false;
+    const initial = initialFormSignatures.get(form);
+    if (initial === undefined) return form.dataset.dirty === "true";
+    return formValueSignature(form) !== initial;
   }
 
   function hasDirtyForm() {
-    return getPrimaryForm()?.dataset.dirty === "true";
+    return formHasActualChanges(getPrimaryForm());
   }
 
   function markInvalidFields(form) {
@@ -482,8 +518,10 @@
     const extra = notification.querySelector("[data-blocking-extra]");
     const confirmButton = notification.querySelector("[data-blocking-confirm]");
     const cancelButton = notification.querySelector("[data-blocking-cancel]");
+    const card = notification.querySelector(".blocking-notification-card");
 
     if (store && message) addNotificationToHistory(message, type);
+    if (card) card.dataset.notificationType = type;
     titleElement.textContent = title;
     messageElement.textContent = message;
     extra.innerHTML = "";
@@ -727,7 +765,7 @@
 
   async function handleCloseAction() {
     const form = getPrimaryForm();
-    if (form?.dataset.dirty === "true") {
+    if (formHasActualChanges(form)) {
       const shouldSave = await showBlockingNotification({
         title: "Dados alterados",
         message: "Existem dados digitados. Deseja salvar antes de sair?",
@@ -754,6 +792,13 @@
   }
 
   document.addEventListener("click", async function (event) {
+    const sidebarDestination = event.target.closest(".sidebar a[href], .sidebar-flyout a[href]");
+    if (sidebarDestination && !event.defaultPrevented) {
+      shell?.classList.add("sidebar-collapsed");
+      localStorage.setItem("celeris-sidebar", "collapsed");
+      closeSidebarFlyout();
+    }
+
     const overlayLink = event.target.closest("[data-screen-overlay-link]");
     if (overlayLink) {
       event.preventDefault();
@@ -859,7 +904,7 @@
               params.set(field.name, field.value);
             }
           });
-          if (["paciente", "prestador", "usuario"].includes(form.dataset.table)) {
+          if (["paciente", "prestador", "usuario", "agenda_profissional"].includes(form.dataset.table)) {
             params.set("consultar", "1");
           } else {
             params.set("abrir", "1");
@@ -903,7 +948,7 @@
 
     const saveAction = event.target.closest('[data-action="save"]');
     if (saveAction && !saveAction.disabled) {
-      const form = document.querySelector(".content form");
+      const form = getPrimaryForm();
       if (form) {
         storeCurrentListPosition();
         await submitPrimaryForm(form);
@@ -930,7 +975,21 @@
     const continueAction = event.target.closest('[data-action="continue"]');
     if (continueAction && !continueAction.disabled) {
       const targetUrl = document.body.dataset.continueUrl;
-      if (targetUrl) window.location.href = targetUrl;
+      const form = getPrimaryForm();
+      if (targetUrl && formHasActualChanges(form)) {
+        const shouldSave = await showBlockingNotification({
+          title: "Confirmar dados",
+          message: "Existem alterações no cadastro. Deseja salvá-las antes de continuar?",
+          confirmText: "Salvar e continuar",
+          cancelText: "Cancelar",
+        });
+        if (shouldSave) {
+          sessionStorage.setItem("celeris-continue-after-save", targetUrl);
+          await submitPrimaryForm(form);
+        }
+      } else if (targetUrl) {
+        window.location.href = targetUrl;
+      }
       return;
     }
 
@@ -1111,30 +1170,58 @@
     }
   });
 
-  document.addEventListener("mousedown", function (event) {
+  document.addEventListener("pointerdown", function (event) {
     const select = event.target.closest(".content select");
-    if (!select || select.closest("[data-blocking-notification]")) return;
+    if (
+      !select
+      || select.disabled
+      || select.matches("[data-native-select]")
+      || select.closest("[data-blocking-notification]")
+    ) return;
     event.preventDefault();
-    select.focus();
-    if (activeFloatingSelect?.dataset.fieldId === select.id) return;
+    event.stopImmediatePropagation();
+    if (activeFloatingSelect?.dataset.fieldId === select.id && activeFloatingSelect.isConnected) {
+      positionFloatingSelect(activeFloatingSelect, select);
+      return;
+    }
     openFloatingSelect(select);
   });
 
   document.addEventListener("click", function (event) {
     const select = event.target.closest(".content select");
-    if (!select || select.closest("[data-blocking-notification]")) return;
+    if (!select || select.matches("[data-native-select]") || select.closest("[data-blocking-notification]")) return;
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
   });
 
-  document.addEventListener("submit", function (event) {
-    if (event.target.matches("[data-clear-tabs]")) {
+  document.addEventListener("submit", async function (event) {
+    const form = event.target;
+    if (form.dataset.confirmMessage && form.dataset.confirmed !== "true") {
+      event.preventDefault();
+      const confirmed = await showBlockingNotification({
+        title: form.dataset.confirmTitle || "Confirmar ação",
+        message: form.dataset.confirmMessage,
+        confirmText: form.dataset.confirmText || "Confirmar",
+        cancelText: "Cancelar",
+        type: "warning",
+        initialFocus: "cancel",
+      });
+      if (confirmed) {
+        form.dataset.confirmed = "true";
+        form.requestSubmit(event.submitter || undefined);
+        window.setTimeout(() => {
+          delete form.dataset.confirmed;
+        }, 0);
+      }
+      return;
+    }
+    if (form.matches("[data-clear-tabs]")) {
       localStorage.removeItem("celeris-tabs");
     }
-    if (event.target.matches(".content form") && event.target.method?.toLowerCase() !== "get") {
-      clearCurrentFormState(event.target);
+    if (form.matches(".content form") && form.method?.toLowerCase() !== "get") {
+      clearCurrentFormState(form);
     }
-    if (event.target.matches(".content form")) markInvalidFields(event.target);
+    if (form.matches(".content form")) markInvalidFields(form);
   });
 
   document.addEventListener("keydown", function (event) {
@@ -1152,6 +1239,42 @@
       window.setTimeout(() => {
         reverseEnterRequested = false;
       }, 1200);
+      return;
+    }
+
+    if (event.key === "Tab" && event.target.matches(".generated-clinical-form input, .generated-clinical-form select, .generated-clinical-form textarea")) {
+      const formGrid = event.target.closest(".generated-clinical-form");
+      const gridItems = Array.from(formGrid.children);
+      const visualFields = Array.from(formGrid.querySelectorAll("input, select, textarea"))
+        .filter((field) => field.type !== "hidden" && !field.disabled && !field.readOnly && field.offsetParent !== null)
+        .sort((left, right) => {
+          const ownerFor = (field) => {
+            let owner = field;
+            while (owner.parentElement && owner.parentElement !== formGrid) owner = owner.parentElement;
+            return owner;
+          };
+          const coordinate = (field) => {
+            const owner = ownerFor(field);
+            const style = getComputedStyle(owner);
+            const row = Number.parseInt(style.gridRowStart, 10);
+            const column = Number.parseInt(style.gridColumnStart, 10);
+            return {
+              row: Number.isFinite(row) ? row : gridItems.indexOf(owner) + 1,
+              column: Number.isFinite(column) ? column : 1,
+            };
+          };
+          const leftPosition = coordinate(left);
+          const rightPosition = coordinate(right);
+          return leftPosition.row - rightPosition.row || leftPosition.column - rightPosition.column;
+        });
+      const currentIndex = visualFields.indexOf(event.target);
+      if (currentIndex >= 0 && visualFields.length) {
+        event.preventDefault();
+        closeFloatingSelect();
+        const direction = event.shiftKey ? -1 : 1;
+        const nextIndex = (currentIndex + direction + visualFields.length) % visualFields.length;
+        focusField(visualFields[nextIndex]);
+      }
       return;
     }
 
@@ -1494,6 +1617,7 @@
   document.addEventListener("input", function (event) {
     const field = event.target.closest("input, textarea");
     if (!field) return;
+    if (!event.isTrusted && field.closest("[data-document-editor-form]")) return;
     if (!field.closest("[data-preserve-input]")) {
       normalizeInputValue(field);
     }
@@ -1516,16 +1640,18 @@
       field.value = formatCellphone(field.value);
     }
     if (isRestoringFormState) return;
+    const form = field.closest("form");
+    if (form?.method?.toLowerCase() === "get" || field.closest("[data-disable-toolbar-actions='true']")) return;
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
-    const form = field.closest("form");
     form?.setAttribute("data-dirty", "true");
     persistCurrentFormState(form);
   });
 
   document.addEventListener("change", function (event) {
     if (!event.target.closest("input, select, textarea")) return;
+    if (!event.isTrusted && event.target.closest("[data-document-editor-form]")) return;
     if (event.target.matches("[data-state-select]")) {
       loadCitiesForState(event.target.value);
     }
@@ -1594,10 +1720,11 @@
       copyResidentialAddressToCommercial(event.target.checked);
     }
     if (isRestoringFormState) return;
+    const form = event.target.closest("form");
+    if (form?.method?.toLowerCase() === "get" || event.target.closest("[data-disable-toolbar-actions='true']")) return;
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
-    const form = event.target.closest("form");
     form?.setAttribute("data-dirty", "true");
     persistCurrentFormState(form);
   });
@@ -1994,7 +2121,14 @@
       const ordering = new URL(link.href, window.location.origin).searchParams.get("ordem") || "";
       const fieldName = ordering.replace(/^-/, "");
       if (fieldName) renderIndicator(link, fieldName);
-      link.addEventListener("click", () => storeCurrentListPosition());
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const url = new URL(window.location.href);
+        url.searchParams.set("ordem", ordering);
+        url.searchParams.delete("pagina");
+        storeCurrentListPosition();
+        window.location.assign(url.toString());
+      });
     });
     document.querySelectorAll("table th[data-sort-field]").forEach((header) => {
       const fieldName = header.dataset.sortField;
@@ -2033,28 +2167,47 @@
         const handle = document.createElement("span");
         handle.className = "column-resize-handle";
         handle.dataset.columnResize = String(index);
-        handle.addEventListener("click", (event) => event.preventDefault());
-        handle.addEventListener("mousedown", (event) => {
+        handle.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        handle.addEventListener("pointerdown", (event) => {
           event.preventDefault();
           event.stopPropagation();
           const startX = event.clientX;
-          const startWidth = header.getBoundingClientRect().width;
+          const widths = headers.map((item) => item.getBoundingClientRect().width);
+          const startWidth = widths[index];
           const col = colgroup.children[index];
+          widths.forEach((width, columnIndex) => {
+            const currentCol = colgroup.children[columnIndex];
+            if (!currentCol) return;
+            currentCol.style.width = `${width}px`;
+            currentCol.style.minWidth = `${width}px`;
+          });
+          table.style.width = `${widths.reduce((total, width) => total + width, 0)}px`;
+          table.style.minWidth = table.style.width;
+          handle.setPointerCapture?.(event.pointerId);
           document.body.classList.add("column-resizing");
           const resize = (moveEvent) => {
             const nextWidth = Math.max(64, startWidth + moveEvent.clientX - startX);
             if (col) {
               col.style.width = `${nextWidth}px`;
               col.style.minWidth = `${nextWidth}px`;
+              table.style.width = `${widths.reduce((total, width, columnIndex) => (
+                total + (columnIndex === index ? nextWidth : width)
+              ), 0)}px`;
+              table.style.minWidth = table.style.width;
             }
           };
           const stop = () => {
             document.body.classList.remove("column-resizing");
-            document.removeEventListener("mousemove", resize);
-            document.removeEventListener("mouseup", stop);
+            handle.removeEventListener("pointermove", resize);
+            handle.removeEventListener("pointerup", stop);
+            handle.removeEventListener("pointercancel", stop);
           };
-          document.addEventListener("mousemove", resize);
-          document.addEventListener("mouseup", stop);
+          handle.addEventListener("pointermove", resize);
+          handle.addEventListener("pointerup", stop);
+          handle.addEventListener("pointercancel", stop);
         });
         header.appendChild(handle);
       });
@@ -2170,7 +2323,12 @@
       queryButton.hidden = document.body.dataset.canQuery !== "true";
       queryButton.disabled = document.body.dataset.canQuery !== "true";
     }
-    if (saveButton && document.querySelector(".content form[data-has-errors='true']")) saveButton.disabled = false;
+    if (saveButton && document.body.dataset.canSave !== "true") {
+      saveButton.hidden = true;
+      saveButton.disabled = true;
+    } else if (saveButton && document.querySelector(".content form[data-has-errors='true']")) {
+      saveButton.disabled = false;
+    }
     if (newButton) {
       newButton.hidden = !(document.body.dataset.newUrl || tableForm);
       newButton.disabled = !(document.body.dataset.newUrl || tableForm);
@@ -2230,15 +2388,19 @@
     const firstMessage = document.querySelector("[data-server-notification]");
     if (firstMessage) {
       const message = firstMessage.querySelector(".notification-text")?.textContent?.trim();
-      const isError = firstMessage.classList.contains("error");
+      const type = firstMessage.classList.contains("error")
+        ? "error"
+        : firstMessage.classList.contains("warning")
+          ? "warning"
+          : "info";
       if (message) {
-        persistNotification(message, isError ? "error" : "info");
+        persistNotification(message, type);
         showBlockingNotification({
-          title: isError ? "Erro" : "Notificação",
+          title: type === "error" ? "Erro" : type === "warning" ? "Alerta" : "Informação",
           message,
           confirmText: "OK",
-          type: isError ? "error" : "info",
-          focusTarget: isError ? document.querySelector('[aria-invalid="true"]') : null,
+          type,
+          focusTarget: type === "error" ? document.querySelector('[aria-invalid="true"]') : null,
         });
       }
     }
@@ -2247,9 +2409,13 @@
 
   function setupSessionMonitor() {
     if (!document.body.dataset.username) return;
+    const documentEditor = document.querySelector("[data-document-editor-form]");
     const checkSession = async () => {
       try {
-        const response = await fetch("/accounts/sessao/status/", {
+        const statusUrl = documentEditor
+          ? "/accounts/sessao/status/?editando_documento=1"
+          : "/accounts/sessao/status/";
+        const response = await fetch(statusUrl, {
           headers: { "Accept": "application/json" },
           credentials: "same-origin",
         });
@@ -2266,7 +2432,11 @@
         // Falha transitória de rede não encerra a sessão local imediatamente.
       }
     };
-    window.setInterval(checkSession, 60000);
+    checkSession();
+    window.setInterval(checkSession, documentEditor ? 30000 : 60000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) checkSession();
+    });
   }
 
   function disableBrowserAutocomplete() {
@@ -2281,7 +2451,6 @@
       const shouldPreserveNativeAutocomplete = Boolean(
         field.matches("[data-company-user]")
         || type === "password"
-        || field.name === "username"
       );
       if (!shouldPreserveNativeAutocomplete) {
         const section = form?.dataset.autocompleteSection || "celeris";
@@ -2301,15 +2470,27 @@
     const userForm = fullNameField?.closest(".user-form");
     if (!fullNameField || !loginField || !userForm || userForm.dataset.userId) return;
     let timer;
+    let requestSequence = 0;
+    loginField.value = "";
+    window.setTimeout(() => {
+      if (!fullNameField.value.trim()) loginField.value = "";
+    }, 200);
     fullNameField.addEventListener("input", () => {
-      if (document.body.classList.contains("screen-query-mode") || loginField.value) return;
+      if (document.body.classList.contains("screen-query-mode")) return;
       window.clearTimeout(timer);
+      const sequence = ++requestSequence;
       timer = window.setTimeout(async () => {
         const params = new URLSearchParams({ nome: fullNameField.value });
         const response = await fetch(`/accounts/usuarios/login-sugerido/?${params.toString()}`);
         const payload = await response.json();
+        if (sequence !== requestSequence) return;
         loginField.value = payload.login || "";
       }, 250);
+    });
+    userForm.addEventListener("celeris:reset-multiselects", () => {
+      requestSequence += 1;
+      window.clearTimeout(timer);
+      loginField.value = "";
     });
   }
 
@@ -2387,7 +2568,7 @@
   }
 
   function getCurrentFormStateKey(form = getPrimaryForm()) {
-    if (!form || !form.matches(".content form")) return "";
+    if (!form || !form.matches(".content form") || form.hasAttribute("data-disable-state-persistence")) return "";
     const key = document.body.dataset.tabKey || window.location.pathname;
     return `celeris-form-state:${key}`;
   }
@@ -2594,6 +2775,66 @@
   }
   setupActionButtons();
   scheduleSidebarAutoCollapse();
+  const continueAfterSave = sessionStorage.getItem("celeris-continue-after-save");
+  if (continueAfterSave && document.body.dataset.formErrors === "{}") {
+    sessionStorage.removeItem("celeris-continue-after-save");
+    window.location.href = continueAfterSave;
+    return;
+  }
+
+  function setupSidebarSearch() {
+    const search = document.querySelector("[data-sidebar-search]");
+    const sidebar = search?.closest(".sidebar");
+    if (!search || !sidebar) return;
+    const normalize = (value) => String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("pt-BR");
+    let searchActive = false;
+    let openStateBeforeSearch = new Map();
+    const applyFilter = () => {
+      const term = normalize(search.value.trim());
+      const groups = [...sidebar.querySelectorAll(".nav-group, .nav-subgroup")];
+      if (term && !searchActive) {
+        openStateBeforeSearch = new Map(groups.map((group) => [group, group.open]));
+        searchActive = true;
+      }
+      sidebar.querySelectorAll("a").forEach((link) => {
+        link.hidden = Boolean(term) && !normalize(link.textContent).includes(term);
+      });
+      [...sidebar.querySelectorAll(".nav-subgroup")].reverse().forEach((group) => {
+        const ownMatch = normalize(group.querySelector(":scope > summary .nav-label")?.textContent).includes(term);
+        const visibleChild = [...group.querySelectorAll(":scope > div > a, :scope > div > details")]
+          .some((item) => !item.hidden);
+        group.hidden = Boolean(term) && !ownMatch && !visibleChild;
+        if (term && !group.hidden) group.open = true;
+      });
+      sidebar.querySelectorAll(".nav-group").forEach((group) => {
+        const ownMatch = normalize(group.querySelector(":scope > summary .nav-label")?.textContent).includes(term);
+        const visibleChild = [...group.querySelectorAll(":scope > div > a, :scope > div > details")]
+          .some((item) => !item.hidden);
+        group.hidden = Boolean(term) && !ownMatch && !visibleChild;
+        if (term && !group.hidden) group.open = true;
+      });
+      if (!term && searchActive) {
+        groups.forEach((group) => {
+          group.hidden = false;
+          group.open = openStateBeforeSearch.get(group) || false;
+        });
+        sidebar.querySelectorAll("a").forEach((link) => { link.hidden = false; });
+        searchActive = false;
+        openStateBeforeSearch.clear();
+      }
+    };
+    search.addEventListener("input", applyFilter);
+    search.closest(".sidebar-search")?.addEventListener("click", () => {
+      if (!root.classList.contains("sidebar-state-collapsed") && !shell?.classList.contains("sidebar-collapsed")) return;
+      localStorage.setItem("celeris-sidebar", "expanded");
+      root.classList.remove("sidebar-state-collapsed");
+      shell?.classList.remove("sidebar-collapsed");
+      requestAnimationFrame(() => search.focus());
+    });
+  }
   if (document.body.dataset.startQuery === "true" || sessionStorage.getItem("celeris-open-query-after-save") === "true") {
     sessionStorage.removeItem("celeris-open-query-after-save");
     clearFormFields(getPrimaryForm());
@@ -2607,6 +2848,19 @@
   setupServerValidationErrors();
   setupNotifications();
   setupSessionMonitor();
+  setupSidebarSearch();
+  const printPrompt = document.querySelector("[data-print-after-save]");
+  if (printPrompt) {
+    showBlockingNotification({
+      title: "Atendimento gerado",
+      message: "Deseja imprimir a ficha de atendimento agora?",
+      confirmText: "Imprimir",
+      cancelText: "Agora não",
+      initialFocus: "cancel",
+    }).then((confirmed) => {
+      if (confirmed) window.open(printPrompt.dataset.printUrl, "_blank", "noopener");
+    });
+  }
   updateFieldStatus(null);
   focusFirstEditableField();
 })();

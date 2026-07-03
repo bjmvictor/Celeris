@@ -6,6 +6,9 @@
     <a class="button button-secondary" href="{% url 'atendimento:agendamentos-operacionais' %}?data={{ agendamento.dh_agendamento|date:'Y-m-d' }}">Voltar para agendamentos</a>
   </section>
 
+  {% if apresentacao %}
+    {% include "atendimento/_modelo_documento_administrativo.html" %}
+  {% else %}
   <article class="document-page appointment-receipt">
     <header class="document-header">
       <div>
@@ -57,4 +60,5 @@
       <span>Gerado automaticamente pelo Celeris.</span>
     </footer>
   </article>
+  {% endif %}
 {% endblock %}

@@ -1,40 +1,716 @@
 {% extends "base/layout.html" %}
+{% load static %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'vendor/grapesjs/grapes.min.css' %}">
+{% endblock %}
 
 {% block content %}
-  <section class="card">
-    <h2>{% if modelo %}Editar modelo{% else %}Novo modelo de documento{% endif %}</h2>
-    <form class="compact-form document-model-form" method="post" autocomplete="off">
-      {% csrf_token %}
-      {{ form.non_field_errors }}
-      <label>Nome {{ form.nm_modelo }}</label>
-      <label>Tipo {{ form.tp_documento }}</label>
-      <label class="provider-checkbox">{{ form.sn_ativo }}<span>Ativo</span></label>
-      <label class="span-2">Cabeçalho {{ form.ds_cabecalho }}</label>
-      <label class="span-2">Corpo {{ form.ds_corpo }}</label>
-      <label class="span-2">Rodapé {{ form.ds_rodape }}</label>
-      <label class="span-2">Variáveis automáticas {{ form.ds_variaveis }}</label>
-      <label class="span-2">Campos bloqueados {{ form.ds_campos_bloqueados }}</label>
-      <button class="button button-primary" type="submit">Salvar modelo</button>
-    </form>
+  <section class="document-studio">
+    <aside class="card document-library">
+      <div class="document-library-title">
+        <div class="document-library-view-menu">
+          <button class="document-library-toggle" type="button" data-document-library-toggle aria-expanded="false">
+            <span class="svg-icon" data-nav-icon="library"></span><span data-document-library-label>Biblioteca</span> ▾
+          </button>
+          <div class="document-library-view-options" data-document-library-view-options hidden>
+            <button type="button" data-document-side-view="library"><span class="svg-icon" data-nav-icon="library"></span> Biblioteca</button>
+            <button type="button" data-document-side-view="history" {% if not modelo %}disabled{% endif %}><span class="svg-icon" data-nav-icon="activity"></span> Histórico de versões</button>
+          </div>
+        </div>
+        <div class="document-new-menu" data-document-new-menu>
+          <button class="button button-secondary" type="button" data-document-new-toggle><span class="svg-icon" data-nav-icon="plus"></span> Novo ▾</button>
+          <div class="document-new-options" hidden data-document-new-options>
+            <button type="button" data-document-create-folder><span class="svg-icon" data-nav-icon="folder"></span> Pasta</button>
+            <a href="{% url 'atendimento:modelos-documento' %}?novo=documento{% if pasta_selecionada %}&pasta={{ pasta_selecionada.pk }}{% endif %}"><span class="svg-icon" data-nav-icon="file-text"></span> Documento</a>
+            <a href="{% url 'atendimento:modelos-documento' %}?novo=variavel{% if pasta_selecionada %}&pasta={{ pasta_selecionada.pk }}{% endif %}"><span class="svg-icon" data-nav-icon="edit"></span> Variável personalizada</a>
+            <a href="{% url 'atendimento:modelos-documento' %}?novo=bloco{% if pasta_selecionada %}&pasta={{ pasta_selecionada.pk }}{% endif %}"><span class="svg-icon" data-nav-icon="file-text"></span> Bloco reutilizável</a>
+            <a href="{% url 'atendimento:modelos-documento' %}?novo=cabecalho{% if pasta_selecionada %}&pasta={{ pasta_selecionada.pk }}{% endif %}"><span class="svg-icon" data-nav-icon="file-text"></span> Cabeçalho</a>
+            <a href="{% url 'atendimento:modelos-documento' %}?novo=rodape{% if pasta_selecionada %}&pasta={{ pasta_selecionada.pk }}{% endif %}"><span class="svg-icon" data-nav-icon="file-text"></span> Rodapé</a>
+          </div>
+        </div>
+      </div>
+      <form class="document-folder-form" method="post" data-document-folder-form hidden>
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="criar_pasta">
+        <input type="hidden" name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
+        <input name="nm_pasta" placeholder="Nome da pasta" maxlength="120" required>
+        <button class="button button-primary" type="submit"><span class="svg-icon" data-nav-icon="folder"></span> Criar</button>
+      </form>
+
+      <div class="document-library-scroll">
+        <details class="document-system-root" {% if modelo and not modelo.cd_empresa_id or pasta_selecionada and not pasta_selecionada.cd_empresa_id %}open{% endif %}>
+          <summary><span class="svg-icon" data-nav-icon="library"></span> Documentos do Celeris</summary>
+          {% for pasta in pastas_sistema %}
+            <details class="document-folder-node{% if pasta_selecionada.pk == pasta.pk %} selected{% endif %}" style="--tree-depth:{{ pasta.nivel_arvore }}" {% if pasta_selecionada.pk == pasta.pk or modelo.cd_pasta_id == pasta.pk %}open{% endif %}>
+              <summary>
+                <a href="?pasta={{ pasta.pk }}" data-library-item data-item-type="pasta" data-item-id="{{ pasta.pk }}" data-protected="true">
+                  <span class="svg-icon" data-nav-icon="folder"></span> {{ pasta.nm_pasta }}
+                </a>
+              </summary>
+              {% for item in modelos %}
+                {% if item.cd_empresa_id == None and item.cd_pasta_id == pasta.pk %}
+                  <a class="document-file document-tree-item document-tree-child{% if modelo.pk == item.pk %} selected{% endif %}" style="--tree-depth:{{ pasta.nivel_arvore }}" href="{% url 'atendimento:editar-modelo-documento' item.pk %}" data-library-item data-item-type="documento" data-element-type="{{ item.tp_elemento }}" data-item-id="{{ item.pk }}" data-item-name="{{ item.nm_modelo }}" data-protected="true">
+                    <span><span class="svg-icon" data-nav-icon="file-text"></span> {{ item.nm_modelo }}</span>
+                  </a>
+                {% endif %}
+              {% endfor %}
+            </details>
+          {% empty %}
+            <span class="document-folder"><span class="svg-icon" data-nav-icon="folder"></span> Cabeçalhos</span>
+            <span class="document-folder"><span class="svg-icon" data-nav-icon="folder"></span> Rodapés</span>
+          {% endfor %}
+        </details>
+
+        <details class="document-company-root{% if not pasta_selecionada and modelo.cd_empresa_id == empresa.pk or not pasta_selecionada and not modelo %} selected{% endif %}" {% if modelo.cd_empresa_id == empresa.pk or pasta_selecionada.cd_empresa_id == empresa.pk or not modelo %}open{% endif %}>
+          <summary><button type="button" class="document-company-root-button" data-document-company-root>Documentos da {{ empresa.nm_empresa }}</button></summary>
+          {% for pasta in pastas_empresa %}
+            <details class="document-folder-node{% if pasta_selecionada.pk == pasta.pk %} selected{% endif %}" style="--tree-depth:{{ pasta.nivel_arvore }}" {% if pasta_selecionada.pk == pasta.pk or modelo.cd_pasta_id == pasta.pk %}open{% endif %}>
+              <summary>
+                <a href="?pasta={{ pasta.pk }}" data-library-item data-item-type="pasta" data-item-id="{{ pasta.pk }}" data-item-name="{{ pasta.nm_pasta }}" data-protected="{% if pasta.sn_sistema or not pasta.sn_editavel %}true{% else %}false{% endif %}">
+                  <span class="svg-icon" data-nav-icon="folder"></span> {{ pasta.nm_pasta }}
+                </a>
+              </summary>
+              {% for item in modelos %}
+                {% if item.cd_empresa_id == empresa.pk and item.cd_pasta_id == pasta.pk %}
+                  <a class="document-file document-tree-item document-tree-child{% if modelo.pk == item.pk %} selected{% endif %}" style="--tree-depth:{{ pasta.nivel_arvore }}" href="{% url 'atendimento:editar-modelo-documento' item.pk %}" data-library-item data-item-type="documento" data-element-type="{{ item.tp_elemento }}" data-item-id="{{ item.pk }}" data-item-name="{{ item.nm_modelo }}" data-protected="{% if item.sn_sistema or not item.sn_editavel %}true{% else %}false{% endif %}">
+                    <span><span class="svg-icon" data-nav-icon="file-text"></span> {{ item.nm_modelo }} · v{{ item.nr_versao }}</span>
+                  </a>
+                {% endif %}
+              {% endfor %}
+            </details>
+          {% endfor %}
+          {% for item in modelos %}
+            {% if item.cd_empresa_id == empresa.pk and not item.cd_pasta_id %}
+              <a
+                class="document-file{% if modelo.pk == item.pk %} selected{% endif %}"
+                href="{% url 'atendimento:editar-modelo-documento' item.pk %}"
+                data-library-item data-item-type="documento" data-element-type="{{ item.tp_elemento }}" data-item-id="{{ item.pk }}"
+                data-item-name="{{ item.nm_modelo }}" data-protected="{% if item.sn_sistema or not item.sn_editavel %}true{% else %}false{% endif %}"
+              ><span class="svg-icon" data-nav-icon="file-text"></span> {{ item.nm_modelo }} <small>v{{ item.nr_versao }}</small></a>
+            {% endif %}
+          {% endfor %}
+        </details>
+      </div>
+    </aside>
+
+    <main class="card document-designer">
+      {% if not modelo and not modo_criacao %}
+        <div class="document-editor-empty">
+          <span class="svg-icon" data-nav-icon="file-text"></span>
+          <strong>Nenhum documento aberto</strong>
+          <span>Selecione um item da biblioteca ou use Novo para começar.</span>
+        </div>
+      {% endif %}
+      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
+        {% csrf_token %}
+        <input type="hidden" name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
+        <input type="hidden" name="return_to" value="">
+        <input type="hidden" name="salvar_como_empresa" value="0">
+        {{ form.non_field_errors }}
+        <div class="document-metadata">
+          <label>Nome {{ form.nm_modelo }}</label>
+          {% if elemento_editor == "DOCUMENTO" %}
+            <label>Elemento {{ form.tp_elemento }}</label>
+            <label>Tipo {{ form.tp_documento }}</label>
+            <label>Cabeçalho reutilizável {{ form.cd_cabecalho }}</label>
+            <label>Rodapé reutilizável {{ form.cd_rodape }}</label>
+            <label class="provider-checkbox"><input type="hidden" name="sn_exibe_assinatura" value="0">{{ form.sn_exibe_assinatura }}<span>Exibir assinatura do prestador</span></label>
+            <div class="document-signature-options" data-document-signature-options>
+              <label>Posição da assinatura {{ form.tp_alinhamento_assinatura }}</label>
+              <label class="provider-checkbox">{{ form.sn_exibe_conselho_assinatura }}<span>Exibir conselho na assinatura</span></label>
+            </div>
+          {% else %}
+            {{ form.tp_elemento.as_hidden }}
+            {{ form.tp_documento.as_hidden }}
+            {{ form.cd_cabecalho.as_hidden }}
+            {{ form.cd_rodape.as_hidden }}
+            {{ form.sn_exibe_assinatura.as_hidden }}
+            {{ form.tp_alinhamento_assinatura.as_hidden }}
+            {{ form.sn_exibe_conselho_assinatura.as_hidden }}
+            <label>Elemento <input value="{{ elemento_editor|title }}" readonly></label>
+          {% endif %}
+          <label class="field-xl">Descrição obrigatória da versão {{ form.ds_alteracoes_versao }} {{ form.ds_alteracoes_versao.errors }}</label>
+          <label class="provider-checkbox">{{ form.sn_ativo }}<span>Ativo</span></label>
+          {% if modelo and modelo.ds_alteracoes_versao %}
+            <p class="document-previous-version-note"><strong>Descrição da versão atual:</strong> {{ modelo.ds_alteracoes_versao }}</p>
+          {% endif %}
+        </div>
+
+        {% if elemento_editor == "VARIAVEL" %}
+          <section class="document-custom-variable card">
+            <header class="document-custom-variable-heading">
+              <h3>Regra da variável personalizada</h3>
+              <button class="icon-button document-help-button" type="button" data-custom-variable-help-open title="Ajuda sobre expressões">?</button>
+            </header>
+            <div class="form-grid">
+              <label class="field-lg">Nome técnico <input data-custom-variable-name placeholder="sexo_extenso"></label>
+              <label class="field-fluid">Expressão
+                <textarea data-custom-variable-expression rows="5" placeholder='"Feminino" if paciente.sexo == "F" else "Masculino" if paciente.sexo == "M" else "Outro"'></textarea>
+              </label>
+              <label class="field-xl">Atendimento usado no teste
+                <select data-document-test-context>
+                  {% for contexto in contextos_teste %}<option value="{{ contexto.id }}">{{ contexto.label }}</option>{% endfor %}
+                </select>
+              </label>
+              <div class="document-variable-test-action">
+                <button class="button button-secondary" type="button" data-custom-variable-test data-test-url="{% url 'atendimento:testar-variavel-documento' %}">
+                  <span class="svg-icon" data-nav-icon="play"></span> Executar expressão
+                </button>
+              </div>
+              <output class="document-variable-test-result" data-custom-variable-test-result hidden></output>
+            </div>
+            <small>Use comparações, if/else, operações matemáticas e variáveis do paciente, atendimento, prestador ou empresa. O resultado será acessado por <code>{% verbatim %}{{ variavel.nome_tecnico }}{% endverbatim %}</code>.</small>
+          </section>
+        {% endif %}
+
+        {% if elemento_editor != "VARIAVEL" %}
+        <nav class="document-view-tabs" role="tablist">
+          {% if elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
+            <button class="button button-primary active" type="button" data-editor-tab="tela"><span class="svg-icon" data-nav-icon="edit"></span> Formulário</button>
+          {% endif %}
+          {% if elemento_editor != "CAMPO" %}
+            <button class="button {% if elemento_editor == 'DOCUMENTO' or elemento_editor == 'BLOCO' %}button-secondary{% else %}button-primary active{% endif %}" type="button" data-editor-tab="impressao"><span class="svg-icon" data-nav-icon="printer"></span> Impressão</button>
+          {% endif %}
+          <span class="document-view-tabs-spacer"></span>
+          <button class="button button-secondary" type="button" data-document-preview-active><span class="svg-icon" data-nav-icon="monitor"></span> Pré-visualizar</button>
+          {% if elemento_editor == "DOCUMENTO" %}
+            <button class="button button-secondary" type="button" data-generate-print-model title="Atualizar a impressão conforme a grade"><span class="svg-icon" data-nav-icon="file-text"></span> Gerar impressão</button>
+          {% endif %}
+        </nav>
+        <p class="document-editor-help">
+          Os dados dos campos criados no formulário podem ser recuperados no layout de impressão por <code>{% verbatim %}{{ campo.nome }}{% endverbatim %}</code>.
+        </p>
+        <label class="document-test-context">Dados usados na pré-visualização
+          <select data-document-test-context>
+            {% for contexto in contextos_teste %}<option value="{{ contexto.id }}">{{ contexto.label }}</option>{% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        {% if elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
+        <div class="document-editor-pane active" data-editor-pane="tela">
+          <section class="document-form-builder" data-document-form-builder>
+            <header>
+              <div>
+                <strong>Campos preenchidos pelo prestador</strong>
+                <span>Passe o mouse sobre uma célula vazia para criar campos, linhas ou colunas.</span>
+              </div>
+            </header>
+            <div class="document-grid-toolbar">
+              <label>Colunas <input type="number" min="1" max="12" value="2" data-grid-columns></label>
+              <label>Linhas <input type="number" min="1" max="30" value="4" data-grid-rows></label>
+              <label>Tamanho da fonte <input type="number" min="7" max="72" value="14" data-grid-font-size></label>
+              <label>Tipo da fonte
+                <select data-grid-font-family>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Calibri, sans-serif">Calibri</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="'Times New Roman', serif">Times New Roman</option>
+                  <option value="monospace">Monoespaçada</option>
+                </select>
+              </label>
+            </div>
+            <div class="document-form-field-list document-position-grid" data-form-field-list></div>
+            <p class="empty-state" data-form-field-empty>Nenhum campo configurado. Adicione o primeiro campo do formulário.</p>
+          </section>
+        </div>
+        {% endif %}
+        {% if elemento_editor != "CAMPO" and elemento_editor != "VARIAVEL" %}
+          <div class="document-editor-pane{% if elemento_editor != 'DOCUMENTO' and elemento_editor != 'BLOCO' %} active{% endif %}" data-editor-pane="impressao" {% if elemento_editor == "DOCUMENTO" or elemento_editor == "BLOCO" %}hidden{% endif %}>
+            <section class="document-form-builder document-print-builder" data-document-print-builder>
+              <header>
+                <div>
+                  <strong>Layout da impressão</strong>
+                  <span>Organize campos, textos fixos, imagens, linhas e quebras diretamente na página.</span>
+                </div>
+              </header>
+              <div class="document-grid-toolbar">
+                <label>Colunas <input type="number" min="1" max="12" value="2" data-print-grid-columns></label>
+                <label>Linhas <input type="number" min="1" max="60" value="4" data-print-grid-rows></label>
+                <label>Tamanho da fonte <input type="number" min="7" max="72" value="11" data-print-grid-font-size></label>
+                <label>Tipo da fonte
+                  <select data-print-grid-font-family>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="Calibri, sans-serif">Calibri</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="monospace">Monoespaçada</option>
+                  </select>
+                </label>
+              </div>
+              <div class="document-form-field-list document-position-grid document-print-grid" data-print-element-list></div>
+            </section>
+            <div id="editor-impressao" hidden></div>
+          </div>
+        {% else %}
+          <div id="editor-impressao" hidden></div>
+        {% endif %}
+
+        <input type="hidden" name="ds_html_tela">
+        <input type="hidden" name="ds_css_tela">
+        <input type="hidden" name="ds_projeto_tela">
+        <input type="hidden" name="ds_html_impressao">
+        <input type="hidden" name="ds_css_impressao">
+        <input type="hidden" name="ds_projeto_impressao">
+        <div class="document-save-row">
+          <span>{% if modelo %}A barra de ações criará a versão {{ modelo.nr_versao|add:1 }} ao salvar.{% else %}Use Salvar na barra de ações para criar a versão 1.{% endif %}</span>
+        </div>
+      </form>
+    </main>
+
+    {% if modelo %}
+      <section class="document-history" data-document-history hidden>
+        <div class="document-history-list">
+          {% for versao in versoes %}
+            <a href="{% url 'atendimento:editar-modelo-documento' versao.pk %}" class="{% if versao.pk == modelo.pk %}selected{% endif %}">
+              <strong>v{{ versao.nr_versao }}</strong>
+              <span>{{ versao.dh_criacao|date:"d/m/Y H:i" }}</span>
+              <span>{{ versao.cd_usuario_criacao.display_name|default:versao.cd_usuario_criacao.username|default:"Usuário não identificado" }}</span>
+              <small>{{ versao.ds_alteracoes_versao|default:"Sem descrição" }}</small>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
   </section>
 
-  <section class="card table-card">
-    <h2>Modelos cadastrados</h2>
-    <table>
-      <thead><tr><th>Código</th><th>Tipo</th><th>Nome</th><th>Ativo</th><th>Ação</th></tr></thead>
-      <tbody>
-        {% for item in modelos %}
-          <tr>
-            <td>{{ item.pk }}</td>
-            <td>{{ item.get_tp_documento_display }}</td>
-            <td>{{ item.nm_modelo }}</td>
-            <td>{{ item.sn_ativo|yesno:"Sim,Não" }}</td>
-            <td><a class="button button-secondary" href="{% url 'atendimento:editar-modelo-documento' item.pk %}">Editar</a></td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5">Nenhum modelo cadastrado.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <form method="post" data-library-action-form hidden>
+    {% csrf_token %}
+    <input name="acao">
+    <input name="tipo_item">
+    <input name="item_id">
+    <input name="novo_nome">
+    <input name="destino_id">
+    <input name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
+  </form>
+  <div class="document-context-menu" data-document-context-menu hidden>
+    <button type="button" data-context-action="copiar"><span class="svg-icon" data-nav-icon="file-text"></span> Copiar para empresa</button>
+    <button type="button" data-context-action="renomear"><span class="svg-icon" data-nav-icon="edit"></span> Renomear</button>
+    <button type="button" data-context-action="mover"><span class="svg-icon" data-nav-icon="move"></span> Mover</button>
+    <button type="button" data-context-action="excluir"><span class="svg-icon" data-nav-icon="trash"></span> Excluir</button>
+  </div>
+  <div class="document-context-menu" data-grid-context-menu hidden>
+    <div class="document-context-submenu">
+      <button type="button"><span class="svg-icon" data-nav-icon="plus"></span> Adicionar <span>›</span></button>
+      <div>
+        <div class="document-context-submenu">
+          <button type="button">Linha <span>›</span></button>
+          <div>
+            <button type="button" data-grid-insert-row="before">↑ Linha acima</button>
+            <button type="button" data-grid-insert-row="after">↓ Linha abaixo</button>
+          </div>
+        </div>
+        <div class="document-context-submenu">
+          <button type="button">Coluna <span>›</span></button>
+          <div>
+            <button type="button" data-grid-insert-column="before">← Coluna à esquerda</button>
+            <button type="button" data-grid-insert-column="after">Coluna à direita →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="document-context-submenu">
+      <button type="button"><span class="svg-icon" data-nav-icon="trash"></span> Excluir <span>›</span></button>
+      <div>
+        <button type="button" data-grid-delete-kind="row">Linha</button>
+        <button type="button" data-grid-delete-kind="column">Coluna</button>
+      </div>
+    </div>
+    <button type="button" data-grid-duplicate-element><span class="svg-icon" data-nav-icon="file-text"></span> Duplicar elemento</button>
+    <button type="button" data-grid-remove-element><span class="svg-icon" data-nav-icon="x"></span> Remover elemento</button>
+  </div>
+  <section class="document-move-modal" data-document-move-modal hidden>
+    <div class="card">
+      <h2>Mover item</h2>
+      <p>Selecione uma pasta da empresa. A biblioteca padrão do Celeris não aceita itens da empresa.</p>
+      <label>Pasta de destino
+        <select data-document-move-destination>
+          <option value="">Raiz da empresa</option>
+          {% for pasta in pastas_destino %}
+            <option value="{{ pasta.pk }}">{{ pasta.caminho_arvore }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-document-move-cancel>Cancelar</button>
+        <button class="button button-primary" type="button" data-document-move-confirm><span class="svg-icon" data-nav-icon="move"></span> Mover</button>
+      </div>
+    </div>
   </section>
+  <section class="document-move-modal" data-document-copy-modal hidden>
+    <div class="card">
+      <h2>Copiar documento para a empresa</h2>
+      <p>A cópia será independente e poderá ser alterada sem modificar o modelo padrão do Celeris.</p>
+      <label>Nome da cópia <input data-document-copy-name maxlength="140"></label>
+      <label>Pasta de destino
+        <select data-document-copy-destination>
+          <option value="">Raiz da empresa</option>
+          {% for pasta in pastas_destino %}
+            <option value="{{ pasta.pk }}">{{ pasta.caminho_arvore }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-document-copy-cancel>Cancelar</button>
+        <button class="button button-primary" type="button" data-document-copy-confirm><span class="svg-icon" data-nav-icon="file-text"></span> Copiar</button>
+      </div>
+    </div>
+  </section>
+  <section class="document-preview-modal" data-document-preview-modal hidden>
+    <div class="document-preview-dialog">
+      <header>
+        <div><strong data-document-preview-title>Pré-visualização</strong><small>Os valores abaixo são apenas para teste e não serão gravados no prontuário.</small></div>
+        <button class="icon-button" type="button" data-document-preview-close>×</button>
+      </header>
+      <iframe title="Pré-visualização do documento" data-document-preview-frame></iframe>
+      <footer>
+        <button class="button button-secondary" type="button" data-document-preview-close>Fechar</button>
+        <button class="button button-secondary" type="button" data-document-preview-browser-print><span class="svg-icon" data-nav-icon="printer"></span> Imprimir layout</button>
+        <button class="button button-primary" type="button" data-document-preview-print hidden>Salvar teste e visualizar impressão</button>
+      </footer>
+    </div>
+  </section>
+  <section class="document-field-settings-modal" data-field-settings-modal data-preserve-input hidden>
+    <div class="card">
+      <header>
+        <h2 data-field-settings-title>Configuração do campo</h2>
+        <div class="document-modal-header-actions">
+          <button class="icon-button document-help-button" type="button" data-field-settings-help-toggle title="Ajuda">?</button>
+          <button class="icon-button" type="button" data-field-settings-close>×</button>
+        </div>
+      </header>
+      <div class="document-settings-help" data-field-settings-help hidden></div>
+      <div class="form-grid">
+        <label class="field-lg">Rótulo <input data-settings-property="label"></label>
+        <label class="field-md">Nome técnico <input data-settings-property="name"></label>
+        <label class="field-md">Tipo
+          <select data-settings-property="type">
+            <option value="text">Texto curto</option><option value="textarea">Texto longo</option>
+            <option value="date">Data</option><option value="time">Hora</option><option value="number">Número</option>
+            <option value="checkbox">Sim/Não</option><option value="select">Lista fixa</option>
+            <option value="exclusive-checkboxes">Múltiplos checkboxes exclusivos</option>
+            <option value="auxiliary">Tabela auxiliar</option><option value="query">Consulta do sistema</option>
+            <option value="static-text">Texto informativo</option><option value="static-variable">Variável informativa</option>
+            <option value="line">Linha</option>
+            <option value="image">Imagem</option>
+          </select>
+        </label>
+        <label class="field-xl" data-setting-types="static-text">Texto fixo e variáveis
+          <textarea rows="5" data-settings-property="content" data-screen-content-input placeholder="Orientação ao prestador ou {{ paciente.nome }}"></textarea>
+        </label>
+        <label class="field-md" data-setting-types="static-text">Apresentação
+          <select data-settings-property="displayStyle">
+            <option value="text">Texto</option>
+            <option value="title">Título</option>
+            <option value="description">Descrição</option>
+            <option value="help">Ajuda/informação</option>
+          </select>
+        </label>
+        <label class="field-lg" data-setting-types="text,textarea,date,time,number">Texto de ajuda <input data-settings-property="placeholder"></label>
+        <label class="field-md" data-setting-types="text,number">Prefixo <input data-settings-property="prefix" placeholder="Ex.: R$"></label>
+        <label class="field-md" data-setting-types="text,number">Sufixo <input data-settings-property="suffix" placeholder="Ex.: °C"></label>
+        <label class="field-xl" data-setting-types="select,exclusive-checkboxes">Opções separadas por vírgula <small data-setting-types="exclusive-checkboxes">Use <code>OPÇÃO[nome_campo]</code> sem placeholder ou <code>OPÇÃO[nome_campo, Nome exibido]</code> para definir o placeholder do complemento.</small>
+          <input data-settings-property="options" placeholder="SIM, NÃO, TALVEZ[motivo]">
+        </label>
+        <label class="field-lg" data-setting-types="auxiliary">Tabela auxiliar
+          <select data-settings-property="sourceTable"><option value=""></option>{% for tabela in tabelas_auxiliares %}<option value="{{ tabela.ds_tabela }}">{{ tabela.ds_descricao|default:tabela.ds_tabela }}</option>{% endfor %}</select>
+        </label>
+        <label class="field-lg" data-setting-types="query">Consulta
+          <select data-settings-property="sourceQuery"><option value=""></option><option value="convenios">Convênios</option><option value="prestadores">Prestadores</option><option value="setores">Setores</option></select>
+        </label>
+        <label class="field-xl" data-setting-types="text,textarea,date,time,number,static-variable">Vínculo automático
+          <select data-settings-property="binding">
+            <option value=""></option>
+            <optgroup label="Paciente">
+              <option value="paciente.nome">Nome do paciente</option><option value="paciente.codigo">Prontuário</option>
+              <option value="paciente.nascimento">Data de nascimento</option><option value="paciente.mae">Nome da mãe</option>
+              <option value="paciente.cpf">CPF</option><option value="paciente.cns">CNS</option><option value="paciente.sexo">Sexo</option>
+            </optgroup>
+            <optgroup label="Atendimento">
+              <option value="atendimento.codigo">Código do atendimento</option><option value="atendimento.data_hora">Data e hora</option>
+              <option value="atendimento.status">Status</option><option value="atendimento.especialidade">Especialidade</option>
+            </optgroup>
+            <optgroup label="Outros">
+              <option value="prestador.nome">Prestador</option><option value="empresa.nome">Empresa</option>
+            </optgroup>
+          </select>
+        </label>
+        <label class="field-md" data-setting-types="static-text,static-variable,exclusive-checkboxes">Tamanho da fonte
+          <input type="number" min="7" max="72" value="14" data-settings-property="fontSize">
+        </label>
+        <label class="field-md" data-setting-types="static-text,static-variable,exclusive-checkboxes">Tipo da fonte
+          <select data-settings-property="fontFamily">
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="Calibri, sans-serif">Calibri</option>
+            <option value="Verdana, sans-serif">Verdana</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', serif">Times New Roman</option>
+            <option value="monospace">Monoespaçada</option>
+          </select>
+        </label>
+        <label class="field-md" data-setting-types="static-text,static-variable,exclusive-checkboxes">Cor do texto
+          <span class="color-hex-control">
+            <input type="color" value="#111111" data-settings-property="textColor">
+            <input type="text" value="#111111" maxlength="7" pattern="#[0-9A-Fa-f]{6}" data-color-hex-for="textColor" aria-label="Código hexadecimal do texto">
+          </span>
+        </label>
+        <label class="field-xl" data-setting-types="image">URL da imagem <input data-settings-property="imageUrl" placeholder="https://... ou data:image/..."></label>
+        <label class="field-xl" data-setting-types="image">Arquivo de imagem <input type="file" accept="image/*" data-field-image-file></label>
+        <label data-setting-types="image">Largura (px) <input type="number" min="1" max="2400" data-settings-property="imageWidth"></label>
+        <label data-setting-types="image">Altura (px) <input type="number" min="1" max="2400" data-settings-property="imageHeight"></label>
+        <label class="provider-checkbox" data-setting-types="image"><input type="checkbox" data-settings-property="lockAspectRatio"><span>Manter proporção</span></label>
+        <label class="field-md" data-setting-types="line">Cor da linha
+          <span class="color-hex-control">
+            <input type="color" value="#111111" data-settings-property="lineColor">
+            <input type="text" value="#111111" maxlength="7" pattern="#[0-9A-Fa-f]{6}" data-color-hex-for="lineColor" aria-label="Código hexadecimal da linha">
+          </span>
+        </label>
+        <label data-setting-types="line">Espessura (px) <input type="number" min="1" max="20" data-settings-property="lineWidth"></label>
+        <label data-setting-types="line">Tipo de linha
+          <select data-settings-property="lineStyle">
+            <option value="solid">Contínua</option><option value="dashed">Tracejada</option>
+            <option value="dotted">Pontilhada</option><option value="double">Dupla</option>
+          </select>
+        </label>
+        <label data-setting-types="line">Margem superior (px) <input type="number" min="0" max="200" value="0" data-settings-property="marginTop"></label>
+        <label data-setting-types="line">Margem inferior (px) <input type="number" min="0" max="200" value="0" data-settings-property="marginBottom"></label>
+        <span class="document-settings-row-break" data-setting-types="static-text" aria-hidden="true"></span>
+        <label>Colunas ocupadas <input type="number" min="1" max="12" data-settings-property="colSpan"></label>
+        <label>Linhas ocupadas <input type="number" min="1" max="10" data-settings-property="rowSpan"></label>
+        <label class="provider-checkbox" data-setting-types="text,textarea,date,time,number,checkbox,select,exclusive-checkboxes,auxiliary,query"><input type="checkbox" data-settings-property="required"><span>Obrigatório</span></label>
+        <label class="provider-checkbox" data-setting-types="text,textarea,date,time,number,checkbox,select,exclusive-checkboxes,auxiliary,query"><input type="checkbox" data-settings-property="readonly"><span>Não editável</span></label>
+      </div>
+      <footer class="form-actions"><button class="button button-primary" type="button" data-field-settings-save>Aplicar</button></footer>
+    </div>
+    <aside class="document-variable-palette document-screen-variable-palette" data-screen-variable-palette hidden>
+      <strong>Variáveis disponíveis</strong>
+      <span>Arraste ou clique para inserir no texto.</span>
+      <input type="search" data-screen-variable-search placeholder="Pesquisar variável">
+      <div data-screen-variable-list></div>
+    </aside>
+  </section>
+  <section class="document-field-settings-modal" data-print-settings-modal data-preserve-input hidden>
+    <div class="card">
+      <header>
+        <h2 data-print-settings-title>Configuração do elemento impresso</h2>
+        <div class="document-modal-header-actions">
+          <button class="icon-button document-help-button" type="button" data-print-settings-help-toggle title="Ajuda">?</button>
+          <button class="icon-button" type="button" data-print-settings-close>×</button>
+        </div>
+      </header>
+      <div class="document-settings-help" data-print-settings-help hidden></div>
+      <div class="form-grid">
+        <label class="field-md" data-print-types="field,variable">Variável/campo
+          <select data-print-source-group>
+            <option value="paciente">Paciente</option>
+            <option value="atendimento">Atendimento</option>
+            <option value="documento">Documento</option>
+            <option value="outras">Outras variáveis</option>
+            <option value="campos">Campos do formulário</option>
+          </select>
+          <select data-print-property="sourceField"><option value=""></option></select>
+        </label>
+        <label class="field-md" data-print-types="field,variable,text,image,html,line,vline,pagebreak">Título/label visível <input data-print-property="label"></label>
+        <label class="provider-checkbox field-xl" data-print-types="field"><input type="checkbox" data-print-property="hideLabel"><span>Exibir somente o conteúdo do campo, sem título/label</span></label>
+        <label class="provider-checkbox field-xl" data-print-types="field"><input type="checkbox" data-print-property="showBottomBorder"><span>Exibir linha inferior do campo</span></label>
+        <label class="field-md" data-print-types="variable">Cor do label <input type="color" value="#111111" data-print-property="labelColor"></label>
+        <label class="field-md" data-print-types="variable">Cor do texto <input type="color" value="#111111" data-print-property="textColor"></label>
+        <label class="field-md" data-print-types="variable">Alinhamento horizontal
+          <select data-print-property="textAlign"><option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option></select>
+        </label>
+        <label class="field-md" data-print-types="field,variable,text,image,html,line,vline,pagebreak">Alinhamento vertical
+          <select data-print-property="verticalAlign">
+            <option value="start">Topo</option>
+            <option value="center">Centro</option>
+            <option value="end">Inferior</option>
+          </select>
+        </label>
+        <label class="provider-checkbox field-md" data-print-types="variable"><input type="checkbox" data-print-property="textBold"><span>Valor em negrito</span></label>
+        <label class="field-md" data-print-types="field,variable,text,image,html,line,vline,pagebreak">Margem <input data-print-property="margin" placeholder="0 ou 1px 2px 3px 4px"></label>
+        <label class="field-md" data-print-types="field,variable,text,image,html,line,vline,pagebreak">Padding <input data-print-property="padding" placeholder="0 ou 1px 2px 3px 4px"></label>
+        <label class="field-md">Colunas ocupadas <input type="number" min="1" max="12" data-print-property="colSpan"></label>
+        <label class="field-md">Linhas ocupadas <input type="number" min="1" max="20" data-print-property="rowSpan"></label>
+        <label class="field-md" data-print-types="field,variable,text,html">Tamanho da fonte
+          <input type="number" min="7" max="72" value="11" data-print-property="fontSize">
+        </label>
+        <label class="field-md" data-print-types="field,variable,text,html">Tipo da fonte
+          <select data-print-property="fontFamily">
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="Calibri, sans-serif">Calibri</option>
+            <option value="Verdana, sans-serif">Verdana</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', serif">Times New Roman</option>
+            <option value="monospace">Monoespaçada</option>
+          </select>
+        </label>
+        <label class="field-fluid document-print-code-field" data-print-types="field,text,html">Texto fixo e variáveis
+          <small>Atalhos: <code>*negrito*</code>, <code>_sublinhado_</code>, <code>/itálico/</code>, <code>&lt;left&gt;...&lt;/left&gt;</code> e <code>&lt;right&gt;...&lt;/right&gt;</code>.</small>
+          <div class="document-code-workspace">
+            <div class="document-code-editor">
+              <pre aria-hidden="true" data-print-code-highlight></pre>
+              <textarea rows="5" data-print-property="content" data-print-code-input spellcheck="false" placeholder="Paciente: {{ paciente.nome }} · Atendimento: {{ atendimento.codigo }}"></textarea>
+            </div>
+            <aside class="document-variable-palette">
+              <strong>Variáveis disponíveis</strong>
+              <span>Arraste ou clique para inserir.</span>
+              <input type="search" data-print-variable-search placeholder="Pesquisar variável">
+              <div data-print-variable-list></div>
+            </aside>
+          </div>
+        </label>
+        <label class="field-xl" data-print-types="image">URL da imagem <input data-print-property="imageUrl"></label>
+        <label class="field-xl" data-print-types="image">Importar imagem <input type="file" accept="image/*" data-print-image-file></label>
+        <label data-print-types="image">Largura da imagem (px) <input type="number" min="1" max="2400" data-print-property="imageWidth"></label>
+        <label data-print-types="image">Altura da imagem (px) <input type="number" min="1" max="2400" data-print-property="imageHeight"></label>
+        <label class="field-md" data-print-types="line,vline">Cor da linha
+          <span class="color-hex-control">
+            <input type="color" value="#111111" data-print-property="lineColor">
+            <input type="text" value="#111111" maxlength="7" pattern="#[0-9A-Fa-f]{6}" data-color-hex-for="lineColor" aria-label="Código hexadecimal da linha">
+          </span>
+        </label>
+        <label data-print-types="line,vline">Espessura (px) <input type="number" min="1" max="20" data-print-property="lineWidth"></label>
+        <label data-print-types="line,vline">Tipo de linha
+          <select data-print-property="lineStyle">
+            <option value="solid">Contínua</option>
+            <option value="dashed">Tracejada</option>
+            <option value="dotted">Pontilhada</option>
+            <option value="double">Dupla</option>
+          </select>
+        </label>
+        <label data-print-types="line,vline">Margem superior (px) <input type="number" min="0" max="200" data-print-property="marginTop"></label>
+        <label data-print-types="line,vline">Margem inferior (px) <input type="number" min="0" max="200" data-print-property="marginBottom"></label>
+      </div>
+      <footer class="form-actions"><button class="button button-primary" type="button" data-print-settings-save>Aplicar</button></footer>
+    </div>
+  </section>
+  <section class="document-move-modal" data-grid-delete-modal hidden>
+    <div class="card">
+      <h2 data-grid-delete-title>Excluir estrutura da grade</h2>
+      <p data-grid-delete-message></p>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-grid-delete-cancel>Cancelar</button>
+        <button class="button button-secondary" type="button" data-grid-delete-adjust>Reajustar campos</button>
+        <button class="button button-danger" type="button" data-grid-delete-fields>Excluir campos</button>
+      </div>
+    </div>
+  </section>
+  <section class="document-move-modal" data-document-leave-modal hidden>
+    <div class="card">
+      <h2>Alterações não salvas</h2>
+      <p>O documento atual foi alterado. Deseja salvar antes de abrir outro documento?</p>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-document-leave-cancel>Continuar editando</button>
+        <button class="button button-secondary" type="button" data-document-leave-discard>Sair sem salvar</button>
+        <button class="button button-primary" type="button" data-document-leave-save><span class="svg-icon" data-nav-icon="save"></span> Salvar e abrir</button>
+      </div>
+    </div>
+  </section>
+  <section class="document-move-modal" data-print-regenerate-modal hidden>
+    <div class="card">
+      <h2>Gerar novo layout de impressão?</h2>
+      <p>O layout atual possui elementos. Ao continuar, ele será removido e recriado conforme o formulário.</p>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-print-regenerate-cancel>Cancelar</button>
+        <button class="button button-danger" type="button" data-print-regenerate-confirm>Remover e gerar novamente</button>
+      </div>
+    </div>
+  </section>
+  <section class="document-move-modal" data-system-model-copy-modal hidden>
+    <div class="card">
+      <h2>Salvar uma cópia para a empresa?</h2>
+      <p>O modelo padrão do Celeris é protegido. As alterações serão gravadas em uma nova cópia editável da empresa.</p>
+      <label>Pasta de destino
+        <select data-system-model-copy-folder>
+          <option value="">Raiz da empresa</option>
+          {% for pasta in pastas_empresa %}<option value="{{ pasta.pk }}">{{ pasta.caminho_arvore }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-system-model-copy-cancel>Cancelar</button>
+        <button class="button button-primary" type="button" data-system-model-copy-confirm>Salvar como cópia</button>
+      </div>
+    </div>
+  </section>
+  <section class="document-move-modal" data-document-clear-modal hidden>
+    <div class="card">
+      <h2>Limpar o editor?</h2>
+      <p>Existem dados ou alterações na tela. Você pode salvar antes de continuar ou limpar sem salvar.</p>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-document-clear-cancel>Cancelar</button>
+        <button class="button button-secondary" type="button" data-document-clear-discard>Limpar sem salvar</button>
+        <button class="button button-primary" type="button" data-document-clear-save>Salvar</button>
+      </div>
+    </div>
+  </section>
+  <section class="document-move-modal document-variable-help-modal" data-custom-variable-help-modal hidden>
+    <div class="card">
+      <header class="document-variable-help-header">
+        <div>
+          <h2>Como criar variáveis personalizadas</h2>
+          <p>Consulte exemplos prontos e adapte os nomes das variáveis à sua regra.</p>
+        </div>
+        <button class="icon-button" type="button" data-custom-variable-help-close aria-label="Fechar">×</button>
+      </header>
+      <div class="document-variable-help-layout">
+        <nav aria-label="Tópicos da documentação">
+          <button class="active" type="button" data-variable-help-topic="condicional">Condições</button>
+          <button type="button" data-variable-help-topic="data-hora">Data e hora</button>
+          <button type="button" data-variable-help-topic="unificar">Unificar variáveis</button>
+          <button type="button" data-variable-help-topic="texto">Transformar texto</button>
+          <button type="button" data-variable-help-topic="calculo">Cálculos</button>
+        </nav>
+        <div class="document-variable-help-content">
+          <article data-variable-help-panel="condicional">
+            <h3>Retornar valores conforme uma condição</h3>
+            <p>Use <code>valor_se_verdadeiro if condição else valor_se_falso</code>.</p>
+            <pre><code>"Feminino" if paciente.sexo == "F" else "Masculino" if paciente.sexo == "M" else "Outro"</code></pre>
+          </article>
+          <article data-variable-help-panel="data-hora" hidden>
+            <h3>Separar data e hora</h3>
+            <p>As funções aceitam datas do sistema e textos nos formatos brasileiros ou ISO.</p>
+            <pre><code>data(atendimento.data_hora)</code></pre>
+            <p>Resultado: <code>28/06/2026</code></p>
+            <pre><code>hora(atendimento.data_hora)</code></pre>
+            <p>Resultado: <code>14:45:00</code></p>
+          </article>
+          <article data-variable-help-panel="unificar" hidden>
+            <h3>Juntar duas ou mais variáveis</h3>
+            <p>Inclua textos fixos entre aspas para separar os valores.</p>
+            <pre><code>juntar(paciente.nome, " · Prontuário: ", paciente.codigo)</code></pre>
+          </article>
+          <article data-variable-help-panel="texto" hidden>
+            <h3>Alterar textos</h3>
+            <pre><code>maiusculo(paciente.nome)
+minusculo(paciente.nome)
+titulo(paciente.nome)
+substituir(atendimento.tipo, "_", " ")</code></pre>
+          </article>
+          <article data-variable-help-panel="calculo" hidden>
+            <h3>Realizar cálculos</h3>
+            <p>São permitidos <code>+ - * / %</code>, comparações e arredondamento.</p>
+            <pre><code>arredondar(paciente.peso / ((paciente.altura / 100) * (paciente.altura / 100)), 2)</code></pre>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {{ modelo.ds_html_tela|default:""|json_script:"initial-html-tela" }}
+  {{ modelo.ds_css_tela|default:""|json_script:"initial-css-tela" }}
+  {{ modelo.ds_projeto_tela|default_if_none:""|json_script:"initial-project-tela" }}
+  {{ modelo.ds_html_impressao|default:""|json_script:"initial-html-impressao" }}
+  {{ modelo.ds_css_impressao|default:""|json_script:"initial-css-impressao" }}
+  {{ modelo.ds_projeto_impressao|default_if_none:""|json_script:"initial-project-impressao" }}
+  {{ campos_reutilizaveis|json_script:"reusable-document-fields" }}
+  {{ variaveis_personalizadas|json_script:"custom-document-variables" }}
+  {{ elementos_impressao|json_script:"reusable-print-elements" }}
+  {{ tabelas_auxiliares|json_script:"document-auxiliary-tables" }}
+  {{ contextos_teste|json_script:"document-test-contexts" }}
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'vendor/grapesjs/grapes.min.js' %}"></script>
+  <script src="{% static 'js/document-editor.js' %}"></script>
 {% endblock %}

@@ -9,11 +9,12 @@
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_agenda_profissional' %}-{% endif %}cd_agenda_profissional">Código</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_prestador__nm_prestador' %}-{% endif %}cd_prestador__nm_prestador">Profissional</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_agenda' %}-{% endif %}ds_agenda">Escala</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_dia_semana' %}-{% endif %}nr_dia_semana">Dia</a></th>
+          <th>Dias da semana</th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_inicio' %}-{% endif %}hr_inicio">Início</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_fim' %}-{% endif %}hr_fim">Fim</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_tempo_atendimento' %}-{% endif %}nr_tempo_atendimento">Tempo</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_intervalo' %}-{% endif %}nr_intervalo">Intervalo</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_atende_feriado' %}-{% endif %}sn_atende_feriado">Atende feriado</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
         </tr>
       </thead>
@@ -33,9 +34,9 @@
             </td>
             <td><input name="name_{{ registro.pk }}" value="{{ registro.ds_agenda }}" required></td>
             <td>
-              <select name="weekday_{{ registro.pk }}">
+              <select name="weekdays_{{ registro.pk }}" multiple required>
                 {% for value, label in dias_semana %}
-                  <option value="{{ value }}" {% if value == registro.nr_dia_semana %}selected{% endif %}>{{ label }}</option>
+                  <option value="{{ value }}" {% if value in registro.dias_semana %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
               </select>
             </td>
@@ -44,6 +45,12 @@
             <td><input name="duration_{{ registro.pk }}" type="number" min="1" value="{{ registro.nr_tempo_atendimento }}" required></td>
             <td><input name="interval_{{ registro.pk }}" type="number" min="0" value="{{ registro.nr_intervalo }}"></td>
             <td>
+              <select name="holiday_{{ registro.pk }}">
+                <option value="false" {% if not registro.sn_atende_feriado %}selected{% endif %}>Não</option>
+                <option value="true" {% if registro.sn_atende_feriado %}selected{% endif %}>Sim</option>
+              </select>
+            </td>
+            <td>
               <select name="active_{{ registro.pk }}">
                 <option value="true" {% if registro.sn_ativo %}selected{% endif %}>Ativo</option>
                 <option value="false" {% if not registro.sn_ativo %}selected{% endif %}>Inativo</option>
@@ -51,7 +58,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="empty-cell">Nenhum dado encontrado.</td></tr>
+          <tr><td colspan="10" class="empty-cell">Nenhum dado encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -68,9 +75,9 @@
         </td>
         <td><input name="new_name" placeholder="Escala" required></td>
         <td>
-          <select name="new_weekday">
+          <select name="new_weekdays" multiple required>
             {% for value, label in dias_semana %}
-              <option value="{{ value }}">{{ label }}</option>
+              <option value="{{ value }}" {% if value < 5 %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </td>
@@ -78,6 +85,12 @@
         <td><input name="new_end" type="time" value="12:00" required></td>
         <td><input name="new_duration" type="number" min="1" value="30" required></td>
         <td><input name="new_interval" type="number" min="0" value="0"></td>
+        <td>
+          <select name="new_holiday">
+            <option value="false" selected>Não</option>
+            <option value="true">Sim</option>
+          </select>
+        </td>
         <td>
           <select name="new_active">
             <option value="true" selected>Ativo</option>

@@ -1,0 +1,198 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card patient-summary patient-summary-detailed">
+    <div class="patient-summary-name">
+      <small>Prontuário {{ paciente.pk }}</small>
+      <strong>{{ paciente.nm_paciente }}</strong>
+      {% if paciente.nm_social %}<span>Nome social: {{ paciente.nm_social }}</span>{% endif %}
+    </div>
+    <dl>
+      <div><dt>Nascimento</dt><dd>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}{% if idade %} · {{ idade }} anos{% endif %}</dd></div>
+      <div><dt>Sexo</dt><dd>{{ paciente.tp_sexo|default:"-" }}</dd></div>
+      <div><dt>Nome da mãe</dt><dd>{{ paciente.nm_mae|default:"-" }}</dd></div>
+      <div><dt>CPF</dt><dd>{{ paciente.nr_cpf|default:"-" }}</dd></div>
+      <div><dt>CNS</dt><dd>{{ paciente.nr_cartao_sus|default:"-" }}</dd></div>
+      <div><dt>Convênio</dt><dd>{% if paciente.cd_convenio %}{{ paciente.cd_convenio.nm_convenio }}{% elif paciente.nm_convenio %}{{ paciente.nm_convenio }}{% else %}-{% endif %}</dd></div>
+    </dl>
+    <details class="pep-attendance-history">
+      <summary class="icon-button" title="Histórico de atendimentos" aria-label="Histórico de atendimentos">
+        <span class="svg-icon" data-nav-icon="history"></span>
+      </summary>
+      <div class="pep-attendance-history-menu">
+        {% for item in atendimentos %}
+          <a class="{% if atendimento.pk == item.pk %}active{% endif %}" href="?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ item.pk }}&return_to={{ return_to|urlencode }}">
+            <strong>Atendimento {{ item.pk }}</strong>
+            <span>{{ item.ds_especialidade|default:"Sem especialidade" }} · {{ item.ds_tipo_atendimento|default:"Sem tipo" }}</span>
+            <small>{{ item.dh_inicio|date:"d/m/Y H:i" }}</small>
+          </a>
+        {% empty %}<span class="empty-state">Nenhum atendimento registrado.</span>{% endfor %}
+      </div>
+    </details>
+  </section>
+
+  <div class="pep-record-layout">
+    <main class="pep-record-main">
+      {% if atendimento %}
+        <details class="card pep-vital-signs pep-clinical-section" open>
+          <summary>Últimos sinais vitais</summary>
+          {% if ultimos_sinais_vitais %}
+            <div class="pep-section-content">
+              <div class="section-heading">
+                <div class="summary-grid">
+                  <span><strong>PA:</strong> {{ ultimos_sinais_vitais.nr_pressao_arterial|default:"-" }}</span>
+                  <span><strong>FC:</strong> {{ ultimos_sinais_vitais.nr_frequencia_cardiaca|default:"-" }} bpm</span>
+                  <span><strong>FR:</strong> {{ ultimos_sinais_vitais.nr_frequencia_respiratoria|default:"-" }} irpm</span>
+                  <span><strong>SpO₂:</strong> {{ ultimos_sinais_vitais.nr_saturacao|default:"-" }}%</span>
+                  <span><strong>Temperatura:</strong> {{ ultimos_sinais_vitais.nr_temperatura|default:"-" }} °C</span>
+                  <span><strong>Peso:</strong> {{ ultimos_sinais_vitais.nr_peso|default:"-" }} kg</span>
+                  <span><strong>Prioridade:</strong> {{ ultimos_sinais_vitais.get_nr_prioridade_display }}</span>
+                  <span><strong>Coleta:</strong> {{ ultimos_sinais_vitais.dh_classificacao|date:"d/m/Y H:i" }}</span>
+                </div>
+                <button class="button button-secondary" type="button" data-vital-history-open><span class="svg-icon" data-nav-icon="history"></span> Histórico</button>
+              </div>
+            </div>
+          {% else %}
+            <div class="pep-section-content"><span class="empty-state">Nenhum sinal vital coletado para este paciente.</span></div>
+          {% endif %}
+        </details>
+        <details class="card pep-attendance-data">
+          <summary>Dados do atendimento {{ atendimento.pk }}</summary>
+          <div class="summary-grid">
+            <span><strong>Status:</strong> {{ atendimento.get_ds_status_display }}</span>
+            <span><strong>Origem:</strong> {{ atendimento.get_ds_origem_display }}</span>
+            <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
+            <span><strong>Setor:</strong> {{ atendimento.cd_setor_atual.nm_setor|default:"-" }}</span>
+            <span><strong>Diagnóstico:</strong> {{ atendimento.ds_diagnostico|default:atendimento.ds_hipotese_diagnostica|default:"-" }}</span>
+            <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
+          </div>
+        </details>
+        {% if item_selecionado %}
+          <section class="card pep-selected-screen">
+            <header class="section-heading">
+              <div>
+                <h2>{% if item_selecionado.ds_icone %}<span class="svg-icon" data-nav-icon="{{ item_selecionado.ds_icone }}"></span>{% endif %} {{ item_selecionado.nm_item }}</h2>
+                <small>{{ item_selecionado.get_tp_item_display }}</small>
+              </div>
+              {% if not somente_consulta and item_selecionado.sn_permite_criar and not item_selecionado.sn_somente_historico and atendimento_aberto %}
+                <button class="button button-primary" type="button" data-pep-new-document>Novo</button>
+              {% endif %}
+            </header>
+            {% if ultimo_documento_item %}
+              <div class="summary-grid">
+                <span><strong>Documento:</strong> {{ ultimo_documento_item.pk }}</span>
+                <span><strong>Atendimento:</strong> {{ ultimo_documento_item.cd_atendimento_id }}</span>
+                <span><strong>Data/hora:</strong> {{ ultimo_documento_item.dh_emissao|date:"d/m/Y H:i" }}</span>
+                <span><strong>Status:</strong> {{ ultimo_documento_item.get_ds_status_display }}</span>
+                <span><strong>Responsável:</strong> {{ ultimo_documento_item.cd_usuario_responsavel|default:"-" }}</span>
+              </div>
+              <div class="form-actions">
+                <a class="button button-primary" href="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}{% if somente_consulta %}?somente_consulta=1{% endif %}">{% if somente_consulta %}Visualizar documento{% else %}Abrir documento{% endif %}</a>
+                {% if item_selecionado.sn_imprimivel %}
+                  <a class="button button-secondary" href="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao{% if somente_consulta %}&somente_consulta=1{% endif %}">Imprimir</a>
+                {% endif %}
+              </div>
+            {% else %}
+              <span class="empty-state">Nenhum documento deste tipo no prontuário.</span>
+            {% endif %}
+          </section>
+        {% endif %}
+        <details class="card pep-clinical-section" open>
+          <summary>Resumo clínico do prontuário</summary>
+          <section class="pep-clinical-grid pep-section-content">
+            <div><h3>Exames e resultados</h3><ul>{% for exame in atendimento.solicitacoes_exames.all %}<li>{{ exame.ds_exame }} — {{ exame.get_ds_status_display }}{% if exame.resultado %}: {{ exame.resultado.ds_resultado|truncatechars:140 }}{% endif %}</li>{% empty %}<li>Nenhum exame.</li>{% endfor %}</ul></div>
+            <div><h3>Prescrições</h3><ul>{% for item in atendimento.prescricoes.all %}<li>{{ item.ds_prescricao|truncatechars:160 }}</li>{% empty %}<li>Nenhuma prescrição.</li>{% endfor %}</ul></div>
+            <div><h3>Evoluções</h3><ul>{% for item in atendimento.evolucoes.all %}<li>{{ item.dh_criacao|date:"d/m/Y H:i" }} — {{ item.ds_evolucao|truncatechars:160 }}</li>{% empty %}<li>Nenhuma evolução.</li>{% endfor %}</ul></div>
+            <div><h3>Documentos</h3><ul>{% for item in atendimento.documentos.all %}<li>{{ item.ds_titulo }} — {{ item.get_ds_status_display }}</li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul></div>
+          </section>
+        </details>
+      {% endif %}
+    </main>
+
+    <aside class="card pep-clinical-actions">
+      <h2>{% if somente_consulta %}Prontuário — consulta{% else %}Ações clínicas{% endif %}</h2>
+      {% if atendimento %}
+        {% if menu_assistencial_raizes %}
+          <nav class="pep-profile-menu">
+            {% for item in menu_assistencial_raizes %}
+              {% include "atendimento/_pep_menu_item.html" with item=item %}
+            {% endfor %}
+          </nav>
+        {% elif can_clinical_actions and atendimento_aberto %}
+          <a class="button button-secondary" href="{% url 'atendimento:evoluir' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Evolução</a>
+          <a class="button button-secondary" href="{% url 'atendimento:prescrever' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Prescrição</a>
+          <a class="button button-secondary" href="{% url 'atendimento:solicitar-exame' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Solicitar exame</a>
+          {% if atendimento.cd_setor_atual_id %}
+            <form method="post" action="{% url 'atendimento:pep-chamar' atendimento.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="setor" value="{{ atendimento.cd_setor_atual_id }}">
+              <button class="button button-secondary" type="submit">Chamar paciente</button>
+            </form>
+          {% endif %}
+          <a class="button button-danger" href="{% url 'atendimento:conceder-alta' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Conceder alta</a>
+        {% endif %}
+      {% else %}
+        <span class="empty-state">Selecione um atendimento.</span>
+      {% endif %}
+    </aside>
+  </div>
+  {% if item_selecionado and not somente_consulta %}
+    <section class="document-move-modal" data-pep-new-document-modal hidden>
+      <form class="card" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="novo_documento">
+        <input type="hidden" name="item" value="{{ item_selecionado.pk }}">
+        <h2>Novo documento — {{ item_selecionado.nm_item }}</h2>
+        <label>Data e hora do documento
+          <input type="datetime-local" name="dh_documento" value="{{ agora_documento }}" required>
+        </label>
+        <div class="form-actions">
+          <button class="button button-secondary" type="button" data-pep-new-document-cancel>Cancelar</button>
+          <button class="button button-primary" type="submit">Confirmar</button>
+        </div>
+      </form>
+    </section>
+    <script>
+      (() => {
+        const modal = document.querySelector("[data-pep-new-document-modal]");
+        document.querySelector("[data-pep-new-document]")?.addEventListener("click", () => { modal.hidden = false; });
+        document.querySelector("[data-pep-new-document-cancel]")?.addEventListener("click", () => { modal.hidden = true; });
+      })();
+    </script>
+  {% endif %}
+  <section class="document-move-modal vital-history-modal" data-vital-history-modal hidden>
+    <div class="card">
+      <header class="section-heading">
+        <div><h2>Histórico de sinais vitais</h2><small>Últimas 30 coletas do paciente.</small></div>
+        <button class="toolbar-button" type="button" data-vital-history-close title="Fechar">×</button>
+      </header>
+      <div class="vital-history-scroll">
+        <table class="data-table vital-history-table">
+          <thead>
+            <tr>
+              <th>Sinal</th>
+              {% for coleta in historico_sinais_vitais %}<th>{{ coleta.dh_classificacao|date:"d/m/Y H:i" }}</th>{% empty %}<th>Sem coletas</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th>PA</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.nr_pressao_arterial|default:"-" }}</td>{% empty %}<td>-</td>{% endfor %}</tr>
+            <tr><th>Temperatura</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.nr_temperatura|default:"-" }} °C</td>{% empty %}<td>-</td>{% endfor %}</tr>
+            <tr><th>FC</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.nr_frequencia_cardiaca|default:"-" }} bpm</td>{% empty %}<td>-</td>{% endfor %}</tr>
+            <tr><th>FR</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.nr_frequencia_respiratoria|default:"-" }} irpm</td>{% empty %}<td>-</td>{% endfor %}</tr>
+            <tr><th>SpO₂</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.nr_saturacao|default:"-" }}%</td>{% empty %}<td>-</td>{% endfor %}</tr>
+            <tr><th>Peso</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.nr_peso|default:"-" }} kg</td>{% empty %}<td>-</td>{% endfor %}</tr>
+            <tr><th>Prioridade</th>{% for coleta in historico_sinais_vitais %}<td>{{ coleta.get_nr_prioridade_display }}</td>{% empty %}<td>-</td>{% endfor %}</tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  <script>
+    (() => {
+      const modal = document.querySelector("[data-vital-history-modal]");
+      document.querySelector("[data-vital-history-open]")?.addEventListener("click", () => { modal.hidden = false; });
+      document.querySelectorAll("[data-vital-history-close]").forEach((button) => {
+        button.addEventListener("click", () => { modal.hidden = true; });
+      });
+    })();
+  </script>
+{% endblock %}

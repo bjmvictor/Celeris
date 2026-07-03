@@ -1,0 +1,41 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card patient-summary patient-summary-detailed">
+    <div class="patient-summary-name">
+      <small>Atendimento {{ atendimento.pk }}</small>
+      <strong>{{ atendimento.cd_paciente.nm_paciente }}</strong>
+    </div>
+    <dl>
+      <div><dt>Prontuário</dt><dd>{{ atendimento.cd_paciente_id }}</dd></div>
+      <div><dt>Escala</dt><dd>{{ escala.nm_escala }} · v{{ escala.nr_versao }}</dd></div>
+      <div><dt>Cálculo</dt><dd>{{ escala.get_tp_calculo_display }}</dd></div>
+    </dl>
+  </section>
+  <form method="post" class="card clinical-scale-form" data-primary-form>
+    {% csrf_token %}
+    <h2>{{ item.nm_item }}</h2>
+    {% if escala.ds_descricao %}<p>{{ escala.ds_descricao }}</p>{% endif %}
+    <div class="clinical-scale-questions">
+      {% for pergunta in perguntas %}
+        <fieldset>
+          <legend>{{ forloop.counter }}. {{ pergunta.texto }}</legend>
+          {% for opcao in pergunta.opcoes %}
+            <label class="provider-checkbox">
+              <input type="radio" name="pergunta_{{ pergunta.chave }}" value="{{ opcao.valor }}" required>
+              <span>{{ opcao.descricao }} <small>({{ opcao.pontos }} ponto(s))</small></span>
+            </label>
+          {% endfor %}
+        </fieldset>
+      {% empty %}
+        <p class="empty-state">A escala não possui perguntas configuradas.</p>
+      {% endfor %}
+    </div>
+    <label class="field-md">Confirme sua senha
+      <input name="senha" type="password" autocomplete="current-password" required>
+    </label>
+    <div class="form-actions">
+      <a class="button button-secondary" href="{% url 'atendimento:ficha-atendimento' atendimento.pk %}">Voltar</a>
+      <button class="button button-primary" type="submit">Calcular, fechar e assinar</button>
+    </div>
+  </form>
+{% endblock %}
