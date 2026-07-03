@@ -1,18 +1,52 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <section class="flow-banner">AGENDADO → RECEPCIONAR → ATENDIMENTO ABERTO → AGUARDANDO CLASSIFICAÇÃO</section>
+  <section class="card reception-classified-list">
+    <div class="section-heading">
+      <div><small>Fila prioritária</small><h2>Pacientes classificados</h2></div>
+      <span>Pacientes liberados pela classificação para continuidade da recepção.</span>
+    </div>
+    <div class="reception-classified-grid">
+      {% for senha in senhas_classificadas %}
+        <article class="classified-ticket">
+          <strong>{{ senha.ds_senha }}</strong>
+          <span>{{ senha.cd_tipo_senha.nm_tipo_senha }} · {{ senha.cd_classe_senha.nm_classe_senha }}</span>
+          <small>Classificada em {{ senha.dh_classificacao|date:"H:i" }}</small>
+          <a class="button button-secondary" href="?senha={{ senha.pk }}">Recepcionar senha</a>
+        </article>
+      {% empty %}
+        <div class="empty-state">Nenhum paciente classificado aguardando recepção.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <form class="card reception-patient-search" method="get" autocomplete="off">
+    {% if senha_selecionada %}<input type="hidden" name="senha" value="{{ senha_selecionada }}">{% endif %}
+    <div class="form-grid">
+      <label class="field-sm">Prontuário {{ form.cd_paciente }}</label>
+      <label class="field-xl">Paciente {{ form.termo }}</label>
+      <label class="field-md">CPF {{ form.nr_cpf }}</label>
+      <label class="field-xl">Nome da mãe {{ form.nm_mae }}</label>
+      <label class="field-md">Cartão SUS {{ form.nr_cartao_sus }}</label>
+      <label class="field-md">Nascimento {{ form.dt_nascimento }}</label>
+    </div>
+  </form>
+
   <section class="card table-card">
     <table>
-      <thead><tr><th>Horário</th><th>Paciente</th><th>Especialidade</th><th>Profissional</th><th>Status</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>Nome da mãe</th><th>Nascimento</th><th>Ação</th></tr></thead>
       <tbody>
-        {% for item in agendamentos %}
+        {% for paciente in pacientes %}
           <tr>
-            <td>{{ item.dh_agendamento|date:"H:i" }}</td><td>{{ item.cd_paciente.nm_paciente }}</td>
-            <td>{{ item.ds_especialidade|default:"-" }}</td><td>{{ item.ds_profissional|default:"-" }}</td>
-            <td>{{ item.get_ds_status_display }}</td>
-            <td><a class="button button-primary" href="{% url 'atendimento:recepcionar-agendamento' item.pk %}">Recepcionar</a></td>
+            <td>{{ paciente.pk }}</td>
+            <td>{{ paciente.nm_social|default:paciente.nm_paciente }}</td>
+            <td>{{ paciente.nr_cpf|default:"-" }}</td>
+            <td>{{ paciente.nm_mae|default:"-" }}</td>
+            <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
+            <td><a class="button button-primary" href="{% url 'atendimento:recepcao-revisar-paciente' paciente.pk %}{% if senha_selecionada %}?senha={{ senha_selecionada }}{% endif %}">Selecionar e validar</a></td>
           </tr>
-        {% empty %}<tr><td colspan="6">Nenhum agendamento para hoje.</td></tr>{% endfor %}
+        {% empty %}
+          <tr><td colspan="6">{% if consulta_executada %}Nenhum paciente encontrado.{% else %}Execute uma consulta para localizar o paciente.{% endif %}</td></tr>
+        {% endfor %}
       </tbody>
     </table>
   </section>

@@ -5,8 +5,15 @@ from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Empresa, User, UsuarioEmpresa
+from apps.atendimento.forms import PacienteForm
 
-from .models import Cep, TabelaAuxiliarGlobal, TipoPrestadorConselho, ValorAuxiliarGlobal
+from .models import (
+    Cep,
+    ConfiguracaoCampoFormulario,
+    TabelaAuxiliarGlobal,
+    TipoPrestadorConselho,
+    ValorAuxiliarGlobal,
+)
 
 
 class GlobalIntegrationTests(TestCase):
@@ -20,6 +27,51 @@ class GlobalIntegrationTests(TestCase):
         session = self.client.session
         session["cd_empresa"] = self.empresa.cd_empresa
         session.save()
+
+    def test_configuracao_de_formulario_lista_e_aplica_obrigatoriedade(self):
+        route = reverse("core:configurar_formularios")
+        initial = self.client.get(route)
+        self.assertContains(initial, 'data-start-query="true"')
+        self.assertContains(initial, 'data-consultable="true"', count=2)
+
+        response = self.client.get(route, {"consultar": "1", "formulario": "cadastro_paciente"})
+        self.assertContains(response, "Cadastro de paciente")
+        self.assertContains(response, "nm_paciente")
+        self.assertContains(response, "nr_cpf")
+        self.assertContains(response, "<td>Nome</td>", html=True)
+
+        saved = self.client.post(
+            route,
+            {
+                "formulario": "cadastro_paciente",
+                "nome_campo": "CPF",
+                "campos_resultado": ["cadastro_paciente::nr_cpf"],
+                "campos_obrigatorios": ["cadastro_paciente::nr_cpf"],
+            },
+        )
+        self.assertRedirects(
+            saved,
+            f"{route}?consultar=1&formulario=cadastro_paciente&nome_campo=CPF",
+        )
+        configuracao = ConfiguracaoCampoFormulario.objects.get(
+            cd_empresa=self.empresa,
+            cd_formulario="cadastro_paciente",
+            cd_campo="nr_cpf",
+        )
+        self.assertTrue(configuracao.sn_obrigatorio)
+        self.assertEqual(configuracao.cd_usuario_criacao, self.user)
+        formulario = PacienteForm(empresa=self.empresa)
+        self.assertTrue(formulario.fields["nr_cpf"].required)
+        self.assertTrue(formulario.fields["nm_paciente"].required)
+
+    def test_configuracao_usa_rotulos_visiveis_do_cadastro_de_prestador(self):
+        response = self.client.get(
+            reverse("core:configurar_formularios"),
+            {"consultar": "1", "formulario": "cadastro_prestador"},
+        )
+        self.assertContains(response, "<td>Nome</td>", html=True)
+        self.assertContains(response, "<td>Nome de guerra</td>", html=True)
+        self.assertNotContains(response, "<td>Nm prestador</td>", html=True)
 
     def test_importa_cidade_por_csv(self):
         upload = SimpleUploadedFile(

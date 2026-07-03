@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import Setor
+from apps.core.form_registry import aplicar_configuracao_formulario
 from apps.core.models import Cep, TipoPrestadorConselho, ValorAuxiliarGlobal
 
 from .models import AgendaProfissional, Agendamento, Atendimento, Convenio, EvolucaoAtendimento, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame
@@ -113,6 +114,7 @@ class PacienteForm(forms.ModelForm):
         for unique_field in ("nr_cpf", "nr_cartao_sus", "nr_rg"):
             if unique_field in self.fields:
                 self.fields[unique_field].widget.attrs["data-unique-patient"] = unique_field
+        aplicar_configuracao_formulario(self, "cadastro_paciente", self.empresa)
 
     class Meta:
         model = Paciente
@@ -220,6 +222,7 @@ class PrestadorForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.empresa = kwargs.pop("empresa", None)
         super().__init__(*args, **kwargs)
         self.fields["nm_prestador"].required = True
         self.fields["nm_guerra"].required = True
@@ -316,6 +319,7 @@ class PrestadorForm(forms.ModelForm):
         self.fields["ds_email"].widget.attrs["data-validate-email"] = "true"
         self.fields["sn_mesmo_endereco"].widget.attrs["data-same-address"] = "true"
         self.fields["tp_prestador"].widget.attrs["data-provider-permissions"] = "true"
+        aplicar_configuracao_formulario(self, "cadastro_prestador", self.empresa)
 
     def _choices_for(self, table_name, group=None):
         values = ValorAuxiliarGlobal.objects.filter(
@@ -492,6 +496,7 @@ class EscalaForm(forms.ModelForm):
         for name in ("hr_inicio", "hr_fim", "nr_tempo_atendimento", "nr_intervalo", "qt_horarios_dia"):
             self.fields[name].widget.attrs["data-scale-preview"] = name
         self.fields["convenios"].widget.attrs["data-assignment-values"] = "true"
+        aplicar_configuracao_formulario(self, "cadastro_escala", empresa)
 
     @staticmethod
     def _choices(table_name, fallback=()):
@@ -583,6 +588,7 @@ class PainelChamadaForm(forms.ModelForm):
                 }
             )
         self.fields["setores"].widget.attrs["data-assignment-values"] = "true"
+        aplicar_configuracao_formulario(self, "cadastro_painel_chamada", empresa)
 
     def clean_nm_maquina(self):
         value = self.cleaned_data["nm_maquina"].strip()
@@ -635,6 +641,7 @@ class PreAtendimentoForm(forms.ModelForm):
             else Prestador.objects.none()
         )
         self.fields["cd_prestador_responsavel"].required = True
+        aplicar_configuracao_formulario(self, "pre_atendimento", empresa)
 
 
 class AtendimentoForm(forms.ModelForm):
@@ -726,6 +733,7 @@ class CadastroAtendimentoForm(forms.ModelForm):
                     } else "true",
                 }
             )
+        aplicar_configuracao_formulario(self, "cadastro_atendimento", empresa)
 
     @staticmethod
     def _choices(table_name, fallback=()):
@@ -749,7 +757,7 @@ class ResponsavelAtendimentoForm(forms.ModelForm):
             "dt_expedicao": forms.DateInput(attrs={"type": "date"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, empresa=None, **kwargs):
         super().__init__(*args, **kwargs)
         for field_name, table_name in (
             ("ds_parentesco", "parentesco"),
@@ -776,6 +784,7 @@ class ResponsavelAtendimentoForm(forms.ModelForm):
                     "data-editable": "true",
                 }
             )
+        aplicar_configuracao_formulario(self, "responsavel_atendimento", empresa)
 
 
 class SolicitacaoExameForm(forms.ModelForm):

@@ -17,32 +17,73 @@
     </dl>
   </section>
 
-  <section class="card">
-    <div class="section-heading">
-      <div>
-        <small>Horário selecionado</small>
-        <h2>{{ horario.dh_inicio|date:"d/m/Y H:i" }}</h2>
-      </div>
-    </div>
-    <div class="detail-grid">
-      <div><small>Prestador</small><strong>{{ agenda.cd_prestador.nm_prestador }}</strong></div>
-      <div><small>Especialidade</small><strong>{{ agenda.nm_especialidade }}</strong></div>
-      <div><small>Escala</small><strong>{{ agenda.ds_agenda }}</strong></div>
-      <div><small>Setor</small><strong>{{ agenda.cd_setor_atendimento|default:"Não informado" }}</strong></div>
-    </div>
-  </section>
-
-  <form class="card compact-form appointment-confirm" method="post" autocomplete="off">
+  <form class="card appointment-confirm-layout" method="post" autocomplete="off">
     {% csrf_token %}
     <input type="hidden" name="return_to" value="{{ return_to }}">
-    <h2>Confirmar agendamento</h2>
-    <label>Plano <input name="ds_plano" placeholder="Plano"></label>
-    <label>Tipo de atendimento <input name="ds_tipo_atendimento" value="{{ agenda.ds_tipo_agendamento }}" placeholder="Consulta, retorno, exame..."></label>
-    <label class="provider-checkbox"><input name="sn_particular" type="checkbox" value="1"><span>Particular</span></label>
-    <label class="provider-checkbox"><input name="sn_encaixe" type="checkbox" value="1"><span>Encaixe</span></label>
-    <label class="field-xl">Observação <input name="ds_observacao" placeholder="Observação"></label>
-    <div class="form-actions">
-      <button class="button button-primary" type="submit">Confirmar e imprimir comprovante</button>
-    </div>
+    <section class="appointment-slot-summary">
+      <div class="appointment-slot-title">
+        <small>Horário selecionado</small>
+        <h2>{{ horario.dh_inicio|date:"d/m/Y" }}</h2>
+        <strong>{{ horario.dh_inicio|date:"H:i" }} às {{ horario.dh_fim|date:"H:i" }}</strong>
+      </div>
+      <dl>
+        <div><dt>Prestador</dt><dd>{{ agenda.cd_prestador.nm_guerra|default:agenda.cd_prestador.nm_prestador }}</dd></div>
+        <div><dt>Nome completo</dt><dd>{{ agenda.cd_prestador.nm_prestador }}</dd></div>
+        <div><dt>Especialidade</dt><dd>{{ agenda.nm_especialidade|default:agenda.ds_especialidade }}</dd></div>
+        <div><dt>Escala</dt><dd>{{ agenda.ds_agenda }}</dd></div>
+        <div><dt>Setor de atendimento</dt><dd>{{ agenda.cd_setor_atendimento|default:"Não informado" }}</dd></div>
+        <div><dt>Tipo de horário</dt><dd>{{ agenda.get_tp_horario_display|default:agenda.tp_horario }}</dd></div>
+        <div><dt>Tipo previsto</dt><dd data-appointment-type-preview>{{ agenda.ds_tipo_agendamento|default:"Não informado" }}</dd></div>
+        <div>
+          <dt>Convênios aceitos</dt>
+          <dd>
+            {% for convenio in agenda.convenios.all %}
+              {{ convenio.nm_convenio }}{% if not forloop.last %}, {% endif %}
+            {% empty %}
+              Todos
+            {% endfor %}
+          </dd>
+        </div>
+      </dl>
+    </section>
+    <section class="appointment-confirm-fields">
+      <div class="section-heading">
+        <div><small>Dados complementares</small><h2>Confirmar agendamento</h2></div>
+      </div>
+      <div class="appointment-confirm-grid">
+        <label>Plano <input name="ds_plano" placeholder="Plano"></label>
+        <label>Tipo de atendimento
+          <select name="ds_tipo_atendimento" data-appointment-type-select>
+            <option value=""></option>
+            {% for tipo in tipos_atendimento %}
+              <option value="{{ tipo.cd_valor }}" {% if tipo.cd_valor == agenda.ds_tipo_agendamento %}selected{% endif %}>{{ tipo.ds_valor }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="appointment-confirm-checks">
+          <label class="provider-checkbox"><input name="sn_particular" type="checkbox" value="1"><span>Particular</span></label>
+          <label class="provider-checkbox"><input name="sn_encaixe" type="checkbox" value="1"><span>Encaixe</span></label>
+        </div>
+        <label class="appointment-confirm-observation">Observação <input name="ds_observacao" placeholder="Observação"></label>
+        <div class="form-actions appointment-confirm-actions">
+          <button class="button button-primary" type="submit">Confirmar e imprimir comprovante</button>
+        </div>
+      </div>
+    </section>
   </form>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const select = document.querySelector("[data-appointment-type-select]");
+      const preview = document.querySelector("[data-appointment-type-preview]");
+      if (!select || !preview) return;
+      const update = () => {
+        preview.textContent = select.selectedOptions[0]?.textContent.trim() || "Não informado";
+      };
+      select.addEventListener("change", update);
+      update();
+    })();
+  </script>
 {% endblock %}

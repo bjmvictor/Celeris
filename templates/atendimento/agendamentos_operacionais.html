@@ -98,6 +98,7 @@
               {% if not item.atendimento and item.ds_status != "CANCELADO" %}
                 <form method="post" action="{% url 'atendimento:cancelar-agendamento' item.pk %}" class="inline-form" data-confirm-message="Deseja realmente cancelar este agendamento?">
                   {% csrf_token %}
+                  <input type="hidden" name="return_to" value="{{ request.get_full_path }}">
                   <button class="row-icon-action labeled danger" type="submit" title="Cancelar agendamento">
                     <span class="svg-icon" data-nav-icon="x"></span><span class="row-icon-label">Cancelar agendamento</span>
                   </button>

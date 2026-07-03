@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Senha {{ senha.ds_senha }}</title>
+  <style>
+    @page { size: 80mm auto; margin: 4mm; }
+    body { margin: 0; font-family: Arial, sans-serif; text-align: center; color: #111; }
+    h1 { margin: 8mm 0 3mm; font-size: 34px; }
+    p { margin: 2mm 0; }
+    small { display: block; margin-top: 7mm; }
+  </style>
+</head>
+<body onload="window.print()">
+  <strong>{{ senha.cd_empresa.nm_empresa }}</strong>
+  <h1>{{ senha.ds_senha }}</h1>
+  <p>{{ senha.cd_tipo_senha.nm_tipo_senha }} · {{ senha.cd_classe_senha.nm_classe_senha }}</p>
+  {% if senha.cd_tipo_senha.ds_protocolo %}<p>{{ senha.cd_tipo_senha.ds_protocolo }}</p>{% endif %}
+  <small>{{ senha.dh_criacao|date:"d/m/Y H:i" }}</small>
+</body>
+</html>

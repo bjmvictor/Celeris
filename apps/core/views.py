@@ -7,15 +7,29 @@ from django.db.models import CharField, Max, Q, TextField
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from io import BytesIO, StringIO
+from urllib.parse import urlencode
 import csv
 import re
 import unicodedata
 
 from apps.accounts.models import Empresa, Setor
+from .form_registry import (
+    FORMULARIOS_CONFIGURAVEIS,
+    consultar_campos_formularios,
+    opcoes_formularios,
+)
 from .permissions import role_required
 
 from .forms import EmpresaForm, ScreenDefinitionForm, ScreenFieldForm
-from .models import Cep, ScreenDefinition, ScreenField, TabelaAuxiliarGlobal, TipoPrestadorConselho, ValorAuxiliarGlobal
+from .models import (
+    Cep,
+    ConfiguracaoCampoFormulario,
+    ScreenDefinition,
+    ScreenField,
+    TabelaAuxiliarGlobal,
+    TipoPrestadorConselho,
+    ValorAuxiliarGlobal,
+)
 from .table_utils import paginate_table
 
 
@@ -37,6 +51,81 @@ def _auxiliary_code(value):
 @login_required
 def placeholder(request):
     return render(request, "core/placeholder.html")
+
+
+@login_required
+@role_required("TI")
+def configurar_formularios(request):
+    request.current_tab_title = "Global > Formulários > Configurar formulários"
+    request.current_tab_root_title = "Configurar formulários"
+    request.current_module_title = "Global"
+    request.current_can_query = False
+    request.current_can_remove = False
+    empresa = get_object_or_404(
+        Empresa,
+        cd_empresa=request.session.get("cd_empresa"),
+        sn_ativo=True,
+    )
+    codigo_formulario = (
+        request.POST.get("formulario")
+        if request.method == "POST"
+        else request.GET.get("formulario", "")
+    )
+    nome_campo = request.POST.get("nome_campo", "") if request.method == "POST" else request.GET.get("nome_campo", "")
+    if codigo_formulario not in FORMULARIOS_CONFIGURAVEIS:
+        codigo_formulario = ""
+    consultando = request.method == "POST" or request.GET.get("consultar") == "1"
+    campos = consultar_campos_formularios(empresa, codigo_formulario, nome_campo) if consultando else []
+    request.current_can_query = True
+    request.current_start_query = not consultando
+    request.current_can_save = bool(campos)
+    if request.method == "POST":
+        obrigatorios = set(request.POST.getlist("campos_obrigatorios"))
+        chaves_resultado = set(request.POST.getlist("campos_resultado"))
+        campos_disponiveis = {
+            campo["chave"]: campo
+            for campo in consultar_campos_formularios(empresa)
+            if campo["editavel"]
+        }
+        with transaction.atomic():
+            for chave in chaves_resultado:
+                campo = campos_disponiveis.get(chave)
+                if not campo:
+                    continue
+                configuracao, criada = ConfiguracaoCampoFormulario.objects.get_or_create(
+                    cd_empresa=empresa,
+                    cd_formulario=campo["formulario"],
+                    cd_campo=campo["codigo"],
+                    defaults={
+                        "sn_obrigatorio": chave in obrigatorios,
+                        "cd_usuario_criacao": request.user,
+                        "cd_usuario_atualizacao": request.user,
+                    },
+                )
+                if not criada:
+                    configuracao.sn_obrigatorio = chave in obrigatorios
+                    configuracao.cd_usuario_atualizacao = request.user
+                    configuracao.save(
+                        update_fields=["sn_obrigatorio", "cd_usuario_atualizacao", "updated_at"]
+                    )
+        messages.success(request, "Configuração do formulário salva e aplicada.")
+        parametros = {"consultar": "1"}
+        if codigo_formulario:
+            parametros["formulario"] = codigo_formulario
+        if nome_campo:
+            parametros["nome_campo"] = nome_campo
+        return redirect(f"{request.path}?{urlencode(parametros)}")
+    return render(
+        request,
+        "core/configurar_formularios.html",
+        {
+            "formularios": opcoes_formularios(),
+            "formulario_selecionado": codigo_formulario,
+            "nome_campo": nome_campo,
+            "nome_formulario": FORMULARIOS_CONFIGURAVEIS.get(codigo_formulario, {}).get("nome", "Campos encontrados"),
+            "campos": campos,
+        },
+    )
 
 
 @login_required

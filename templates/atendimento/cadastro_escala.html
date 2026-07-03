@@ -6,11 +6,15 @@
     class="provider-form scale-form"
     data-table="agenda_profissional"
     data-query-url="{{ request.path }}"
+    data-delete-queue="true"
+    data-delete-queue-name="agenda_profissional"
+    data-record-id="{{ escala.pk|default:'' }}"
     data-has-errors="{{ form.errors|yesno:'true,false' }}"
     method="post"
     autocomplete="off"
   >
     {% csrf_token %}
+    {% if escala %}<input type="hidden" name="_excluir_ids" value="" data-delete-queue-field>{% endif %}
     {{ form.non_field_errors }}
     {% if form.errors %}
       <div class="form-error-summary" role="alert">

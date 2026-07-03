@@ -15,7 +15,7 @@
       </select>
     </label>
     <label>Data inicial <input name="data_inicio" type="date" value="{{ data_inicio|date:'Y-m-d' }}" required></label>
-    <label>Data final <input name="data_fim" type="date" value="{{ data_fim|date:'Y-m-d' }}" required></label>
+    <label>Data final <input name="data_fim" type="date" value="{% if data_fim %}{{ data_fim|date:'Y-m-d' }}{% endif %}" required></label>
     <div class="agenda-range-total">
       <span>Total do intervalo</span>
       <output data-agenda-range-total></output>
@@ -40,7 +40,7 @@
       </thead>
       <tbody>
         {% for agenda in agendas_geradas %}
-          <tr>
+          <tr class="agenda-generated-row" data-agenda-row-toggle="{{ agenda.pk }}" tabindex="0" aria-expanded="false">
             <td>{{ agenda.pk }}</td>
             <td>{{ agenda.cd_escala.cd_prestador.nm_prestador }}</td>
             <td>{{ agenda.cd_escala.ds_agenda }}</td>
@@ -66,10 +66,8 @@
               </form>
             </td>
           </tr>
-          <tr class="agenda-slot-details">
+          <tr class="agenda-slot-details" data-agenda-row-details="{{ agenda.pk }}" hidden>
             <td colspan="9">
-              <details>
-                <summary>Visualizar horários deste período</summary>
                 <div class="agenda-date-groups">
                   {% for grupo in agenda.horarios_por_data %}
                     <section class="agenda-date-group">
@@ -93,7 +91,6 @@
                     </section>
                   {% endfor %}
                 </div>
-              </details>
             </td>
           </tr>
         {% empty %}
@@ -123,6 +120,23 @@
       start?.addEventListener("change", update);
       end?.addEventListener("change", update);
       update();
+      document.querySelectorAll("[data-agenda-row-toggle]").forEach((row) => {
+        const toggle = () => {
+          const details = document.querySelector(`[data-agenda-row-details="${row.dataset.agendaRowToggle}"]`);
+          if (!details) return;
+          details.hidden = !details.hidden;
+          row.setAttribute("aria-expanded", String(!details.hidden));
+        };
+        row.addEventListener("click", (event) => {
+          if (event.target.closest("a, button, form, input, select")) return;
+          toggle();
+        });
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          toggle();
+        });
+      });
     })();
   </script>
 {% endblock %}

@@ -46,6 +46,15 @@ MODULES = [
         ],
     },
     {
+        "code": "TOTEM_SENHAS",
+        "title": "Totem de Senhas",
+        "icon": "clipboard-plus",
+        "items": [
+            item("Gerar senha", "atendimento:gerar-senha-totem", roles=["TI", "Recepcionista"]),
+            item("Configurar", "atendimento:configurar-senhas", roles=["TI"]),
+        ],
+    },
+    {
         "code": "GLOBAL",
         "title": "Global",
         "icon": "globe",
@@ -81,6 +90,13 @@ MODULES = [
                 "Integrações",
                 children=[
                     item("Importação de dados", "core:global_integrations", roles=["TI"]),
+                ],
+                roles=["TI"],
+            ),
+            item(
+                "Formulários",
+                children=[
+                    item("Configurar formulários", "core:configurar_formularios", roles=["TI"]),
                 ],
                 roles=["TI"],
             ),

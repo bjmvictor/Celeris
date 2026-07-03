@@ -137,6 +137,8 @@
       window.history.replaceState({}, "", window.location.pathname);
     } else {
       clearFormFields(form);
+      form.querySelectorAll("[data-query-results]").forEach((result) => result.remove());
+      window.history.replaceState({}, "", window.location.pathname);
     }
     setActionStatus("EDIÇÃO");
   }
@@ -612,6 +614,10 @@
   }
 
   async function submitPrimaryForm(form) {
+    if (form?.matches("[data-delete-queue='true']") && readDeletionQueue(form).length) {
+      form.requestSubmit();
+      return true;
+    }
     markInvalidFields(form);
     if (!form.reportValidity()) return false;
     if (!await promptChangeReason(form)) return false;
@@ -634,6 +640,73 @@
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
+  }
+
+  function deletionQueueKey(form) {
+    if (!form?.matches("[data-delete-queue='true']")) return "";
+    const name = form.dataset.deleteQueueName || form.dataset.table || window.location.pathname;
+    return `celeris-delete-queue:${name}`;
+  }
+
+  function readDeletionQueue(form) {
+    const key = deletionQueueKey(form);
+    if (!key) return [];
+    try {
+      return JSON.parse(sessionStorage.getItem(key) || "[]").map(String);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function syncDeletionQueue(form, queue = readDeletionQueue(form)) {
+    const key = deletionQueueKey(form);
+    if (!key) return;
+    const normalized = [...new Set(queue.map(String).filter(Boolean))];
+    sessionStorage.setItem(key, JSON.stringify(normalized));
+    const currentId = String(form.dataset.recordId || "");
+    const pendingCurrent = currentId && normalized.includes(currentId);
+    form.classList.toggle("record-pending-deletion", Boolean(pendingCurrent));
+    const hidden = form.querySelector("[data-delete-queue-field]");
+    if (hidden) hidden.value = normalized.join(",");
+    form.dataset.pendingDelete = normalized.length ? "true" : "false";
+    if (normalized.length) markFormDirty(form);
+  }
+
+  function toggleCurrentRecordDeletion(form) {
+    const currentId = String(form?.dataset.recordId || "");
+    if (!form || !currentId) return false;
+    const queue = readDeletionQueue(form);
+    const index = queue.indexOf(currentId);
+    if (index >= 0) {
+      queue.splice(index, 1);
+    } else {
+      queue.push(currentId);
+    }
+    syncDeletionQueue(form, queue);
+    showBlockingNotification({
+      title: index >= 0 ? "Exclusão desmarcada" : "Exclusão preparada",
+      message: index >= 0
+        ? "Este registro não será mais excluído."
+        : "O registro foi marcado em vermelho e será excluído ao clicar em Salvar.",
+      confirmText: "OK",
+      type: index >= 0 ? "info" : "warning",
+    });
+    setupActionButtons();
+    return true;
+  }
+
+  function setupDeletionQueues() {
+    document.querySelectorAll("form[data-delete-queue='true']").forEach((form) => {
+      const params = new URLSearchParams(window.location.search);
+      const key = deletionQueueKey(form);
+      if (params.get("exclusao_concluida") === "1" && key) {
+        sessionStorage.removeItem(key);
+        params.delete("exclusao_concluida");
+        const query = params.toString();
+        window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+      }
+      syncDeletionQueue(form);
+    });
   }
 
   function addEditableTableRow(form, markDirty = true) {
@@ -870,6 +943,8 @@
           window.history.replaceState({}, "", window.location.pathname);
         } else {
           clearFormFields(form);
+          form?.querySelectorAll("[data-query-results]").forEach((result) => result.remove());
+          window.history.replaceState({}, "", window.location.pathname);
         }
         setQueryMode(true);
         if (form?.matches("[data-editable-table]")) {
@@ -904,10 +979,10 @@
               params.set(field.name, field.value);
             }
           });
-          if (["paciente", "prestador", "usuario", "agenda_profissional"].includes(form.dataset.table)) {
-            params.set("consultar", "1");
-          } else {
-            params.set("abrir", "1");
+          const queryParameter = form.dataset.queryParameter
+            || (["paciente", "prestador", "usuario", "agenda_profissional"].includes(form.dataset.table) ? "consultar" : "abrir");
+          if (queryParameter) {
+            params.set(queryParameter, "1");
           }
           window.location.href = `${queryUrl}?${params.toString()}`;
           return;
@@ -997,6 +1072,22 @@
     if (removeAction && !removeAction.disabled) {
       const tableForm = getEditableTableForm();
       if (tableForm && removeEditableTableRow(tableForm)) return;
+      const form = getPrimaryForm();
+      if (form?.matches("[data-delete-queue='true']") && toggleCurrentRecordDeletion(form)) return;
+      const deleteField = form?.querySelector("[data-record-delete]");
+      if (deleteField) {
+        deleteField.value = "1";
+        form.dataset.pendingDelete = "true";
+        markFormDirty(form);
+        showBlockingNotification({
+          title: "Exclusão preparada",
+          message: "A exclusão deste registro será efetivada ao clicar em Salvar.",
+          confirmText: "OK",
+          type: "warning",
+        });
+        setupActionButtons();
+        return;
+      }
     }
 
     const toggleActiveAction = event.target.closest('[data-action="toggle-active"]');
@@ -1418,10 +1509,22 @@
   function positionFloatingSelect(panel, field) {
     const rect = field.getBoundingClientRect();
     const gap = 4;
+    const viewportGap = 8;
     const width = Math.max(rect.width, 180);
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - gap - viewportGap);
+    const spaceAbove = Math.max(0, rect.top - gap - viewportGap);
+    const preferredHeight = Math.min(panel.scrollHeight || 260, 320);
+    const openBelow = spaceBelow >= Math.min(preferredHeight, 180) || spaceBelow >= spaceAbove;
+    const availableHeight = Math.max(96, openBelow ? spaceBelow : spaceAbove);
+    const panelHeight = Math.min(preferredHeight, availableHeight);
+    const maxLeft = Math.max(viewportGap, window.innerWidth - width - viewportGap);
+    const left = Math.max(viewportGap, Math.min(rect.left, maxLeft));
+    const top = openBelow ? rect.bottom + gap : rect.top - gap - panelHeight;
     panel.style.width = `${width}px`;
-    panel.style.left = `${Math.min(rect.left, window.innerWidth - width - gap)}px`;
-    panel.style.top = `${Math.min(rect.bottom + gap, window.innerHeight - panel.offsetHeight - gap)}px`;
+    panel.style.maxHeight = `${availableHeight}px`;
+    panel.style.left = `${left}px`;
+    panel.style.top = `${Math.max(viewportGap, Math.min(top, window.innerHeight - panelHeight - viewportGap))}px`;
+    panel.dataset.placement = openBelow ? "bottom" : "top";
   }
 
   function openFloatingSelect(field) {
@@ -2148,6 +2251,72 @@
         applyOrdering();
       });
     });
+    document.querySelectorAll("table").forEach((table) => {
+      const headers = Array.from(table.querySelectorAll("thead th"));
+      headers.forEach((header, columnIndex) => {
+        if (
+          header.matches("[data-sort-field]")
+          || header.querySelector("a")
+          || /^(ação|ações)$/i.test(header.textContent.trim())
+        ) return;
+        header.classList.add("sortable-column");
+        header.tabIndex = 0;
+        const valueFor = (row) => {
+          const cell = row.cells[columnIndex];
+          const control = cell?.querySelector("input:not([type='hidden']), select, textarea");
+          const raw = String(control?.value ?? cell?.textContent ?? "").trim();
+          const dateMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+          if (dateMatch) {
+            return new Date(
+              Number(dateMatch[3]),
+              Number(dateMatch[2]) - 1,
+              Number(dateMatch[1]),
+              Number(dateMatch[4] || 0),
+              Number(dateMatch[5] || 0),
+            ).getTime();
+          }
+          const numeric = Number(raw.replace(/\./g, "").replace(",", "."));
+          return raw && Number.isFinite(numeric) ? numeric : raw.toLocaleLowerCase("pt-BR");
+        };
+        const applyClientOrdering = () => {
+          const tbody = table.tBodies[0];
+          if (!tbody) return;
+          const groups = [];
+          Array.from(tbody.rows).forEach((row) => {
+            if (row.classList.contains("agenda-slot-details") && groups.length) {
+              groups[groups.length - 1].push(row);
+            } else {
+              groups.push([row]);
+            }
+          });
+          const descending = header.dataset.clientSortDirection === "asc";
+          headers.forEach((item) => {
+            item.querySelector(".sort-indicator")?.remove();
+            delete item.dataset.clientSortDirection;
+          });
+          header.dataset.clientSortDirection = descending ? "desc" : "asc";
+          groups.sort((left, right) => {
+            const leftValue = valueFor(left[0]);
+            const rightValue = valueFor(right[0]);
+            const comparison = typeof leftValue === "number" && typeof rightValue === "number"
+              ? leftValue - rightValue
+              : String(leftValue).localeCompare(String(rightValue), "pt-BR", { numeric: true, sensitivity: "base" });
+            return descending ? -comparison : comparison;
+          });
+          const indicator = document.createElement("span");
+          indicator.className = "sort-indicator";
+          indicator.textContent = descending ? "▼" : "▲";
+          header.appendChild(indicator);
+          groups.flat().forEach((row) => tbody.appendChild(row));
+        };
+        header.addEventListener("click", applyClientOrdering);
+        header.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          applyClientOrdering();
+        });
+      });
+    });
   }
 
   function setupResizableTables() {
@@ -2737,6 +2906,7 @@
   setupResizableTables();
   setupCepCityDependencies();
   setupInitialEditableRows();
+  setupDeletionQueues();
   updateTablePagerVisibility();
   restoreCurrentFormState();
   const warNameField = document.querySelector("[data-war-name]");

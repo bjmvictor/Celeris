@@ -99,6 +99,43 @@ class TipoPrestadorConselho(TimeStampedModel):
         return f"{self.tp_prestador} - {self.ds_conselho}"
 
 
+class ConfiguracaoCampoFormulario(TimeStampedModel):
+    cd_configuracao_campo_formulario = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(
+        "accounts.Empresa",
+        related_name="configuracoes_campos_formularios",
+        on_delete=models.CASCADE,
+        db_column="cd_empresa",
+    )
+    cd_formulario = models.CharField(max_length=80)
+    cd_campo = models.CharField(max_length=120)
+    sn_obrigatorio = models.BooleanField(default=False)
+    cd_usuario_criacao = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="configuracoes_formularios_criadas",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_column="cd_usuario_criacao",
+    )
+    cd_usuario_atualizacao = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="configuracoes_formularios_atualizadas",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_column="cd_usuario_atualizacao",
+    )
+
+    class Meta:
+        db_table = "configuracao_campo_formulario"
+        ordering = ("cd_formulario", "cd_campo")
+        unique_together = ("cd_empresa", "cd_formulario", "cd_campo")
+
+    def __str__(self) -> str:
+        return f"{self.cd_formulario}.{self.cd_campo}"
+
+
 class ScreenDefinition(TimeStampedModel):
     TYPE_FORM = "formulario"
     TYPE_REPORT = "relatorio"

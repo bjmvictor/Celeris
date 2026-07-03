@@ -2,6 +2,30 @@
 {% block content %}
   <section class="flow-banner">AGUARDANDO CLASSIFICAÇÃO → CLASSIFICAR → AGUARDANDO CONSULTA</section>
   <section class="card table-card">
+    <table>
+      <thead><tr><th>Senha</th><th>Tipo</th><th>Classe</th><th>Prioridade</th><th>Espera</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for senha in senhas %}
+          <tr class="{% if senha.tempo_excedido %}ticket-overdue{% endif %}">
+            <td><strong>{{ senha.ds_senha }}</strong></td>
+            <td>{{ senha.cd_tipo_senha.nm_tipo_senha }}</td>
+            <td>{{ senha.cd_classe_senha.nm_classe_senha }}</td>
+            <td>{{ senha.nr_prioridade }}</td>
+            <td>{{ senha.dh_criacao|timesince }}</td>
+            <td>{{ senha.get_ds_status_display }}</td>
+            <td class="inline-actions">
+              <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'chamar' %}">{% csrf_token %}<button class="button button-secondary" type="submit">Chamar</button></form>
+              <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'receber' %}">{% csrf_token %}<button class="button button-primary" type="submit">Receber</button></form>
+              {% if senha.ds_status == "EM_CLASSIFICACAO" %}
+                <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'classificar' %}">{% csrf_token %}<button class="button button-primary" type="submit">Concluir classificação</button></form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}<tr><td colspan="7">Nenhuma senha aguardando classificação.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card table-card">
     <table><thead><tr><th>Atendimento</th><th>Paciente</th><th>Abertura</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
       {% for item in registros %}
         <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.cd_paciente.nm_paciente }}</td><td>{{ item.dh_inicio|date:"H:i" }}</td><td>{{ item.get_ds_origem_display }}</td>

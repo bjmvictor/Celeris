@@ -1,0 +1,64 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card ticket-kiosk-header">
+    <div><small>Instituição</small><h2>{{ empresa.nm_empresa }}</h2></div>
+    <label>Impressora padrão
+      <input data-ticket-printer placeholder="Nome da impressora configurada neste computador">
+    </label>
+    <details class="ticket-history">
+      <summary class="button button-secondary" title="Últimas senhas"><span class="svg-icon" data-nav-icon="history"></span></summary>
+      <div class="ticket-history-menu">
+        {% for senha in historico %}
+          <div>
+            <strong>{{ senha.ds_senha }}</strong>
+            <span>{{ senha.cd_classe_senha.nm_classe_senha }} · {{ senha.dh_criacao|date:"H:i" }}</span>
+            <a class="button button-secondary" href="{% url 'atendimento:imprimir-senha-totem' senha.pk %}" target="_blank">Reimprimir</a>
+          </div>
+        {% empty %}<span>Nenhuma senha gerada hoje.</span>{% endfor %}
+      </div>
+    </details>
+  </section>
+
+  <section class="ticket-options">
+    {% for classe in classes %}
+      <form class="card ticket-option" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="classe" value="{{ classe.pk }}">
+        <small>{{ classe.cd_tipo_senha.nm_tipo_senha }}</small>
+        <strong>{{ classe.nm_classe_senha }}</strong>
+        <span>{{ classe.cd_tipo_senha.sg_tipo_senha }}{{ classe.sg_classe_senha }} · prioridade {{ classe.nr_prioridade }}</span>
+        <button class="button button-primary" type="submit">Gerar senha</button>
+      </form>
+    {% empty %}
+      <div class="card empty-state">Configure os tipos e classes de senha antes de utilizar o totem.</div>
+    {% endfor %}
+  </section>
+
+  {% if senha_gerada %}
+    <section class="ticket-generated-modal" data-ticket-modal data-print-url="{% url 'atendimento:imprimir-senha-totem' senha_gerada.pk %}">
+      <div class="ticket-generated-card">
+        <small>Sua senha</small>
+        <strong>{{ senha_gerada.ds_senha }}</strong>
+        <span>{{ senha_gerada.cd_tipo_senha.nm_tipo_senha }} · {{ senha_gerada.cd_classe_senha.nm_classe_senha }}</span>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const printer = document.querySelector("[data-ticket-printer]");
+      if (printer) {
+        printer.value = localStorage.getItem("celeris-ticket-printer") || "";
+        printer.addEventListener("change", () => localStorage.setItem("celeris-ticket-printer", printer.value.trim()));
+      }
+      const modal = document.querySelector("[data-ticket-modal]");
+      if (!modal) return;
+      const printWindow = window.open(modal.dataset.printUrl, "_blank", "noopener");
+      window.setTimeout(() => {
+        modal.remove();
+        printWindow?.focus();
+      }, 4500);
+    })();
+  </script>
+{% endblock %}

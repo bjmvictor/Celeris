@@ -17,6 +17,7 @@ import copy
 import hashlib
 import json
 import logging
+import random
 import re
 import unicodedata
 from urllib.parse import urlencode, urlparse
@@ -42,6 +43,7 @@ from .models import (
     AgendaProfissional,
     Agendamento,
     ChamadaPainel,
+    ClasseSenhaAtendimento,
     Convenio,
     DocumentoClinico,
     DominioExternoPermitido,
@@ -68,6 +70,8 @@ from .models import (
     ResultadoEscalaClinica,
     ResultadoExame,
     SolicitacaoExame,
+    SenhaAtendimento,
+    TipoSenhaAtendimento,
 )
 
 
@@ -929,7 +933,7 @@ def cadastro_profissional(request, cd_prestador=None):
         if current_index < len(result_ids) - 1:
             request.current_next_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[current_index + 1]])}?origem=consulta"
             request.current_last_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[-1]])}?origem=consulta"
-    form = PrestadorForm(request.POST or None, instance=prestador)
+    form = PrestadorForm(request.POST or None, instance=prestador, empresa=empresa)
     if request.method == "POST":
         logger.info(
             "Gravacao de prestador iniciada usuario=%s empresa=%s prestador=%s campos=%s",
@@ -1134,13 +1138,77 @@ def recepcao(request):
     request.current_tab_title = "Atendimento > Recepção"
     request.current_tab_root_title = "Recepção"
     request.current_module_title = "Atendimento"
-    agendamentos = (
-        Agendamento.objects.select_related("cd_paciente", "cd_agenda_profissional__cd_prestador")
-        .filter(cd_empresa=empresa, dh_agendamento__date=timezone.localdate())
-        .exclude(ds_status__in=["CANCELADO", "FALTOU"])
-        .order_by("dh_agendamento")
+    request.current_start_query = not bool(request.GET)
+    senha_selecionada = request.GET.get("senha", "")
+    form = PacienteSearchForm(request.GET or None)
+    pacientes = Paciente.objects.none()
+    if request.GET and form.is_valid():
+        pacientes = Paciente.objects.filter(cd_empresa=empresa, sn_ativo=True)
+        dados = form.cleaned_data
+        if dados.get("cd_paciente"):
+            pacientes = pacientes.filter(cd_paciente=dados["cd_paciente"])
+        if dados.get("termo"):
+            termo = dados["termo"].replace("%", "")
+            pacientes = pacientes.filter(Q(nm_paciente__icontains=termo) | Q(nm_social__icontains=termo))
+        if dados.get("nr_cpf"):
+            pacientes = pacientes.filter(nr_cpf__icontains=dados["nr_cpf"].replace("%", ""))
+        if dados.get("nm_mae"):
+            pacientes = pacientes.filter(nm_mae__icontains=dados["nm_mae"].replace("%", ""))
+        if dados.get("nr_cartao_sus"):
+            pacientes = pacientes.filter(nr_cartao_sus__icontains=dados["nr_cartao_sus"].replace("%", ""))
+        if dados.get("dt_nascimento"):
+            pacientes = pacientes.filter(dt_nascimento=dados["dt_nascimento"])
+        pacientes = pacientes.order_by("nm_paciente")[:30]
+    return render(
+        request,
+        "atendimento/recepcao.html",
+        {
+            "form": form,
+            "pacientes": pacientes,
+            "consulta_executada": bool(request.GET),
+            "senha_selecionada": senha_selecionada,
+            "senhas_classificadas": SenhaAtendimento.objects.select_related(
+                "cd_tipo_senha", "cd_classe_senha", "cd_paciente"
+            ).filter(
+                cd_empresa=empresa,
+                dt_senha=timezone.localdate(),
+                ds_status="CLASSIFICADA",
+            )[:30],
+        },
     )
-    return render(request, "atendimento/recepcao.html", {"agendamentos": agendamentos})
+
+
+@login_required
+@role_required("Recepcionista")
+def recepcao_revisar_paciente(request, cd_paciente):
+    empresa = _empresa_logada(request)
+    paciente = get_object_or_404(Paciente, cd_empresa=empresa, pk=cd_paciente)
+    atendimento_aberto = (
+        Atendimento.objects.filter(cd_empresa=empresa, cd_paciente=paciente)
+        .exclude(ds_status__in={"FINALIZADO", "ALTA", "ALTA_HOSPITALAR", "CANCELADO", "EVADIU", "OBITO"})
+        .order_by("-dh_inicio")
+        .first()
+    )
+    if atendimento_aberto and request.GET.get("prosseguir") != "1":
+        prosseguir_params = {"prosseguir": "1"}
+        if request.GET.get("senha", "").isdigit():
+            prosseguir_params["senha"] = request.GET["senha"]
+        return render(
+            request,
+            "atendimento/confirmar_atendimento_aberto.html",
+            {
+                "paciente": paciente,
+                "atendimento": atendimento_aberto,
+                "prosseguir_url": f"{request.path}?{urlencode(prosseguir_params)}",
+                "cancelar_url": reverse("atendimento:recepcao"),
+            },
+        )
+    target = reverse("atendimento:revisar-paciente-agendamento", args=[paciente.pk])
+    params_data = {"recepcao_direta": "1", "return_to": reverse("atendimento:recepcao")}
+    if request.GET.get("senha", "").isdigit():
+        params_data["senha"] = request.GET["senha"]
+    params = urlencode(params_data)
+    return redirect(f"{target}?{params}")
 
 
 @login_required
@@ -1246,7 +1314,7 @@ def recepcionar_agendamento(request, cd_agendamento):
 
 @login_required
 @role_required("Recepcionista")
-def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None):
+def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None, cd_paciente=None):
     empresa = _empresa_logada(request)
     atendimento = (
         get_object_or_404(
@@ -1272,12 +1340,28 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None):
         atendimento = Atendimento.objects.filter(cd_empresa=empresa, cd_agendamento=agendamento).first()
         if atendimento:
             return redirect("atendimento:cadastro-atendimento", cd_atendimento=atendimento.pk)
-    paciente = atendimento.cd_paciente if atendimento else agendamento.cd_paciente
+    paciente = (
+        atendimento.cd_paciente
+        if atendimento
+        else agendamento.cd_paciente
+        if agendamento
+        else get_object_or_404(Paciente, cd_empresa=empresa, pk=cd_paciente)
+    )
+    senha_recepcao = None
+    if request.GET.get("senha", "").isdigit():
+        senha_recepcao = get_object_or_404(
+            SenhaAtendimento,
+            cd_empresa=empresa,
+            pk=int(request.GET["senha"]),
+            ds_status="CLASSIFICADA",
+        )
     request.current_tab_title = "Atendimento > Recepção > Cadastro de atendimento"
     request.current_tab_root_title = "Cadastro de atendimento"
     request.current_module_title = "Atendimento"
     request.current_can_query = False
-    request.current_return_url = _safe_return_url(request) or reverse("atendimento:agendamentos-operacionais")
+    request.current_return_url = _safe_return_url(request) or (
+        reverse("atendimento:recepcao") if cd_paciente else reverse("atendimento:agendamentos-operacionais")
+    )
     initial = {}
     if agendamento and not atendimento:
         agenda = agendamento.cd_agenda_profissional
@@ -1290,6 +1374,11 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None):
             "ds_especialidade": agendamento.ds_especialidade,
             "ds_destino": "CONSULTORIO",
         }
+    elif not atendimento:
+        initial = {
+            "ds_origem": "DEMANDA_ESPONTANEA",
+            "cd_convenio": paciente.cd_convenio_id,
+        }
     form = CadastroAtendimentoForm(
         request.POST or None,
         instance=atendimento,
@@ -1299,7 +1388,12 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None):
         agendamento=agendamento,
     )
     responsavel = getattr(atendimento, "responsavel", None) if atendimento else None
-    responsavel_form = ResponsavelAtendimentoForm(request.POST or None, instance=responsavel, prefix="responsavel")
+    responsavel_form = ResponsavelAtendimentoForm(
+        request.POST or None,
+        instance=responsavel,
+        prefix="responsavel",
+        empresa=empresa,
+    )
     modelos_documentos_atendimento = ModeloDocumento.objects.filter(
         Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
         tp_elemento="DOCUMENTO",
@@ -1322,6 +1416,13 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None):
                 saved.dh_recepcao = timezone.now()
             _apply_audit(saved, request.user)
             saved.save()
+            if senha_recepcao:
+                senha_recepcao.cd_paciente = paciente
+                senha_recepcao.ds_status = "RECEPCIONADA"
+                senha_recepcao.cd_usuario_atualizacao = request.user
+                senha_recepcao.save(
+                    update_fields=["cd_paciente", "ds_status", "cd_usuario_atualizacao", "dh_atualizacao"]
+                )
             responsible_data = [
                 value for name, value in responsavel_form.cleaned_data.items()
                 if name != "sn_mesmo_endereco_paciente" and value not in ("", None, False)
@@ -4141,6 +4242,7 @@ def cadastro_escala(request, cd_escala=None):
     request.current_tab_root_title = "Cadastro de escala"
     request.current_module_title = "Atendimento"
     request.current_can_query = True
+    request.current_can_remove = bool(cd_escala)
     empresa = _empresa_logada(request)
     if request.GET.get("consultar") == "1":
         registros = AgendaProfissional.objects.filter(cd_empresa=empresa).prefetch_related("convenios")
@@ -4210,6 +4312,39 @@ def cadastro_escala(request, cd_escala=None):
             request.current_next_url = reverse("atendimento:cadastro-escala", args=[result_ids[index + 1]])
             request.current_last_url = reverse("atendimento:cadastro-escala", args=[result_ids[-1]])
     form = EscalaForm(request.POST or None, instance=escala, empresa=empresa)
+    if request.method == "POST" and request.POST.get("_excluir_ids"):
+        ids_excluir = {
+            int(valor)
+            for valor in request.POST.get("_excluir_ids", "").split(",")
+            if valor.strip().isdigit()
+        }
+        ordem_original = request.session.get("consulta_escalas", [])
+        if not ordem_original and escala:
+            ordem_original = [escala.pk]
+        removidos = 0
+        bloqueados = 0
+        for item in AgendaProfissional.objects.filter(cd_empresa=empresa, pk__in=ids_excluir):
+            try:
+                item.delete()
+                removidos += 1
+            except ProtectedError:
+                bloqueados += 1
+        restantes = [
+            item_id
+            for item_id in ordem_original
+            if AgendaProfissional.objects.filter(cd_empresa=empresa, pk=item_id).exists()
+        ]
+        request.session["consulta_escalas"] = restantes
+        if removidos:
+            messages.success(request, f"{removidos} escala(s) excluída(s) com sucesso.")
+        if bloqueados:
+            messages.error(request, f"{bloqueados} escala(s) possuem agendas geradas e não puderam ser excluídas.")
+        if restantes:
+            indice_atual = ordem_original.index(escala.pk) if escala and escala.pk in ordem_original else 0
+            posteriores = [item_id for item_id in restantes if ordem_original.index(item_id) > indice_atual]
+            destino = posteriores[0] if posteriores else restantes[-1]
+            return redirect(f"{reverse('atendimento:cadastro-escala', args=[destino])}?exclusao_concluida=1")
+        return redirect(f"{reverse('atendimento:escalas')}?exclusao_concluida=1")
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
         saved.cd_empresa = empresa
@@ -4768,7 +4903,7 @@ def painel_chamada_publico(request):
     chamadas = ChamadaPainel.objects.none()
     if painel:
         chamadas = (
-            ChamadaPainel.objects.select_related("cd_atendimento__cd_paciente", "cd_setor")
+            ChamadaPainel.objects.select_related("cd_atendimento__cd_paciente", "cd_senha_atendimento", "cd_setor")
             .filter(cd_setor__in=painel.setores.all(), ds_status="CHAMADO")
             .order_by("-dh_chamada")[:8]
         )
@@ -4776,6 +4911,169 @@ def painel_chamada_publico(request):
     if painel:
         response.set_cookie("celeris_painel_chamada", str(painel.pk), max_age=60 * 60 * 24 * 365)
     return response
+
+
+@login_required
+@role_required("TI")
+def configurar_senhas(request):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Totem de Senhas > Configurar"
+    request.current_tab_root_title = "Configurar senhas"
+    request.current_module_title = "Totem de Senhas"
+    if request.method == "POST":
+        def inteiro_positivo(nome, padrao):
+            try:
+                return max(int(request.POST.get(nome) or padrao), 1)
+            except (TypeError, ValueError):
+                return padrao
+
+        nome_tipo = request.POST.get("nm_tipo_senha", "").strip()
+        sigla_tipo = re.sub(r"[^A-Z0-9]", "", request.POST.get("sg_tipo_senha", "").upper())[:4]
+        nome_classe = request.POST.get("nm_classe_senha", "").strip()
+        sigla_classe = re.sub(r"[^A-Z0-9]", "", request.POST.get("sg_classe_senha", "").upper())[:4]
+        if not nome_tipo or not sigla_tipo or not nome_classe:
+            messages.error(request, "Informe o tipo, a sigla e a classe da senha.")
+        else:
+            setor = None
+            if request.POST.get("cd_setor_atendimento", "").isdigit():
+                setor = Setor.objects.filter(
+                    cd_empresa=empresa,
+                    tp_setor=Setor.TipoSetor.ATENDIMENTO,
+                    pk=int(request.POST["cd_setor_atendimento"]),
+                ).first()
+            with transaction.atomic():
+                tipo, _ = TipoSenhaAtendimento.objects.update_or_create(
+                    cd_empresa=empresa,
+                    sg_tipo_senha=sigla_tipo,
+                    defaults={
+                        "nm_tipo_senha": nome_tipo,
+                        "ds_protocolo": request.POST.get("ds_protocolo", "").strip(),
+                        "nr_tempo_minimo": inteiro_positivo("nr_tempo_minimo", 30),
+                        "nr_prioridade": inteiro_positivo("nr_prioridade_tipo", 5),
+                        "cd_setor_atendimento": setor,
+                        "sn_ativo": True,
+                        "cd_usuario_atualizacao": request.user,
+                    },
+                )
+                if not tipo.cd_usuario_criacao_id:
+                    tipo.cd_usuario_criacao = request.user
+                    tipo.save(update_fields=["cd_usuario_criacao"])
+                classe, _ = ClasseSenhaAtendimento.objects.update_or_create(
+                    cd_tipo_senha=tipo,
+                    sg_classe_senha=sigla_classe,
+                    defaults={
+                        "cd_empresa": empresa,
+                        "nm_classe_senha": nome_classe,
+                        "nr_prioridade": inteiro_positivo("nr_prioridade_classe", tipo.nr_prioridade),
+                        "nr_idade_minima": request.POST.get("nr_idade_minima") or None,
+                        "nr_idade_maxima": request.POST.get("nr_idade_maxima") or None,
+                        "sn_ativo": True,
+                        "cd_usuario_atualizacao": request.user,
+                    },
+                )
+                if not classe.cd_usuario_criacao_id:
+                    classe.cd_usuario_criacao = request.user
+                    classe.save(update_fields=["cd_usuario_criacao"])
+            messages.success(request, "Tipo e classe de senha salvos.")
+            return redirect("atendimento:configurar-senhas")
+    tipos = TipoSenhaAtendimento.objects.filter(cd_empresa=empresa).prefetch_related("classes")
+    setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO, sn_ativo=True)
+    return render(request, "atendimento/configurar_senhas.html", {"tipos": tipos, "setores": setores})
+
+
+@login_required
+@role_required("TI", "Recepcionista")
+def gerar_senha_totem(request):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Totem de Senhas > Gerar senha"
+    request.current_tab_root_title = "Gerar senha"
+    request.current_module_title = "Totem de Senhas"
+    senha_gerada = None
+    if request.method == "POST":
+        classe = get_object_or_404(
+            ClasseSenhaAtendimento.objects.select_related("cd_tipo_senha"),
+            cd_empresa=empresa,
+            sn_ativo=True,
+            cd_tipo_senha__sn_ativo=True,
+            pk=request.POST.get("classe"),
+        )
+        hoje = timezone.localdate()
+        prefixo = f"{classe.cd_tipo_senha.sg_tipo_senha}{classe.sg_classe_senha}"
+        with transaction.atomic():
+            usados = set(
+                SenhaAtendimento.objects.select_for_update()
+                .filter(cd_empresa=empresa, dt_senha=hoje, ds_senha__startswith=prefixo)
+                .values_list("nr_senha", flat=True)
+            )
+            disponiveis = [numero for numero in range(1, 100) if numero not in usados]
+            numero = random.SystemRandom().choice(disponiveis) if disponiveis else (max(usados, default=99) + 1)
+            senha_gerada = SenhaAtendimento.objects.create(
+                cd_empresa=empresa,
+                cd_tipo_senha=classe.cd_tipo_senha,
+                cd_classe_senha=classe,
+                nr_senha=numero,
+                ds_senha=f"{prefixo} {numero:02d}",
+                nr_prioridade=classe.nr_prioridade,
+                nr_tempo_limite=classe.cd_tipo_senha.nr_tempo_minimo,
+                cd_usuario_criacao=request.user,
+                cd_usuario_atualizacao=request.user,
+            )
+    classes = ClasseSenhaAtendimento.objects.select_related("cd_tipo_senha").filter(
+        cd_empresa=empresa,
+        sn_ativo=True,
+        cd_tipo_senha__sn_ativo=True,
+    )
+    historico = SenhaAtendimento.objects.filter(cd_empresa=empresa, dt_senha=timezone.localdate()).order_by("-dh_criacao")[:10]
+    return render(
+        request,
+        "atendimento/gerar_senha_totem.html",
+        {"classes": classes, "historico": historico, "senha_gerada": senha_gerada, "empresa": empresa},
+    )
+
+
+@login_required
+@role_required("TI", "Recepcionista", "Enfermeiro")
+@xframe_options_sameorigin
+def imprimir_senha_totem(request, cd_senha):
+    senha = get_object_or_404(
+        SenhaAtendimento.objects.select_related("cd_empresa", "cd_tipo_senha", "cd_classe_senha"),
+        cd_empresa=_empresa_logada(request),
+        pk=cd_senha,
+    )
+    return render(request, "atendimento/imprimir_senha_totem.html", {"senha": senha})
+
+
+@login_required
+@role_required("Enfermeiro")
+def acao_senha_classificacao(request, cd_senha, acao):
+    if request.method != "POST":
+        raise PermissionDenied
+    senha = get_object_or_404(SenhaAtendimento, cd_empresa=_empresa_logada(request), pk=cd_senha)
+    agora = timezone.now()
+    if acao == "chamar":
+        senha.ds_status = "CHAMADA"
+        senha.dh_chamada = agora
+        setor = senha.cd_tipo_senha.cd_setor_atendimento
+        if setor:
+            ChamadaPainel.objects.create(
+                cd_empresa=senha.cd_empresa,
+                cd_senha_atendimento=senha,
+                cd_setor=setor,
+                ds_local=setor.nm_setor,
+                cd_usuario_criacao=request.user,
+                cd_usuario_atualizacao=request.user,
+            )
+    elif acao == "receber":
+        senha.ds_status = "EM_CLASSIFICACAO"
+        senha.dh_recepcao = agora
+    elif acao == "classificar":
+        senha.ds_status = "CLASSIFICADA"
+        senha.dh_classificacao = agora
+    else:
+        raise PermissionDenied
+    _apply_audit(senha, request.user)
+    senha.save()
+    return redirect("atendimento:fila-classificacao")
 
 
 @login_required
@@ -4789,7 +5087,12 @@ def fila_classificacao(request):
         cd_empresa=empresa,
         ds_status="AGUARDANDO_CLASSIFICACAO",
     ).order_by("dh_inicio")
-    return render(request, "atendimento/fila_classificacao.html", {"registros": registros})
+    senhas = SenhaAtendimento.objects.select_related("cd_tipo_senha", "cd_classe_senha").filter(
+        cd_empresa=empresa,
+        dt_senha=timezone.localdate(),
+        ds_status__in={"AGUARDANDO", "CHAMADA", "EM_CLASSIFICACAO"},
+    )
+    return render(request, "atendimento/fila_classificacao.html", {"registros": registros, "senhas": senhas})
 
 
 @login_required
@@ -4825,13 +5128,13 @@ def gerar_agenda(request):
     request.current_can_query = True
     empresa = _empresa_logada(request)
     data_inicio = request.POST.get("data_inicio") or request.GET.get("data_inicio") or timezone.localdate().isoformat()
-    data_fim = request.POST.get("data_fim") or request.GET.get("data_fim") or (timezone.localdate() + timedelta(days=30)).isoformat()
+    data_fim = request.POST.get("data_fim") or request.GET.get("data_fim") or ""
     try:
         inicio = datetime.fromisoformat(data_inicio).date()
-        fim = datetime.fromisoformat(data_fim).date()
+        fim = datetime.fromisoformat(data_fim).date() if data_fim else None
     except ValueError:
         inicio = timezone.localdate()
-        fim = inicio + timedelta(days=30)
+        fim = None
     if request.method == "POST":
         acao = request.POST.get("acao", "gerar")
         if acao in {"cancelar", "excluir"}:
@@ -4866,6 +5169,9 @@ def gerar_agenda(request):
             sn_ativo=True,
             pk=request.POST.get("escala"),
         )
+        if not fim:
+            messages.error(request, "Informe a data final do período.")
+            return redirect("atendimento:gerar-agenda")
         if fim < inicio:
             messages.error(request, "A data final deve ser igual ou posterior à data inicial.")
             return redirect("atendimento:gerar-agenda")
@@ -5011,6 +5317,12 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
     request.current_module_title = "Atendimento" if fluxo_agendamento else "Pacientes"
     request.current_tab_root_title = "Cadastro de paciente"
     empresa = _empresa_logada(request)
+    recepcao_direta = request.GET.get("recepcao_direta") == "1"
+    senha_recepcao_id = request.GET.get("senha", "")
+    if recepcao_direta:
+        request.current_tab_title = "Atendimento > Recepção > Validar paciente"
+        request.current_module_title = "Atendimento"
+        request.current_return_url = _safe_return_url(request) or reverse("atendimento:recepcao")
     agendamento_recepcao = None
     agendamento_recepcao_id = request.GET.get("recepcionar", "").strip()
     if agendamento_recepcao_id.isdigit():
@@ -5087,7 +5399,14 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
             request.current_next_url = reverse(route, args=[result_ids[current_index + 1]])
             request.current_last_url = reverse(route, args=[result_ids[-1]])
     if fluxo_agendamento and paciente:
-        if agendamento_recepcao:
+        if recepcao_direta:
+            continue_url = reverse("atendimento:novo-atendimento-direto", args=[paciente.pk])
+            request.current_continue_url = (
+                f"{continue_url}?{urlencode({'senha': senha_recepcao_id})}"
+                if senha_recepcao_id.isdigit()
+                else continue_url
+            )
+        elif agendamento_recepcao:
             continue_url = reverse("atendimento:novo-atendimento-agendado", args=[agendamento_recepcao.pk])
             query = urlencode({"return_to": request.current_return_url}) if request.current_return_url else ""
             request.current_continue_url = f"{continue_url}?{query}" if query else continue_url
@@ -5133,6 +5452,14 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
                 if request.current_return_url:
                     query["return_to"] = request.current_return_url
                 response = redirect(f"{target}?{urlencode(query)}")
+            elif recepcao_direta:
+                messages.success(request, "Dados do paciente confirmados. Continue para cadastrar o atendimento.")
+                target = reverse("atendimento:novo-atendimento-direto", args=[saved.pk])
+                response = redirect(
+                    f"{target}?{urlencode({'senha': senha_recepcao_id})}"
+                    if senha_recepcao_id.isdigit()
+                    else target
+                )
             elif fluxo_agendamento:
                 messages.success(request, "Paciente salvo. Revise os dados e confirme o agendamento.")
                 response = redirect("atendimento:selecionar-agenda", cd_paciente=saved.cd_paciente)
@@ -5149,6 +5476,7 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
             "paciente": paciente,
             "fluxo_agendamento": fluxo_agendamento,
             "agendamento_recepcao": agendamento_recepcao,
+            "recepcao_direta": recepcao_direta,
         },
     )
 
@@ -5332,6 +5660,10 @@ def confirmar_horario_agenda(request, cd_paciente, cd_horario):
             "horario": slot,
             "agenda": slot.cd_escala,
             "return_to": return_to,
+            "tipos_atendimento": ValorAuxiliarGlobal.objects.filter(
+                cd_tabela_auxiliar_global__ds_tabela="tipo_atendimento",
+                sn_ativo=True,
+            ).order_by("ds_valor"),
         },
     )
 
@@ -5423,6 +5755,7 @@ def cancelar_agendamento(request, cd_agendamento):
     if request.method != "POST":
         raise PermissionDenied
     empresa = _empresa_logada(request)
+    return_to = _safe_return_url(request)
     with transaction.atomic():
         agendamento = get_object_or_404(
             Agendamento.objects.select_for_update().select_related("cd_horario_agenda__cd_agenda_gerada"),
@@ -5431,7 +5764,7 @@ def cancelar_agendamento(request, cd_agendamento):
         )
         if hasattr(agendamento, "atendimento"):
             messages.error(request, "O agendamento já gerou atendimento e não pode ser cancelado por esta tela.")
-            return redirect("atendimento:agendamentos-operacionais")
+            return redirect(return_to or reverse("atendimento:agendamentos-operacionais"))
         agendamento.ds_status = "CANCELADO"
         _apply_audit(agendamento, request.user)
         agendamento.save(update_fields=["ds_status", "dh_atualizacao", "cd_usuario_atualizacao"])
@@ -5442,7 +5775,7 @@ def cancelar_agendamento(request, cd_agendamento):
             _apply_audit(slot, request.user)
             slot.save(update_fields=["ds_status", "ds_motivo_cancelamento", "dh_atualizacao", "cd_usuario_atualizacao"])
     messages.success(request, "Agendamento cancelado. O horário voltou a ficar disponível quando permitido pela agenda.")
-    return redirect("atendimento:agendamentos-operacionais")
+    return redirect(return_to or reverse("atendimento:agendamentos-operacionais"))
 
 
 def _horarios_disponiveis(empresa, dias=21, inicio=None, fim=None):

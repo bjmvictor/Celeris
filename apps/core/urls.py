@@ -19,6 +19,7 @@ urlpatterns = [
     path("configuracao/empresas/", views.system_companies, name="system_companies"),
     path("configuracao/empresas/nova/", views.system_company_edit, name="system_company_new"),
     path("configuracao/empresas/<int:pk>/", views.system_company_edit, name="system_company_edit"),
+    path("global/formularios/configurar/", views.configurar_formularios, name="configurar_formularios"),
     path("global/empresa/setores/", views.setores, name="setores"),
     path("global/empresa/setores-atendimento/", views.setores, {"tipo": "ATENDIMENTO"}, name="setores_atendimento"),
     path("global/tabelas/auxiliares/tipo-sanguineo/", views.global_auxiliary_values, {"tabela": "tipo_sanguineo"}, name="global_tipo_sanguineo"),

@@ -1,0 +1,86 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form
+    class="card configurable-forms-page"
+    method="post"
+    autocomplete="off"
+    data-query-url="{{ request.path }}"
+    data-query-parameter="consultar"
+    data-table="configuracao_formulario"
+    data-disable-state-persistence
+  >
+    {% csrf_token %}
+    <div class="configurable-forms-toolbar">
+      <label>
+        Formulário
+        <select name="formulario" data-consultable="true" data-editable="true">
+          <option value="">Todos os formulários</option>
+          {% for codigo, nome in formularios %}
+            <option value="{{ codigo }}" {% if codigo == formulario_selecionado %}selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Nome do campo
+        <input name="nome_campo" value="{{ nome_campo }}" placeholder="Ex.: CPF, nome, data" data-consultable="true" data-editable="true">
+      </label>
+    </div>
+
+    {% if campos %}
+      <div class="configurable-forms-heading">
+        <div>
+          <small>Formulário padrão do sistema</small>
+          <h2>{{ nome_formulario }}</h2>
+        </div>
+        <span>{{ campos|length }} campo(s)</span>
+      </div>
+      <div class="table-card configurable-fields-table" data-query-results>
+        <table>
+          <thead>
+            <tr>
+              <th>Ordem</th>
+              <th>Formulário</th>
+              <th>Nome do campo</th>
+              <th>Campo técnico</th>
+              <th>Tipo</th>
+              <th>Obrigatório</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for campo in campos %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ campo.nome_formulario }}</td>
+                <td>{{ campo.nome }}</td>
+                <td><code>{{ campo.codigo }}</code></td>
+                <td>{{ campo.tipo }}</td>
+                <td>
+                  <label class="provider-checkbox configurable-required-field">
+                    <input
+                      type="checkbox"
+                      name="campos_obrigatorios"
+                      value="{{ campo.chave }}"
+                      {% if campo.obrigatorio %}checked{% endif %}
+                      {% if not campo.editavel %}disabled title="Campo controlado pelo sistema"{% endif %}
+                    >
+                    <span>{% if campo.editavel %}Sim{% else %}Controlado pelo sistema{% endif %}</span>
+                  </label>
+                  {% if campo.editavel %}<input type="hidden" name="campos_resultado" value="{{ campo.chave }}">{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="configurable-forms-note">
+        As alterações de obrigatoriedade são aplicadas à validação do servidor e à indicação visual dos formulários.
+      </p>
+    {% else %}
+      <div class="empty-state">
+        <strong>Selecione um formulário</strong>
+        <span>Abra a consulta, informe os filtros e execute para carregar os campos configuráveis.</span>
+      </div>
+    {% endif %}
+  </form>
+{% endblock %}

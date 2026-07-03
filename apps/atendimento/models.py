@@ -1,4 +1,5 @@
 from django.conf import settings
+from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 from django.db import models
@@ -727,8 +728,23 @@ class ChamadaPainel(AuditoriaModel):
     ]
     cd_chamada_painel = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
-    cd_atendimento = models.ForeignKey(Atendimento, on_delete=models.PROTECT, db_column="cd_atendimento", related_name="chamadas_painel")
-    cd_setor = models.ForeignKey(Setor, on_delete=models.PROTECT, db_column="cd_setor")
+    cd_atendimento = models.ForeignKey(
+        Atendimento,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_atendimento",
+        related_name="chamadas_painel",
+    )
+    cd_setor = models.ForeignKey(Setor, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_setor")
+    cd_senha_atendimento = models.ForeignKey(
+        "SenhaAtendimento",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_senha_atendimento",
+        related_name="chamadas_painel",
+    )
     cd_painel_chamada = models.ForeignKey(PainelChamada, null=True, blank=True, on_delete=models.SET_NULL, db_column="cd_painel_chamada")
     ds_local = models.CharField(max_length=80, blank=True)
     ds_status = models.CharField(max_length=20, choices=STATUS, default="CHAMADO")
@@ -739,6 +755,101 @@ class ChamadaPainel(AuditoriaModel):
         ordering = ("-dh_chamada",)
 
 
+class TipoSenhaAtendimento(AuditoriaModel):
+    cd_tipo_senha = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_setor_atendimento = models.ForeignKey(
+        Setor,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_setor_atendimento",
+        related_name="tipos_senha",
+    )
+    nm_tipo_senha = models.CharField(max_length=100)
+    sg_tipo_senha = models.CharField(max_length=4)
+    ds_protocolo = models.CharField(max_length=160, blank=True)
+    nr_tempo_minimo = models.PositiveSmallIntegerField(default=30)
+    nr_prioridade = models.PositiveSmallIntegerField(default=5)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "tipo_senha_atendimento"
+        ordering = ("nr_prioridade", "nm_tipo_senha")
+        unique_together = ("cd_empresa", "sg_tipo_senha")
+
+    def __str__(self):
+        return f"{self.sg_tipo_senha} - {self.nm_tipo_senha}"
+
+
+class ClasseSenhaAtendimento(AuditoriaModel):
+    cd_classe_senha = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_tipo_senha = models.ForeignKey(
+        TipoSenhaAtendimento,
+        related_name="classes",
+        on_delete=models.CASCADE,
+        db_column="cd_tipo_senha",
+    )
+    nm_classe_senha = models.CharField(max_length=100)
+    sg_classe_senha = models.CharField(max_length=4, blank=True)
+    nr_prioridade = models.PositiveSmallIntegerField(default=5)
+    nr_idade_minima = models.PositiveSmallIntegerField(null=True, blank=True)
+    nr_idade_maxima = models.PositiveSmallIntegerField(null=True, blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "classe_senha_atendimento"
+        ordering = ("nr_prioridade", "nm_classe_senha")
+        unique_together = ("cd_tipo_senha", "sg_classe_senha")
+
+    def __str__(self):
+        return f"{self.cd_tipo_senha.sg_tipo_senha}{self.sg_classe_senha} - {self.nm_classe_senha}"
+
+
+class SenhaAtendimento(AuditoriaModel):
+    STATUS = [
+        ("AGUARDANDO", "Aguardando"),
+        ("CHAMADA", "Chamada"),
+        ("EM_CLASSIFICACAO", "Em classificação"),
+        ("CLASSIFICADA", "Classificada"),
+        ("RECEPCIONADA", "Recepcionada"),
+        ("CANCELADA", "Cancelada"),
+    ]
+    cd_senha_atendimento = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_tipo_senha = models.ForeignKey(TipoSenhaAtendimento, on_delete=models.PROTECT, db_column="cd_tipo_senha")
+    cd_classe_senha = models.ForeignKey(ClasseSenhaAtendimento, on_delete=models.PROTECT, db_column="cd_classe_senha")
+    cd_paciente = models.ForeignKey(
+        Paciente,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_paciente",
+        related_name="senhas_atendimento",
+    )
+    dt_senha = models.DateField(default=timezone.localdate)
+    nr_senha = models.PositiveIntegerField()
+    ds_senha = models.CharField(max_length=16)
+    nr_prioridade = models.PositiveSmallIntegerField(default=5)
+    nr_tempo_limite = models.PositiveSmallIntegerField(default=30)
+    ds_status = models.CharField(max_length=24, choices=STATUS, default="AGUARDANDO")
+    dh_chamada = models.DateTimeField(null=True, blank=True)
+    dh_recepcao = models.DateTimeField(null=True, blank=True)
+    dh_classificacao = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "senha_atendimento"
+        ordering = ("nr_prioridade", "dh_criacao")
+        unique_together = ("cd_empresa", "dt_senha", "ds_senha")
+
+    def __str__(self):
+        return self.ds_senha
+
+    @property
+    def tempo_excedido(self):
+        limite = self.dh_criacao + timedelta(minutes=self.nr_tempo_limite)
+        return self.ds_status in {"AGUARDANDO", "CHAMADA"} and timezone.now() > limite
 class AtendimentoFluxo(models.Model):
     cd_atendimento_fluxo = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")

@@ -35,7 +35,7 @@
         <h1>{{ painel.nm_painel }}</h1>
         {% for chamada in chamadas %}
           <article class="public-panel-call">
-            <strong>{{ chamada.cd_atendimento.cd_paciente.nm_paciente }}</strong>
+            <strong>{% if chamada.cd_senha_atendimento %}{{ chamada.cd_senha_atendimento.ds_senha }}{% else %}{{ chamada.cd_atendimento.cd_paciente.nm_paciente }}{% endif %}</strong>
             <span>{{ chamada.cd_setor.nm_setor }}{% if chamada.ds_local %} — {{ chamada.ds_local }}{% endif %}</span>
             <small>{{ chamada.dh_chamada|date:"H:i" }}</small>
           </article>

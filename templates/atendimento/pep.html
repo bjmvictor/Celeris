@@ -11,7 +11,7 @@
           </div>
           <details class="pep-settings pep-specialty-filter">
             <summary class="button button-secondary" title="Filtrar especialidades" aria-label="Filtrar especialidades"><span class="svg-icon" data-nav-icon="filter"></span></summary>
-            <div class="pep-settings-panel">
+            <div class="pep-settings-panel" data-pep-filter-panel>
               <strong>Especialidades permitidas</strong>
               <div class="pep-sector-checks">
                 {% for especialidade in especialidades_permitidas %}
@@ -28,7 +28,7 @@
           </details>
           <details class="pep-settings">
             <summary class="button button-secondary" title="Filtrar setores" aria-label="Filtrar setores"><span class="svg-icon" data-nav-icon="settings"></span></summary>
-            <div class="pep-settings-panel">
+            <div class="pep-settings-panel" data-pep-filter-panel>
               <label class="provider-checkbox">
                 <input type="checkbox" name="todos_setores" value="1" {% if usar_todos_setores %}checked{% endif %}>
                 <span>Todos os setores permitidos</span>
@@ -141,6 +141,31 @@
       document.querySelectorAll(".pep-settings[open]").forEach((filter) => {
         if (!filter.contains(event.target)) filter.open = false;
       });
+    });
+    document.querySelectorAll(".pep-settings").forEach((filter) => {
+      const panel = filter.querySelector("[data-pep-filter-panel]");
+      const summary = filter.querySelector(":scope > summary");
+      if (!panel || !summary) return;
+      const position = () => {
+        if (!filter.open) return;
+        const rect = summary.getBoundingClientRect();
+        const contentRect = document.querySelector(".content")?.getBoundingClientRect();
+        const viewportGap = 8;
+        const width = Math.min(360, window.innerWidth - (contentRect?.left || 0) - viewportGap * 2);
+        const leftBoundary = (contentRect?.left || 0) + viewportGap;
+        const left = Math.max(leftBoundary, Math.min(rect.left, window.innerWidth - width - viewportGap));
+        panel.style.position = "fixed";
+        panel.style.width = `${width}px`;
+        panel.style.left = `${left}px`;
+        const spaceBelow = window.innerHeight - rect.bottom - viewportGap;
+        const top = spaceBelow >= panel.offsetHeight
+          ? rect.bottom + 6
+          : rect.top - panel.offsetHeight - 6;
+        panel.style.top = `${Math.max(viewportGap, top)}px`;
+      };
+      filter.addEventListener("toggle", position);
+      window.addEventListener("resize", position);
+      document.querySelector(".content")?.addEventListener("scroll", position);
     });
     document.querySelectorAll("[data-exclusive-search]").forEach((input) => {
       const group = input.dataset.exclusiveSearch;

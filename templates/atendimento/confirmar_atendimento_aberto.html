@@ -1,0 +1,18 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card open-attendance-warning">
+    <span class="svg-icon" data-nav-icon="alert-triangle"></span>
+    <div>
+      <h2>Paciente com atendimento em aberto</h2>
+      <p>
+        {{ paciente.nm_social|default:paciente.nm_paciente }} já possui o atendimento
+        <strong>{{ atendimento.pk }}</strong>, aberto em {{ atendimento.dh_inicio|date:"d/m/Y H:i" }}.
+      </p>
+      <p>Deseja prosseguir com uma nova recepção ou cancelar?</p>
+    </div>
+    <div class="form-actions">
+      <a class="button button-secondary" href="{{ cancelar_url }}">Cancelar</a>
+      <a class="button button-primary" href="{{ prosseguir_url }}">Prosseguir</a>
+    </div>
+  </section>
+{% endblock %}
