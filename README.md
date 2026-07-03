@@ -11,8 +11,9 @@ Principais pontos:
 * Gestão hospitalar e clínica.
 * Suporte multiempresa.
 * Controle de usuários, perfis e permissões.
-* Estrutura modular para evolução gradual.
+* Estrutura modular para ecosistema próprio e integrado.
 * Base preparada para adequação à LGPD.
+* Segurança com controle de acesso e permissões escalável, contando com perfis de acesso.
 
 ## Tecnologias
 
@@ -21,40 +22,32 @@ Principais pontos:
 * HTML, CSS e JavaScript
 * SQLite/PostgreSQL
 
-## Rodar localmente
-
-```powershell
-cd Celeris
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
-```
-
-Acesse:
-
-```text
-http://127.0.0.1:8000/
-```
-
-## Estrutura
-
-```text
-apps/
-├── core          # Base do sistema, menu, módulos e painel inicial
-├── accounts      # Usuários, autenticação e permissões
-├── reports       # Relatórios e consultas internas
-├── tickets       # Chamados por módulo
-├── enfermagem    # Boarding e histórico assistencial
-└── ti            # Inventário, agentes e suporte técnico
-```
-
 ## Status
 
 Projeto em fase inicial de desenvolvimento.
+Até o momento:
+* Cadastro de usuários
+* Cadastro de prestadores
+* Cadastro de pacientes
+* Cadastro de papeis e permissões
+* Cadastro de tabelas auxiliares (Sexo, Raça/cor, Cidades, Estados, ...)
+* Cadastro de escalas de prestadores
+* Geração de horários de agendamento
+* Agendamento de consulta
+* Recepção e geração de atendimento
+* Editor de documentos eletronicos + Editor de layout de impressão
 
-As telas atuais são bases para evolução dos módulos.
-Nenhuma conexão Oracle foi implementada até o momento.
+Em desenvolvimento:
+* Classificação de risco
+* Senhas por prioridade e painel de chamada
+* Prontuário eletrônico do paciente PEP
+
+Implementações futuras:
+* Chamados e suporte
+* Medicações
+* Farmácia
+* Estoque
+* Financeiro
+* Contabilidade
+* Exames e laudos
+* Faturamento
