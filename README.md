@@ -26,6 +26,7 @@ Principais pontos:
 
 Projeto em fase inicial de desenvolvimento.
 Até o momento:
+* Cadastro de empresa
 * Cadastro de usuários
 * Cadastro de prestadores
 * Cadastro de pacientes
