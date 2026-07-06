@@ -38,7 +38,7 @@
         <label class="field-md">Naturalidade {{ form.ds_naturalidade }}</label>
         <label class="field-xl">Observação {{ form.ds_observacao }}</label>
       </div>
-      {% if prestador %}
+      {% if prestador and can_view_audit %}
         <div class="form-grid audit-grid">
           <label>Data de cadastro <input value="{{ prestador.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
           <label>Usuário do cadastro <input value="{{ prestador.cd_usuario_criacao|default:'-' }}" readonly></label>

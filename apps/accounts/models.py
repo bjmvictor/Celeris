@@ -90,7 +90,19 @@ class Empresa(models.Model):
 
 
 class User(AbstractUser):
+    TIPOS_USUARIO = [
+        ("USUARIO", "Usuário"),
+        ("ADMINISTRADOR", "Administrador do sistema"),
+        ("AUDITOR", "Auditor"),
+    ]
+
     full_name = models.CharField("nome completo", max_length=180, blank=True)
+    tp_usuario = models.CharField(
+        "tipo de usuário",
+        max_length=20,
+        choices=TIPOS_USUARIO,
+        default="USUARIO",
+    )
     cd_prestador = models.ForeignKey(
         "atendimento.Prestador",
         null=True,
@@ -116,6 +128,21 @@ class User(AbstractUser):
     can_deactivate_users = models.BooleanField("desativa usuários", default=False)
     can_manage_auxiliary_tables = models.BooleanField("gerencia tabelas auxiliares", default=False)
     can_configure_system = models.BooleanField("configura sistema", default=False)
+    dh_atualizacao = models.DateTimeField("data de alteração", auto_now=True)
+    cd_usuario_criacao = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="usuarios_criados",
+    )
+    cd_usuario_atualizacao = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="usuarios_atualizados",
+    )
     empresas = models.ManyToManyField(Empresa, through="UsuarioEmpresa", related_name="usuarios", blank=True)
 
     class Meta:
@@ -140,6 +167,10 @@ class User(AbstractUser):
 
     def display_name(self) -> str:
         return self.full_name or self.get_full_name() or self.username
+
+    @property
+    def pode_visualizar_auditoria(self) -> bool:
+        return self.is_superuser or self.tp_usuario in {"ADMINISTRADOR", "AUDITOR"}
 
 
 class UsuarioEmpresa(models.Model):

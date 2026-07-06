@@ -32,7 +32,7 @@ from apps.core.models import TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 from apps.core.permissions import role_required
 from apps.core.table_utils import paginate_table
 
-from .forms import AgendamentoForm, AtendimentoForm, CadastroAtendimentoForm, EscalaForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm
+from .forms import AgendamentoForm, AtendimentoForm, CadastroAtendimentoForm, EscalaForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm
 from .models import (
     AcessoClinicoAuditado,
     AnexoClinico,
@@ -65,7 +65,9 @@ from .models import (
     Prescricao,
     Prestador,
     PrestadorTipo,
+    ProtocoloSenhaAtendimento,
     RascunhoEditorDocumento,
+    RegraSubdivisaoSenha,
     ResponsavelAtendimento,
     ResultadoEscalaClinica,
     ResultadoExame,
@@ -924,6 +926,13 @@ def cadastro_profissional(request, cd_prestador=None):
         request.current_toggle_active_label = "Desativar" if prestador.sn_ativo else "Ativar"
     query_context = request.GET.get("origem") == "consulta"
     result_ids = request.session.get("consulta_prestadores", []) if query_context else []
+    if query_context:
+        request.current_new_url = f"{reverse('atendimento:cadastro-profissional-novo')}?origem=consulta&novo=1"
+    if not prestador and query_context and request.GET.get("novo") == "1":
+        request.current_record_status = f"Item {len(result_ids) + 1} de {len(result_ids)}"
+        if result_ids:
+            request.current_first_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse('atendimento:cadastro-profissional', args=[result_ids[-1]])}?origem=consulta"
     if prestador and prestador.cd_prestador in result_ids:
         current_index = result_ids.index(prestador.cd_prestador)
         request.current_record_status = f"Item {current_index + 1} de {len(result_ids)}"
@@ -980,6 +989,9 @@ def cadastro_profissional(request, cd_prestador=None):
                     saved.cd_prestador,
                 )
                 messages.success(request, "Prestador salvo com sucesso.")
+                if query_context and saved.pk not in result_ids:
+                    result_ids.append(saved.pk)
+                    request.session["consulta_prestadores"] = result_ids
                 edit_url = reverse("atendimento:cadastro-profissional", args=[saved.cd_prestador])
                 if request.current_return_url:
                     edit_url = f"{edit_url}?{urlencode({'return_to': request.current_return_url})}"
@@ -3065,7 +3077,8 @@ def _conteudo_documento_seguro(conteudo):
         attributes={
             "*": [
                 "class", "style", "data-variable", "data-document-field", "data-option-source",
-                "data-source-table", "data-source-query", "data-binding", "data-celeris-signature",
+                "data-source-table", "data-source-query", "data-source-value-field",
+                "data-source-display-field", "data-binding", "data-celeris-signature",
                 "data-celeris-grid-print",
             ],
             "a": ["href", "target"],
@@ -3091,11 +3104,15 @@ def _preencher_opcoes_documento(conteudo, documento):
         if origem.group(1) == "auxiliary":
             tabela_match = re.search(r'data-source-table="([^"]*)"', atributos)
             tabela = tabela_match.group(1) if tabela_match else ""
+            value_match = re.search(r'data-source-value-field="([^"]*)"', atributos)
+            display_match = re.search(r'data-source-display-field="([^"]*)"', atributos)
+            value_field = value_match.group(1) if value_match and value_match.group(1) in {"cd_valor", "ds_valor"} else "cd_valor"
+            display_field = display_match.group(1) if display_match and display_match.group(1) in {"cd_valor", "ds_valor"} else "ds_valor"
             opcoes = list(
                 ValorAuxiliarGlobal.objects.filter(
                     cd_tabela_auxiliar_global__ds_tabela=tabela,
                     sn_ativo=True,
-                ).order_by("ds_valor").values_list("cd_valor", "ds_valor")
+                ).order_by("ds_valor").values_list(value_field, display_field)
             )
         elif origem.group(1) == "query":
             query_match = re.search(r'data-source-query="([^"]*)"', atributos)
@@ -4109,8 +4126,13 @@ def _editable_auxiliary(request, table_name, title):
     if request.method == "POST":
         for valor in tabela.valores.all():
             if request.POST.get(f"delete_{valor.pk}") == "1":
-                valor.sn_ativo = False
-                valor.save(update_fields=["sn_ativo", "updated_at"])
+                try:
+                    valor.delete()
+                except ProtectedError:
+                    messages.error(
+                        request,
+                        f"{valor.ds_valor} está em uso e não pode ser excluído.",
+                    )
                 continue
             if f"description_{valor.pk}" not in request.POST:
                 continue
@@ -4291,7 +4313,9 @@ def cadastro_escala(request, cd_escala=None):
         if not result_ids:
             messages.warning(request, "Nenhuma escala encontrada para os filtros informados.")
             return redirect("atendimento:escalas")
-        return redirect("atendimento:cadastro-escala", cd_escala=result_ids[0])
+        return redirect(
+            f"{reverse('atendimento:cadastro-escala', args=[result_ids[0]])}?origem=consulta"
+        )
 
     escala = (
         get_object_or_404(AgendaProfissional.objects.prefetch_related("convenios"), cd_empresa=empresa, pk=cd_escala)
@@ -4301,58 +4325,64 @@ def cadastro_escala(request, cd_escala=None):
     if escala:
         request.current_toggle_active_url = reverse("atendimento:alternar-status-escala", args=[escala.pk])
         request.current_toggle_active_label = "Desativar" if escala.sn_ativo else "Ativar"
-    result_ids = request.session.get("consulta_escalas", [])
+    query_context = request.GET.get("origem") == "consulta"
+    result_ids = request.session.get("consulta_escalas", []) if query_context else []
+    if query_context:
+        request.current_new_url = f"{reverse('atendimento:escalas')}?origem=consulta&novo=1"
+    if not escala and query_context and request.GET.get("novo") == "1":
+        request.current_record_status = f"Item {len(result_ids) + 1} de {len(result_ids)}"
+        if result_ids:
+            request.current_first_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[-1]])}?origem=consulta"
+    elif not escala and query_context and request.GET.get("exclusao_concluida") == "1":
+        request.current_record_status = f"{len(result_ids)} encontrado(s)"
+        if result_ids:
+            request.current_next_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[0]])}?origem=consulta"
+            request.current_last_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[-1]])}?origem=consulta"
     if escala and escala.pk in result_ids:
         index = result_ids.index(escala.pk)
         request.current_record_status = f"Item {index + 1} de {len(result_ids)}"
         if index > 0:
-            request.current_first_url = reverse("atendimento:cadastro-escala", args=[result_ids[0]])
-            request.current_previous_url = reverse("atendimento:cadastro-escala", args=[result_ids[index - 1]])
+            request.current_first_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[index - 1]])}?origem=consulta"
         if index < len(result_ids) - 1:
-            request.current_next_url = reverse("atendimento:cadastro-escala", args=[result_ids[index + 1]])
-            request.current_last_url = reverse("atendimento:cadastro-escala", args=[result_ids[-1]])
+            request.current_next_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[index + 1]])}?origem=consulta"
+            request.current_last_url = f"{reverse('atendimento:cadastro-escala', args=[result_ids[-1]])}?origem=consulta"
     form = EscalaForm(request.POST or None, instance=escala, empresa=empresa)
-    if request.method == "POST" and request.POST.get("_excluir_ids"):
-        ids_excluir = {
-            int(valor)
-            for valor in request.POST.get("_excluir_ids", "").split(",")
-            if valor.strip().isdigit()
-        }
+    if request.method == "POST" and request.POST.get("_excluir_atual") == "1" and escala:
         ordem_original = request.session.get("consulta_escalas", [])
         if not ordem_original and escala:
             ordem_original = [escala.pk]
-        removidos = 0
-        bloqueados = 0
-        for item in AgendaProfissional.objects.filter(cd_empresa=empresa, pk__in=ids_excluir):
-            try:
-                item.delete()
-                removidos += 1
-            except ProtectedError:
-                bloqueados += 1
+        removido = False
+        try:
+            escala.delete()
+            removido = True
+        except ProtectedError:
+            messages.error(request, "A escala possui agendas geradas e não pode ser excluída. Desative-a.")
         restantes = [
             item_id
             for item_id in ordem_original
             if AgendaProfissional.objects.filter(cd_empresa=empresa, pk=item_id).exists()
         ]
         request.session["consulta_escalas"] = restantes
-        if removidos:
-            messages.success(request, f"{removidos} escala(s) excluída(s) com sucesso.")
-        if bloqueados:
-            messages.error(request, f"{bloqueados} escala(s) possuem agendas geradas e não puderam ser excluídas.")
-        if restantes:
-            indice_atual = ordem_original.index(escala.pk) if escala and escala.pk in ordem_original else 0
-            posteriores = [item_id for item_id in restantes if ordem_original.index(item_id) > indice_atual]
-            destino = posteriores[0] if posteriores else restantes[-1]
-            return redirect(f"{reverse('atendimento:cadastro-escala', args=[destino])}?exclusao_concluida=1")
-        return redirect(f"{reverse('atendimento:escalas')}?exclusao_concluida=1")
+        if removido:
+            messages.success(request, "Escala excluída e alteração salva com sucesso.")
+            parametros = "origem=consulta&exclusao_concluida=1" if query_context else "exclusao_concluida=1"
+            return redirect(f"{reverse('atendimento:escalas')}?{parametros}")
+        destino = reverse("atendimento:cadastro-escala", args=[escala.pk])
+        return redirect(f"{destino}?origem=consulta" if query_context else destino)
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
         saved.cd_empresa = empresa
         _apply_audit(saved, request.user)
         saved.save()
         form.save_m2m()
+        if query_context and saved.pk not in result_ids:
+            result_ids.append(saved.pk)
+            request.session["consulta_escalas"] = result_ids
         messages.success(request, "Escala salva com sucesso.")
-        return redirect("atendimento:cadastro-escala", cd_escala=saved.pk)
+        destino = reverse("atendimento:cadastro-escala", args=[saved.pk])
+        return redirect(f"{destino}?origem=consulta" if query_context else destino)
     dias_selecionados = (
         [int(value) for value in request.POST.getlist("ds_dias_semana") if value.isdigit()]
         if request.method == "POST"
@@ -4501,7 +4531,17 @@ def pep(request):
         Atendimento.objects.select_related("cd_paciente", "cd_paciente__cd_convenio", "cd_convenio", "cd_prestador", "cd_pre_atendimento", "cd_setor_atual")
         .prefetch_related("solicitacoes_exames", "prescricoes")
         .filter(cd_empresa=empresa, sn_ativo=True)
-        .filter(ds_status__in=["AGUARDANDO_CONSULTA", "EM_ATENDIMENTO", "AGUARDANDO_EXAMES", "RETORNO_EXAMES", "EM_OBSERVACAO"])
+        .filter(ds_status__in=[
+            "RECEPCIONADO",
+            "ABERTO",
+            "AGUARDANDO_CLASSIFICACAO",
+            "EM_CLASSIFICACAO",
+            "AGUARDANDO_CONSULTA",
+            "EM_ATENDIMENTO",
+            "AGUARDANDO_EXAMES",
+            "RETORNO_EXAMES",
+            "EM_OBSERVACAO",
+        ])
         .order_by("cd_pre_atendimento__nr_prioridade", "dh_inicio")
     )
     if setores_filtrados.exists():
@@ -4915,70 +4955,265 @@ def painel_chamada_publico(request):
 
 @login_required
 @role_required("TI")
-def configurar_senhas(request):
+def configurar_senhas(request, cd_tipo=None):
     empresa = _empresa_logada(request)
+    tipo = (
+        get_object_or_404(TipoSenhaAtendimento, cd_empresa=empresa, pk=cd_tipo)
+        if cd_tipo
+        else None
+    )
     request.current_tab_title = "Totem de Senhas > Configurar"
     request.current_tab_root_title = "Configurar senhas"
     request.current_module_title = "Totem de Senhas"
-    if request.method == "POST":
-        def inteiro_positivo(nome, padrao):
-            try:
-                return max(int(request.POST.get(nome) or padrao), 1)
-            except (TypeError, ValueError):
-                return padrao
-
-        nome_tipo = request.POST.get("nm_tipo_senha", "").strip()
-        sigla_tipo = re.sub(r"[^A-Z0-9]", "", request.POST.get("sg_tipo_senha", "").upper())[:4]
-        nome_classe = request.POST.get("nm_classe_senha", "").strip()
-        sigla_classe = re.sub(r"[^A-Z0-9]", "", request.POST.get("sg_classe_senha", "").upper())[:4]
-        if not nome_tipo or not sigla_tipo or not nome_classe:
-            messages.error(request, "Informe o tipo, a sigla e a classe da senha.")
-        else:
-            setor = None
-            if request.POST.get("cd_setor_atendimento", "").isdigit():
-                setor = Setor.objects.filter(
-                    cd_empresa=empresa,
-                    tp_setor=Setor.TipoSetor.ATENDIMENTO,
-                    pk=int(request.POST["cd_setor_atendimento"]),
-                ).first()
-            with transaction.atomic():
-                tipo, _ = TipoSenhaAtendimento.objects.update_or_create(
-                    cd_empresa=empresa,
-                    sg_tipo_senha=sigla_tipo,
+    request.current_can_query = True
+    request.current_can_remove = False
+    request.current_start_query = not bool(tipo or request.GET.get("consultar"))
+    if tipo:
+        request.current_toggle_active_url = reverse("atendimento:alternar-status-configuracao-senha", args=[tipo.pk])
+        request.current_toggle_active_label = "Desativar" if tipo.sn_ativo else "Ativar"
+    if request.GET.get("consultar") == "1":
+        registros = TipoSenhaAtendimento.objects.filter(cd_empresa=empresa)
+        filtros = {
+            "nm_tipo_senha": "nm_tipo_senha__icontains",
+            "sg_tipo_senha": "sg_tipo_senha__icontains",
+            "cd_protocolo": "cd_protocolo_id",
+            "cd_setor_atendimento": "cd_setor_atendimento_id",
+            "nr_tempo_minimo": "nr_tempo_minimo",
+            "nr_prioridade": "nr_prioridade",
+        }
+        for campo, lookup in filtros.items():
+            valor = request.GET.get(campo, "").strip()
+            if valor:
+                registros = registros.filter(**{lookup: valor.replace("%", "")})
+        status = request.GET.get("sn_ativo", "")
+        if status in {"True", "False"}:
+            registros = registros.filter(sn_ativo=status == "True")
+        ids = list(registros.order_by("cd_tipo_senha").values_list("pk", flat=True)[:200])
+        request.session["consulta_tipos_senha"] = ids
+        if not ids:
+            messages.warning(request, "Nenhum tipo de senha encontrado.")
+            return redirect("atendimento:configurar-senhas")
+        return redirect("atendimento:editar-configuracao-senha", cd_tipo=ids[0])
+    ids = request.session.get("consulta_tipos_senha", [])
+    if tipo and tipo.pk in ids:
+        indice = ids.index(tipo.pk)
+        request.current_record_status = f"Item {indice + 1} de {len(ids)}"
+        if indice:
+            request.current_first_url = reverse("atendimento:editar-configuracao-senha", args=[ids[0]])
+            request.current_previous_url = reverse("atendimento:editar-configuracao-senha", args=[ids[indice - 1]])
+        if indice < len(ids) - 1:
+            request.current_next_url = reverse("atendimento:editar-configuracao-senha", args=[ids[indice + 1]])
+            request.current_last_url = reverse("atendimento:editar-configuracao-senha", args=[ids[-1]])
+    dados_form = request.POST.copy() if request.method == "POST" else None
+    if dados_form is not None and not dados_form.get("nr_prioridade") and dados_form.get("nr_prioridade_tipo"):
+        dados_form["nr_prioridade"] = dados_form["nr_prioridade_tipo"]
+    form = TipoSenhaAtendimentoForm(dados_form, instance=tipo, empresa=empresa)
+    regra_form = RegraSubdivisaoSenhaForm(dados_form, empresa=empresa, prefix="regra")
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            saved = form.save(commit=False)
+            saved.cd_empresa = empresa
+            if saved.cd_protocolo_id:
+                saved.ds_protocolo = saved.cd_protocolo.ds_protocolo
+            elif request.POST.get("ds_protocolo"):
+                saved.ds_protocolo = request.POST["ds_protocolo"].strip()
+            _apply_audit(saved, request.user)
+            saved.save()
+            for regra in list(saved.regras_subdivisao.all()):
+                if request.POST.get(f"excluir_regra_{regra.pk}") == "1":
+                    regra.delete()
+            if regra_form.is_valid() and regra_form.cleaned_data.get("cd_classe_senha"):
+                regra, _ = RegraSubdivisaoSenha.objects.update_or_create(
+                    cd_tipo_senha=saved,
+                    cd_classe_senha=regra_form.cleaned_data["cd_classe_senha"],
                     defaults={
-                        "nm_tipo_senha": nome_tipo,
-                        "ds_protocolo": request.POST.get("ds_protocolo", "").strip(),
-                        "nr_tempo_minimo": inteiro_positivo("nr_tempo_minimo", 30),
-                        "nr_prioridade": inteiro_positivo("nr_prioridade_tipo", 5),
-                        "cd_setor_atendimento": setor,
+                        "cd_empresa": empresa,
+                        "nr_prioridade": regra_form.cleaned_data["nr_prioridade"],
+                        "nr_idade_minima": regra_form.cleaned_data["nr_idade_minima"],
+                        "nr_idade_maxima": regra_form.cleaned_data["nr_idade_maxima"],
+                        "ds_icone": regra_form.cleaned_data["ds_icone"],
                         "sn_ativo": True,
                         "cd_usuario_atualizacao": request.user,
                     },
                 )
-                if not tipo.cd_usuario_criacao_id:
-                    tipo.cd_usuario_criacao = request.user
-                    tipo.save(update_fields=["cd_usuario_criacao"])
+                if not regra.cd_usuario_criacao_id:
+                    regra.cd_usuario_criacao = request.user
+                    regra.save(update_fields=["cd_usuario_criacao"])
+            elif request.POST.get("nm_classe_senha", "").strip():
                 classe, _ = ClasseSenhaAtendimento.objects.update_or_create(
-                    cd_tipo_senha=tipo,
-                    sg_classe_senha=sigla_classe,
+                    cd_empresa=empresa,
+                    cd_tipo_senha=saved,
+                    sg_classe_senha=re.sub(
+                        r"[^A-Z0-9]",
+                        "",
+                        request.POST.get("sg_classe_senha", "").upper(),
+                    )[:4],
                     defaults={
-                        "cd_empresa": empresa,
-                        "nm_classe_senha": nome_classe,
-                        "nr_prioridade": inteiro_positivo("nr_prioridade_classe", tipo.nr_prioridade),
+                        "nm_classe_senha": request.POST["nm_classe_senha"].strip(),
+                        "nr_prioridade": max(int(request.POST.get("nr_prioridade_classe") or saved.nr_prioridade), 1),
                         "nr_idade_minima": request.POST.get("nr_idade_minima") or None,
                         "nr_idade_maxima": request.POST.get("nr_idade_maxima") or None,
                         "sn_ativo": True,
                         "cd_usuario_atualizacao": request.user,
                     },
                 )
-                if not classe.cd_usuario_criacao_id:
-                    classe.cd_usuario_criacao = request.user
-                    classe.save(update_fields=["cd_usuario_criacao"])
-            messages.success(request, "Tipo e classe de senha salvos.")
-            return redirect("atendimento:configurar-senhas")
-    tipos = TipoSenhaAtendimento.objects.filter(cd_empresa=empresa).prefetch_related("classes")
-    setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO, sn_ativo=True)
-    return render(request, "atendimento/configurar_senhas.html", {"tipos": tipos, "setores": setores})
+                RegraSubdivisaoSenha.objects.update_or_create(
+                    cd_empresa=empresa,
+                    cd_tipo_senha=saved,
+                    cd_classe_senha=classe,
+                    defaults={
+                        "nr_prioridade": classe.nr_prioridade,
+                        "nr_idade_minima": classe.nr_idade_minima,
+                        "nr_idade_maxima": classe.nr_idade_maxima,
+                        "sn_ativo": True,
+                        "cd_usuario_atualizacao": request.user,
+                    },
+                )
+        messages.success(request, "Configuração da senha salva.")
+        return redirect("atendimento:editar-configuracao-senha", cd_tipo=saved.pk)
+    return render(
+        request,
+        "atendimento/configurar_senhas.html",
+        {
+            "form": form,
+            "regra_form": regra_form,
+            "tipo": tipo,
+            "regras": tipo.regras_subdivisao.select_related("cd_classe_senha").all() if tipo else [],
+        },
+    )
+
+
+@login_required
+@role_required("TI")
+def alternar_status_configuracao_senha(request, cd_tipo):
+    if request.method != "POST":
+        raise PermissionDenied
+    tipo = get_object_or_404(
+        TipoSenhaAtendimento,
+        cd_empresa=_empresa_logada(request),
+        pk=cd_tipo,
+    )
+    tipo.sn_ativo = not tipo.sn_ativo
+    _apply_audit(tipo, request.user)
+    tipo.save(update_fields=["sn_ativo", "cd_usuario_atualizacao", "dh_atualizacao"])
+    messages.success(request, f"Tipo de senha {'ativado' if tipo.sn_ativo else 'desativado'}.")
+    return redirect("atendimento:editar-configuracao-senha", cd_tipo=tipo.pk)
+
+
+def _tabela_totem(request, *, modelo, titulo, template):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = f"Totem de Senhas > Tabelas > {titulo}"
+    request.current_tab_root_title = titulo
+    request.current_module_title = "Totem de Senhas"
+    request.current_can_query = True
+    request.current_can_remove = True
+    request.current_start_query = request.GET.get("consultar") != "1"
+    if request.method == "POST":
+        with transaction.atomic():
+            for item in modelo.objects.filter(cd_empresa=empresa):
+                if request.POST.get(f"delete_{item.pk}") == "1":
+                    try:
+                        item.delete()
+                    except ProtectedError:
+                        messages.error(request, f"{item} está em uso e não pode ser excluído.")
+                    continue
+                if f"name_{item.pk}" not in request.POST:
+                    continue
+                if modelo is ClasseSenhaAtendimento:
+                    item.nm_classe_senha = request.POST.get(f"name_{item.pk}", "").strip()
+                    item.sg_classe_senha = request.POST.get(f"acronym_{item.pk}", "").strip().upper()
+                    item.nr_prioridade = max(1, int(request.POST.get(f"priority_{item.pk}") or 5))
+                    item.ds_icone = request.POST.get(f"icon_{item.pk}", "").strip()
+                else:
+                    item.nm_protocolo = request.POST.get(f"name_{item.pk}", "").strip()
+                    item.ds_protocolo = request.POST.get(f"description_{item.pk}", "").strip()
+                item.sn_ativo = request.POST.get(f"active_{item.pk}") == "true"
+                _apply_audit(item, request.user)
+                item.save()
+
+            new_names = request.POST.getlist("new_name")
+            new_active = request.POST.getlist("new_active")
+            if modelo is ClasseSenhaAtendimento:
+                new_acronyms = request.POST.getlist("new_acronym")
+                new_priorities = request.POST.getlist("new_priority")
+                new_icons = request.POST.getlist("new_icon")
+                for index, name in enumerate(new_names):
+                    if not name.strip():
+                        continue
+                    item = modelo(
+                        cd_empresa=empresa,
+                        nm_classe_senha=name.strip(),
+                        sg_classe_senha=(new_acronyms[index] if index < len(new_acronyms) else "").strip().upper(),
+                        nr_prioridade=max(1, int(new_priorities[index] or 5)) if index < len(new_priorities) else 5,
+                        ds_icone=(new_icons[index] if index < len(new_icons) else "").strip(),
+                        sn_ativo=index >= len(new_active) or new_active[index] == "true",
+                    )
+                    _apply_audit(item, request.user)
+                    item.save()
+            else:
+                new_descriptions = request.POST.getlist("new_description")
+                for index, name in enumerate(new_names):
+                    if not name.strip():
+                        continue
+                    item = modelo(
+                        cd_empresa=empresa,
+                        nm_protocolo=name.strip(),
+                        ds_protocolo=(new_descriptions[index] if index < len(new_descriptions) else "").strip(),
+                        sn_ativo=index >= len(new_active) or new_active[index] == "true",
+                    )
+                    _apply_audit(item, request.user)
+                    item.save()
+        messages.success(request, f"{titulo} salvos com sucesso.")
+        return redirect(f"{request.path}?consultar=1")
+
+    registros = modelo.objects.filter(cd_empresa=empresa)
+    query = request.GET.get("q", "").strip().replace("%", "")
+    if query:
+        if modelo is ClasseSenhaAtendimento:
+            registros = registros.filter(
+                Q(nm_classe_senha__icontains=query)
+                | Q(sg_classe_senha__icontains=query)
+                | Q(ds_icone__icontains=query)
+            )
+        else:
+            registros = registros.filter(Q(nm_protocolo__icontains=query) | Q(ds_protocolo__icontains=query))
+    if modelo is ClasseSenhaAtendimento:
+        allowed_ordering = {
+            "cd_classe_senha",
+            "nm_classe_senha",
+            "sg_classe_senha",
+            "nr_prioridade",
+            "ds_icone",
+            "sn_ativo",
+        }
+        default_ordering = "cd_classe_senha"
+    else:
+        allowed_ordering = {"cd_protocolo_senha", "nm_protocolo", "ds_protocolo", "sn_ativo"}
+        default_ordering = "cd_protocolo_senha"
+    registros = paginate_table(request, registros, allowed_ordering, default_ordering)
+    return render(request, template, {"registros": registros, "titulo": titulo})
+
+
+@login_required
+@role_required("TI")
+def classes_senha(request):
+    return _tabela_totem(
+        request,
+        modelo=ClasseSenhaAtendimento,
+        titulo="Classes",
+        template="atendimento/tabela_classes_senha.html",
+    )
+
+
+@login_required
+@role_required("TI")
+def protocolos_senha(request):
+    return _tabela_totem(
+        request,
+        modelo=ProtocoloSenhaAtendimento,
+        titulo="Protocolos",
+        template="atendimento/tabela_protocolos_senha.html",
+    )
 
 
 @login_required
@@ -4990,15 +5225,31 @@ def gerar_senha_totem(request):
     request.current_module_title = "Totem de Senhas"
     senha_gerada = None
     if request.method == "POST":
-        classe = get_object_or_404(
-            ClasseSenhaAtendimento.objects.select_related("cd_tipo_senha"),
-            cd_empresa=empresa,
-            sn_ativo=True,
-            cd_tipo_senha__sn_ativo=True,
-            pk=request.POST.get("classe"),
-        )
+        regra = None
+        if request.POST.get("regra", "").isdigit():
+            regra = get_object_or_404(
+                RegraSubdivisaoSenha.objects.select_related("cd_tipo_senha", "cd_classe_senha"),
+                cd_empresa=empresa,
+                sn_ativo=True,
+                cd_tipo_senha__sn_ativo=True,
+                cd_classe_senha__sn_ativo=True,
+                pk=request.POST["regra"],
+            )
+            classe = regra.cd_classe_senha
+            tipo = regra.cd_tipo_senha
+            prioridade = regra.nr_prioridade
+        else:
+            classe = get_object_or_404(
+                ClasseSenhaAtendimento.objects.select_related("cd_tipo_senha"),
+                cd_empresa=empresa,
+                sn_ativo=True,
+                cd_tipo_senha__sn_ativo=True,
+                pk=request.POST.get("classe"),
+            )
+            tipo = classe.cd_tipo_senha
+            prioridade = classe.nr_prioridade
         hoje = timezone.localdate()
-        prefixo = f"{classe.cd_tipo_senha.sg_tipo_senha}{classe.sg_classe_senha}"
+        prefixo = f"{tipo.sg_tipo_senha}{classe.sg_classe_senha}"
         with transaction.atomic():
             usados = set(
                 SenhaAtendimento.objects.select_for_update()
@@ -5009,12 +5260,12 @@ def gerar_senha_totem(request):
             numero = random.SystemRandom().choice(disponiveis) if disponiveis else (max(usados, default=99) + 1)
             senha_gerada = SenhaAtendimento.objects.create(
                 cd_empresa=empresa,
-                cd_tipo_senha=classe.cd_tipo_senha,
+                cd_tipo_senha=tipo,
                 cd_classe_senha=classe,
                 nr_senha=numero,
                 ds_senha=f"{prefixo} {numero:02d}",
-                nr_prioridade=classe.nr_prioridade,
-                nr_tempo_limite=classe.cd_tipo_senha.nr_tempo_minimo,
+                nr_prioridade=prioridade,
+                nr_tempo_limite=tipo.nr_tempo_minimo,
                 cd_usuario_criacao=request.user,
                 cd_usuario_atualizacao=request.user,
             )
@@ -5022,12 +5273,25 @@ def gerar_senha_totem(request):
         cd_empresa=empresa,
         sn_ativo=True,
         cd_tipo_senha__sn_ativo=True,
+        regras_subdivisao__isnull=True,
+    )
+    regras = RegraSubdivisaoSenha.objects.select_related("cd_tipo_senha", "cd_classe_senha").filter(
+        cd_empresa=empresa,
+        sn_ativo=True,
+        cd_tipo_senha__sn_ativo=True,
+        cd_classe_senha__sn_ativo=True,
     )
     historico = SenhaAtendimento.objects.filter(cd_empresa=empresa, dt_senha=timezone.localdate()).order_by("-dh_criacao")[:10]
     return render(
         request,
         "atendimento/gerar_senha_totem.html",
-        {"classes": classes, "historico": historico, "senha_gerada": senha_gerada, "empresa": empresa},
+        {
+            "classes": classes,
+            "regras": regras,
+            "historico": historico,
+            "senha_gerada": senha_gerada,
+            "empresa": empresa,
+        },
     )
 
 
@@ -5382,22 +5646,32 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
             messages.warning(request, "Nenhum paciente encontrado para os filtros informados.")
             return redirect(request.path)
         target = "atendimento:revisar-paciente-agendamento" if fluxo_agendamento else "atendimento:cadastro-paciente"
-        return redirect(target, cd_paciente=result_ids[0])
+        return redirect(f"{reverse(target, args=[result_ids[0]])}?origem=consulta")
     paciente = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=cd_paciente) if cd_paciente else None
     if paciente and not fluxo_agendamento and request.user.groups.filter(name="TI").exists():
         request.current_toggle_active_url = reverse("atendimento:alternar-status-paciente", args=[paciente.pk])
         request.current_toggle_active_label = "Desativar" if paciente.sn_ativo else "Ativar"
-    result_ids = request.session.get("consulta_pacientes", [])
+    query_context = request.GET.get("origem") == "consulta"
+    result_ids = request.session.get("consulta_pacientes", []) if query_context else []
+    if query_context and not fluxo_agendamento:
+        request.current_new_url = f"{reverse('atendimento:cadastro-paciente-novo')}?origem=consulta&novo=1"
+    if not paciente and query_context and request.GET.get("novo") == "1":
+        request.current_record_status = f"Item {len(result_ids) + 1} de {len(result_ids)}"
+        route = "atendimento:cadastro-paciente-novo" if not fluxo_agendamento else "atendimento:cadastro-paciente-agendamento"
+        if result_ids:
+            result_route = "atendimento:cadastro-paciente" if not fluxo_agendamento else "atendimento:revisar-paciente-agendamento"
+            request.current_first_url = f"{reverse(result_route, args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse(result_route, args=[result_ids[-1]])}?origem=consulta"
     if paciente and paciente.cd_paciente in result_ids:
         current_index = result_ids.index(paciente.cd_paciente)
         request.current_record_status = f"Item {current_index + 1} de {len(result_ids)}"
         route = "atendimento:revisar-paciente-agendamento" if fluxo_agendamento else "atendimento:cadastro-paciente"
         if current_index > 0:
-            request.current_first_url = reverse(route, args=[result_ids[0]])
-            request.current_previous_url = reverse(route, args=[result_ids[current_index - 1]])
+            request.current_first_url = f"{reverse(route, args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse(route, args=[result_ids[current_index - 1]])}?origem=consulta"
         if current_index < len(result_ids) - 1:
-            request.current_next_url = reverse(route, args=[result_ids[current_index + 1]])
-            request.current_last_url = reverse(route, args=[result_ids[-1]])
+            request.current_next_url = f"{reverse(route, args=[result_ids[current_index + 1]])}?origem=consulta"
+            request.current_last_url = f"{reverse(route, args=[result_ids[-1]])}?origem=consulta"
     if fluxo_agendamento and paciente:
         if recepcao_direta:
             continue_url = reverse("atendimento:novo-atendimento-direto", args=[paciente.pk])
@@ -5433,6 +5707,9 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
             if saved.cd_convenio:
                 saved.nm_convenio = saved.cd_convenio.nm_convenio
             saved.save()
+            if query_context and saved.pk not in result_ids:
+                result_ids.append(saved.pk)
+                request.session["consulta_pacientes"] = result_ids
             if paciente and changed_data:
                 after = {field: getattr(saved, field) for field in changed_data}
                 HistoricoAlteracaoPaciente.objects.create(
@@ -5465,7 +5742,8 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
                 response = redirect("atendimento:selecionar-agenda", cd_paciente=saved.cd_paciente)
             else:
                 messages.success(request, "Paciente salvo com sucesso.")
-                response = redirect("atendimento:cadastro-paciente", cd_paciente=saved.cd_paciente)
+                destino = reverse("atendimento:cadastro-paciente", args=[saved.cd_paciente])
+                response = redirect(f"{destino}?origem=consulta" if query_context else destino)
             response["HX-Replace-Url"] = response["Location"]
             return response
     return render(

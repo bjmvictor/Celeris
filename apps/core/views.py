@@ -415,8 +415,13 @@ def global_auxiliary_values(request, tabela, custom_title=None, custom_module=No
     if request.method == "POST":
         for valor in tabela_auxiliar.valores.all():
             if request.POST.get(f"delete_{valor.pk}") == "1":
-                valor.sn_ativo = False
-                valor.save(update_fields=["sn_ativo", "updated_at"])
+                try:
+                    valor.delete()
+                except ProtectedError:
+                    messages.error(
+                        request,
+                        f"{valor.ds_valor} está em uso e não pode ser excluído.",
+                    )
                 continue
             if f"description_{valor.pk}" not in request.POST:
                 continue

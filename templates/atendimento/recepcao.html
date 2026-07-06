@@ -2,8 +2,7 @@
 {% block content %}
   <section class="card reception-classified-list">
     <div class="section-heading">
-      <div><small>Fila prioritária</small><h2>Pacientes classificados</h2></div>
-      <span>Pacientes liberados pela classificação para continuidade da recepção.</span>
+      <h2>Pacientes classificados</h2>
     </div>
     <div class="reception-classified-grid">
       {% for senha in senhas_classificadas %}
@@ -33,19 +32,32 @@
 
   <section class="card table-card">
     <table>
-      <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>Nome da mãe</th><th>Nascimento</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Cidade/UF</th><th>Nome da mãe</th><th>Nascimento</th><th>Ação</th></tr></thead>
       <tbody>
         {% for paciente in pacientes %}
           <tr>
             <td>{{ paciente.pk }}</td>
-            <td>{{ paciente.nm_social|default:paciente.nm_paciente }}</td>
+            <td>
+              {% if paciente.nm_social %}
+                <span class="patient-social-name">
+                  {{ paciente.nm_social }}
+                  <span class="social-name-info" title="Nome de registro: {{ paciente.nm_paciente }}" aria-label="Nome de registro: {{ paciente.nm_paciente }}">
+                    <span class="svg-icon" data-nav-icon="info"></span>
+                  </span>
+                </span>
+              {% else %}
+                {{ paciente.nm_paciente }}
+              {% endif %}
+            </td>
             <td>{{ paciente.nr_cpf|default:"-" }}</td>
+            <td>{{ paciente.nr_cartao_sus|default:"-" }}</td>
+            <td>{% if paciente.ds_cidade %}{{ paciente.ds_cidade }}{% if paciente.sg_estado %}-{{ paciente.sg_estado }}{% endif %}{% else %}-{% endif %}</td>
             <td>{{ paciente.nm_mae|default:"-" }}</td>
             <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
             <td><a class="button button-primary" href="{% url 'atendimento:recepcao-revisar-paciente' paciente.pk %}{% if senha_selecionada %}?senha={{ senha_selecionada }}{% endif %}">Selecionar e validar</a></td>
           </tr>
         {% empty %}
-          <tr><td colspan="6">{% if consulta_executada %}Nenhum paciente encontrado.{% else %}Execute uma consulta para localizar o paciente.{% endif %}</td></tr>
+          <tr><td colspan="8">{% if consulta_executada %}Nenhum paciente encontrado.{% else %}Execute uma consulta para localizar o paciente.{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

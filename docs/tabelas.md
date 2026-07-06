@@ -10,7 +10,7 @@
 | `cep` | Global > CEPs | `cd_cep` | número imutável do CEP, UF, cidade, tipo/logradouro, bairro e status | paciente; prestador residencial; prestador comercial |
 | `tipo_prestador_conselho` | Global > Tabelas | `id` | tipo de prestador, conselho, ativo | tipo de prestador lógico |
 | `convenio` | Atendimento > Tabelas > Convênios | `cd_convenio` | nome, ativo | empresa |
-| `agenda_profissional` | Atendimento > Agendamento > Escalas | `cd_agenda_profissional` | tipo, prestador, especialidade, setor, dias, horários, capacidade, encaixes, feriado e ativo | empresa, prestador, setor e convênios |
+| `escala` | Atendimento > Agendamento > Escalas | `cd_escala` | nome, tipo, prestador, especialidade, setor, dias, horários, capacidade, encaixes, feriado e ativo | empresa, prestador, setor e convênios |
 | `agenda_gerada` | Atendimento > Agendamento > Geração de agendas | `cd_agenda_gerada` | escala, período, status e observação | empresa, escala |
 | `horario_agenda` | gerado pela agenda | `cd_horario_agenda` | início, fim, status e motivo de cancelamento | empresa, agenda gerada, escala e prestador |
 | `agendamento` | Fluxo de agendamento | `cd_agendamento` | horário, tipo, especialidade, profissional, observação, confirmação, status | empresa, paciente, agenda |
@@ -91,7 +91,7 @@ Estados de `documento_clinico`: `RASCUNHO`, `FINALIZADO`, `ASSINADO` e `CANCELAD
 
 ### Agenda e editor visual
 
-- `agenda_profissional` define a regra recorrente da escala; `agenda_gerada` define o período materializado e `horario_agenda` registra cada vaga.
+- `escala` define a regra recorrente da escala; `agenda_gerada` define o período materializado e `horario_agenda` registra cada vaga.
 - `pasta_documento` organiza pastas do Celeris e da empresa, incluindo cabeçalhos e rodapés protegidos.
 - `modelo_documento` mantém projetos separados para tela e impressão, elementos reutilizáveis e versões cronológicas.
 # Estruturas assistenciais configuráveis

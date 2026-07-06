@@ -131,10 +131,28 @@
                             </summary>
                             <div>
                               {% for grandchild in child.children %}
-                                <a href="{% if grandchild.url %}{{ grandchild.url }}{% else %}{% url grandchild.route_name %}{% endif %}">
-                                  <span class="nav-child-dot"></span>
-                                  <span class="nav-label">{{ grandchild.label }}</span>
-                                </a>
+                                {% if grandchild.children %}
+                                  <details class="nav-subgroup">
+                                    <summary>
+                                      <span class="nav-child-dot"></span>
+                                      <span class="nav-label">{{ grandchild.label }}</span>
+                                      <span class="svg-icon nav-chevron" data-nav-icon="chevron-down"></span>
+                                    </summary>
+                                    <div>
+                                      {% for greatgrandchild in grandchild.children %}
+                                        <a href="{% if greatgrandchild.url %}{{ greatgrandchild.url }}{% else %}{% url greatgrandchild.route_name %}{% endif %}">
+                                          <span class="nav-child-dot"></span>
+                                          <span class="nav-label">{{ greatgrandchild.label }}</span>
+                                        </a>
+                                      {% endfor %}
+                                    </div>
+                                  </details>
+                                {% else %}
+                                  <a href="{% if grandchild.url %}{{ grandchild.url }}{% else %}{% url grandchild.route_name %}{% endif %}">
+                                    <span class="nav-child-dot"></span>
+                                    <span class="nav-label">{{ grandchild.label }}</span>
+                                  </a>
+                                {% endif %}
                               {% endfor %}
                             </div>
                           </details>

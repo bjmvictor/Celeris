@@ -118,6 +118,7 @@ def _usuario_form(request, pk=None):
     request.current_module_title = "Configuração do Sistema"
     request.current_return_url = _safe_return_url(request)
     empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
+    allow_user_type = request.user.is_superuser or request.user.tp_usuario == "ADMINISTRADOR"
     if request.GET.get("consultar") == "1":
         users = User.objects.all()
         has_filter = False
@@ -148,6 +149,10 @@ def _usuario_form(request, pk=None):
         status = request.GET.get("is_active", "")
         if status in {"True", "False"}:
             users = users.filter(is_active=status == "True")
+            has_filter = True
+        tipo_usuario = request.GET.get("tp_usuario", "")
+        if tipo_usuario in dict(User.TIPOS_USUARIO):
+            users = users.filter(tp_usuario=tipo_usuario)
             has_filter = True
         for field_name in (
             "must_change_password",
@@ -182,6 +187,13 @@ def _usuario_form(request, pk=None):
         request.current_password_url = reverse("usuario_alterar_senha", args=[usuario.pk])
     query_context = request.GET.get("origem") == "consulta"
     result_ids = request.session.get("consulta_usuarios", []) if query_context else []
+    if query_context:
+        request.current_new_url = f"{reverse('usuario_novo')}?origem=consulta&novo=1"
+    if not usuario and query_context and request.GET.get("novo") == "1":
+        request.current_record_status = f"Item {len(result_ids) + 1} de {len(result_ids)}"
+        if result_ids:
+            request.current_first_url = f"{reverse('usuario_editar', args=[result_ids[0]])}?origem=consulta"
+            request.current_previous_url = f"{reverse('usuario_editar', args=[result_ids[-1]])}?origem=consulta"
     if usuario and usuario.pk in result_ids:
         current_index = result_ids.index(usuario.pk)
         request.current_record_status = f"Item {current_index + 1} de {len(result_ids)}"
@@ -191,9 +203,20 @@ def _usuario_form(request, pk=None):
         if current_index < len(result_ids) - 1:
             request.current_next_url = f"{reverse('usuario_editar', args=[result_ids[current_index + 1]])}?origem=consulta"
             request.current_last_url = f"{reverse('usuario_editar', args=[result_ids[-1]])}?origem=consulta"
-    form = UsuarioForm(request.POST or None, instance=usuario, empresa=empresa)
+    form = UsuarioForm(
+        request.POST or None,
+        instance=usuario,
+        empresa=empresa,
+        allow_user_type=allow_user_type,
+    )
     if request.method == "POST" and form.is_valid():
+        if not form.instance.cd_usuario_criacao_id:
+            form.instance.cd_usuario_criacao = request.user
+        form.instance.cd_usuario_atualizacao = request.user
         saved = form.save()
+        if query_context and saved.pk not in result_ids:
+            result_ids.append(saved.pk)
+            request.session["consulta_usuarios"] = result_ids
         messages.success(request, "Usuário salvo com sucesso.")
         edit_url = reverse("usuario_editar", args=[saved.pk])
         if request.current_return_url:
@@ -204,7 +227,12 @@ def _usuario_form(request, pk=None):
     return render(
         request,
         "accounts/usuario_form.html",
-        {"form": form, "usuario": usuario, "return_to": request.current_return_url},
+        {
+            "form": form,
+            "usuario": usuario,
+            "return_to": request.current_return_url,
+            "allow_user_type": allow_user_type,
+        },
     )
 
 

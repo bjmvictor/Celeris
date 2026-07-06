@@ -260,6 +260,51 @@
     .replace(/^campo_/, "").replace(/[^a-zA-Z0-9_]+/g, "_")
     .replace(/^_+|_+$/g, "").toLowerCase();
 
+  const splitStructuredOptions = (value) => {
+    const items = [];
+    let current = "";
+    let bracketDepth = 0;
+    let quote = "";
+    for (const character of String(value || "")) {
+      if (quote) {
+        current += character;
+        if (character === quote) quote = "";
+        continue;
+      }
+      if (character === '"' || character === "'") {
+        quote = character;
+        current += character;
+      } else if (character === "[") {
+        bracketDepth += 1;
+        current += character;
+      } else if (character === "]") {
+        bracketDepth = Math.max(0, bracketDepth - 1);
+        current += character;
+      } else if (character === "," && bracketDepth === 0) {
+        if (current.trim()) items.push(current.trim());
+        current = "";
+      } else {
+        current += character;
+      }
+    }
+    if (current.trim()) items.push(current.trim());
+    return items;
+  };
+
+  const parseEmbeddedField = (option) => {
+    const text = String(option || "").trim();
+    const literal = text.match(/^(["'])(.*)\1$/);
+    if (literal) return { type: "literal", text: literal[2] };
+    const match = text.match(/^(.*?)\[([a-zA-Z0-9_]+)(?:\s*[;,]\s*([^\]]+))?\]$/);
+    if (!match) return { type: "field", label: text, name: normalizeName(text), placeholder: "" };
+    return {
+      type: "field",
+      label: match[1].trim(),
+      name: normalizeName(match[2]),
+      placeholder: String(match[3] || "").trim(),
+    };
+  };
+
   if (!formFields.length && initialScreenHtml) {
     const parsed = new DOMParser().parseFromString(initialScreenHtml, "text/html");
     formFields = [...parsed.querySelectorAll("[data-document-field][name]")].map((field, index) => ({
@@ -286,7 +331,8 @@
     content: field.content || "",
     displayStyle: field.displayStyle || "text",
     sourceTable: field.sourceTable || "",
-    sourceQuery: field.sourceQuery || "",
+    sourceValueField: field.sourceValueField || "cd_valor",
+    sourceDisplayField: field.sourceDisplayField || "ds_valor",
     binding: field.binding || "",
     fontSize: Math.max(7, Number(field.fontSize || gridConfig.fontSize)),
     fontFamily: field.fontFamily || gridConfig.fontFamily,
@@ -335,6 +381,13 @@
       ? field.content
       : field.type === "image" || field.type === "line" || field.type === "static-variable"
       ? ""
+      : field.type === "multiple-fields"
+      ? splitStructuredOptions(field.options).map((option) => {
+          const parsed = parseEmbeddedField(option);
+          if (parsed.type === "literal") return parsed.text;
+          const value = `{{ campo.${parsed.name} }}`;
+          return parsed.label ? `<strong>${escapeHtml(parsed.label)}:</strong> ${value}` : value;
+        }).join(" ")
       : `${field.prefix || ""}{{ ${field.binding || `campo.${field.name}`} }}${field.suffix || ""}`,
     sourceField: field.type === "static-variable" ? field.binding : (field.binding || `campo.${field.name}`),
     fontSize: field.fontSizeCustom ? field.fontSize : "",
@@ -799,9 +852,9 @@
         number: "Campo numérico. Pode usar prefixo e sufixo, como R$ ou °C.",
         checkbox: "Opção Sim/Não exibida como checkbox.",
         select: "Lista fixa. Separe cada opção por vírgula.",
-        "exclusive-checkboxes": "Cria checkboxes exclusivos na mesma linha. Separe as opções por vírgula. Use HIPOT.[hipot] para criar um complemento sem placeholder ou HIPOT.[hipot, Pressão arterial] para definir o nome técnico e o placeholder. O complemento é habilitado somente quando HIPOT. estiver marcado e pode ser recuperado por {{ hipot }}.",
-        auxiliary: "Lista preenchida por uma tabela auxiliar do sistema.",
-        query: "Lista preenchida por uma consulta interna do Celeris.",
+        "exclusive-checkboxes": "Cria checkboxes exclusivos na mesma linha. Separe as opções por vírgula. Use HIPOT.[hipot] ou HIPOT.[hipot; Pressão arterial]. O ponto e vírgula separa o nome técnico do placeholder. O complemento é habilitado somente quando HIPOT. estiver marcado e pode ser recuperado por {{ hipot }}.",
+        "multiple-fields": "Cria vários campos na mesma área. Use Campo 1[campo_1], \"+\", [campo_2]. Itens entre aspas são textos fixos; campos sem texto antes dos colchetes não exibem título.",
+        auxiliary: "Lista preenchida por tabela auxiliar. Escolha a coluna armazenada como valor e a coluna apresentada ao usuário.",
         "static-text": "Texto informativo com HTML seguro e variáveis. Use <left>...</left>, <center>...</center> ou <right>...</right> para alinhamento; *texto* para negrito, _texto_ para sublinhado e /texto/ para itálico.",
         "static-variable": "Valor informativo preenchido automaticamente por uma variável do paciente, atendimento, prestador, empresa ou documento.",
         line: "Linha visual para separar áreas do formulário visto pelo prestador.",
@@ -1750,7 +1803,7 @@
           <strong>${escapeHtml(field.label || field.name)}</strong>
           ${field.readonly ? "<small>Somente leitura</small>" : ""}
         </div>
-        <span>${escapeHtml(field.type === "image" ? `${field.imageWidth} × ${field.imageHeight}px` : (field.binding || field.sourceTable || field.sourceQuery || field.type))}</span>
+        <span>${escapeHtml(field.type === "image" ? `${field.imageWidth} × ${field.imageHeight}px` : (field.binding || field.sourceTable || field.type))}</span>
         <div class="document-field-card-actions">
           <button type="button" data-field-settings title="Configurar">⚙</button>
           <button type="button" data-field-remove title="Remover">×</button>
@@ -1811,8 +1864,12 @@
       const readonly = field.readonly ? ' disabled tabindex="-1" aria-disabled="true"' : "";
       const bindingValue = field.binding ? `{{ ${field.binding} }}` : "";
       const positionStyle = `grid-column:${field.col} / span ${field.colSpan};grid-row:${field.row} / span ${field.rowSpan}`;
-      const position = `style="${positionStyle}"`;
-      const textStyle = `font-size:${Math.max(7, Number(field.fontSize || gridConfig.fontSize))}px;font-family:${escapeHtml(field.fontFamily || gridConfig.fontFamily)};color:${escapeHtml(field.textColor || "#111111")}`;
+      const fieldFontSize = Math.max(7, Number(field.fontSize || gridConfig.fontSize));
+      const fieldFontFamily = escapeHtml(field.fontFamily || gridConfig.fontFamily);
+      const fieldTextColor = escapeHtml(field.textColor || "#111111");
+      const fieldStyle = `${positionStyle};--field-font-size:${fieldFontSize}px;font-size:${fieldFontSize + 1}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
+      const position = `style="${fieldStyle}"`;
+      const textStyle = `font-size:${fieldFontSize}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
       if (field.type === "static-text") {
         const content = formatRichText(field.content);
         const styledPosition = `style="${positionStyle};${textStyle}"`;
@@ -1839,28 +1896,36 @@
           .map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("");
         return `<label ${position}>${escapeHtml(field.label)}<select data-document-field="true" name="campo_${name}"${required}${readonly}><option value=""></option>${options}</select></label>`;
       }
-      if (field.type === "auxiliary" || field.type === "query") {
-        const source = field.type === "auxiliary"
-          ? `data-option-source="auxiliary" data-source-table="${escapeHtml(field.sourceTable)}"`
-          : `data-option-source="query" data-source-query="${escapeHtml(field.sourceQuery)}"`;
+      if (field.type === "auxiliary") {
+        const source = `data-option-source="auxiliary" data-source-table="${escapeHtml(field.sourceTable)}" data-source-value-field="${escapeHtml(field.sourceValueField || "cd_valor")}" data-source-display-field="${escapeHtml(field.sourceDisplayField || "ds_valor")}"`;
         return `<label ${position}>${escapeHtml(field.label)}<select data-document-field="true" name="campo_${name}" ${source}${required}${readonly}><option value=""></option></select></label>`;
       }
       if (field.type === "exclusive-checkboxes") {
-        const choices = String(field.options || "").split(",").map((option) => option.trim()).filter(Boolean)
-          .map((option, index) => {
-            const match = option.match(/^(.*?)(?:\[([a-zA-Z0-9_]+)(?:\s*,\s*([^\]]+))?\])?$/);
-            const label = (match?.[1] || option).trim();
-            const detailName = normalizeName(match?.[2] || "").toLowerCase();
-            const detailPlaceholder = (match?.[3] || "").trim();
+        const choices = splitStructuredOptions(field.options)
+          .map((option) => {
+            const parsed = parseEmbeddedField(option);
+            const label = parsed.label || option.replace(/\[.*$/, "").trim();
+            const detailName = parsed.name && option.includes("[") ? parsed.name : "";
+            const detailPlaceholder = parsed.placeholder || "";
             const detail = detailName
               ? `<input class="generated-exclusive-detail" data-document-field="true" data-exclusive-detail="${escapeHtml(label)}" name="campo_${escapeHtml(detailName)}" type="text" disabled tabindex="-1" placeholder="${escapeHtml(detailPlaceholder)}">`
               : "";
             return `<label class="generated-exclusive-option"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="${escapeHtml(label)}"${readonly}><span>${escapeHtml(label)}</span>${detail}</label>`;
           }).join("");
-        return `<fieldset class="generated-exclusive-checkboxes" style="${positionStyle};${textStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ? "true" : "false"}" data-exclusive-readonly="${field.readonly ? "true" : "false"}"><legend>${escapeHtml(field.label)}</legend><div>${choices}</div></fieldset>`;
+        return `<fieldset class="generated-exclusive-checkboxes" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ? "true" : "false"}" data-exclusive-readonly="${field.readonly ? "true" : "false"}"><legend>${escapeHtml(field.label)}</legend><div>${choices}</div></fieldset>`;
+      }
+      if (field.type === "multiple-fields") {
+        const controls = splitStructuredOptions(field.options).map((option) => {
+          const parsed = parseEmbeddedField(option);
+          if (parsed.type === "literal") {
+            return `<span class="generated-multiple-literal">${escapeHtml(parsed.text)}</span>`;
+          }
+          return `<label class="generated-multiple-item">${parsed.label ? `<span>${escapeHtml(parsed.label)}</span>` : ""}<input data-document-field="true" name="campo_${escapeHtml(parsed.name)}" type="text" placeholder="${escapeHtml(parsed.placeholder)}"${required}${readonly}></label>`;
+        }).join("");
+        return `<fieldset class="generated-multiple-fields" style="${fieldStyle}"><legend>${escapeHtml(field.label)}</legend><div>${controls}</div></fieldset>`;
       }
       if (field.type === "checkbox") {
-        return `<label class="provider-checkbox" ${position}><input data-document-field="true" name="campo_${name}" type="checkbox"${required}${readonly}><span>${escapeHtml(field.label)}</span></label>`;
+        return `<fieldset class="generated-boolean-field" style="${fieldStyle}"><legend>${escapeHtml(field.label)}</legend><label class="provider-checkbox"><input data-document-field="true" name="campo_${name}" type="checkbox"${required}${readonly}><span>Sim</span></label></fieldset>`;
       }
       const control = `<input data-document-field="true" name="campo_${name}" type="${escapeHtml(field.type || "text")}" value="${escapeHtml(bindingValue)}"${placeholder}${required}${readonly}>`;
       if (["text", "number"].includes(field.type) && (field.prefix || field.suffix)) {
@@ -2849,6 +2914,7 @@
   renderPrintBuilder();
   const screenCss = ".generated-clinical-form{display:grid;column-gap:18px;row-gap:14px;color:var(--text,#111)}.generated-clinical-form label{display:grid;gap:5px;font-weight:700;min-width:0}.generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form textarea{width:100%;min-width:100%;max-width:100%;min-height:96px;max-height:144px;resize:vertical}.generated-clinical-form input:not([type=checkbox]),.generated-clinical-form select{height:38px;min-height:38px}.generated-clinical-form select:hover{border-color:var(--primary,#2563eb);background:var(--primary-soft,#eff6ff)}.generated-clinical-form select:focus{border-color:var(--primary,#2563eb);outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#2563eb),transparent 76%)}.generated-clinical-form select option,.generated-clinical-form select optgroup{background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form select option:checked{background:var(--primary,#2563eb);color:#fff}.dark .generated-clinical-form select{color-scheme:dark}.light .generated-clinical-form select{color-scheme:light}.generated-clinical-form :disabled{cursor:not-allowed;background:var(--panel-soft,#e9eef5);color:var(--muted,#475569);opacity:1}.generated-clinical-form .provider-checkbox{display:flex;align-self:end;align-items:center;box-sizing:border-box;width:100%;height:38px;min-height:38px;padding:0 8px;border:1px solid var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form .provider-checkbox input{appearance:none;display:grid;place-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;border:1px solid var(--line,#cbd5e1);border-radius:5px;background:var(--field-bg,#fff)}.generated-clinical-form .provider-checkbox input:checked{border-color:var(--primary,#2563eb);background-color:var(--primary,#2563eb);background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='m5 12 4 4L19 6'/%3E%3C/svg%3E\");background-position:center;background-repeat:no-repeat;background-size:20px}.generated-field-affix{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px}.generated-field-affix>input{flex:1 1 auto;width:auto;min-width:0;max-width:none}.generated-field-affix>span{flex:0 0 auto;white-space:nowrap}.generated-image-field img{display:block;max-width:100%;max-height:100%;object-fit:contain}.generated-screen-title{margin:0;align-self:end;font-size:20px}.generated-screen-description,.generated-screen-text,.generated-screen-variable{align-self:center;color:var(--text,#111)}.generated-screen-help{align-self:stretch;padding:8px 10px;border-left:3px solid var(--primary,#2563eb);border-radius:5px;background:var(--primary-soft,#eff6ff);color:var(--text,#111)}.generated-screen-line{align-self:center;width:100%}.provider-select-popup{position:fixed;z-index:1000;display:grid;gap:3px;max-height:240px;padding:5px;overflow:auto;border:1px solid var(--line,#cbd5e1);border-radius:8px;background:var(--panel,#fff);box-shadow:0 12px 28px rgba(15,23,42,.24)}.provider-select-popup button{width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--text,#111);text-align:left;cursor:pointer}.provider-select-popup button:hover,.provider-select-popup button[aria-selected=true]{background:var(--primary-soft,#eff6ff);color:var(--primary-dark,#1d4ed8)}";
   const exclusiveCheckboxCss = ".generated-exclusive-checkboxes{display:flex;align-items:center;align-self:start;flex-wrap:wrap;gap:6px 8px;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0 0 4px;padding:0;border:0}.generated-exclusive-checkboxes legend{flex:0 0 auto;margin:0;padding:0;font-weight:700;color:inherit}.generated-exclusive-checkboxes>div{display:flex;align-items:center;flex:1 1 240px;flex-wrap:wrap;gap:6px;min-width:0}.generated-exclusive-checkboxes .generated-exclusive-option{display:flex;align-items:center;flex:1 1 140px;gap:5px;box-sizing:border-box;max-width:100%;min-height:38px;min-width:0;padding:3px 7px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);font-weight:600}.generated-exclusive-checkboxes .generated-exclusive-option>span{flex:0 1 auto;min-width:0;overflow-wrap:anywhere}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{appearance:none;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:0;border-radius:5px}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]:checked{border-color:var(--primary,#2563eb);background:var(--primary,#2563eb)}.generated-exclusive-checkboxes .generated-exclusive-detail{flex:1 1 80px;width:auto;min-width:70px;max-width:100%;height:30px;min-height:30px}";
+  const multipleFieldsCss = ".generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{font-size:var(--field-font-size,14px);font-family:inherit}.generated-clinical-form .provider-checkbox>span{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes legend,.generated-multiple-fields legend,.generated-boolean-field legend{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-exclusive-checkboxes .generated-exclusive-option{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{flex-basis:32px;width:32px;height:32px;min-height:32px}.generated-multiple-fields,.generated-boolean-field{box-sizing:border-box;min-width:0;margin:0;padding:0;border:0}.generated-multiple-fields>div{display:flex;align-items:end;flex-wrap:wrap;gap:8px;min-width:0}.generated-multiple-item{flex:1 1 120px;min-width:90px}.generated-multiple-item>span{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-multiple-literal{align-self:center;padding:0 2px;font-size:var(--field-font-size,14px)}.generated-boolean-field .provider-checkbox{margin-top:5px}";
   const providerSelectScript = `<script>
     (() => {
       let popup = null;
@@ -2926,7 +2992,8 @@
       content: "",
       displayStyle: "text",
       sourceTable: "",
-      sourceQuery: "",
+      sourceValueField: "cd_valor",
+      sourceDisplayField: "ds_valor",
       binding: "",
       fontSize: gridConfig.fontSize,
       fontFamily: gridConfig.fontFamily,
@@ -3076,7 +3143,7 @@
       });
       html = html.replace(/{{\s*campo\.[^}]+\s*}}/g, "");
     }
-    const css = kind === "tela" ? `${screenCss}${exclusiveCheckboxCss}` : extraCss;
+    const css = kind === "tela" ? `${screenCss}${exclusiveCheckboxCss}${multipleFieldsCss}` : extraCss;
     const watermarkSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1400 2000'%3E%3Cg font-family='Arial,sans-serif' font-size='190' font-weight='900' fill='%2394a3b8' fill-opacity='.22' text-anchor='middle'%3E%3Ctext x='700' y='420' transform='rotate(-36 700 420)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1000' transform='rotate(-36 700 1000)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1580' transform='rotate(-36 700 1580)'%3ERASCUNHO%3C/text%3E%3C/g%3E%3C/svg%3E";
     const watermark = kind === "impressao" ? `<img class="preview-watermark" alt="Rascunho" draggable="false" src="${watermarkSvg}">` : "";
     const themeSource = getComputedStyle(document.documentElement);

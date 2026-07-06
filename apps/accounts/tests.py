@@ -3,7 +3,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from unittest.mock import patch
 
-from apps.atendimento.models import Prestador
+from apps.atendimento.models import AgendaProfissional, Prestador
 from apps.core.models import Module, ScreenDefinition
 from apps.core.navigation import MODULES
 
@@ -166,6 +166,27 @@ class UsuarioCadastroTests(TestCase):
         for technical_label in ("NR_CPF", "FULL_NAME", "USER_LOGIN", "DT_BIRTH"):
             self.assertNotContains(response, technical_label)
 
+    def test_tipo_de_usuario_e_auditoria_sao_restritos(self):
+        response = self.client.get(reverse("usuario_novo"))
+        self.assertContains(response, "Tipo de usuário")
+
+        auditor = User.objects.create_user(
+            username="AUDITOR",
+            password="senha-forte",
+            tp_usuario="AUDITOR",
+        )
+        auditor.groups.add(Group.objects.get(name="TI"))
+        UsuarioEmpresa.objects.create(
+            usuario=auditor,
+            empresa=self.empresa,
+            sn_padrao=True,
+            sn_ativo=True,
+        )
+        self.client.force_login(auditor)
+        audit_response = self.client.get(reverse("usuario_editar", args=[auditor.pk]))
+        self.assertContains(audit_response, "Auditoria")
+        self.assertNotContains(audit_response, "Tipo de usuário")
+
     def test_status_pode_ser_alternado(self):
         user = User.objects.create_user(username="STATUS", password="senha-forte", is_active=True)
         response = self.client.post(reverse("usuario_alternar_status", args=[user.pk]))
@@ -321,6 +342,7 @@ class PapelAcessoTests(TestCase):
         self.module = Module.objects.get(code="ATENDIMENTO")
         self.agendamento = ScreenDefinition.objects.get(access_key="atendimento:agendar")
         self.recepcao = ScreenDefinition.objects.get(access_key="atendimento:recepcao")
+        self.escalas = ScreenDefinition.objects.get(access_key="atendimento:escalas")
 
     def test_catalogo_de_papeis_contem_todas_as_telas_do_menu(self):
         def leaf_access_keys(items):
@@ -347,7 +369,6 @@ class PapelAcessoTests(TestCase):
             "Editor de documentos",
             "Perfis assistenciais",
             "PEP",
-            "Demanda espontânea",
             "Empresas",
             "Setores",
             "Setores de Atendimento",
@@ -468,6 +489,28 @@ class PapelAcessoTests(TestCase):
         user, _role = self._user_with_role("LIBERADO", [self.agendamento])
         self.client.force_login(user)
         response = self.client.get(reverse("atendimento:agendar"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_permissao_da_tela_principal_libera_subtela_de_escala(self):
+        prestador = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="PRESTADOR ESCALA",
+            nm_guerra="ESCALA",
+        )
+        escala = AgendaProfissional.objects.create(
+            cd_empresa=self.empresa,
+            cd_prestador=prestador,
+            ds_agenda="ESCALA ADMINISTRATIVA",
+            nr_dia_semana=0,
+            hr_inicio="08:00",
+            hr_fim="10:00",
+        )
+        user, _role = self._user_with_role("ADMINISTRACAO", [self.escalas])
+        self.client.force_login(user)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
+        response = self.client.get(reverse("atendimento:cadastro-escala", args=[escala.pk]))
         self.assertEqual(response.status_code, 200)
 
     def test_papel_inativo_remove_acesso(self):

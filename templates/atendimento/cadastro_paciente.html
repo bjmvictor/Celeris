@@ -85,7 +85,7 @@
       </div>
     </details>
 
-    {% if paciente %}
+    {% if paciente and can_view_audit %}
       <details class="card form-section">
         <summary>Auditoria</summary>
         <div class="form-grid audit-grid">
@@ -95,6 +95,8 @@
           <label>Usuário da alteração <input value="{{ paciente.cd_usuario_atualizacao|default:'-' }}" readonly></label>
         </div>
       </details>
+    {% endif %}
+    {% if paciente %}
       <div hidden data-change-reason-fields>
         {{ form.motivo_alteracao }}
         {{ form.observacao_alteracao }}

@@ -71,22 +71,76 @@ def _configured_screen_items():
     except (OperationalError, ProgrammingError):
         return {}
 
+    static_access_keys = {
+        nav_item.get("access_key")
+        for module in MODULES
+        for nav_item in _flatten_items(module["items"])
+        if not nav_item.get("children")
+    }
     configured = {}
     for screen in screens:
-        if screen.slug == "cadastros-profissionais" or screen.slug.startswith("acesso-"):
+        if (
+            screen.slug == "cadastros-profissionais"
+            or screen.slug.startswith("acesso-")
+            or screen.access_key in static_access_keys
+        ):
             continue
         configured.setdefault(screen.module.code, {})
         parent_label = screen.parent_label or ""
         configured[screen.module.code].setdefault(parent_label, [])
         if screen.slug == "pacientes-cadastro":
             configured[screen.module.code][parent_label].append(
-                item(screen.title, url=reverse("atendimento:cadastro-paciente-novo"))
+                item(
+                    screen.title,
+                    url=reverse("atendimento:cadastro-paciente-novo"),
+                    access_key=screen.access_key,
+                )
             )
             continue
         configured[screen.module.code][parent_label].append(
-            item(screen.title, url=reverse("core:dynamic_screen", kwargs={"slug": screen.slug}))
+            item(
+                screen.title,
+                url=reverse("core:dynamic_screen", kwargs={"slug": screen.slug}),
+                access_key=screen.access_key,
+            )
         )
     return configured
+
+
+def _organize_runtime_modules(modules):
+    modules = list(modules)
+
+    def pop_module(code):
+        for index, module in enumerate(modules):
+            if module["code"] == code:
+                return modules.pop(index)
+        return None
+
+    def append_group(target_code, label, source):
+        if not source or not source.get("items"):
+            return
+        target = next((module for module in modules if module["code"] == target_code), None)
+        if target:
+            target["items"].append(item(label, children=source["items"]))
+
+    pacientes = pop_module("PACIENTES")
+    indicadores = pop_module("BI")
+    fiscal = pop_module("FISCAL")
+    relacionamento = pop_module("RELACIONAMENTO")
+    append_group("ATENDIMENTO", "Pacientes", pacientes)
+    append_group("ATENDIMENTO", "Indicadores", indicadores)
+    append_group("FINANCEIRO", "Fiscal", fiscal)
+
+    if relacionamento and relacionamento.get("items"):
+        global_module = next((module for module in modules if module["code"] == "GLOBAL"), None)
+        empresa_group = next(
+            (nav_item for nav_item in global_module["items"] if nav_item["label"] == "Empresa"),
+            None,
+        ) if global_module else None
+        if empresa_group:
+            empresa_group["children"].append(item("Relacionamentos", children=relacionamento["items"]))
+
+    return modules
 
 
 def _merge_configured_menu():
@@ -116,7 +170,7 @@ def _merge_configured_menu():
             else:
                 items.extend(screens)
         merged.append({"code": module.code, "title": module.title, "icon": "grid", "items": items})
-    return merged
+    return _organize_runtime_modules(merged)
 
 
 def _filter_menu_for_user(menu, user):
@@ -158,6 +212,8 @@ def navigation(request):
         "atendimento:paineis-chamada": reverse("atendimento:paineis-chamada"),
         "atendimento:cadastro-painel-chamada": reverse("atendimento:paineis-chamada"),
         "atendimento:perfis-assistenciais": reverse("atendimento:perfis-assistenciais"),
+        "atendimento:configurar-senhas": reverse("atendimento:configurar-senhas"),
+        "atendimento:editar-configuracao-senha": reverse("atendimento:configurar-senhas"),
         "usuarios": reverse("usuario_novo"),
         "perfis": reverse("perfil_novo"),
     }
@@ -179,6 +235,7 @@ def navigation(request):
         "atendimento:cadastro-escala": reverse("atendimento:escalas"),
         "atendimento:paineis-chamada": reverse("atendimento:paineis-chamada"),
         "atendimento:cadastro-painel-chamada": reverse("atendimento:paineis-chamada"),
+        "atendimento:editar-configuracao-senha": reverse("atendimento:configurar-senhas"),
         "atendimento:pep-prontuario-paciente": reverse("atendimento:pep"),
         "atendimento:novo-atendimento-agendado": reverse("atendimento:agendamentos-operacionais"),
         "atendimento:cadastro-atendimento": reverse("atendimento:agendamentos-operacionais"),
@@ -204,7 +261,7 @@ def navigation(request):
         current_empresa = Empresa.objects.get(cd_empresa=cd_empresa, sn_ativo=True)
     except (Empresa.DoesNotExist, OperationalError, ProgrammingError):
         current_empresa = None
-    current_new_url = new_url_by_route.get(route_name, "")
+    current_new_url = getattr(request, "current_new_url", new_url_by_route.get(route_name, ""))
     if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
         current_new_url = f"{current_new_url}?{urlencode({'return_to': request.get_full_path()})}"
     return {
@@ -233,4 +290,8 @@ def navigation(request):
         "current_close_url": return_url or (tab_key if close_mode == "back" else ""),
         "current_overlay_mode": request.GET.get("overlay") == "1",
         "current_user_short_name": _short_user_name(request.user),
+        "can_view_audit": bool(
+            request.user.is_authenticated
+            and getattr(request.user, "pode_visualizar_auditoria", False)
+        ),
     }

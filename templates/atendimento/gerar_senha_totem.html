@@ -2,9 +2,11 @@
 {% block content %}
   <section class="card ticket-kiosk-header">
     <div><small>Instituição</small><h2>{{ empresa.nm_empresa }}</h2></div>
-    <label>Impressora padrão
-      <input data-ticket-printer placeholder="Nome da impressora configurada neste computador">
-    </label>
+    <div class="ticket-print-mode">
+      <small>Impressão</small>
+      <strong>Impressora padrão do navegador</strong>
+      <span>O envio direto, sem diálogo, funciona quando o navegador é iniciado em modo quiosque de impressão.</span>
+    </div>
     <details class="ticket-history">
       <summary class="button button-secondary" title="Últimas senhas"><span class="svg-icon" data-nav-icon="history"></span></summary>
       <div class="ticket-history-menu">
@@ -20,6 +22,16 @@
   </section>
 
   <section class="ticket-options">
+    {% for regra in regras %}
+      <form class="card ticket-option" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="regra" value="{{ regra.pk }}">
+        <small>{{ regra.cd_tipo_senha.nm_tipo_senha }}</small>
+        <strong>{{ regra.cd_classe_senha.nm_classe_senha }}</strong>
+        <span>{{ regra.cd_tipo_senha.sg_tipo_senha }}{{ regra.cd_classe_senha.sg_classe_senha }} · prioridade {{ regra.nr_prioridade }}</span>
+        <button class="button button-primary" type="submit">Gerar senha</button>
+      </form>
+    {% endfor %}
     {% for classe in classes %}
       <form class="card ticket-option" method="post">
         {% csrf_token %}
@@ -29,8 +41,9 @@
         <span>{{ classe.cd_tipo_senha.sg_tipo_senha }}{{ classe.sg_classe_senha }} · prioridade {{ classe.nr_prioridade }}</span>
         <button class="button button-primary" type="submit">Gerar senha</button>
       </form>
-    {% empty %}
+    {% empty %}{% if not regras %}
       <div class="card empty-state">Configure os tipos e classes de senha antes de utilizar o totem.</div>
+    {% endif %}
     {% endfor %}
   </section>
 
@@ -47,11 +60,6 @@
 {% block extra_scripts %}
   <script>
     (() => {
-      const printer = document.querySelector("[data-ticket-printer]");
-      if (printer) {
-        printer.value = localStorage.getItem("celeris-ticket-printer") || "";
-        printer.addEventListener("change", () => localStorage.setItem("celeris-ticket-printer", printer.value.trim()));
-      }
       const modal = document.querySelector("[data-ticket-modal]");
       if (!modal) return;
       const printWindow = window.open(modal.dataset.printUrl, "_blank", "noopener");

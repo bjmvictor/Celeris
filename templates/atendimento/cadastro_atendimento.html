@@ -85,7 +85,7 @@
       </div>
     </details>
 
-    {% if atendimento %}
+    {% if atendimento and can_view_audit %}
       <details class="card form-section">
         <summary>3. Auditoria</summary>
         <div class="form-grid audit-grid">

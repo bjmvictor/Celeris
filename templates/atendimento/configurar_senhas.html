@@ -1,50 +1,54 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <form class="card ticket-config-form" method="post" autocomplete="off">
+  <form
+    class="ticket-config-form"
+    method="post"
+    autocomplete="off"
+    data-table="tipo_senha_atendimento"
+    data-query-url="{% url 'atendimento:configurar-senhas' %}"
+    data-query-parameter="consultar"
+  >
     {% csrf_token %}
-    <div class="form-grid">
-      <label class="field-lg">Tipo de senha <input name="nm_tipo_senha" required placeholder="Ex.: Adulto"></label>
-      <label class="field-xs">Sigla do tipo <input name="sg_tipo_senha" required maxlength="4" placeholder="A"></label>
-      <label class="field-xl">Protocolo/orientação <input name="ds_protocolo" placeholder="Orientação exibida ou impressa"></label>
-      <label class="field-sm">Tempo limite (min) <input name="nr_tempo_minimo" type="number" min="1" value="30"></label>
-      <label class="field-sm">Prioridade do tipo <input name="nr_prioridade_tipo" type="number" min="1" value="5"></label>
-      <label class="field-xl">Setor/painel de chamada
-        <select name="cd_setor_atendimento">
-          <option value=""></option>
-          {% for setor in setores %}<option value="{{ setor.pk }}">{{ setor.nm_setor }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="field-lg">Classe <input name="nm_classe_senha" required placeholder="Ex.: Atendimento normal"></label>
-      <label class="field-xs">Sigla da classe <input name="sg_classe_senha" maxlength="4" placeholder="N"></label>
-      <label class="field-sm">Prioridade da classe <input name="nr_prioridade_classe" type="number" min="1" value="5"></label>
-      <label class="field-sm">Idade mínima <input name="nr_idade_minima" type="number" min="0"></label>
-      <label class="field-sm">Idade máxima <input name="nr_idade_maxima" type="number" min="0"></label>
-    </div>
-  </form>
+    {{ form.non_field_errors }}
 
-  <section class="card table-card">
-    <table>
-      <thead><tr><th>Tipo</th><th>Sigla</th><th>Classe</th><th>Prioridade</th><th>Idade</th><th>Tempo limite</th><th>Setor</th><th>Protocolo</th></tr></thead>
-      <tbody>
-        {% for tipo in tipos %}
-          {% for classe in tipo.classes.all %}
-            <tr>
-              <td>{{ tipo.nm_tipo_senha }}</td>
-              <td>{{ tipo.sg_tipo_senha }}{{ classe.sg_classe_senha }}</td>
-              <td>{{ classe.nm_classe_senha }}</td>
-              <td>{{ classe.nr_prioridade }}</td>
-              <td>{{ classe.nr_idade_minima|default:"-" }} a {{ classe.nr_idade_maxima|default:"-" }}</td>
-              <td>{{ tipo.nr_tempo_minimo }} min</td>
-              <td>{{ tipo.cd_setor_atendimento.nm_setor|default:"-" }}</td>
-              <td>{{ tipo.ds_protocolo|default:"-" }}</td>
-            </tr>
-          {% empty %}
-            <tr><td>{{ tipo.nm_tipo_senha }}</td><td>{{ tipo.sg_tipo_senha }}</td><td colspan="6">Sem classes configuradas</td></tr>
-          {% endfor %}
-        {% empty %}
-          <tr><td colspan="8">Nenhum tipo de senha configurado.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+    <details class="card form-section" open>
+      <summary>1. Dados gerais da senha</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código {{ form.cd_tipo_senha }}</label>
+        <label class="field-sm">Status {{ form.sn_ativo }}</label>
+        <label class="field-lg">Tipo de senha * {{ form.nm_tipo_senha }} {{ form.nm_tipo_senha.errors }}</label>
+        <label class="field-xs">Sigla * {{ form.sg_tipo_senha }} {{ form.sg_tipo_senha.errors }}</label>
+        <label class="field-lg">Protocolo {{ form.cd_protocolo }}</label>
+        <label class="field-sm">Tempo limite (min) {{ form.nr_tempo_minimo }}</label>
+        <label class="field-sm">Prioridade <small>menor = mais prioridade</small>{{ form.nr_prioridade }}</label>
+        <label class="field-xl">Setor/painel de chamada {{ form.cd_setor_atendimento }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section" open>
+      <summary>2. Regras de subdivisão</summary>
+      <div class="form-grid ticket-rule-editor">
+        <label class="field-lg">Classe {{ regra_form.cd_classe_senha }}</label>
+        <label class="field-sm">Prioridade <small>menor = mais prioridade</small>{{ regra_form.nr_prioridade }}</label>
+        <label class="field-sm">Idade mínima {{ regra_form.nr_idade_minima }}</label>
+        <label class="field-sm">Idade máxima {{ regra_form.nr_idade_maxima }}</label>
+        <label class="field-md">Ícone {{ regra_form.ds_icone }}</label>
+      </div>
+      {% if not tipo %}
+        <span class="empty-state">Salve os dados gerais para começar a adicionar regras.</span>
+      {% endif %}
+    </details>
+
+    {% if tipo and can_view_audit %}
+      <details class="card form-section">
+        <summary>3. Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ tipo.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ tipo.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ tipo.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ tipo.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
+    {% endif %}
+  </form>
 {% endblock %}

@@ -391,7 +391,8 @@
             <option value="date">Data</option><option value="time">Hora</option><option value="number">Número</option>
             <option value="checkbox">Sim/Não</option><option value="select">Lista fixa</option>
             <option value="exclusive-checkboxes">Múltiplos checkboxes exclusivos</option>
-            <option value="auxiliary">Tabela auxiliar</option><option value="query">Consulta do sistema</option>
+            <option value="multiple-fields">Múltiplos campos</option>
+            <option value="auxiliary">Tabela auxiliar</option>
             <option value="static-text">Texto informativo</option><option value="static-variable">Variável informativa</option>
             <option value="line">Linha</option>
             <option value="image">Imagem</option>
@@ -411,14 +412,17 @@
         <label class="field-lg" data-setting-types="text,textarea,date,time,number">Texto de ajuda <input data-settings-property="placeholder"></label>
         <label class="field-md" data-setting-types="text,number">Prefixo <input data-settings-property="prefix" placeholder="Ex.: R$"></label>
         <label class="field-md" data-setting-types="text,number">Sufixo <input data-settings-property="suffix" placeholder="Ex.: °C"></label>
-        <label class="field-xl" data-setting-types="select,exclusive-checkboxes">Opções separadas por vírgula <small data-setting-types="exclusive-checkboxes">Use <code>OPÇÃO[nome_campo]</code> sem placeholder ou <code>OPÇÃO[nome_campo, Nome exibido]</code> para definir o placeholder do complemento.</small>
+        <label class="field-xl" data-setting-types="select,exclusive-checkboxes,multiple-fields">Opções separadas por vírgula <small data-setting-types="exclusive-checkboxes">Use <code>OPÇÃO[nome_campo; Nome exibido]</code>; o ponto e vírgula separa o nome técnico do placeholder.</small><small data-setting-types="multiple-fields">Use <code>Campo 1[campo_1], "+", [campo_2]</code>. Textos entre aspas são exibidos entre os campos.</small>
           <input data-settings-property="options" placeholder="SIM, NÃO, TALVEZ[motivo]">
         </label>
         <label class="field-lg" data-setting-types="auxiliary">Tabela auxiliar
           <select data-settings-property="sourceTable"><option value=""></option>{% for tabela in tabelas_auxiliares %}<option value="{{ tabela.ds_tabela }}">{{ tabela.ds_descricao|default:tabela.ds_tabela }}</option>{% endfor %}</select>
         </label>
-        <label class="field-lg" data-setting-types="query">Consulta
-          <select data-settings-property="sourceQuery"><option value=""></option><option value="convenios">Convênios</option><option value="prestadores">Prestadores</option><option value="setores">Setores</option></select>
+        <label class="field-md" data-setting-types="auxiliary">Coluna de valor
+          <select data-settings-property="sourceValueField"><option value="cd_valor">Código</option><option value="ds_valor">Descrição</option></select>
+        </label>
+        <label class="field-md" data-setting-types="auxiliary">Coluna exibida
+          <select data-settings-property="sourceDisplayField"><option value="ds_valor">Descrição</option><option value="cd_valor">Código</option></select>
         </label>
         <label class="field-xl" data-setting-types="text,textarea,date,time,number,static-variable">Vínculo automático
           <select data-settings-property="binding">
@@ -479,8 +483,8 @@
         <span class="document-settings-row-break" data-setting-types="static-text" aria-hidden="true"></span>
         <label>Colunas ocupadas <input type="number" min="1" max="12" data-settings-property="colSpan"></label>
         <label>Linhas ocupadas <input type="number" min="1" max="10" data-settings-property="rowSpan"></label>
-        <label class="provider-checkbox" data-setting-types="text,textarea,date,time,number,checkbox,select,exclusive-checkboxes,auxiliary,query"><input type="checkbox" data-settings-property="required"><span>Obrigatório</span></label>
-        <label class="provider-checkbox" data-setting-types="text,textarea,date,time,number,checkbox,select,exclusive-checkboxes,auxiliary,query"><input type="checkbox" data-settings-property="readonly"><span>Não editável</span></label>
+        <label class="provider-checkbox" data-setting-types="text,textarea,date,time,number,checkbox,select,exclusive-checkboxes,multiple-fields,auxiliary"><input type="checkbox" data-settings-property="required"><span>Obrigatório</span></label>
+        <label class="provider-checkbox" data-setting-types="text,textarea,date,time,number,checkbox,select,exclusive-checkboxes,multiple-fields,auxiliary"><input type="checkbox" data-settings-property="readonly"><span>Não editável</span></label>
       </div>
       <footer class="form-actions"><button class="button button-primary" type="button" data-field-settings-save>Aplicar</button></footer>
     </div>

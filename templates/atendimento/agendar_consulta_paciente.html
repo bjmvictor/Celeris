@@ -13,21 +13,34 @@
   <section class="card table-card">
     <table>
       <thead>
-        <tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>Data de nascimento</th><th>Mãe</th><th>Celular</th><th></th></tr>
+        <tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Cidade/UF</th><th>Data de nascimento</th><th>Mãe</th><th>Celular</th><th></th></tr>
       </thead>
       <tbody>
         {% for paciente in pacientes %}
           <tr>
             <td>{{ paciente.cd_paciente }}</td>
-            <td>{{ paciente.nm_paciente }}</td>
+            <td>
+              {% if paciente.nm_social %}
+                <span class="patient-social-name">
+                  {{ paciente.nm_social }}
+                  <span class="social-name-info" title="Nome de registro: {{ paciente.nm_paciente }}" aria-label="Nome de registro: {{ paciente.nm_paciente }}">
+                    <span class="svg-icon" data-nav-icon="info"></span>
+                  </span>
+                </span>
+              {% else %}
+                {{ paciente.nm_paciente }}
+              {% endif %}
+            </td>
             <td>{{ paciente.nr_cpf|default:"-" }}</td>
+            <td>{{ paciente.nr_cartao_sus|default:"-" }}</td>
+            <td>{% if paciente.ds_cidade %}{{ paciente.ds_cidade }}{% if paciente.sg_estado %}-{{ paciente.sg_estado }}{% endif %}{% else %}-{% endif %}</td>
             <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
             <td>{{ paciente.nm_mae|default:"-" }}</td>
             <td>{{ paciente.nr_celular|default:"-" }}</td>
             <td><a class="button button-secondary" href="{% url 'atendimento:revisar-paciente-agendamento' paciente.cd_paciente %}">Selecionar</a></td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty-cell">Pesquise pelos dados principais do paciente ou execute a consulta em branco para listar todos.</td></tr>
+          <tr><td colspan="9" class="empty-cell">Pesquise pelos dados principais do paciente ou execute a consulta em branco para listar todos.</td></tr>
         {% endfor %}
       </tbody>
     </table>

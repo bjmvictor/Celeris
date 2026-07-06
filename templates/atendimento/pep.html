@@ -148,6 +148,7 @@
       if (!panel || !summary) return;
       const position = () => {
         if (!filter.open) return;
+        panel.style.visibility = "hidden";
         const rect = summary.getBoundingClientRect();
         const contentRect = document.querySelector(".content")?.getBoundingClientRect();
         const viewportGap = 8;
@@ -162,8 +163,15 @@
           ? rect.bottom + 6
           : rect.top - panel.offsetHeight - 6;
         panel.style.top = `${Math.max(viewportGap, top)}px`;
+        panel.style.visibility = "visible";
       };
-      filter.addEventListener("toggle", position);
+      filter.addEventListener("toggle", () => {
+        if (!filter.open) {
+          panel.style.visibility = "hidden";
+          return;
+        }
+        window.requestAnimationFrame(position);
+      });
       window.addEventListener("resize", position);
       document.querySelector(".content")?.addEventListener("scroll", position);
     });

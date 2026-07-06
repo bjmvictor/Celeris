@@ -6,12 +6,28 @@ from django.db import models
 from .models import PapelTela
 
 
+ROUTE_ACCESS_ALIASES = {
+    "atendimento:cadastro-escala": {"atendimento:escalas"},
+    "atendimento:alternar-status-escala": {"atendimento:escalas"},
+    "atendimento:cadastro-profissional": {"atendimento:cadastro-profissional-novo"},
+    "atendimento:alternar-status-prestador": {"atendimento:cadastro-profissional-novo"},
+    "atendimento:cadastro-paciente": {"atendimento:cadastro-paciente-novo"},
+    "atendimento:alternar-status-paciente": {"atendimento:cadastro-paciente-novo"},
+    "atendimento:cadastro-painel-chamada": {"atendimento:paineis-chamada"},
+    "atendimento:alternar-status-painel-chamada": {"atendimento:paineis-chamada"},
+    "atendimento:editar-configuracao-senha": {"atendimento:configurar-senhas"},
+    "atendimento:alternar-status-configuracao-senha": {"atendimento:configurar-senhas"},
+}
+
+
 def request_access_keys(request) -> set[str]:
     match = getattr(request, "resolver_match", None)
     route_name = ""
     if match:
         route_name = f"{match.namespace}:{match.url_name}" if match.namespace else match.url_name
-    return {key for key in (route_name, request.path) if key}
+    keys = {key for key in (route_name, request.path) if key}
+    keys.update(ROUTE_ACCESS_ALIASES.get(route_name, set()))
+    return keys
 
 
 def user_access_keys(user) -> set[str]:

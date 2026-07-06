@@ -4,17 +4,15 @@
   <form
     id="scale-form"
     class="provider-form scale-form"
-    data-table="agenda_profissional"
+    data-table="escala"
     data-query-url="{{ request.path }}"
-    data-delete-queue="true"
-    data-delete-queue-name="agenda_profissional"
-    data-record-id="{{ escala.pk|default:'' }}"
+    data-delete-current="true"
     data-has-errors="{{ form.errors|yesno:'true,false' }}"
     method="post"
     autocomplete="off"
   >
     {% csrf_token %}
-    {% if escala %}<input type="hidden" name="_excluir_ids" value="" data-delete-queue-field>{% endif %}
+    {% if escala %}<input type="hidden" name="_excluir_atual" value="0" data-record-delete>{% endif %}
     {{ form.non_field_errors }}
     {% if form.errors %}
       <div class="form-error-summary" role="alert">
@@ -56,7 +54,7 @@
                   form="scale-form"
                   value="{{ value }}"
                   data-scale-weekday
-                  data-field-table="agenda_profissional"
+                  data-field-table="escala"
                   data-field-name="ds_dias_semana"
                   data-consultable="true"
                   data-editable="true"
@@ -109,7 +107,7 @@
       </div>
     </details>
 
-    {% if escala %}
+    {% if escala and can_view_audit %}
       <details class="card form-section">
         <summary>4. Auditoria</summary>
         <div class="form-grid audit-grid">

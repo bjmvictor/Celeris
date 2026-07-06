@@ -13,7 +13,8 @@
         <label class="field-sm">Status {{ form.is_active }}</label>
         <label class="field-lg">Prestador {{ form.cd_prestador }}</label>
         <label class="field-sm">Data de Nascimento {{ form.dt_nascimento }}</label>
-        <label class="field-md">CPF * {{ form.nr_cpf }} {{ form.nr_cpf.errors }}</label>
+        <label class="field-sm">CPF * {{ form.nr_cpf }} {{ form.nr_cpf.errors }}</label>
+        {% if form.tp_usuario %}<label class="field-md">Tipo de usuário {{ form.tp_usuario }}</label>{% endif %}
         <label class="field-md">Idioma {{ form.ds_idioma }}</label>
         <label class="field-lg">Profissão {{ form.ds_profissao }}</label>
         <label class="field-md">Matrícula RH {{ form.nr_matricula_rh }}</label>
@@ -97,5 +98,17 @@
         </div>
       </div>
     </details>
+
+    {% if usuario and can_view_audit %}
+      <details class="card form-section">
+        <summary>6. Auditoria</summary>
+        <div class="form-grid audit-grid">
+          <label>Data de cadastro <input value="{{ usuario.date_joined|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário do cadastro <input value="{{ usuario.cd_usuario_criacao|default:'-' }}" readonly></label>
+          <label>Última alteração <input value="{{ usuario.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+          <label>Usuário da alteração <input value="{{ usuario.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+        </div>
+      </details>
+    {% endif %}
   </form>
 {% endblock %}

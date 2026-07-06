@@ -31,8 +31,6 @@ MODULES = [
             item("Atendimentos", "atendimento:atendimentos", roles=["TI", "Recepcionista", "Enfermeiro", "Médico"]),
             item("PEP", "atendimento:pep", roles=["TI", "Enfermeiro", "Médico"]),
             item("Classificação de Risco", "atendimento:fila-classificacao", roles=["TI", "Enfermeiro"]),
-            item("Consultas Médicas", "atendimento:fila-medica", roles=["TI", "Médico"]),
-            item("Demanda espontânea", "atendimento:demanda-espontanea", roles=["TI", "Recepcionista"]),
         ],
     },
     {
@@ -40,7 +38,6 @@ MODULES = [
         "title": "Cadastros",
         "icon": "table",
         "items": [
-            item("Pacientes", "atendimento:cadastro-paciente-novo", roles=["TI", "Recepcionista"]),
             item("Prestadores", "atendimento:cadastro-profissional-novo", roles=["TI"]),
             item("Convênios", "atendimento:convenios", roles=["TI", "Recepcionista"]),
         ],
@@ -52,6 +49,14 @@ MODULES = [
         "items": [
             item("Gerar senha", "atendimento:gerar-senha-totem", roles=["TI", "Recepcionista"]),
             item("Configurar", "atendimento:configurar-senhas", roles=["TI"]),
+            item(
+                "Tabelas",
+                children=[
+                    item("Classes", "atendimento:classes-senha", roles=["TI"]),
+                    item("Protocolos", "atendimento:protocolos-senha", roles=["TI"]),
+                ],
+                roles=["TI"],
+            ),
         ],
     },
     {
@@ -100,19 +105,39 @@ MODULES = [
                 ],
                 roles=["TI"],
             ),
+            item(
+                "Totem de Senhas",
+                children=[
+                    item(
+                        "Tabelas",
+                        children=[
+                            item("Classes", "atendimento:classes-senha", roles=["TI"]),
+                            item("Protocolos", "atendimento:protocolos-senha", roles=["TI"]),
+                        ],
+                        roles=["TI"],
+                    ),
+                ],
+                roles=["TI"],
+            ),
             item("CEPs", "core:global_ceps", roles=["TI"]),
             item("Tipo de Prestador x Conselho", "core:tipo_prestador_conselho", roles=["TI"]),
         ],
     },
     {
-        "code": "ADMINISTRACAO",
-        "title": "Administração",
-        "icon": "wrench",
+        "code": "TI",
+        "title": "TI",
+        "icon": "monitor",
         "items": [
-            item("Usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
-            item("Cópia de usuário", "copia_usuario", roles=["TI"]),
-            item("Papéis", "perfis", roles=["TI"]),
-            item("Permissões", "permissoes", roles=["TI"]),
+            item(
+                "Usuários e acessos",
+                children=[
+                    item("Usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
+                    item("Cópia de usuário", "copia_usuario", roles=["TI"]),
+                    item("Papéis", "perfis", roles=["TI"]),
+                    item("Permissões", "permissoes", roles=["TI"]),
+                ],
+                roles=["TI"],
+            ),
         ],
     },
 ]

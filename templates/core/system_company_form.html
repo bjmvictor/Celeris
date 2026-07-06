@@ -29,7 +29,7 @@
         <label class="field-lg">Bairro {{ form.ds_bairro }}</label>
       </div>
     </details>
-    {% if empresa %}
+    {% if empresa and can_view_audit %}
       <details class="card form-section">
         <summary>Auditoria</summary>
         <div class="form-grid audit-grid">

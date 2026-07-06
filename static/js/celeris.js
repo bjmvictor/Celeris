@@ -139,8 +139,18 @@
       clearFormFields(form);
       form.querySelectorAll("[data-query-results]").forEach((result) => result.remove());
       window.history.replaceState({}, "", window.location.pathname);
+      clearRecordNavigationState();
     }
     setActionStatus("EDIÇÃO");
+  }
+
+  function clearRecordNavigationState() {
+    ["firstUrl", "previousUrl", "nextUrl", "lastUrl"].forEach((key) => {
+      document.body.dataset[key] = "";
+    });
+    const status = document.querySelector("[data-record-status]");
+    if (status) status.textContent = "";
+    setupActionButtons();
   }
 
   function resetEditableTableRows(form, markDirty = false) {
@@ -179,6 +189,7 @@
 
   let sidebarFlyout = null;
   let sidebarFlyoutTrigger = null;
+  let sidebarFlyoutBackdrop = null;
   let activeLookupField = null;
   let activeFloatingSelect = null;
   let floatingSelectSearch = "";
@@ -208,8 +219,11 @@
 
   function closeSidebarFlyout() {
     sidebarFlyout?.remove();
+    sidebarFlyoutBackdrop?.remove();
     sidebarFlyout = null;
     sidebarFlyoutTrigger = null;
+    sidebarFlyoutBackdrop = null;
+    document.body.classList.remove("sidebar-flyout-open");
   }
 
   function positionSidebarFlyout(flyout, trigger) {
@@ -238,6 +252,10 @@
 
     closeSidebarFlyout();
     sidebarFlyoutTrigger = trigger;
+    sidebarFlyoutBackdrop = document.createElement("div");
+    sidebarFlyoutBackdrop.className = "sidebar-flyout-backdrop";
+    document.body.appendChild(sidebarFlyoutBackdrop);
+    document.body.classList.add("sidebar-flyout-open");
     sidebarFlyout = document.createElement("div");
     sidebarFlyout.className = "sidebar-flyout";
     const title = document.createElement("div");
@@ -614,10 +632,6 @@
   }
 
   async function submitPrimaryForm(form) {
-    if (form?.matches("[data-delete-queue='true']") && readDeletionQueue(form).length) {
-      form.requestSubmit();
-      return true;
-    }
     markInvalidFields(form);
     if (!form.reportValidity()) return false;
     if (!await promptChangeReason(form)) return false;
@@ -640,73 +654,6 @@
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
-  }
-
-  function deletionQueueKey(form) {
-    if (!form?.matches("[data-delete-queue='true']")) return "";
-    const name = form.dataset.deleteQueueName || form.dataset.table || window.location.pathname;
-    return `celeris-delete-queue:${name}`;
-  }
-
-  function readDeletionQueue(form) {
-    const key = deletionQueueKey(form);
-    if (!key) return [];
-    try {
-      return JSON.parse(sessionStorage.getItem(key) || "[]").map(String);
-    } catch (_error) {
-      return [];
-    }
-  }
-
-  function syncDeletionQueue(form, queue = readDeletionQueue(form)) {
-    const key = deletionQueueKey(form);
-    if (!key) return;
-    const normalized = [...new Set(queue.map(String).filter(Boolean))];
-    sessionStorage.setItem(key, JSON.stringify(normalized));
-    const currentId = String(form.dataset.recordId || "");
-    const pendingCurrent = currentId && normalized.includes(currentId);
-    form.classList.toggle("record-pending-deletion", Boolean(pendingCurrent));
-    const hidden = form.querySelector("[data-delete-queue-field]");
-    if (hidden) hidden.value = normalized.join(",");
-    form.dataset.pendingDelete = normalized.length ? "true" : "false";
-    if (normalized.length) markFormDirty(form);
-  }
-
-  function toggleCurrentRecordDeletion(form) {
-    const currentId = String(form?.dataset.recordId || "");
-    if (!form || !currentId) return false;
-    const queue = readDeletionQueue(form);
-    const index = queue.indexOf(currentId);
-    if (index >= 0) {
-      queue.splice(index, 1);
-    } else {
-      queue.push(currentId);
-    }
-    syncDeletionQueue(form, queue);
-    showBlockingNotification({
-      title: index >= 0 ? "Exclusão desmarcada" : "Exclusão preparada",
-      message: index >= 0
-        ? "Este registro não será mais excluído."
-        : "O registro foi marcado em vermelho e será excluído ao clicar em Salvar.",
-      confirmText: "OK",
-      type: index >= 0 ? "info" : "warning",
-    });
-    setupActionButtons();
-    return true;
-  }
-
-  function setupDeletionQueues() {
-    document.querySelectorAll("form[data-delete-queue='true']").forEach((form) => {
-      const params = new URLSearchParams(window.location.search);
-      const key = deletionQueueKey(form);
-      if (params.get("exclusao_concluida") === "1" && key) {
-        sessionStorage.removeItem(key);
-        params.delete("exclusao_concluida");
-        const query = params.toString();
-        window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
-      }
-      syncDeletionQueue(form);
-    });
   }
 
   function addEditableTableRow(form, markDirty = true) {
@@ -945,6 +892,7 @@
           clearFormFields(form);
           form?.querySelectorAll("[data-query-results]").forEach((result) => result.remove());
           window.history.replaceState({}, "", window.location.pathname);
+          clearRecordNavigationState();
         }
         setQueryMode(true);
         if (form?.matches("[data-editable-table]")) {
@@ -980,7 +928,7 @@
             }
           });
           const queryParameter = form.dataset.queryParameter
-            || (["paciente", "prestador", "usuario", "agenda_profissional"].includes(form.dataset.table) ? "consultar" : "abrir");
+            || (["paciente", "prestador", "usuario", "escala"].includes(form.dataset.table) ? "consultar" : "abrir");
           if (queryParameter) {
             params.set(queryParameter, "1");
           }
@@ -1073,19 +1021,18 @@
       const tableForm = getEditableTableForm();
       if (tableForm && removeEditableTableRow(tableForm)) return;
       const form = getPrimaryForm();
-      if (form?.matches("[data-delete-queue='true']") && toggleCurrentRecordDeletion(form)) return;
       const deleteField = form?.querySelector("[data-record-delete]");
       if (deleteField) {
-        deleteField.value = "1";
-        form.dataset.pendingDelete = "true";
-        markFormDirty(form);
-        showBlockingNotification({
-          title: "Exclusão preparada",
-          message: "A exclusão deste registro será efetivada ao clicar em Salvar.",
-          confirmText: "OK",
+        const confirmed = await showBlockingNotification({
+          title: "Excluir registro",
+          message: "Confirma a exclusão deste registro? A alteração será salva imediatamente.",
+          confirmText: "Excluir",
+          cancelText: "Cancelar",
           type: "warning",
         });
-        setupActionButtons();
+        if (!confirmed) return;
+        deleteField.value = "1";
+        HTMLFormElement.prototype.submit.call(form);
         return;
       }
     }
@@ -2476,7 +2423,9 @@
 
     if (document.querySelector("[data-disable-toolbar-actions='true']")) {
       document.querySelectorAll(".toolbar-actions .toolbar-button").forEach((button) => {
-        button.disabled = true;
+        const isClose = button.matches('[data-action="close"]');
+        button.hidden = !isClose;
+        button.disabled = !isClose;
       });
       return;
     }
@@ -2906,7 +2855,6 @@
   setupResizableTables();
   setupCepCityDependencies();
   setupInitialEditableRows();
-  setupDeletionQueues();
   updateTablePagerVisibility();
   restoreCurrentFormState();
   const warNameField = document.querySelector("[data-war-name]");

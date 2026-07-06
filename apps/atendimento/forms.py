@@ -8,7 +8,7 @@ from apps.accounts.models import Setor
 from apps.core.form_registry import aplicar_configuracao_formulario
 from apps.core.models import Cep, TipoPrestadorConselho, ValorAuxiliarGlobal
 
-from .models import AgendaProfissional, Agendamento, Atendimento, Convenio, EvolucaoAtendimento, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame
+from .models import AgendaProfissional, Agendamento, Atendimento, ClasseSenhaAtendimento, Convenio, EvolucaoAtendimento, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ProtocoloSenhaAtendimento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame, TipoSenhaAtendimento
 
 
 class PacienteSearchForm(forms.Form):
@@ -392,6 +392,122 @@ class PrestadorForm(forms.ModelForm):
         return cleaned_data
 
 
+class TipoSenhaAtendimentoForm(forms.ModelForm):
+    cd_tipo_senha = forms.IntegerField(label="Código", required=False, disabled=True)
+
+    class Meta:
+        model = TipoSenhaAtendimento
+        fields = (
+            "cd_tipo_senha",
+            "sn_ativo",
+            "nm_tipo_senha",
+            "sg_tipo_senha",
+            "cd_protocolo",
+            "nr_tempo_minimo",
+            "nr_prioridade",
+            "cd_setor_atendimento",
+        )
+        widgets = {
+            "sn_ativo": forms.Select(choices=(("", ""), (True, "Ativo"), (False, "Inativo"))),
+        }
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sn_ativo"].initial = True
+        self.fields["sn_ativo"].disabled = True
+        self.fields["cd_protocolo"].queryset = (
+            ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_protocolo")
+            if empresa
+            else ProtocoloSenhaAtendimento.objects.none()
+        )
+        self.fields["cd_setor_atendimento"].queryset = (
+            Setor.objects.filter(
+                cd_empresa=empresa,
+                tp_setor=Setor.TipoSetor.ATENDIMENTO,
+                sn_ativo=True,
+            ).order_by("nm_setor")
+            if empresa
+            else Setor.objects.none()
+        )
+        if self.instance and self.instance.pk:
+            self.fields["cd_tipo_senha"].initial = self.instance.pk
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "tipo_senha_atendimento",
+                    "data-field-name": name,
+                    "data-consultable": "true",
+                    "data-editable": "false" if name in {"cd_tipo_senha", "sn_ativo"} else "true",
+                    "data-primary-key": "true" if name == "cd_tipo_senha" else "false",
+                }
+            )
+
+
+class ClasseSenhaAtendimentoForm(forms.ModelForm):
+    class Meta:
+        model = ClasseSenhaAtendimento
+        fields = ("nm_classe_senha", "sg_classe_senha", "nr_prioridade", "ds_icone", "sn_ativo")
+        widgets = {
+            "sn_ativo": forms.Select(choices=(("", ""), (True, "Ativo"), (False, "Inativo"))),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sn_ativo"].initial = True
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "classe_senha_atendimento",
+                    "data-field-name": name,
+                    "data-consultable": "true",
+                    "data-editable": "true",
+                }
+            )
+
+
+class ProtocoloSenhaAtendimentoForm(forms.ModelForm):
+    class Meta:
+        model = ProtocoloSenhaAtendimento
+        fields = ("nm_protocolo", "ds_protocolo", "sn_ativo")
+        widgets = {
+            "sn_ativo": forms.Select(choices=(("", ""), (True, "Ativo"), (False, "Inativo"))),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sn_ativo"].initial = True
+        for name, field in self.fields.items():
+            field.widget.attrs.update(
+                {
+                    "data-field-table": "protocolo_senha",
+                    "data-field-name": name,
+                    "data-consultable": "true",
+                    "data-editable": "true",
+                }
+            )
+
+
+class RegraSubdivisaoSenhaForm(forms.ModelForm):
+    class Meta:
+        model = RegraSubdivisaoSenha
+        fields = (
+            "cd_classe_senha",
+            "nr_prioridade",
+            "nr_idade_minima",
+            "nr_idade_maxima",
+            "ds_icone",
+        )
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cd_classe_senha"].queryset = (
+            ClasseSenhaAtendimento.objects.filter(cd_empresa=empresa, sn_ativo=True)
+            .order_by("nm_classe_senha")
+            if empresa
+            else ClasseSenhaAtendimento.objects.none()
+        )
+
+
 class EscalaForm(forms.ModelForm):
     cd_agenda_profissional = forms.IntegerField(label="Código", required=False, disabled=True)
     ds_dias_semana = forms.MultipleChoiceField(
@@ -486,8 +602,11 @@ class EscalaForm(forms.ModelForm):
         for name, field in self.fields.items():
             field.widget.attrs.update(
                 {
-                    "data-field-table": "agenda_profissional",
-                    "data-field-name": name,
+                    "data-field-table": "escala",
+                    "data-field-name": {
+                        "cd_agenda_profissional": "cd_escala",
+                        "ds_agenda": "nm_escala",
+                    }.get(name, name),
                     "data-primary-key": "true" if name == "cd_agenda_profissional" else "false",
                     "data-consultable": "true",
                     "data-editable": "false" if name in {"cd_agenda_profissional", "sn_ativo"} else "true",

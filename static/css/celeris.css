@@ -81,9 +81,24 @@ body {
 a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; }
 
+.patient-social-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.social-name-info {
+  display: inline-flex;
+  color: var(--primary);
+  cursor: help;
+}
+.social-name-info .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
 .app-shell {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 320px 1fr;
   grid-template-rows: var(--topbar-height) 1fr;
   height: 100vh;
   overflow: hidden;
@@ -367,6 +382,14 @@ button, input, select, textarea { font: inherit; }
 }
 .sidebar-collapsed .brand img { height: 30px; }
 
+.sidebar-flyout-backdrop {
+  position: fixed;
+  inset: var(--topbar-height) 0 0 56px;
+  z-index: 29;
+  background: rgb(2 6 23 / 42%);
+  backdrop-filter: blur(3px);
+}
+
 .sidebar-flyout {
   position: fixed;
   z-index: 30;
@@ -609,7 +632,7 @@ button, input, select, textarea { font: inherit; }
 
 .screen-statusbar {
   position: fixed;
-  left: 280px;
+  left: 300px;
   right: 0;
   bottom: 0;
   z-index: 20;
@@ -2502,17 +2525,6 @@ textarea { width: min(680px, 100%); resize: vertical; }
   font-weight: 700;
   line-height: 1.25;
 }
-.record-pending-deletion {
-  border-color: var(--red) !important;
-  outline: 2px solid var(--red);
-  outline-offset: -2px;
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--red) 65%, transparent) !important;
-}
-.record-pending-deletion > .card,
-.record-pending-deletion > details.card {
-  border-color: color-mix(in srgb, var(--red) 72%, var(--line));
-}
 .schedule-filters > label.field-lg {
   flex: 1 1 520px;
   min-width: 320px;
@@ -4334,6 +4346,16 @@ body:has(.configurable-forms-page) .content {
   align-items: end;
   gap: 12px;
 }
+.ticket-print-mode {
+  display: grid;
+  gap: 3px;
+  max-width: 440px;
+  color: var(--text);
+}
+.ticket-print-mode span {
+  color: var(--muted);
+  font-size: 12px;
+}
 .ticket-kiosk-header h2 { margin: 2px 0 0; }
 .ticket-history { position: relative; }
 .ticket-history > summary { list-style: none; }
@@ -4353,6 +4375,7 @@ body:has(.configurable-forms-page) .content {
   border-radius: 8px;
   background: var(--panel);
   box-shadow: var(--shadow);
+  visibility: hidden;
 }
 .ticket-history-menu > div {
   display: grid;

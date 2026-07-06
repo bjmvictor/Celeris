@@ -62,7 +62,7 @@ class UsuarioForm(UserCreationForm):
     class Meta:
         model = User
         fields = (
-            "username", "full_name", "is_active", "cd_prestador", "dt_nascimento", "nr_cpf",
+            "username", "full_name", "is_active", "cd_prestador", "dt_nascimento", "nr_cpf", "tp_usuario",
             "ds_idioma", "ds_profissao", "nr_matricula_rh", "email", "nr_celular",
             "must_change_password", "is_blocked", "invalid_login_attempts", "password_expires_at",
             "can_register_patient", "can_change_patient", "can_create_users", "can_deactivate_users",
@@ -73,7 +73,7 @@ class UsuarioForm(UserCreationForm):
             "password_expires_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
         }
 
-    def __init__(self, *args, instance=None, empresa=None, **kwargs):
+    def __init__(self, *args, instance=None, empresa=None, allow_user_type=False, **kwargs):
         super().__init__(*args, instance=instance, **kwargs)
         self.fields["username"].required = False
         labels = {
@@ -83,6 +83,7 @@ class UsuarioForm(UserCreationForm):
             "cd_prestador": "Prestador",
             "dt_nascimento": "Data de Nascimento",
             "nr_cpf": "CPF",
+            "tp_usuario": "Tipo de usuário",
             "ds_idioma": "Idioma",
             "ds_profissao": "Profissão",
             "nr_matricula_rh": "Matrícula RH",
@@ -146,6 +147,8 @@ class UsuarioForm(UserCreationForm):
             {"data-mask": "cpf", "data-validate-cpf": "true", "required": "required"}
         )
         self.fields["nr_celular"].widget.attrs.update({"data-mask": "celular"})
+        if not allow_user_type:
+            self.fields.pop("tp_usuario", None)
         for field_name, field in self.fields.items():
             field.widget.attrs.setdefault("data-consultable", "true")
             if field_name in {"username", "is_active", "is_blocked", "invalid_login_attempts", "password_expires_at"}:

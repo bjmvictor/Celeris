@@ -195,7 +195,7 @@ class GlobalIntegrationTests(TestCase):
         empty_response = self.client.get(route, {"q": "INEXISTENTE"})
         self.assertContains(empty_response, "0 encontrado(s)")
 
-    def test_exclusao_de_auxiliar_e_logica(self):
+    def test_exclusao_de_auxiliar_remove_registro(self):
         table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
             ds_tabela="plano",
             defaults={"ds_descricao": "Planos", "sn_ativo": True},
@@ -216,8 +216,13 @@ class GlobalIntegrationTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        value.refresh_from_db()
-        self.assertFalse(value.sn_ativo)
+        self.assertFalse(ValorAuxiliarGlobal.objects.filter(pk=value.pk).exists())
+        refreshed = self.client.get(
+            reverse("core:global_auxiliar", args=["plano"]),
+            {"consultar": "1"},
+        )
+        self.assertContains(refreshed, "0 encontrado(s)")
+        self.assertNotContains(refreshed, "Plano Lógico")
 
 
 class FrontendInteractionContractTests(SimpleTestCase):
@@ -286,6 +291,15 @@ class FrontendInteractionContractTests(SimpleTestCase):
         self.assertIn('replace(/^new_/, "").replace(/_\\d+$/, "")', javascript)
         self.assertIn("`${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`", javascript)
         self.assertIn("businessLabel.trim()", javascript)
+
+    def test_editor_suporta_opcoes_estruturadas_e_multiplos_campos(self):
+        javascript = (settings.BASE_DIR / "static" / "js" / "document-editor.js").read_text(encoding="utf-8")
+        template = (settings.BASE_DIR / "templates" / "atendimento" / "modelos_documento.html").read_text(encoding="utf-8")
+        self.assertIn("splitStructuredOptions", javascript)
+        self.assertIn('field.type === "multiple-fields"', javascript)
+        self.assertIn("data-source-value-field", javascript)
+        self.assertIn('value="multiple-fields"', template)
+        self.assertNotIn('value="query">Consulta do sistema', template)
 
     def test_tabela_vazia_inicia_com_linha_de_digitacao_e_lixeira_condicional(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")

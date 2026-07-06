@@ -223,11 +223,11 @@ class AgendaProfissional(AuditoriaModel):
     ]
 
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
-    cd_agenda_profissional = models.BigAutoField(primary_key=True)
+    cd_agenda_profissional = models.BigAutoField(primary_key=True, db_column="cd_escala")
     cd_prestador = models.ForeignKey(Prestador, on_delete=models.PROTECT, db_column="cd_prestador")
     cd_setor_atendimento = models.ForeignKey(Setor, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_setor_atendimento", related_name="escalas")
     convenios = models.ManyToManyField(Convenio, blank=True, related_name="escalas", db_table="escala_convenio")
-    ds_agenda = models.CharField(max_length=160)
+    ds_agenda = models.CharField(max_length=160, db_column="nm_escala")
     tp_escala = models.CharField(max_length=40, default="AMBULATORIAL")
     tp_horario = models.CharField(max_length=30, choices=TIPOS_HORARIO, default="HORA_MARCADA")
     ds_tipo_agendamento = models.CharField(max_length=40, blank=True)
@@ -246,7 +246,7 @@ class AgendaProfissional(AuditoriaModel):
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "agenda_profissional"
+        db_table = "escala"
         ordering = ("cd_prestador__nm_prestador", "nr_dia_semana", "hr_inicio")
 
     def __str__(self) -> str:
@@ -458,7 +458,7 @@ class Agendamento(AuditoriaModel):
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
     cd_agendamento = models.BigAutoField(primary_key=True)
     cd_paciente = models.ForeignKey(Paciente, on_delete=models.PROTECT, db_column="cd_paciente")
-    cd_agenda_profissional = models.ForeignKey(AgendaProfissional, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_agenda_profissional")
+    cd_agenda_profissional = models.ForeignKey(AgendaProfissional, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_escala")
     cd_horario_agenda = models.ForeignKey(HorarioAgenda, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_horario_agenda", related_name="agendamentos")
     dh_agendamento = models.DateTimeField(null=True, blank=True)
     ds_tipo_atendimento = models.CharField(max_length=120, blank=True)
@@ -769,6 +769,14 @@ class TipoSenhaAtendimento(AuditoriaModel):
     nm_tipo_senha = models.CharField(max_length=100)
     sg_tipo_senha = models.CharField(max_length=4)
     ds_protocolo = models.CharField(max_length=160, blank=True)
+    cd_protocolo = models.ForeignKey(
+        "ProtocoloSenhaAtendimento",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_protocolo",
+        related_name="tipos_senha",
+    )
     nr_tempo_minimo = models.PositiveSmallIntegerField(default=30)
     nr_prioridade = models.PositiveSmallIntegerField(default=5)
     sn_ativo = models.BooleanField(default=True)
@@ -788,12 +796,15 @@ class ClasseSenhaAtendimento(AuditoriaModel):
     cd_tipo_senha = models.ForeignKey(
         TipoSenhaAtendimento,
         related_name="classes",
-        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
         db_column="cd_tipo_senha",
     )
     nm_classe_senha = models.CharField(max_length=100)
     sg_classe_senha = models.CharField(max_length=4, blank=True)
     nr_prioridade = models.PositiveSmallIntegerField(default=5)
+    ds_icone = models.CharField(max_length=40, blank=True)
     nr_idade_minima = models.PositiveSmallIntegerField(null=True, blank=True)
     nr_idade_maxima = models.PositiveSmallIntegerField(null=True, blank=True)
     sn_ativo = models.BooleanField(default=True)
@@ -804,7 +815,54 @@ class ClasseSenhaAtendimento(AuditoriaModel):
         unique_together = ("cd_tipo_senha", "sg_classe_senha")
 
     def __str__(self):
-        return f"{self.cd_tipo_senha.sg_tipo_senha}{self.sg_classe_senha} - {self.nm_classe_senha}"
+        prefixo = self.cd_tipo_senha.sg_tipo_senha if self.cd_tipo_senha else ""
+        return f"{prefixo}{self.sg_classe_senha} - {self.nm_classe_senha}"
+
+
+class ProtocoloSenhaAtendimento(AuditoriaModel):
+    cd_protocolo_senha = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    nm_protocolo = models.CharField(max_length=120)
+    ds_protocolo = models.CharField(max_length=500, blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "protocolo_senha"
+        ordering = ("nm_protocolo",)
+        unique_together = ("cd_empresa", "nm_protocolo")
+
+    def __str__(self):
+        return self.nm_protocolo
+
+
+class RegraSubdivisaoSenha(AuditoriaModel):
+    cd_regra_subdivisao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_tipo_senha = models.ForeignKey(
+        TipoSenhaAtendimento,
+        related_name="regras_subdivisao",
+        on_delete=models.CASCADE,
+        db_column="cd_tipo_senha",
+    )
+    cd_classe_senha = models.ForeignKey(
+        ClasseSenhaAtendimento,
+        related_name="regras_subdivisao",
+        on_delete=models.PROTECT,
+        db_column="cd_classe_senha",
+    )
+    nr_prioridade = models.PositiveSmallIntegerField(default=5)
+    nr_idade_minima = models.PositiveSmallIntegerField(null=True, blank=True)
+    nr_idade_maxima = models.PositiveSmallIntegerField(null=True, blank=True)
+    ds_icone = models.CharField(max_length=40, blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "regra_subdivisao_senha"
+        ordering = ("nr_prioridade", "cd_classe_senha__nm_classe_senha")
+        unique_together = ("cd_tipo_senha", "cd_classe_senha")
+
+    def __str__(self):
+        return f"{self.cd_tipo_senha} / {self.cd_classe_senha}"
 
 
 class SenhaAtendimento(AuditoriaModel):
