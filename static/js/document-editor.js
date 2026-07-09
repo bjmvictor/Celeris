@@ -12,12 +12,26 @@
     }
   };
   const signatureToggle = form.querySelector('[name="sn_exibe_assinatura"][type="checkbox"]');
+  const signatureRoot = form.querySelector("[data-document-signature-root]");
   const signatureOptions = form.querySelector("[data-document-signature-options]");
+  const documentTypeSelect = form.querySelector('[name="tp_documento"]');
+  const layoutOnlyTypes = new Set(["COMPROVANTE_AGENDAMENTO", "FICHA_ATENDIMENTO", "ETIQUETA_ATENDIMENTO"]);
+  const syncLayoutOnlyOptions = () => {
+    const selectedType = documentTypeSelect?.value || "";
+    const layoutOnly = selectedType ? layoutOnlyTypes.has(selectedType) : form.dataset.layoutOnly === "true";
+    if (signatureRoot) signatureRoot.hidden = layoutOnly;
+    if (signatureToggle && layoutOnly) signatureToggle.checked = false;
+    form.dataset.layoutOnly = layoutOnly ? "true" : "false";
+    document.querySelector('[data-editor-tab="tela"]')?.toggleAttribute("hidden", layoutOnly);
+    document.querySelector('[data-editor-pane="tela"]')?.toggleAttribute("hidden", layoutOnly);
+    syncSignatureOptions();
+  };
   const syncSignatureOptions = () => {
-    if (signatureOptions) signatureOptions.hidden = !signatureToggle?.checked;
+    if (signatureOptions) signatureOptions.hidden = !signatureToggle?.checked || form.dataset.layoutOnly === "true";
   };
   signatureToggle?.addEventListener("change", syncSignatureOptions);
-  syncSignatureOptions();
+  documentTypeSelect?.addEventListener("change", syncLayoutOnlyOptions);
+  syncLayoutOnlyOptions();
 
   const createEditor = (kind) => {
     const elementType = form.dataset.documentElement || "DOCUMENTO";
@@ -87,6 +101,7 @@
     }
     return editor;
   };
+  const isLayoutOnlyDocument = () => form.dataset.layoutOnly === "true";
 
   const editors = { impressao: createEditor("impressao") };
   const builder = document.querySelector("[data-document-form-builder]");
@@ -127,7 +142,7 @@
   const draftGuideKey = form.dataset.editorGuideKey || "editor-documentos";
   const activeEditorTab = () => (
     document.querySelector("[data-editor-tab].active")?.dataset.editorTab
-    || (form.dataset.documentElement === "CAMPO" ? "tela" : "impressao")
+    || (isLayoutOnlyDocument() || form.dataset.documentElement !== "CAMPO" ? "impressao" : "tela")
   );
   if (customVariableNameInput) customVariableNameInput.value = initialScreenProject.customVariable?.name || "";
   if (customVariableExpressionInput) customVariableExpressionInput.value = initialScreenProject.customVariable?.expression || "";
@@ -320,7 +335,7 @@
   formFields = formFields.map((field, index) => ({
     id: field.id || `field-${index}`,
     name: normalizeName(field.name || `campo_${index + 1}`),
-    label: field.label || `Campo ${index + 1}`,
+    label: Object.prototype.hasOwnProperty.call(field, "label") ? field.label : `Campo ${index + 1}`,
     type: field.type || "text",
     placeholder: field.placeholder || "",
     prefix: field.prefix || "",
@@ -349,6 +364,8 @@
     lineStyle: field.lineStyle || "solid",
     marginTop: Math.max(0, Number(field.marginTop || 0)),
     marginBottom: Math.max(0, Number(field.marginBottom || 0)),
+    margin: field.margin || "",
+    padding: field.padding || "",
     col: Math.max(1, Number(field.col || ((index % gridConfig.columns) + 1))),
     row: Math.max(1, Number(field.row || (Math.floor(index / gridConfig.columns) + 1))),
     colSpan: Math.max(1, Number(field.colSpan || 1)),
@@ -634,6 +651,12 @@
     if (!endpoint || restoringHistory) return Promise.resolve(false);
     window.clearTimeout(draftSyncTimer);
     draftSyncPending = true;
+    const body = JSON.stringify({ state: captureDraftState() });
+    if (body.length > 2_900_000) {
+      draftSyncPending = false;
+      showHistoryIndicator("Rascunho local muito grande; salve a versão definitiva");
+      return Promise.resolve(false);
+    }
     return fetch(endpoint, {
       method: "POST",
       credentials: "same-origin",
@@ -642,7 +665,7 @@
         "Content-Type": "application/json",
         "X-CSRFToken": csrfToken(),
       },
-      body: JSON.stringify({ state: captureDraftState() }),
+      body,
     }).then((response) => {
       if (!response.ok) throw new Error("Falha ao salvar rascunho");
       draftSyncPending = false;
@@ -784,6 +807,7 @@
     const labels = {
       paciente: "Paciente",
       atendimento: "Atendimento",
+      agendamento: "Agendamento",
       documento: "Documento",
       prestador: "Prestador",
       empresa: "Empresa",
@@ -1867,19 +1891,20 @@
       const fieldFontSize = Math.max(7, Number(field.fontSize || gridConfig.fontSize));
       const fieldFontFamily = escapeHtml(field.fontFamily || gridConfig.fontFamily);
       const fieldTextColor = escapeHtml(field.textColor || "#111111");
-      const fieldStyle = `${positionStyle};--field-font-size:${fieldFontSize}px;font-size:${fieldFontSize + 1}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
+      const fieldSpacing = `${field.margin ? `;margin:${escapeHtml(field.margin)}` : ""}${field.padding ? `;padding:${escapeHtml(field.padding)}` : ""}`;
+      const fieldStyle = `${positionStyle}${fieldSpacing};--field-font-size:${fieldFontSize}px;font-size:${fieldFontSize + 1}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
       const position = `style="${fieldStyle}"`;
       const textStyle = `font-size:${fieldFontSize}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
       if (field.type === "static-text") {
         const content = formatRichText(field.content);
-        const styledPosition = `style="${positionStyle};${textStyle}"`;
+        const styledPosition = `style="${positionStyle}${fieldSpacing};${textStyle}"`;
         if (field.displayStyle === "title") return `<h2 class="generated-screen-title" ${styledPosition}>${content}</h2>`;
         if (field.displayStyle === "help") return `<aside class="generated-screen-help" ${styledPosition}>${content}</aside>`;
         return `<div class="generated-screen-${field.displayStyle === "description" ? "description" : "text"}" ${styledPosition}>${content}</div>`;
       }
       if (field.type === "static-variable") {
         const label = String(field.label || "").trim();
-        return `<div class="generated-screen-variable" style="${positionStyle};${textStyle}">${label ? `<strong>${escapeHtml(label)}:</strong> ` : ""}${escapeHtml(bindingValue)}</div>`;
+        return `<div class="generated-screen-variable" style="${positionStyle}${fieldSpacing};${textStyle}">${label ? `<strong>${escapeHtml(label)}:</strong> ` : ""}${escapeHtml(bindingValue)}</div>`;
       }
       if (field.type === "line") {
         const lineWidth = Math.max(field.lineStyle === "double" ? 3 : 1, Number(field.lineWidth || 1));
@@ -1912,7 +1937,7 @@
               : "";
             return `<label class="generated-exclusive-option"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="${escapeHtml(label)}"${readonly}><span>${escapeHtml(label)}</span>${detail}</label>`;
           }).join("");
-        return `<fieldset class="generated-exclusive-checkboxes" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ? "true" : "false"}" data-exclusive-readonly="${field.readonly ? "true" : "false"}"><legend>${escapeHtml(field.label)}</legend><div>${choices}</div></fieldset>`;
+        return `<fieldset class="generated-exclusive-checkboxes" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ? "true" : "false"}" data-exclusive-readonly="${field.readonly ? "true" : "false"}"><legend>${field.label ? escapeHtml(field.label) : "&nbsp;"}</legend><div>${choices}</div></fieldset>`;
       }
       if (field.type === "multiple-fields") {
         const controls = splitStructuredOptions(field.options).map((option) => {
@@ -1922,10 +1947,10 @@
           }
           return `<label class="generated-multiple-item">${parsed.label ? `<span>${escapeHtml(parsed.label)}</span>` : ""}<input data-document-field="true" name="campo_${escapeHtml(parsed.name)}" type="text" placeholder="${escapeHtml(parsed.placeholder)}"${required}${readonly}></label>`;
         }).join("");
-        return `<fieldset class="generated-multiple-fields" style="${fieldStyle}"><legend>${escapeHtml(field.label)}</legend><div>${controls}</div></fieldset>`;
+        return `<fieldset class="generated-multiple-fields" style="${fieldStyle}"><legend>${field.label ? escapeHtml(field.label) : "&nbsp;"}</legend><div>${controls}</div></fieldset>`;
       }
       if (field.type === "checkbox") {
-        return `<fieldset class="generated-boolean-field" style="${fieldStyle}"><legend>${escapeHtml(field.label)}</legend><label class="provider-checkbox"><input data-document-field="true" name="campo_${name}" type="checkbox"${required}${readonly}><span>Sim</span></label></fieldset>`;
+        return `<fieldset class="generated-boolean-field" style="${fieldStyle}"><legend>${field.label ? escapeHtml(field.label) : "&nbsp;"}</legend><label class="provider-checkbox"><input data-document-field="true" name="campo_${name}" type="checkbox"${required}${readonly}><span>Sim</span></label></fieldset>`;
       }
       const control = `<input data-document-field="true" name="campo_${name}" type="${escapeHtml(field.type || "text")}" value="${escapeHtml(bindingValue)}"${placeholder}${required}${readonly}>`;
       if (["text", "number"].includes(field.type) && (field.prefix || field.suffix)) {
@@ -2236,6 +2261,18 @@
     ["atendimento.setor", "Setor atual"],
     ["atendimento.cid", "CID"],
     ["atendimento.usuario_criacao", "Usuário que gerou o atendimento"],
+    ["agendamento.codigo", "Código do agendamento"],
+    ["agendamento.data", "Data do agendamento"],
+    ["agendamento.hora", "Hora do agendamento"],
+    ["agendamento.data_hora", "Data/hora do agendamento"],
+    ["agendamento.dia_semana", "Dia da semana do agendamento"],
+    ["agendamento.prestador", "Prestador agendado"],
+    ["agendamento.nome_guerra_prestador", "Nome de guerra do prestador agendado"],
+    ["agendamento.especialidade", "Especialidade agendada"],
+    ["agendamento.tipo", "Tipo do agendamento"],
+    ["agendamento.plano", "Plano do agendamento"],
+    ["agendamento.observacao", "Observação do agendamento"],
+    ["agendamento.usuario", "Usuário que realizou o agendamento"],
     ["prestador.nome", "Prestador responsável"],
     ["prestador.conselho", "Conselho do prestador"],
     ["prestador.numero_conselho", "Número do conselho"],
@@ -2270,6 +2307,7 @@
     if (!value) return "paciente";
     if (value.startsWith("paciente.")) return "paciente";
     if (value.startsWith("atendimento.")) return "atendimento";
+    if (value.startsWith("agendamento.")) return "agendamento";
     if (value.startsWith("documento.")) return "documento";
     if (value.startsWith("campo.")) return "campos";
     return "outras";
@@ -3164,6 +3202,7 @@
       .preview-print-area{position:relative;width:100%;height:289mm;overflow:hidden}
       .preview-watermark{position:absolute;inset:5%;z-index:20;width:90%;height:90%;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-select:none}
       .preview-print-table{width:100%;height:289mm;min-height:289mm;margin:0;border-collapse:collapse;table-layout:fixed;background:#fff}.preview-print-table td{padding:0;border:0;vertical-align:top}.preview-print-table thead{display:table-header-group}.preview-print-table tfoot{display:table-footer-group}.preview-print-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;min-height:38px}.preview-print-footer>:first-child{flex:1}.document-page-variable::after{content:counter(page)}
+      .print-check-box{display:inline-grid;place-content:center;width:9px;height:9px;margin-left:3px;border:1px solid #111;vertical-align:-1px}.print-check-box.checked::after{content:"";width:5px;height:3px;border-left:2px solid #111;border-bottom:2px solid #111;transform:rotate(-45deg)}
       @media print{@page{size:A4;margin:4mm}.preview-sheet{width:auto;min-height:0;margin:0;padding:0;overflow:visible;box-shadow:none}.preview-print-area{width:100%;height:289mm;overflow:hidden}.preview-print-table{width:100%;height:289mm;min-height:0;margin:0}.preview-print-table thead{display:table-header-group!important}.preview-print-table tfoot{display:table-footer-group!important}.preview-print-body{height:auto}.preview-watermark{position:fixed;inset:5%;width:90%;height:90%}body{padding:0;background:#fff}}
       ${css}
     </style></head><body>${previewContent}${kind === "tela" ? providerSelectScript : ""}</body></html>`;
@@ -3177,7 +3216,7 @@
   });
   document.querySelector("[data-document-preview-active]")?.addEventListener("click", () => {
     const activeKind = document.querySelector("[data-editor-tab].active")?.dataset.editorTab
-      || (form.dataset.documentElement === "CAMPO" ? "tela" : "impressao");
+      || (!isLayoutOnlyDocument() && form.dataset.documentElement === "CAMPO" ? "tela" : "impressao");
     renderPreview(activeKind);
   });
   document.querySelectorAll("[data-document-preview-close]").forEach((button) => {
@@ -3185,14 +3224,22 @@
   });
   previewPrint?.addEventListener("click", () => {
     const values = {};
+    const printCheckbox = (checked) => `<span class="print-check-box${checked ? " checked" : ""}"></span>`;
+    previewFrame.contentDocument?.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => {
+      const name = (fieldset.dataset.exclusiveGroup || "").replace(/^campo_/, "");
+      if (!name) return;
+      values[name] = [...fieldset.querySelectorAll("[data-exclusive-choice]")].map((choice) => {
+        const detail = choice.closest("label")?.querySelector("[data-exclusive-detail]");
+        const detailValue = detail?.value?.trim();
+        return `${escapeHtml(choice.value)} ${printCheckbox(choice.checked)}${detailValue ? ` ${escapeHtml(detailValue)}` : ""}`;
+      }).join(" ");
+    });
     previewFrame.contentDocument?.querySelectorAll("[data-document-field][name]").forEach((field) => {
       const name = field.name.replace(/^campo_/, "");
       if (field.matches("[data-exclusive-choice]")) {
-        if (field.checked) values[name] = field.value;
-        else if (!(name in values)) values[name] = "";
         return;
       }
-      values[name] = field.type === "checkbox" ? (field.checked ? "Sim" : "Não") : field.value;
+      values[name] = field.type === "checkbox" ? printCheckbox(field.checked) : field.value;
     });
     renderPreview("impressao", values);
   });
@@ -3353,13 +3400,14 @@
 
   form.addEventListener("submit", () => {
     form.dataset.submitting = "true";
-    form.elements.ds_html_tela.value = buildScreenHtml();
-    form.elements.ds_css_tela.value = screenCss;
+    if (isLayoutOnlyDocument() && signatureToggle) signatureToggle.checked = false;
+    form.elements.ds_html_tela.value = isLayoutOnlyDocument() ? "" : buildScreenHtml();
+    form.elements.ds_css_tela.value = isLayoutOnlyDocument() ? "" : screenCss;
     const customVariableName = form.querySelector("[data-custom-variable-name]")?.value || "";
     const customVariableExpression = form.querySelector("[data-custom-variable-expression]")?.value || "";
     form.elements.ds_projeto_tela.value = JSON.stringify({
       grid: gridConfig,
-      formFields,
+      formFields: isLayoutOnlyDocument() ? [] : formFields,
       ...(form.dataset.documentElement === "VARIAVEL"
         ? { customVariable: { name: normalizeName(customVariableName), expression: customVariableExpression } }
         : {}),

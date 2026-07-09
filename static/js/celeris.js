@@ -43,6 +43,8 @@
     "chevrons-left": '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     "corner-up-left": '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
     "corner-up-right": '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
+    "undo-2": '<path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 1 1-5.6 11.2"/>',
+    "redo-2": '<path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 1 0 5.6 11.2"/>',
     "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     "chevrons-right": '<path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
@@ -59,6 +61,7 @@
       element.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
     });
   }
+  window.CelerisRenderIcons = renderIcons;
 
   function setQueryMode(enabled) {
     document.body.classList.toggle("screen-query-mode", enabled);

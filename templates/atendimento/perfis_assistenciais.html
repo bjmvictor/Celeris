@@ -159,6 +159,9 @@
                   <option value="{{ value }}">{{ label }}</option>
                 {% endfor %}
               </select>
+              <span class="profile-icon-preview" data-profile-icon-preview>
+                <span class="svg-icon" data-nav-icon="file-text"></span>
+              </span>
             </label>
             <label class="field-lg" data-profile-parent-field hidden>Dentro de
               <select name="cd_item_pai">
@@ -297,6 +300,8 @@
         const screenType = builder.querySelector("[data-profile-screen-type-select]");
         const parentField = builder.querySelector("[data-profile-parent-field]");
         const screenOptions = builder.querySelector("[data-profile-screen-options]");
+        const iconSelect = builder.querySelector("[data-profile-icon-select]");
+        const iconPreview = builder.querySelector("[data-profile-icon-preview] [data-nav-icon]");
         const scaleSelect = builder.querySelector('[name="cd_escala_clinica"]');
         const scaleBuilder = builder.querySelector(".profile-scale-builder");
         const questionsList = builder.querySelector("[data-scale-question-list]");
@@ -421,6 +426,11 @@
           addQuestion();
           addRange();
         };
+        const updateIconPreview = () => {
+          if (!iconPreview || !iconSelect) return;
+          iconPreview.setAttribute("data-nav-icon", iconSelect.value || "file-text");
+          window.CelerisRenderIcons?.();
+        };
         const setField = (name, value) => {
           const field = builder.elements[name];
           if (!field) return;
@@ -461,11 +471,13 @@
             setField("sn_somente_historico", item.history_only);
           }
           syncBuilder();
+          updateIconPreview();
           modal.hidden = false;
           builder.querySelector('[name="nm_item"]')?.focus();
         };
         nodeKind.addEventListener("change", syncBuilder);
         screenType.addEventListener("change", syncBuilder);
+        iconSelect?.addEventListener("change", updateIconPreview);
         scaleSelect?.addEventListener("change", syncBuilder);
         builder.querySelector("[data-scale-add-question]")?.addEventListener("click", () => addQuestion());
         builder.querySelector("[data-scale-add-range]")?.addEventListener("click", () => addRange());
@@ -517,6 +529,7 @@
         document.querySelector("[data-profile-item-open]")?.addEventListener("click", () => openProfileItemModal());
         resetScaleBuilder();
         syncBuilder();
+        updateIconPreview();
       }
       const tree = document.querySelector("[data-profile-tree]");
       const profileContextMenu = document.querySelector("[data-profile-context-menu]");

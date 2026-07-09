@@ -84,20 +84,19 @@
       <section class="card pep-patients">
         <h2>Pacientes encontrados</h2>
         <table class="data-table">
-          <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Nascimento</th><th>Convênio</th><th>Ação</th></tr></thead>
+          <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Nascimento</th><th>Convênio</th></tr></thead>
           <tbody>
             {% for paciente in pacientes_geral %}
-              <tr>
+              <tr data-row-url="{% url 'atendimento:pep-prontuario-paciente' paciente.pk %}?modo=consulta&return_to={{ request.get_full_path|urlencode }}" tabindex="0">
                 <td>{{ paciente.pk }}</td>
                 <td>{{ paciente.nm_paciente }}</td>
                 <td>{{ paciente.nr_cpf|default:"-" }}</td>
                 <td>{{ paciente.nr_cartao_sus|default:"-" }}</td>
                 <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
                 <td>{% if paciente.cd_convenio %}{{ paciente.cd_convenio.nm_convenio }}{% elif paciente.nm_convenio %}{{ paciente.nm_convenio }}{% else %}-{% endif %}</td>
-                <td><a class="button button-primary" href="{% url 'atendimento:pep-prontuario-paciente' paciente.pk %}?modo=consulta&return_to={{ request.get_full_path|urlencode }}">Abrir prontuário</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="7">Use a consulta para localizar pacientes.</td></tr>
+              <tr><td colspan="6">Use a consulta para localizar pacientes.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -107,11 +106,11 @@
         <h2>Atendimentos sem alta</h2>
         <table class="data-table">
           <thead>
-            <tr><th>Prioridade</th><th>Atendimento</th><th>Paciente</th><th>Prontuário</th><th>Convênio</th><th>Status</th><th>Setor</th><th>Tempo</th><th>Responsável</th><th>Alertas</th><th>Ação</th></tr>
+            <tr><th>Prioridade</th><th>Atendimento</th><th>Paciente</th><th>Prontuário</th><th>Convênio</th><th>Status</th><th>Setor</th><th>Tempo</th><th>Responsável</th><th>Alertas</th></tr>
           </thead>
           <tbody>
             {% for atendimento in atendimentos %}
-              <tr class="urgency-{{ atendimento.cd_pre_atendimento.ds_cor_prioridade|default:'azul'|lower }}">
+              <tr class="urgency-{{ atendimento.cd_pre_atendimento.ds_cor_prioridade|default:'azul'|lower }}" data-row-url="{% url 'atendimento:pep-prontuario-paciente' atendimento.cd_paciente_id %}?modo=atendimento&atendimento={{ atendimento.pk }}&return_to={{ request.get_full_path|urlencode }}" tabindex="0">
                 <td>{{ atendimento.cd_pre_atendimento.nr_prioridade|default:"-" }}</td>
                 <td>{{ atendimento.pk }}</td>
                 <td>{{ atendimento.cd_paciente.nm_paciente }}</td>
@@ -126,10 +125,9 @@
                   {% if atendimento.solicitacoes_exames.exists %}<span class="status-badge">Exame pendente</span>{% endif %}
                   {% if atendimento.cd_paciente.ds_observacao %}<span class="status-badge warning">Observação clínica</span>{% endif %}
                 </td>
-                <td><a class="button button-primary" href="{% url 'atendimento:pep-prontuario-paciente' atendimento.cd_paciente_id %}?modo=atendimento&atendimento={{ atendimento.pk }}&return_to={{ request.get_full_path|urlencode }}">Abrir prontuário</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="11">Nenhum paciente aguardando atendimento nos setores selecionados.</td></tr>
+              <tr><td colspan="10">Nenhum paciente aguardando atendimento nos setores selecionados.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -187,6 +185,18 @@
       };
       input.addEventListener("input", update);
       if (input.value.trim()) update();
+    });
+    document.querySelectorAll("[data-row-url]").forEach((row) => {
+      const open = () => { window.location.href = row.dataset.rowUrl; };
+      row.addEventListener("click", (event) => {
+        if (event.target.closest("a, button, input, select, textarea, label")) return;
+        open();
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        open();
+      });
     });
   </script>
 {% endblock %}

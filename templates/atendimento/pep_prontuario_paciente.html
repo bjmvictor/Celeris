@@ -117,18 +117,8 @@
               {% include "atendimento/_pep_menu_item.html" with item=item %}
             {% endfor %}
           </nav>
-        {% elif can_clinical_actions and atendimento_aberto %}
-          <a class="button button-secondary" href="{% url 'atendimento:evoluir' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Evolução</a>
-          <a class="button button-secondary" href="{% url 'atendimento:prescrever' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Prescrição</a>
-          <a class="button button-secondary" href="{% url 'atendimento:solicitar-exame' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Solicitar exame</a>
-          {% if atendimento.cd_setor_atual_id %}
-            <form method="post" action="{% url 'atendimento:pep-chamar' atendimento.pk %}">
-              {% csrf_token %}
-              <input type="hidden" name="setor" value="{{ atendimento.cd_setor_atual_id }}">
-              <button class="button button-secondary" type="submit">Chamar paciente</button>
-            </form>
-          {% endif %}
-          <a class="button button-danger" href="{% url 'atendimento:conceder-alta' atendimento.pk %}?return_to={{ request.get_full_path|urlencode }}">Conceder alta</a>
+        {% else %}
+          <span class="empty-state">Nenhuma ação configurada para o perfil do prestador.</span>
         {% endif %}
       {% else %}
         <span class="empty-state">Selecione um atendimento.</span>

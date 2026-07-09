@@ -102,7 +102,7 @@
           <span>Selecione um item da biblioteca ou use Novo para começar.</span>
         </div>
       {% endif %}
-      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
+      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-layout-only="{% if layout_apenas %}true{% else %}false{% endif %}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
         {% csrf_token %}
         <input type="hidden" name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
         <input type="hidden" name="return_to" value="">
@@ -115,7 +115,7 @@
             <label>Tipo {{ form.tp_documento }}</label>
             <label>Cabeçalho reutilizável {{ form.cd_cabecalho }}</label>
             <label>Rodapé reutilizável {{ form.cd_rodape }}</label>
-            <label class="provider-checkbox"><input type="hidden" name="sn_exibe_assinatura" value="0">{{ form.sn_exibe_assinatura }}<span>Exibir assinatura do prestador</span></label>
+            <label class="provider-checkbox" data-document-signature-root><input type="hidden" name="sn_exibe_assinatura" value="0">{{ form.sn_exibe_assinatura }}<span>Exibir assinatura do prestador</span></label>
             <div class="document-signature-options" data-document-signature-options>
               <label>Posição da assinatura {{ form.tp_alinhamento_assinatura }}</label>
               <label class="provider-checkbox">{{ form.sn_exibe_conselho_assinatura }}<span>Exibir conselho na assinatura</span></label>
@@ -166,15 +166,15 @@
 
         {% if elemento_editor != "VARIAVEL" %}
         <nav class="document-view-tabs" role="tablist">
-          {% if elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
+          {% if not layout_apenas and elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
             <button class="button button-primary active" type="button" data-editor-tab="tela"><span class="svg-icon" data-nav-icon="edit"></span> Formulário</button>
           {% endif %}
           {% if elemento_editor != "CAMPO" %}
-            <button class="button {% if elemento_editor == 'DOCUMENTO' or elemento_editor == 'BLOCO' %}button-secondary{% else %}button-primary active{% endif %}" type="button" data-editor-tab="impressao"><span class="svg-icon" data-nav-icon="printer"></span> Impressão</button>
+            <button class="button {% if layout_apenas or elemento_editor != 'DOCUMENTO' and elemento_editor != 'BLOCO' %}button-primary active{% else %}button-secondary{% endif %}" type="button" data-editor-tab="impressao"><span class="svg-icon" data-nav-icon="printer"></span> Impressão</button>
           {% endif %}
           <span class="document-view-tabs-spacer"></span>
           <button class="button button-secondary" type="button" data-document-preview-active><span class="svg-icon" data-nav-icon="monitor"></span> Pré-visualizar</button>
-          {% if elemento_editor == "DOCUMENTO" %}
+          {% if not layout_apenas and elemento_editor == "DOCUMENTO" %}
             <button class="button button-secondary" type="button" data-generate-print-model title="Atualizar a impressão conforme a grade"><span class="svg-icon" data-nav-icon="file-text"></span> Gerar impressão</button>
           {% endif %}
         </nav>
@@ -187,7 +187,7 @@
           </select>
         </label>
         {% endif %}
-        {% if elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
+        {% if not layout_apenas and elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
         <div class="document-editor-pane active" data-editor-pane="tela">
           <section class="document-form-builder" data-document-form-builder>
             <header>
@@ -217,7 +217,7 @@
         </div>
         {% endif %}
         {% if elemento_editor != "CAMPO" and elemento_editor != "VARIAVEL" %}
-          <div class="document-editor-pane{% if elemento_editor != 'DOCUMENTO' and elemento_editor != 'BLOCO' %} active{% endif %}" data-editor-pane="impressao" {% if elemento_editor == "DOCUMENTO" or elemento_editor == "BLOCO" %}hidden{% endif %}>
+          <div class="document-editor-pane{% if layout_apenas or elemento_editor != 'DOCUMENTO' and elemento_editor != 'BLOCO' %} active{% endif %}" data-editor-pane="impressao" {% if not layout_apenas and elemento_editor == "DOCUMENTO" or elemento_editor == "BLOCO" %}hidden{% endif %}>
             <section class="document-form-builder document-print-builder" data-document-print-builder>
               <header>
                 <div>
@@ -436,6 +436,10 @@
               <option value="atendimento.codigo">Código do atendimento</option><option value="atendimento.data_hora">Data e hora</option>
               <option value="atendimento.status">Status</option><option value="atendimento.especialidade">Especialidade</option>
             </optgroup>
+            <optgroup label="Agendamento">
+              <option value="agendamento.codigo">Código do agendamento</option><option value="agendamento.data_hora">Data/hora do agendamento</option>
+              <option value="agendamento.prestador">Prestador agendado</option><option value="agendamento.especialidade">Especialidade agendada</option>
+            </optgroup>
             <optgroup label="Outros">
               <option value="prestador.nome">Prestador</option><option value="empresa.nome">Empresa</option>
             </optgroup>
@@ -459,6 +463,12 @@
             <input type="color" value="#111111" data-settings-property="textColor">
             <input type="text" value="#111111" maxlength="7" pattern="#[0-9A-Fa-f]{6}" data-color-hex-for="textColor" aria-label="Código hexadecimal do texto">
           </span>
+        </label>
+        <label class="field-md" data-setting-types="static-text,static-variable,image">Margem
+          <input data-settings-property="margin" placeholder="0px 0px 0px 0px">
+        </label>
+        <label class="field-md" data-setting-types="static-text,static-variable,image">Padding
+          <input data-settings-property="padding" placeholder="0px 0px 0px 0px">
         </label>
         <label class="field-xl" data-setting-types="image">URL da imagem <input data-settings-property="imageUrl" placeholder="https://... ou data:image/..."></label>
         <label class="field-xl" data-setting-types="image">Arquivo de imagem <input type="file" accept="image/*" data-field-image-file></label>
@@ -510,6 +520,7 @@
           <select data-print-source-group>
             <option value="paciente">Paciente</option>
             <option value="atendimento">Atendimento</option>
+            <option value="agendamento">Agendamento</option>
             <option value="documento">Documento</option>
             <option value="outras">Outras variáveis</option>
             <option value="campos">Campos do formulário</option>
