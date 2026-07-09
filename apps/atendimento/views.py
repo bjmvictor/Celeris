@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, RequestDataTooBig
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Max, Prefetch, Q
@@ -521,6 +521,16 @@ class ModeloDocumentoForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        documentos_sem_formulario = {
+            "COMPROVANTE_AGENDAMENTO",
+            "FICHA_ATENDIMENTO",
+            "ETIQUETA_ATENDIMENTO",
+        }
+        if cleaned_data.get("tp_documento") in documentos_sem_formulario:
+            cleaned_data["sn_exibe_assinatura"] = False
+            cleaned_data["sn_exibe_conselho_assinatura"] = False
+            cleaned_data["tp_alinhamento_assinatura"] = "CENTRO"
+            return cleaned_data
         if self.is_bound and "sn_exibe_assinatura" not in self.data:
             cleaned_data["sn_exibe_assinatura"] = True
         cleaned_data["tp_alinhamento_assinatura"] = (
@@ -1904,7 +1914,12 @@ def perfis_assistenciais(request):
                 return redirect(f"{reverse('atendimento:perfis-assistenciais')}?perfil={perfil.pk}")
     if request.method == "POST" and acao == "adicionar_item" and perfil:
         versao = versao_edicao(perfil)
-        item_edicao = versao.itens.filter(pk=request.POST.get("item")).first()
+        item_id_edicao = str(request.POST.get("item") or "").strip()
+        item_edicao = (
+            versao.itens.filter(pk=int(item_id_edicao)).first()
+            if item_id_edicao.isdigit()
+            else None
+        )
         pai_id = request.POST.get("cd_item_pai") or None
         if pai_id and not versao.itens.filter(pk=pai_id, tp_item="GRUPO").exists():
             messages.error(request, "O grupo pai não pertence à versão em edição.")
@@ -2095,6 +2110,15 @@ def perfis_assistenciais(request):
                 ("clipboard-plus", "Atendimento"),
                 ("activity", "Evolução / sinais vitais"),
                 ("syringe", "Medicação"),
+                ("printer", "Impressão"),
+                ("history", "Histórico"),
+                ("settings", "Configuração"),
+                ("search", "Consulta"),
+                ("eye", "Visualização"),
+                ("edit", "Edição"),
+                ("check", "Confirmação"),
+                ("ban", "Bloqueio / cancelar"),
+                ("key", "Segurança"),
                 ("table", "Lista / escala"),
                 ("monitor", "Tela externa"),
                 ("folder", "Menu / pasta"),
@@ -2612,7 +2636,11 @@ def rascunho_editor_documento(request):
         })
     if request.method == "POST":
         try:
+            if int(request.META.get("CONTENT_LENGTH") or 0) > 3_000_000:
+                return JsonResponse({"ok": False, "error": "Rascunho excede o limite de 3 MB."}, status=413)
             payload = json.loads(request.body or "{}")
+        except RequestDataTooBig:
+            return JsonResponse({"ok": False, "error": "Rascunho excede o limite permitido."}, status=413)
         except json.JSONDecodeError:
             return JsonResponse({"ok": False, "error": "Estado inválido."}, status=400)
         estado = payload.get("state")
@@ -2934,8 +2962,34 @@ def _resposta_modelos_documento(request, empresa, modelo):
         "documento.usuario_criacao": usuario_teste,
         "documento.pagina": "1",
     }
+    agendamento_teste = Agendamento.objects.filter(cd_empresa=empresa).select_related(
+        "cd_paciente", "cd_agenda_profissional__cd_prestador", "cd_usuario_criacao",
+    ).order_by("-dh_agendamento").first()
+    variaveis_agendamento_teste = {}
+    if agendamento_teste:
+        agenda_teste = agendamento_teste.cd_agenda_profissional
+        usuario_agendamento = agendamento_teste.cd_usuario_criacao
+        variaveis_agendamento_teste = {
+            "agendamento.codigo": agendamento_teste.pk,
+            "agendamento.data": timezone.localtime(agendamento_teste.dh_agendamento).strftime("%d/%m/%Y"),
+            "agendamento.hora": timezone.localtime(agendamento_teste.dh_agendamento).strftime("%H:%M"),
+            "agendamento.data_hora": timezone.localtime(agendamento_teste.dh_agendamento).strftime("%d/%m/%Y %H:%M"),
+            "agendamento.dia_semana": timezone.localtime(agendamento_teste.dh_agendamento).strftime("%A"),
+            "agendamento.prestador": agendamento_teste.ds_profissional,
+            "agendamento.nome_guerra_prestador": getattr(getattr(agenda_teste, "cd_prestador", None), "nm_guerra", "") or agendamento_teste.ds_profissional,
+            "agendamento.especialidade": agendamento_teste.ds_especialidade,
+            "agendamento.tipo": agendamento_teste.ds_tipo_atendimento,
+            "agendamento.plano": agendamento_teste.ds_plano,
+            "agendamento.observacao": agendamento_teste.ds_observacao,
+            "agendamento.usuario": (
+                usuario_agendamento.display_name()
+                if usuario_agendamento and hasattr(usuario_agendamento, "display_name")
+                else getattr(usuario_agendamento, "username", "")
+            ),
+        }
     for contexto in contextos_teste:
         contexto["variables"].update(documento_teste)
+        contexto["variables"].update(variaveis_agendamento_teste)
     if not contextos_teste:
         contextos_teste.append(
             {
@@ -2957,10 +3011,24 @@ def _resposta_modelos_documento(request, empresa, modelo):
                     "prestador.conselho": "CRM",
                     "prestador.numero_conselho": "000000",
                     "empresa.nome": empresa.nm_empresa,
+                    "agendamento.codigo": "000001",
+                    "agendamento.data": timezone.localtime().strftime("%d/%m/%Y"),
+                    "agendamento.hora": timezone.localtime().strftime("%H:%M"),
+                    "agendamento.data_hora": timezone.localtime().strftime("%d/%m/%Y %H:%M"),
+                    "agendamento.dia_semana": timezone.localtime().strftime("%A"),
+                    "agendamento.prestador": "MÉDICO DE TESTE",
+                    "agendamento.nome_guerra_prestador": "MÉDICO TESTE",
+                    "agendamento.especialidade": "Clínica Geral",
+                    "agendamento.tipo": "Primeira consulta",
+                    "agendamento.plano": "Plano demonstrativo",
+                    "agendamento.observacao": "Sem observações",
+                    "agendamento.usuario": usuario_teste,
                     **documento_teste,
                 },
             }
         )
+    documentos_sem_formulario = {"COMPROVANTE_AGENDAMENTO", "FICHA_ATENDIMENTO", "ETIQUETA_ATENDIMENTO"}
+    layout_apenas = elemento_editor == "DOCUMENTO" and (form["tp_documento"].value() or "") in documentos_sem_formulario
     return render(
         request,
         "atendimento/modelos_documento.html",
@@ -3003,6 +3071,7 @@ def _resposta_modelos_documento(request, empresa, modelo):
                 )
             ),
             "elemento_editor": elemento_editor,
+            "layout_apenas": layout_apenas,
             "modo_criacao": novo_tipo,
             "contextos_teste": contextos_teste,
             "empresa": empresa,
@@ -6004,10 +6073,14 @@ def comprovante_agendamento(request, cd_agendamento):
             "agendamento.data": timezone.localtime(agendamento.dh_agendamento).strftime("%d/%m/%Y"),
             "agendamento.hora": timezone.localtime(agendamento.dh_agendamento).strftime("%H:%M"),
             "agendamento.data_hora": timezone.localtime(agendamento.dh_agendamento).strftime("%d/%m/%Y %H:%M"),
+            "agendamento.dia_semana": timezone.localtime(agendamento.dh_agendamento).strftime("%A"),
             "agendamento.prestador": agendamento.ds_profissional,
+            "agendamento.nome_guerra_prestador": getattr(agenda.cd_prestador, "nm_guerra", "") if agenda and agenda.cd_prestador else "",
             "agendamento.especialidade": agendamento.ds_especialidade,
             "agendamento.tipo": agendamento.ds_tipo_atendimento,
             "agendamento.plano": agendamento.ds_plano,
+            "agendamento.observacao": agendamento.ds_observacao,
+            "agendamento.usuario": str(agendamento.cd_usuario_criacao or request.user),
         }
         apresentacao = _renderizar_documento(documento, True)
     return render(

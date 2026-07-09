@@ -39,11 +39,11 @@
             <td>{{ paciente.pk }}</td>
             <td>
               {% if paciente.nm_social %}
-                <span class="patient-social-name">
-                  {{ paciente.nm_social }}
-                  <span class="social-name-info" title="Nome de registro: {{ paciente.nm_paciente }}" aria-label="Nome de registro: {{ paciente.nm_paciente }}">
-                    <span class="svg-icon" data-nav-icon="info"></span>
-                  </span>
+                <span class="patient-social-name" data-social-name data-social="{{ paciente.nm_social }}" data-register="{{ paciente.nm_paciente }}">
+                  <span data-social-name-text>{{ paciente.nm_social }}</span>
+                  <button class="social-name-info" type="button" title="Nome de registro: {{ paciente.nm_paciente }}" aria-label="Alternar nome social e nome de registro">
+                    <span class="svg-icon" data-nav-icon="user"></span>
+                  </button>
                 </span>
               {% else %}
                 {{ paciente.nm_paciente }}
@@ -62,4 +62,25 @@
       </tbody>
     </table>
   </section>
+  <script>
+    document.querySelectorAll("[data-social-name]").forEach((wrapper) => {
+      const text = wrapper.querySelector("[data-social-name-text]");
+      const button = wrapper.querySelector(".social-name-info");
+      if (!text || !button) return;
+      const values = {
+        social: wrapper.dataset.social || "",
+        register: wrapper.dataset.register || "",
+      };
+      let showingSocial = true;
+      const update = () => {
+        text.textContent = showingSocial ? values.social : values.register;
+        button.title = showingSocial ? `Nome de registro: ${values.register}` : `Nome social: ${values.social}`;
+      };
+      button.addEventListener("click", () => {
+        showingSocial = !showingSocial;
+        update();
+      });
+      update();
+    });
+  </script>
 {% endblock %}
