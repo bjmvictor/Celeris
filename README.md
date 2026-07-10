@@ -22,6 +22,14 @@ Principais pontos:
 * HTML, CSS e JavaScript
 * SQLite/PostgreSQL
 
+## Anotações técnicas
+Decidido dividir o sistema em partes/telas externas, algumas delas sendo:
+* Celeris Hub — Gestão Administrativa (maior núcleo do sistema, envolvendo a maior parte ERP)
+* Celeris PEP — Prontuário Eletrônico
+* Celeris Class — Classificação de Risco
+* Celeris Totem — Autoatendimento
+* Celeris BI — Indicadores
+
 ## Status
 
 Projeto em fase inicial de desenvolvimento.
