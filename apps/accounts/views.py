@@ -13,7 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 import logging
 from urllib.parse import urlencode
 
-from apps.atendimento.models import Prestador
+from apps.atendimento.models import Prestador, RascunhoEditorDocumento
 from apps.core.table_utils import paginate_table
 
 from .access import screen_access_required
@@ -48,6 +48,8 @@ class EmpresaLoginView(auth_views.LoginView):
 
 class EmpresaLogoutView(auth_views.LogoutView):
     def post(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            RascunhoEditorDocumento.objects.filter(cd_usuario=request.user).delete()
         request.session.pop("cd_empresa", None)
         request.session.pop("nm_empresa", None)
         return super().post(request, *args, **kwargs)
@@ -266,9 +268,9 @@ def usuario_alterar_senha(request, pk):
 @login_required
 @screen_access_required("usuarios")
 def copia_usuario(request):
-    request.current_tab_title = "AdministraÃ§Ã£o > CÃ³pia de usuÃ¡rio"
-    request.current_tab_root_title = "CÃ³pia de usuÃ¡rio"
-    request.current_module_title = "AdministraÃ§Ã£o"
+    request.current_tab_title = "Administração > Cópia de usuário"
+    request.current_tab_root_title = "Cópia de usuário"
+    request.current_module_title = "Administração"
     empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
     usuarios_ativos = (
         User.objects.filter(is_active=True, empresas=empresa)
@@ -285,9 +287,9 @@ def copia_usuario(request):
         destino = usuarios_ativos.filter(pk=destino_id).first()
     if request.method == "POST":
         if not origem or not destino:
-            messages.error(request, "Selecione usuÃ¡rio de origem e destino ativos.")
+            messages.error(request, "Selecione usuário de origem e destino ativos.")
         elif origem.pk == destino.pk:
-            messages.error(request, "Origem e destino devem ser usuÃ¡rios diferentes.")
+            messages.error(request, "Origem e destino devem ser usuários diferentes.")
         else:
             destino.groups.set(origem.groups.all())
             destino.setores.set(origem.setores.all())
@@ -318,7 +320,7 @@ def copia_usuario(request):
                 "can_configure_system",
                 "is_coordinator",
             ])
-            messages.success(request, "PermissÃµes copiadas para o usuÃ¡rio de destino.")
+            messages.success(request, "Permissões copiadas para o usuário de destino.")
             return redirect(f"{reverse('copia_usuario')}?origem={origem.pk}&destino={destino.pk}")
     return render(
         request,
@@ -371,28 +373,35 @@ def perfis(request):
     request.current_tab_title = "Administração > Papéis"
     request.current_tab_root_title = "Papéis"
     request.current_module_title = "Administração"
+    request.current_can_query = True
+    request.current_can_save = False
+    request.current_can_remove = False
     query = request.GET.get("q", "").strip()
     code = request.GET.get("codigo", "").strip()
     status = request.GET.get("status", "")
+    consultando = request.GET.get("consultar") == "1"
+    request.current_start_query = not consultando
     try:
         for group_id in Group.objects.filter(papel__isnull=True).values_list("pk", flat=True):
             Papel.objects.get_or_create(grupo_id=group_id)
-        registros = Group.objects.select_related("papel").prefetch_related("papel__modulos", "papel__telas")
-        if query:
-            registros = registros.filter(name__icontains=query)
-        if code.isdigit():
-            registros = registros.filter(pk=int(code))
-        if status in {"ativo", "inativo"}:
-            registros = registros.filter(papel__sn_ativo=status == "ativo")
-        elif status != "todos":
-            registros = registros.filter(papel__sn_ativo=True)
-        registros = paginate_table(
-            request,
-            registros,
-            {"id", "name", "papel__sn_ativo"},
-            "id",
-            load_on_open=True,
-        )
+        registros = []
+        if consultando:
+            registros = Group.objects.select_related("papel").prefetch_related("papel__modulos", "papel__telas")
+            if query:
+                registros = registros.filter(name__icontains=query)
+            if code.isdigit():
+                registros = registros.filter(pk=int(code))
+            if status in {"ativo", "inativo"}:
+                registros = registros.filter(papel__sn_ativo=status == "ativo")
+            elif status != "todos":
+                registros = registros.filter(papel__sn_ativo=True)
+            registros = paginate_table(
+                request,
+                registros,
+                {"id", "name", "papel__sn_ativo"},
+                "id",
+                load_on_open=False,
+            )
     except Exception:
         logger.exception("Erro ao executar consulta de papeis")
         registros = []

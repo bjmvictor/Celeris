@@ -28,8 +28,6 @@ MODULES = [
             item("Editor de documentos", "atendimento:modelos-documento", roles=["TI"]),
             item("Perfis assistenciais", "atendimento:perfis-assistenciais", roles=["TI"]),
             item("Recepção", "atendimento:recepcao", roles=["TI", "Recepcionista"]),
-            item("Atendimentos", "atendimento:atendimentos", roles=["TI", "Recepcionista", "Enfermeiro", "Médico"]),
-            item("PEP", "atendimento:pep", roles=["TI", "Enfermeiro", "Médico"]),
             item("Classificação de Risco", "atendimento:fila-classificacao", roles=["TI", "Enfermeiro"]),
         ],
     },

@@ -3,16 +3,16 @@
   <section class="card schedule-page schedule-filter-panel">
     <aside class="calendar-card">
       <div class="calendar-header">
-        <a class="button button-secondary" href="?data={{ data }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">‹</a>
+        <a class="button button-secondary" href="data={{ data }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">‹</a>
         <strong>{{ calendario.month|date:"F/Y" }}</strong>
-        <a class="button button-secondary" href="?data={{ data }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">›</a>
+        <a class="button button-secondary" href="data={{ data }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">›</a>
       </div>
       <div class="calendar-grid">
         {% for label in calendario.weekdays %}<span class="calendar-weekday">{{ label }}</span>{% endfor %}
         {% for week in calendario.weeks %}
           {% for day in week %}
             <a class="calendar-day{% if not day.in_month %} muted{% endif %}{% if day.selected %} selected{% endif %}{% if day.holiday %} holiday{% endif %}{% if day.has_schedule %} has-schedule{% endif %}{% if day.has_appointment %} has-appointment{% endif %}{% if day.today %} today{% endif %}"
-               href="?data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">
+               href="data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}&q={{ termo|urlencode }}{% if todos %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">
               {{ day.day }}
             </a>
           {% endfor %}
@@ -96,7 +96,7 @@
                 <span class="svg-icon" data-nav-icon="printer"></span><span class="row-icon-label">Reimprimir comprovante</span>
               </a>
               {% if not item.atendimento and item.ds_status != "CANCELADO" %}
-                <form method="post" action="{% url 'atendimento:cancelar-agendamento' item.pk %}" class="inline-form" data-confirm-message="Deseja realmente cancelar este agendamento?">
+                <form method="post" action="{% url 'atendimento:cancelar-agendamento' item.pk %}" class="inline-form" data-confirm-message="Deseja realmente cancelar este agendamento">
                   {% csrf_token %}
                   <input type="hidden" name="return_to" value="{{ request.get_full_path }}">
                   <button class="row-icon-action labeled danger" type="submit" title="Cancelar agendamento">
@@ -136,7 +136,7 @@
       const update = () => {
         const selected = items.filter((item) => item.checked).length;
         all.checked = selected === items.length && items.length > 0;
-        summary.textContent = all.checked ? "Todas" : `${selected} selecionada(s)`;
+        summary.textContent = all.checked  "Todas" : `${selected} selecionada(s)`;
       };
       toggle.addEventListener("click", () => {
         if (menu.parentElement !== document.body) document.body.appendChild(menu);
@@ -163,7 +163,7 @@
         }
       });
       window.addEventListener("resize", position);
-      document.querySelector(".content")?.addEventListener("scroll", position);
+      document.querySelector(".content").addEventListener("scroll", position);
       update();
     })();
   </script>

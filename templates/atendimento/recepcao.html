@@ -10,7 +10,7 @@
           <strong>{{ senha.ds_senha }}</strong>
           <span>{{ senha.cd_tipo_senha.nm_tipo_senha }} · {{ senha.cd_classe_senha.nm_classe_senha }}</span>
           <small>Classificada em {{ senha.dh_classificacao|date:"H:i" }}</small>
-          <a class="button button-secondary" href="?senha={{ senha.pk }}">Recepcionar senha</a>
+          <a class="button button-secondary" href="senha={{ senha.pk }}">Recepcionar senha</a>
         </article>
       {% empty %}
         <div class="empty-state">Nenhum paciente classificado aguardando recepção.</div>
@@ -18,7 +18,7 @@
     </div>
   </section>
 
-  <form class="card reception-patient-search" method="get" autocomplete="off">
+  <form class="card reception-patient-search" method="get" autocomplete="off" data-query-only-form>
     {% if senha_selecionada %}<input type="hidden" name="senha" value="{{ senha_selecionada }}">{% endif %}
     <div class="form-grid">
       <label class="field-sm">Prontuário {{ form.cd_paciente }}</label>
@@ -54,7 +54,7 @@
             <td>{% if paciente.ds_cidade %}{{ paciente.ds_cidade }}{% if paciente.sg_estado %}-{{ paciente.sg_estado }}{% endif %}{% else %}-{% endif %}</td>
             <td>{{ paciente.nm_mae|default:"-" }}</td>
             <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
-            <td><a class="button button-primary" href="{% url 'atendimento:recepcao-revisar-paciente' paciente.pk %}{% if senha_selecionada %}?senha={{ senha_selecionada }}{% endif %}">Selecionar e validar</a></td>
+            <td><a class="button button-primary" href="{% url 'atendimento:recepcao-revisar-paciente' paciente.pk %}{% if senha_selecionada %}senha={{ senha_selecionada }}{% endif %}">Selecionar e validar</a></td>
           </tr>
         {% empty %}
           <tr><td colspan="8">{% if consulta_executada %}Nenhum paciente encontrado.{% else %}Execute uma consulta para localizar o paciente.{% endif %}</td></tr>
@@ -73,8 +73,8 @@
       };
       let showingSocial = true;
       const update = () => {
-        text.textContent = showingSocial ? values.social : values.register;
-        button.title = showingSocial ? `Nome de registro: ${values.register}` : `Nome social: ${values.social}`;
+        text.textContent = showingSocial  values.social : values.register;
+        button.title = showingSocial  `Nome de registro: ${values.register}` : `Nome social: ${values.social}`;
       };
       button.addEventListener("click", () => {
         showingSocial = !showingSocial;

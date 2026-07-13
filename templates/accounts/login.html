@@ -58,8 +58,8 @@
         empresaSelect.value = padrao.cd_empresa;
         if (empresaField) empresaField.hidden = false;
       }
-      usuarioInput?.addEventListener("blur", carregarEmpresas);
-      usuarioInput?.addEventListener("input", () => {
+      usuarioInput.addEventListener("blur", carregarEmpresas);
+      usuarioInput.addEventListener("input", () => {
         usuarioInput.value = normalizeLogin(usuarioInput.value);
         const empresaField = document.querySelector("[data-company-field]");
         if (empresaField) empresaField.hidden = true;

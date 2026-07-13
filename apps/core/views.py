@@ -84,11 +84,11 @@ def configurar_formularios(request):
         chaves_resultado = set(request.POST.getlist("campos_resultado"))
         campos_disponiveis = {
             campo["chave"]: campo
-            for campo in consultar_campos_formularios(empresa)
+            for campo in consultar_campos_formularios(empresa, codigo_formulario, nome_campo)
             if campo["editavel"]
         }
         with transaction.atomic():
-            for chave in chaves_resultado:
+            for chave in chaves_resultado | obrigatorios:
                 campo = campos_disponiveis.get(chave)
                 if not campo:
                     continue
@@ -114,7 +114,7 @@ def configurar_formularios(request):
             parametros["formulario"] = codigo_formulario
         if nome_campo:
             parametros["nome_campo"] = nome_campo
-        return redirect(f"{request.path}?{urlencode(parametros)}")
+        return redirect(f"{request.path}{urlencode(parametros)}")
     return render(
         request,
         "core/configurar_formularios.html",

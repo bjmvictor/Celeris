@@ -286,8 +286,8 @@ class FrontendInteractionContractTests(SimpleTestCase):
 
     def test_barra_de_status_exibe_label_de_negocio(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
-        self.assertIn('owner?.tagName === "FORM"', javascript)
-        self.assertIn('owner.method?.toLowerCase() !== "get"', javascript)
+        self.assertIn('owner.tagName === "FORM"', javascript)
+        self.assertIn('owner.method.toLowerCase() !== "get"', javascript)
         self.assertIn('replace(/^new_/, "").replace(/_\\d+$/, "")', javascript)
         self.assertIn("`${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`", javascript)
         self.assertIn("businessLabel.trim()", javascript)
@@ -329,7 +329,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
     def test_limpar_formulario_get_recarrega_tela_sem_resultados(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         clear_screen = javascript.split("function clearScreenData()", 1)[1].split("const savedTheme", 1)[0]
-        self.assertIn('form.method?.toLowerCase() === "get"', clear_screen)
+        self.assertIn('form.method.toLowerCase() === "get"', clear_screen)
         self.assertIn("window.location.href = window.location.pathname", clear_screen)
 
     def test_novo_pela_barra_de_acoes_envia_retorno_da_tela_atual(self):
@@ -351,7 +351,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
         self.assertIn("hasSelectedPersistedRow", javascript)
         self.assertIn("rowActiveField", javascript)
         self.assertIn("changePasswordButton.disabled = !document.body.dataset.passwordUrl || !hasLoadedRecord()", javascript)
-        self.assertIn('toggleActiveButton.title === "Ativar" ? "check" : "ban"', javascript)
+        self.assertIn('toggleActiveButton.title === "Ativar"  "check" : "ban"', javascript)
 
     def test_secoes_recolhidas_usam_layout_horizontal_exclusivo(self):
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
@@ -367,7 +367,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
         self.assertIn("setupSortableTables", javascript)
-        self.assertIn('currentOrdering.startsWith("-") ? "▼" : "▲"', javascript)
+        self.assertIn('currentOrdering.startsWith("-")  "▼" : "▲"', javascript)
         self.assertIn(".sort-indicator", stylesheet)
 
     def test_edicao_inline_nao_adiciona_botao_editar_e_enter_navega(self):
@@ -382,7 +382,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
     def test_tabela_editavel_abre_consulta_com_uma_linha_de_filtro(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         self.assertIn("resetEditableTableRows(form, false)", javascript)
-        query_open = javascript.split('if (form?.matches("[data-editable-table]")) {', 1)[1].split("setQueryMode(true)", 1)[0]
+        query_open = javascript.split('if (form.matches("[data-editable-table]")) {', 1)[1].split("setQueryMode(true)", 1)[0]
         self.assertIn("resetEditableTableRows(form, false)", query_open)
 
     def test_scrollbar_tem_cores_do_tema(self):

@@ -1,14 +1,14 @@
-{% extends "base/layout.html" %}
+{% extends documento_base_template|default:"base/layout.html" %}
 
 {% block extra_head %}
   {% if apresentacao.css %}<style>{{ apresentacao.css }}</style>{% endif %}
 {% endblock %}
 
 {% block content %}
-  <section class="print-toolbar">
+  {% if not embed %}<section class="print-toolbar">
     {% if modo_impressao %}
-      {% if pode_imprimir %}<button class="button button-primary" type="button" onclick="window.print()">Imprimir</button>{% endif %}
-      <a class="button button-secondary" href="?">Versão em tela</a>
+      {% if pode_imprimir %}<button class="toolbar-button" type="button" onclick="window.print()" title="Imprimir" aria-label="Imprimir"><span class="svg-icon" data-nav-icon="printer"></span></button>{% endif %}
+      <a class="button button-secondary" href="">Versão em tela</a>
     {% else %}
       {% if pode_imprimir %}<a class="button button-primary" href="?modo=impressao">Visualizar impressão</a>{% endif %}
     {% endif %}
@@ -23,16 +23,11 @@
     {% if pode_fechar %}
       <form method="post" action="{% url 'atendimento:fechar-documento-clinico' documento.pk %}" class="document-inline-action">
         {% csrf_token %}
-        <input name="senha" type="password" required autocomplete="current-password" placeholder="Confirme sua senha">
-        <button class="button button-primary" type="submit">Fechar e assinar</button>
+        <button class="toolbar-button" type="submit" title="Fechar e assinar" aria-label="Fechar e assinar"><span class="svg-icon" data-nav-icon="check"></span></button>
       </form>
     {% endif %}
     {% if pode_abandonar %}
-      <form method="post" action="{% url 'atendimento:abandonar-documento-clinico' documento.pk %}" class="document-inline-action">
-        {% csrf_token %}
-        <input name="motivo" required placeholder="Motivo do abandono">
-        <button class="button button-danger" type="submit">Abandonar</button>
-      </form>
+      <button class="toolbar-button danger" type="button" data-document-abandon-open title="Abandonar" aria-label="Abandonar"><span class="svg-icon" data-nav-icon="ban"></span></button>
     {% endif %}
     {% if pode_cancelar %}
       <form method="post" action="{% url 'atendimento:cancelar-documento-clinico' documento.pk %}" class="document-inline-action">
@@ -41,10 +36,9 @@
         <button class="button button-danger" type="submit">Cancelar documento</button>
       </form>
     {% endif %}
-    <a class="button button-secondary" href="{% url 'atendimento:ficha-atendimento' atendimento.pk %}">Voltar para ficha</a>
-  </section>
+  </section>{% endif %}
 
-  <article class="document-page clinical-document {% if documento.ds_status == 'ABERTO' or documento.ds_status == 'RASCUNHO' %}draft{% elif documento.ds_status == 'CANCELADO' %}cancelled{% endif %}">
+  <article class="document-page clinical-document {% if apresentacao.limitar_uma_pagina %}fit-one-page{% endif %} {% if documento.ds_status == 'ABERTO' or documento.ds_status == 'RASCUNHO' %}draft{% elif documento.ds_status == 'CANCELADO' %}cancelled{% endif %}">
     {% if modo_impressao %}
       {% if documento.ds_status == "ABERTO" or documento.ds_status == "RASCUNHO" %}
         <img class="document-draft-watermark" draggable="false" alt="Rascunho" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1400 2000'%3E%3Cg font-family='Arial,sans-serif' font-size='190' font-weight='900' fill='%2394a3b8' fill-opacity='.22' text-anchor='middle'%3E%3Ctext x='700' y='420' transform='rotate(-36 700 420)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1000' transform='rotate(-36 700 1000)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1580' transform='rotate(-36 700 1580)'%3ERASCUNHO%3C/text%3E%3C/g%3E%3C/svg%3E">
@@ -120,7 +114,22 @@
       {% endif %}
     {% endif %}
   </article>
-  {% if historico_mesmo_tipo %}
+  {% if pode_abandonar %}
+    <section class="document-move-modal" data-document-abandon-modal hidden>
+      <form class="card" method="post" action="{% url 'atendimento:abandonar-documento-clinico' documento.pk %}">
+        {% csrf_token %}
+        <h2>Abandonar documento</h2>
+        <label>Motivo
+          <textarea name="motivo" required></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="button button-secondary" type="button" data-document-abandon-cancel>Cancelar</button>
+          <button class="button button-danger" type="submit">Confirmar abandono</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+  {% if historico_mesmo_tipo and not embed %}
     <details class="card document-patient-history">
       <summary>Histórico deste tipo de documento no prontuário</summary>
       <div class="document-history-list">
@@ -140,7 +149,103 @@
 {% block extra_scripts %}
   <script>
     (() => {
+      const rasterizeWatermarks = () => {
+        document.querySelectorAll(".document-draft-watermark").forEach((image) => {
+          if (image.dataset.rasterized === "true") return;
+          const canvas = document.createElement("canvas");
+          canvas.width = 1400;
+          canvas.height = 2000;
+          const context = canvas.getContext("2d");
+          if (!context) return;
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.font = "900 210px Arial, sans-serif";
+          context.fillStyle = "rgba(148, 163, 184, 0.22)";
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          [420, 1000, 1580].forEach((y) => {
+            context.save();
+            context.translate(700, y);
+            context.rotate(-39 * Math.PI / 180);
+            context.fillText("RASCUNHO", 0, 0);
+            context.restore();
+          });
+          image.src = canvas.toDataURL("image/png");
+          image.dataset.rasterized = "true";
+        });
+      };
+      rasterizeWatermarks();
+      window.addEventListener("beforeprint", rasterizeWatermarks);
+      const fitOnePage = () => {
+        const page = document.querySelector(".clinical-document.fit-one-page");
+        const main = page.querySelector("[data-fit-one-page='true']");
+        const table = page.querySelector(".document-print-table");
+        if (!page || !main || !table) return;
+        const targets = [
+          main,
+          page.querySelector(".document-repeat-header"),
+          page.querySelector(".document-header"),
+          page.querySelector(".document-repeat-footer"),
+          page.querySelector(".document-footer"),
+        ].filter(Boolean);
+        targets.forEach((target) => {
+          target.style.zoom = "";
+          target.style.setProperty("width", "100%", "important");
+        });
+        table.style.zoom = "";
+        table.style.width = "100%";
+        table.style.height = "";
+        page.style.height = "";
+        page.style.maxHeight = "";
+        page.style.overflow = "";
+        document.documentElement.style.setProperty("--fit-scale", "1");
+        page.style.setProperty("--fit-scale", "1");
+        main.style.setProperty("--fit-scale", "1");
+        main.style.padding = "0";
+        const bodyWidth = page.querySelector(".document-print-body").getBoundingClientRect().width || table.getBoundingClientRect().width || 1;
+        const contentHeight = targets.reduce((total, target) => total + Math.max(target.scrollHeight, target.getBoundingClientRect().height), 0);
+        const contentWidth = Math.max(...targets.map((target) => Math.max(target.scrollWidth, target.getBoundingClientRect().width)), 1);
+        const measurePrintHeight = () => {
+          const probe = document.createElement("div");
+          probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;height:279mm;width:0;inset:auto";
+          document.body.appendChild(probe);
+          const height = probe.getBoundingClientRect().height;
+          probe.remove();
+          return height || 1066;
+        };
+        const availableHeight = Math.max(1, measurePrintHeight() - 8);
+        const rawScale = Math.min(
+          1,
+          availableHeight / Math.max(1, contentHeight),
+          bodyWidth / Math.max(1, contentWidth)
+        );
+        const scale = Math.max(0.28, Math.min(0.995, rawScale * 0.985));
+        page.style.height = "calc(297mm - 18mm)";
+        page.style.maxHeight = "calc(297mm - 18mm)";
+        page.style.overflow = "hidden";
+        table.style.height = "calc(297mm - 18mm)";
+        targets.forEach((target) => {
+          target.style.zoom = String(scale);
+          target.style.setProperty("width", "100%", "important");
+          target.style.setProperty("max-width", "100%", "important");
+        });
+        document.documentElement.style.setProperty("--fit-scale", String(scale));
+        page.style.setProperty("--fit-scale", String(scale));
+        main.style.setProperty("--fit-scale", String(scale));
+        if (scale < 1) {
+          main.querySelectorAll("[style]").forEach((node) => {
+            node.style.marginTop = node.style.marginTop || "0";
+            node.style.marginBottom = node.style.marginBottom || "0";
+            node.style.paddingTop = node.style.paddingTop || "0";
+            node.style.paddingBottom = node.style.paddingBottom || "0";
+          });
+        }
+      };
+      window.addEventListener("load", fitOnePage);
+      window.addEventListener("beforeprint", fitOnePage);
       const form = document.querySelector("[data-document-fill-form]");
+      const abandonModal = document.querySelector("[data-document-abandon-modal]");
+      document.querySelector("[data-document-abandon-open]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = false; });
+      document.querySelector("[data-document-abandon-cancel]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = true; });
       if (!form) return;
       let saved = {};
       try { saved = JSON.parse(document.getElementById("document-form-data").textContent); } catch {}
@@ -155,7 +260,7 @@
         const readonly = fieldset.dataset.exclusiveReadonly === "true";
         fieldset.querySelectorAll("[data-exclusive-choice]").forEach((choice) => {
           if (selected && choice !== selected) choice.checked = false;
-          const detail = choice.closest("label")?.querySelector("[data-exclusive-detail]");
+          const detail = choice.closest("label").querySelector("[data-exclusive-detail]");
           if (!detail) return;
           detail.disabled = readonly || !choice.checked;
           detail.tabIndex = detail.disabled ? -1 : 0;
@@ -177,7 +282,7 @@
           event.preventDefault();
           invalidGroup.classList.add("is-invalid");
           invalidGroup.scrollIntoView({ block: "center", behavior: "smooth" });
-          invalidGroup.querySelector("[data-exclusive-choice]")?.focus();
+          invalidGroup.querySelector("[data-exclusive-choice]").focus();
           return;
         }
         const data = {};

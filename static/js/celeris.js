@@ -39,14 +39,14 @@
     play: '<path d="m6 3 14 9-14 9V3Z"/>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
-    "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
-    "chevrons-left": '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
+    "arrow-left": '<path d="m15 18-6-6 6-6"/>',
+    "chevrons-left": '<path d="M5 5v14"/><path d="m17 18-6-6 6-6"/>',
     "corner-up-left": '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
     "corner-up-right": '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
     "undo-2": '<path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 1 1-5.6 11.2"/>',
     "redo-2": '<path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 1 0 5.6 11.2"/>',
-    "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
-    "chevrons-right": '<path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/>',
+    "arrow-right": '<path d="m9 18 6-6-6-6"/>',
+    "chevrons-right": '<path d="M19 5v14"/><path d="m7 18 6-6-6-6"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     check: '<path d="m20 6-11 11-5-5"/>',
     help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4"/><path d="M12 17h.01"/>',
@@ -63,15 +63,25 @@
   }
   window.CelerisRenderIcons = renderIcons;
 
+  function clearUserRuntimeState() {
+    localStorage.removeItem("celeris-tabs");
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("celeris-form-state:") || key.startsWith("celeris-tabs"))
+      .forEach((key) => localStorage.removeItem(key));
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith("celeris-list-scroll:") || key.startsWith("celeris-open-query") || key.startsWith("celeris-continue"))
+      .forEach((key) => sessionStorage.removeItem(key));
+  }
+
   function setQueryMode(enabled) {
     document.body.classList.toggle("screen-query-mode", enabled);
-    setActionStatus(enabled ? "CONSULTA" : "EDIÇÃO");
+    setActionStatus(enabled ?"CONSULTA" : "EDIÇÃO");
     const queryButton = document.querySelector("[data-query-toggle]");
     const cancelButton = document.querySelector("[data-query-cancel]");
     if (queryButton) {
-      queryButton.dataset.queryMode = enabled ? "execute" : "open";
-      queryButton.title = enabled ? "Executar consulta" : "Abrir consulta";
-      queryButton.querySelector("[data-nav-icon]")?.setAttribute("data-nav-icon", enabled ? "play" : "search");
+      queryButton.dataset.queryMode = enabled ?"execute" : "open";
+      queryButton.title = enabled ?"Executar consulta" : "Abrir consulta";
+      queryButton.querySelector("[data-nav-icon]").setAttribute("data-nav-icon", enabled ?"play" : "search");
     }
     if (cancelButton) cancelButton.hidden = !enabled;
     document.querySelectorAll("[data-consultable], [data-primary-key]").forEach((field) => {
@@ -86,6 +96,16 @@
         } else {
           field.setAttribute("readonly", "readonly");
         }
+      }
+    });
+    document.querySelectorAll("[data-query-only='true'], [data-query-only-form] input, [data-query-only-form] select, [data-query-only-form] textarea").forEach((field) => {
+      if (enabled) {
+        field.removeAttribute("disabled");
+        field.removeAttribute("readonly");
+      } else if (field.matches("select, input[type='checkbox'], input[type='radio']")) {
+        field.setAttribute("disabled", "disabled");
+      } else {
+        field.setAttribute("readonly", "readonly");
       }
     });
   }
@@ -160,7 +180,7 @@
     if (!form?.matches("[data-editable-table]")) return false;
     form.querySelectorAll("tbody tr").forEach((row) => row.remove());
     addEditableTableRow(form, markDirty);
-    form.dataset.dirty = markDirty ? "true" : "false";
+    form.dataset.dirty = markDirty ?"true" : "false";
     updateTablePagerVisibility(form);
     return true;
   }
@@ -367,9 +387,9 @@
       .filter((field) => field.name && field.name !== "csrfmiddlewaretoken" && field.type !== "password")
       .map((field) => {
         const value = field instanceof HTMLSelectElement && field.multiple
-          ? Array.from(field.selectedOptions).map((option) => option.value).join("\u001f")
+          ?Array.from(field.selectedOptions).map((option) => option.value).join("\u001f")
           : field.value;
-        const checked = field.matches?.('input[type="checkbox"], input[type="radio"]') ? field.checked : "";
+        const checked = field.matches?.('input[type="checkbox"], input[type="radio"]') ?field.checked : "";
         return `${field.name}\u001e${field.type || field.tagName}\u001e${checked}\u001e${value ?? ""}`;
       })
       .join("\u001d");
@@ -587,7 +607,7 @@
       notification.addEventListener("keydown", keyHandler);
       window.requestAnimationFrame(() => {
         const firstField = extra.querySelector("select, input, textarea");
-        const preferredButton = initialFocus === "cancel" && !cancelButton.hidden ? cancelButton : confirmButton;
+        const preferredButton = initialFocus === "cancel" && !cancelButton.hidden ?cancelButton : confirmButton;
         (firstField || preferredButton).focus();
       });
     });
@@ -718,9 +738,8 @@
   function setupInitialEditableRows() {
     if (window.location.search) return;
     document.querySelectorAll("form[data-editable-table]").forEach((form) => {
-      if (!form.querySelector("tbody tr[data-editable-row]") && form.querySelector("template[data-table-new-row]")) {
-        addEditableTableRow(form, false);
-      }
+      if (!form.querySelector("template[data-table-new-row]")) return;
+      resetEditableTableRows(form, false);
     });
   }
 
@@ -775,11 +794,11 @@
     const form = currentField.closest("form[data-editable-table]");
     const fields = getEditableTableFields(form);
     const currentIndex = fields.indexOf(currentField);
-    let target = fields[currentIndex + (reverse ? -1 : 1)];
+    let target = fields[currentIndex + (reverse ?-1 : 1)];
     if (!target && !reverse && !document.body.classList.contains("screen-query-mode") && addEditableTableRow(form)) {
       target = getEditableTableFields(form).find((field) => !field.readOnly);
     }
-    target = target || (reverse ? fields[fields.length - 1] : fields[0]);
+    target = target || (reverse ?fields[fields.length - 1] : fields[0]);
     if (!target) return false;
     target.focus();
     target.select?.();
@@ -850,7 +869,7 @@
     const themeButton = event.target.closest("[data-theme-toggle]");
     if (themeButton) {
       root.classList.toggle("dark");
-      const theme = root.classList.contains("dark") ? "dark" : "light";
+      const theme = root.classList.contains("dark") ?"dark" : "light";
       localStorage.setItem("celeris-theme", theme);
       if (document.body.dataset.username) {
         localStorage.setItem(`celeris-theme-user:${document.body.dataset.username}`, theme);
@@ -861,7 +880,7 @@
     const sidebarButton = event.target.closest("[data-sidebar-toggle]");
     if (sidebarButton) {
       shell?.classList.toggle("sidebar-collapsed");
-      localStorage.setItem("celeris-sidebar", shell?.classList.contains("sidebar-collapsed") ? "collapsed" : "expanded");
+      localStorage.setItem("celeris-sidebar", shell.classList.contains("sidebar-collapsed") ?"collapsed" : "expanded");
       closeSidebarFlyout();
       scheduleSidebarAutoCollapse();
       return;
@@ -908,6 +927,16 @@
         if (removeButton) removeButton.disabled = true;
       } else {
         if (form?.method?.toLowerCase() === "get") {
+          const queryParameter = form.dataset.queryParameter || "consultar";
+          if (queryParameter && !form.elements[queryParameter]) {
+            const marker = document.createElement("input");
+            marker.type = "hidden";
+            marker.name = queryParameter;
+            marker.value = "1";
+            form.appendChild(marker);
+          } else if (queryParameter) {
+            form.elements[queryParameter].value = "1";
+          }
           form.requestSubmit();
           return;
         }
@@ -931,10 +960,12 @@
             }
           });
           const queryParameter = form.dataset.queryParameter
-            || (["paciente", "prestador", "usuario", "escala"].includes(form.dataset.table) ? "consultar" : "abrir");
+            || (["paciente", "prestador", "usuario", "escala"].includes(form.dataset.table) ?"consultar" : "abrir");
           if (queryParameter) {
             params.set(queryParameter, "1");
           }
+          clearCurrentFormState(form);
+          if (form) form.dataset.dirty = "false";
           window.location.href = `${queryUrl}?${params.toString()}`;
           return;
         }
@@ -946,7 +977,7 @@
               return field.value.trim();
             })[0] || "";
           clearCurrentFormState(form);
-          const params = queryValue ? `?q=${encodeURIComponent(queryValue)}` : "?consultar=1";
+          const params = queryValue ?`q=${encodeURIComponent(queryValue)}` : "consultar=1";
           storeCurrentListPosition();
           window.location.href = `${window.location.pathname}${params}`;
           return;
@@ -1028,7 +1059,7 @@
       if (deleteField) {
         const confirmed = await showBlockingNotification({
           title: "Excluir registro",
-          message: "Confirma a exclusão deste registro? A alteração será salva imediatamente.",
+          message: "Confirma a exclusão deste registro?A alteração será salva imediatamente.",
           confirmText: "Excluir",
           cancelText: "Cancelar",
           type: "warning",
@@ -1045,7 +1076,7 @@
       const tableForm = getEditableTableForm();
       const rowActiveField = getSelectedRowActiveField(tableForm);
       if (rowActiveField) {
-        rowActiveField.value = rowActiveField.value === "true" ? "false" : "true";
+        rowActiveField.value = rowActiveField.value === "true" ?"false" : "true";
         rowActiveField.dispatchEvent(new Event("change", { bubbles: true }));
         markFormDirty(tableForm);
         setupActionButtons();
@@ -1257,7 +1288,7 @@
       return;
     }
     if (form.matches("[data-clear-tabs]")) {
-      localStorage.removeItem("celeris-tabs");
+      clearUserRuntimeState();
     }
     if (form.matches(".content form") && form.method?.toLowerCase() !== "get") {
       clearCurrentFormState(form);
@@ -1300,8 +1331,8 @@
             const row = Number.parseInt(style.gridRowStart, 10);
             const column = Number.parseInt(style.gridColumnStart, 10);
             return {
-              row: Number.isFinite(row) ? row : gridItems.indexOf(owner) + 1,
-              column: Number.isFinite(column) ? column : 1,
+              row: Number.isFinite(row) ?row : gridItems.indexOf(owner) + 1,
+              column: Number.isFinite(column) ?column : 1,
             };
           };
           const leftPosition = coordinate(left);
@@ -1312,7 +1343,7 @@
       if (currentIndex >= 0 && visualFields.length) {
         event.preventDefault();
         closeFloatingSelect();
-        const direction = event.shiftKey ? -1 : 1;
+        const direction = event.shiftKey ?-1 : 1;
         const nextIndex = (currentIndex + direction + visualFields.length) % visualFields.length;
         focusField(visualFields[nextIndex]);
       }
@@ -1390,6 +1421,13 @@
       }
       return;
     }
+    if (
+      event.key === "Enter"
+      && event.target.matches(".content textarea")
+      && event.target.closest(".generated-clinical-form, [data-document-fill-form]")
+    ) {
+      return;
+    }
     if (event.key === "Enter" && event.target.matches(".content input, .content select, .content textarea")) {
       const field = event.target;
       event.preventDefault();
@@ -1453,7 +1491,7 @@
 
   function getFloatingSelectField() {
     const fieldId = activeFloatingSelect?.dataset.fieldId;
-    return fieldId ? document.getElementById(fieldId) : null;
+    return fieldId ?document.getElementById(fieldId) : null;
   }
 
   function positionFloatingSelect(panel, field) {
@@ -1465,16 +1503,16 @@
     const spaceAbove = Math.max(0, rect.top - gap - viewportGap);
     const preferredHeight = Math.min(panel.scrollHeight || 260, 320);
     const openBelow = spaceBelow >= Math.min(preferredHeight, 180) || spaceBelow >= spaceAbove;
-    const availableHeight = Math.max(96, openBelow ? spaceBelow : spaceAbove);
+    const availableHeight = Math.max(96, openBelow ?spaceBelow : spaceAbove);
     const panelHeight = Math.min(preferredHeight, availableHeight);
     const maxLeft = Math.max(viewportGap, window.innerWidth - width - viewportGap);
     const left = Math.max(viewportGap, Math.min(rect.left, maxLeft));
-    const top = openBelow ? rect.bottom + gap : rect.top - gap - panelHeight;
+    const top = openBelow ?rect.bottom + gap : rect.top - gap - panelHeight;
     panel.style.width = `${width}px`;
     panel.style.maxHeight = `${availableHeight}px`;
     panel.style.left = `${left}px`;
     panel.style.top = `${Math.max(viewportGap, Math.min(top, window.innerHeight - panelHeight - viewportGap))}px`;
-    panel.dataset.placement = openBelow ? "bottom" : "top";
+    panel.dataset.placement = openBelow ?"bottom" : "top";
   }
 
   function openFloatingSelect(field) {
@@ -1489,7 +1527,7 @@
     panel.innerHTML = options.map((option, index) => {
       const isEmpty = !option.value && !(option.text || "").trim();
       return `
-      <button type="button" data-select-index="${index}" ${isEmpty ? 'data-empty-option="true"' : ""} class="${option.selected ? "active" : ""}">
+      <button type="button" data-select-index="${index}" ${isEmpty ?'data-empty-option="true"' : ""} class="${option.selected ?"active" : ""}">
         ${escapeHTML(option.text || option.value || "EM BRANCO")}
       </button>
     `;
@@ -1596,7 +1634,7 @@
     closeSidebarFlyout();
     if (activeFloatingSelect) {
       const fieldId = activeFloatingSelect.dataset.fieldId;
-      const field = fieldId ? document.getElementById(fieldId) : null;
+      const field = fieldId ?document.getElementById(fieldId) : null;
       if (field) positionFloatingSelect(activeFloatingSelect, field);
     }
   }, true);
@@ -1641,13 +1679,14 @@
       && field.type !== "hidden"
     );
     status.textContent = isExactTableField
-      ? `${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`
+      ?`${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`
       : businessLabel.trim();
   }
 
   function normalizeInputValue(field) {
     if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
     if (field.dataset.mask) return;
+    if (field.closest(".generated-clinical-form, [data-document-fill-form]")) return;
     const type = field.type || "";
     if (["password", "email", "url", "number", "date", "time", "datetime-local", "month", "week"].includes(type)) return;
     const start = field.selectionStart;
@@ -1840,7 +1879,7 @@
       stateSelect.value = payload.estado;
       await loadLinkedCities(group, payload.estado, payload.cidade || "");
     }
-    const suffix = group === "comercial" ? "_comercial" : "";
+    const suffix = group === "comercial" ?"_comercial" : "";
     const addressFields = {
       [`tp_logradouro${suffix}`]: payload.tipo_logradouro,
       [`ds_endereco${suffix}`]: payload.logradouro,
@@ -1860,7 +1899,7 @@
   function validateStructuredField(field, notify = false) {
     if (!field?.value?.trim()) {
       field?.classList.remove("field-invalid");
-      field?.setCustomValidity?.("");
+      field.setCustomValidity?.("");
       return true;
     }
     let message = "";
@@ -1984,7 +2023,7 @@
         .filter((option) => !selected.has(option.value))
         .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
         .join("");
-      picker.value = Array.from(picker.options).some((option) => option.value === pickerValue) ? pickerValue : "";
+      picker.value = Array.from(picker.options).some((option) => option.value === pickerValue) ?pickerValue : "";
 
       if (primary) {
         const currentPrimary = primary.value;
@@ -1992,7 +2031,7 @@
           .filter((option) => selected.has(option.value))
           .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
           .join("");
-        primary.value = selected.has(currentPrimary) ? currentPrimary : (selectedValues()[0] || "");
+        primary.value = selected.has(currentPrimary) ?currentPrimary : (selectedValues()[0] || "");
       }
     };
 
@@ -2166,7 +2205,7 @@
       if (currentOrdering !== fieldName && currentOrdering !== `-${fieldName}`) return;
       const indicator = document.createElement("span");
       indicator.className = "sort-indicator";
-      indicator.textContent = currentOrdering.startsWith("-") ? "▼" : "▲";
+      indicator.textContent = currentOrdering.startsWith("-") ?"▼" : "▲";
       element.appendChild(indicator);
     };
 
@@ -2190,7 +2229,7 @@
       renderIndicator(header, fieldName);
       const applyOrdering = () => {
         const url = new URL(window.location.href);
-        url.searchParams.set("ordem", currentOrdering === fieldName ? `-${fieldName}` : fieldName);
+        url.searchParams.set("ordem", currentOrdering === fieldName ?`-${fieldName}` : fieldName);
         storeCurrentListPosition();
         window.location.href = url.toString();
       };
@@ -2226,7 +2265,7 @@
             ).getTime();
           }
           const numeric = Number(raw.replace(/\./g, "").replace(",", "."));
-          return raw && Number.isFinite(numeric) ? numeric : raw.toLocaleLowerCase("pt-BR");
+          return raw && Number.isFinite(numeric) ?numeric : raw.toLocaleLowerCase("pt-BR");
         };
         const applyClientOrdering = () => {
           const tbody = table.tBodies[0];
@@ -2244,18 +2283,18 @@
             item.querySelector(".sort-indicator")?.remove();
             delete item.dataset.clientSortDirection;
           });
-          header.dataset.clientSortDirection = descending ? "desc" : "asc";
+          header.dataset.clientSortDirection = descending ?"desc" : "asc";
           groups.sort((left, right) => {
             const leftValue = valueFor(left[0]);
             const rightValue = valueFor(right[0]);
             const comparison = typeof leftValue === "number" && typeof rightValue === "number"
-              ? leftValue - rightValue
+              ?leftValue - rightValue
               : String(leftValue).localeCompare(String(rightValue), "pt-BR", { numeric: true, sensitivity: "base" });
-            return descending ? -comparison : comparison;
+            return descending ?-comparison : comparison;
           });
           const indicator = document.createElement("span");
           indicator.className = "sort-indicator";
-          indicator.textContent = descending ? "▼" : "▲";
+          indicator.textContent = descending ?"▼" : "▲";
           header.appendChild(indicator);
           groups.flat().forEach((row) => tbody.appendChild(row));
         };
@@ -2313,7 +2352,7 @@
               col.style.width = `${nextWidth}px`;
               col.style.minWidth = `${nextWidth}px`;
               table.style.width = `${widths.reduce((total, width, columnIndex) => (
-                total + (columnIndex === index ? nextWidth : width)
+                total + (columnIndex === index ?nextWidth : width)
               ), 0)}px`;
               table.style.minWidth = table.style.width;
             }
@@ -2459,7 +2498,7 @@
       continueButton.disabled = !document.body.dataset.continueUrl;
     }
     if (removeButton) removeButton.disabled = tableForm
-      ? !hasSelectedEditableRow(tableForm)
+      ?!hasSelectedEditableRow(tableForm)
       : !(document.body.dataset.canRemove === "true" && hasLoadedRecord());
     if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm);
     const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
@@ -2468,11 +2507,11 @@
       toggleActiveButton.hidden = !(rowActiveField || document.body.dataset.toggleActiveUrl);
       toggleActiveButton.disabled = !(rowActiveField || (document.body.dataset.toggleActiveUrl && hasLoadedRecord()));
       if (rowActiveField) {
-        toggleActiveButton.title = rowActiveField.value === "true" ? "Desativar" : "Ativar";
+        toggleActiveButton.title = rowActiveField.value === "true" ?"Desativar" : "Ativar";
       }
       toggleActiveButton.querySelector("[data-nav-icon]")?.setAttribute(
         "data-nav-icon",
-        toggleActiveButton.title === "Ativar" ? "check" : "ban"
+        toggleActiveButton.title === "Ativar" ?"check" : "ban"
       );
     }
     const changePasswordButton = document.querySelector('[data-action="change-password"]');
@@ -2510,18 +2549,18 @@
     if (firstMessage) {
       const message = firstMessage.querySelector(".notification-text")?.textContent?.trim();
       const type = firstMessage.classList.contains("error")
-        ? "error"
+        ?"error"
         : firstMessage.classList.contains("warning")
-          ? "warning"
+          ?"warning"
           : "info";
       if (message) {
         persistNotification(message, type);
         showBlockingNotification({
-          title: type === "error" ? "Erro" : type === "warning" ? "Alerta" : "Informação",
+          title: type === "error" ?"Erro" : type === "warning" ?"Alerta" : "Informação",
           message,
           confirmText: "OK",
           type,
-          focusTarget: type === "error" ? document.querySelector('[aria-invalid="true"]') : null,
+          focusTarget: type === "error" ?document.querySelector('[aria-invalid="true"]') : null,
         });
       }
     }
@@ -2534,7 +2573,7 @@
     const checkSession = async () => {
       try {
         const statusUrl = documentEditor
-          ? "/accounts/sessao/status/?editando_documento=1"
+          ?"/accounts/sessao/status/?editando_documento=1"
           : "/accounts/sessao/status/";
         const response = await fetch(statusUrl, {
           headers: { "Accept": "application/json" },
@@ -2547,6 +2586,7 @@
           } catch (error) {
             payload = {};
           }
+          clearUserRuntimeState();
           window.location.replace(payload.login_url || "/accounts/login/");
         }
       } catch (error) {
@@ -2554,7 +2594,7 @@
       }
     };
     checkSession();
-    window.setInterval(checkSession, documentEditor ? 30000 : 60000);
+    window.setInterval(checkSession, documentEditor ?30000 : 60000);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) checkSession();
     });
@@ -2619,7 +2659,7 @@
     if (document.body.dataset.startQuery === "true") return;
     const field = document.querySelector('[name="nm_paciente"]:not([disabled]):not([readonly])')
       || document.querySelector(".content form input:not([type='hidden']):not([disabled]):not([readonly]), .content form select:not([disabled]), .content form textarea:not([disabled]):not([readonly])");
-    field?.focus();
+    field.focus();
     field?.select?.();
   }
 
@@ -2671,8 +2711,8 @@
     tabsBar.innerHTML = limitedTabs.map((tab) => {
       const tabKey = tab.key || tab.url;
       const active = tabKey === key || (tab.url === "/" && title === "Início");
-      const closeButton = tab.url === homeTab.url ? "" : `<button class="tab-close" data-tab-close data-tab-url="${escapeHTML(tab.url)}" data-tab-key="${escapeHTML(tabKey)}" type="button" title="Fechar guia">&times;</button>`;
-      return `<a class="tab${active ? " active" : ""}" href="${escapeHTML(tab.url)}"><span>${escapeHTML(tab.title)}</span>${closeButton}</a>`;
+      const closeButton = tab.url === homeTab.url ?"" : `<button class="tab-close" data-tab-close data-tab-url="${escapeHTML(tab.url)}" data-tab-key="${escapeHTML(tabKey)}" type="button" title="Fechar guia">&times;</button>`;
+      return `<a class="tab${active ?" active" : ""}" href="${escapeHTML(tab.url)}"><span>${escapeHTML(tab.title)}</span>${closeButton}</a>`;
     }).join("");
   }
 
@@ -2691,7 +2731,8 @@
   function getCurrentFormStateKey(form = getPrimaryForm()) {
     if (!form || !form.matches(".content form") || form.hasAttribute("data-disable-state-persistence")) return "";
     const key = document.body.dataset.tabKey || window.location.pathname;
-    return `celeris-form-state:${key}`;
+    const userKey = document.body.dataset.username || "anon";
+    return `celeris-form-state:${userKey}:${key}`;
   }
 
   function getFormStateFields(form) {
@@ -2712,7 +2753,7 @@
       type: field.type || field.tagName.toLowerCase(),
       checked: Boolean(field.checked),
       value: field instanceof HTMLSelectElement && field.multiple
-        ? Array.from(field.selectedOptions).map((option) => option.value)
+        ?Array.from(field.selectedOptions).map((option) => option.value)
         : field.value,
     }));
     localStorage.setItem(storageKey, JSON.stringify({ fields }));
@@ -2826,7 +2867,8 @@
 
   function closeTab(tabUrl, tabKey = tabUrl) {
     const currentKey = document.body.dataset.tabKey || document.body.dataset.tabUrl || "/";
-    localStorage.removeItem(`celeris-form-state:${tabKey}`);
+    const userKey = document.body.dataset.username || "anon";
+    localStorage.removeItem(`celeris-form-state:${userKey}:${tabKey}`);
     const tabs = getStoredTabs().filter((tab) => (tab.key || tab.url) !== tabKey);
     setStoredTabs(tabs);
     if (tabKey === currentKey) {
@@ -2859,7 +2901,9 @@
   setupCepCityDependencies();
   setupInitialEditableRows();
   updateTablePagerVisibility();
-  restoreCurrentFormState();
+  if (document.body.dataset.startQuery !== "true" && !sessionStorage.getItem("celeris-open-query-after-save")) {
+    restoreCurrentFormState();
+  }
   const warNameField = document.querySelector("[data-war-name]");
   if (warNameField?.value.trim()) {
     warNameField.dataset.manuallyEdited = "true";
@@ -2962,6 +3006,8 @@
     setQueryMode(true);
     const firstField = document.querySelector(".content input:not([type='hidden']), .content select, .content textarea");
     firstField?.focus();
+  } else if (document.querySelector("[data-query-only='true'], [data-query-only-form]")) {
+    setQueryMode(false);
   }
   renderIcons();
   disableBrowserAutocomplete();

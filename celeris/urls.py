@@ -3,9 +3,13 @@ from django.templatetags.static import static
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from apps.atendimento import views as atendimento_views
+
 
 urlpatterns = [
     path("favicon.ico", RedirectView.as_view(url=static("img/logo.png"), permanent=False)),
+    path("PEP/", atendimento_views.pep_standalone, name="pep_standalone"),
+    path("PEP/pacientes/<int:cd_paciente>/", atendimento_views.pep_prontuario_paciente_standalone, name="pep_prontuario_standalone"),
     path("admin/", admin.site.urls),
     path("", include("apps.core.urls")),
     path("accounts/", include("apps.accounts.urls")),

@@ -51,14 +51,14 @@
             <td>{{ agenda.total_agendados }}</td>
             <td class="inline-actions">
               {% if agenda.ds_status != "CANCELADA" %}
-                <form method="post" data-confirm-message="Deseja realmente cancelar os horários disponíveis desta agenda?">
+                <form method="post" data-confirm-message="Deseja realmente cancelar os horários disponíveis desta agenda">
                   {% csrf_token %}
                   <input type="hidden" name="acao" value="cancelar">
                   <input type="hidden" name="agenda_gerada" value="{{ agenda.pk }}">
                   <button class="button button-secondary" type="submit">Cancelar horários</button>
                 </form>
               {% endif %}
-              <form method="post" data-confirm-message="Deseja realmente excluir esta agenda? Esta ação não poderá ser desfeita.">
+              <form method="post" data-confirm-message="Deseja realmente excluir esta agenda Esta ação não poderá ser desfeita.">
                 {% csrf_token %}
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="agenda_gerada" value="{{ agenda.pk }}">
@@ -115,10 +115,10 @@
         const startDate = new Date(`${start.value}T00:00:00`);
         const endDate = new Date(`${end.value}T00:00:00`);
         const days = Math.floor((endDate - startDate) / 86400000) + 1;
-        output.textContent = days > 0 ? `${days} dia(s)` : "Período inválido";
+        output.textContent = days > 0  `${days} dia(s)` : "Período inválido";
       };
-      start?.addEventListener("change", update);
-      end?.addEventListener("change", update);
+      start.addEventListener("change", update);
+      end.addEventListener("change", update);
       update();
       document.querySelectorAll("[data-agenda-row-toggle]").forEach((row) => {
         const toggle = () => {

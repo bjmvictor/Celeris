@@ -125,10 +125,10 @@
   <script>
     (() => {
       const root = document.querySelector("[data-scale-weekdays]");
-      const toggle = root?.querySelector("[data-scale-weekdays-toggle]");
-      const menu = root?.querySelector("[data-scale-weekdays-menu]");
-      const days = [...(root?.querySelectorAll("[data-scale-weekday]") || [])];
-      const summary = root?.querySelector("[data-scale-weekdays-summary]");
+      const toggle = root.querySelector("[data-scale-weekdays-toggle]");
+      const menu = root.querySelector("[data-scale-weekdays-menu]");
+      const days = [...(root.querySelectorAll("[data-scale-weekday]") || [])];
+      const summary = root.querySelector("[data-scale-weekdays-summary]");
       const positionMenu = () => {
         if (!toggle || !menu || menu.hidden) return;
         const rect = toggle.getBoundingClientRect();
@@ -139,9 +139,9 @@
       };
       const updateDays = () => {
         const selected = days.filter((day) => day.checked).map((day) => day.nextElementSibling.textContent.trim());
-        summary.textContent = selected.length === 7 ? "Todos os dias" : (selected.join(", ") || "Selecione...");
+        summary.textContent = selected.length === 7  "Todos os dias" : (selected.join(", ") || "Selecione...");
       };
-      toggle?.addEventListener("click", () => {
+      toggle.addEventListener("click", () => {
         if (menu.parentElement !== document.body) document.body.appendChild(menu);
         menu.hidden = !menu.hidden;
         positionMenu();
@@ -151,28 +151,28 @@
         if (root && !root.contains(event.target) && !menu.contains(event.target)) menu.hidden = true;
       });
       window.addEventListener("resize", positionMenu);
-      document.querySelector(".content")?.addEventListener("scroll", positionMenu);
+      document.querySelector(".content").addEventListener("scroll", positionMenu);
       updateDays();
 
       const form = document.querySelector(".scale-form");
-      const previewButton = form?.querySelector("[data-scale-preview-button]");
-      const autoAdjustButton = form?.querySelector("[data-scale-auto-adjust]");
-      const previewPanel = form?.querySelector("[data-scale-preview-panel]");
-      const previewSlots = form?.querySelector("[data-scale-preview-slots]");
-      const previewDescription = form?.querySelector("[data-scale-preview-description]");
+      const previewButton = form.querySelector("[data-scale-preview-button]");
+      const autoAdjustButton = form.querySelector("[data-scale-auto-adjust]");
+      const previewPanel = form.querySelector("[data-scale-preview-panel]");
+      const previewSlots = form.querySelector("[data-scale-preview-slots]");
+      const previewDescription = form.querySelector("[data-scale-preview-description]");
       const minutes = (value) => {
-        if (!value?.includes(":")) return null;
+        if (!value.includes(":")) return null;
         const [hour, minute] = value.split(":").map(Number);
         return hour * 60 + minute;
       };
       const format = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
-      autoAdjustButton?.addEventListener("click", () => {
+      autoAdjustButton.addEventListener("click", () => {
         const start = minutes(form.elements.hr_inicio.value);
         const end = minutes(form.elements.hr_fim.value);
         const interval = Number(form.elements.nr_intervalo.value || 0);
         const quantity = Number(form.elements.qt_horarios_dia.value || 0);
-        const available = start === null || end === null ? 0 : end - start - interval * Math.max(quantity - 1, 0);
-        const duration = quantity > 0 ? Math.floor(available / quantity) : 0;
+        const available = start === null || end === null  0 : end - start - interval * Math.max(quantity - 1, 0);
+        const duration = quantity > 0  Math.floor(available / quantity) : 0;
         if (start === null || end === null || end <= start || quantity <= 0 || interval < 0 || duration < 1) {
           previewDescription.textContent = "Não foi possível ajustar. Revise início, fim, intervalo e quantidade.";
           previewPanel.hidden = false;
@@ -184,7 +184,7 @@
         previewDescription.textContent = `Duração ajustada para ${duration} minuto(s). Sobra final: ${end - start - used} minuto(s).`;
         previewButton.click();
       });
-      previewButton?.addEventListener("click", () => {
+      previewButton.addEventListener("click", () => {
         const start = minutes(form.elements.hr_inicio.value);
         const end = minutes(form.elements.hr_fim.value);
         const duration = Number(form.elements.nr_tempo_atendimento.value || 0);
@@ -203,7 +203,7 @@
           generated.push(current);
           current += duration + interval;
         }
-        const occupiedUntil = generated.length ? generated[generated.length - 1] + duration : start;
+        const occupiedUntil = generated.length  generated[generated.length - 1] + duration : start;
         previewDescription.textContent = `${generated.length} horário(s) em ${selectedDays.join(", ")}. Folga final: ${Math.max(end - occupiedUntil, 0)} minuto(s).`;
         generated.forEach((slot) => {
           const element = document.createElement("div");

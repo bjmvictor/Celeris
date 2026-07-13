@@ -1,0 +1,133 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}PEP · Celeris{% endblock %}</title>
+    <link rel="icon" href="{% static 'img/logo.png' %}" type="image/png">
+    <script>
+      if (localStorage.getItem("celeris-theme") === "dark") document.documentElement.classList.add("dark");
+      if ((localStorage.getItem("celeris-pep-sidebar") || "collapsed") === "collapsed") {
+        document.documentElement.classList.add("pep-sidebar-collapsed");
+      }
+    </script>
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
+    {% block extra_head %}{% endblock %}
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}" defer></script>
+    <script src="{% static 'js/celeris.js' %}" defer></script>
+  </head>
+  <body class="pep-standalone-shell{% block body_class_extra %}{% endblock %}" data-can-query="false" data-can-save="false" data-can-remove="false" data-username="{{ request.user.username|default:'' }}">
+    <header class="topbar pep-standalone-topbar">
+      <div class="brand">
+        <button class="icon-button sidebar-toggle" data-pep-sidebar-toggle type="button" title="Expandir/recolher menu">
+          <span class="svg-icon" data-nav-icon="menu"></span>
+        </button>
+        <a class="pep-standalone-brand" href="{% url 'pep_standalone' %}">
+          <img src="{% static 'img/logo.png' %}" alt="Celeris">
+          <div class="brand-text">
+            <strong>Celeris PEP</strong>
+            <span>Prontuário Eletrônico do Paciente</span>
+          </div>
+        </a>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-button" data-theme-toggle type="button" title="Alternar tema">
+          <span class="svg-icon" data-nav-icon="theme"></span>
+        </button>
+        <button class="icon-button" data-notifications-toggle type="button" title="Notificações">
+          <span class="svg-icon" data-nav-icon="bell"></span>
+          {% if messages %}<span class="notification-badge">{{ messages|length }}</span>{% endif %}
+        </button>
+        <div class="notifications-panel" data-notifications-panel hidden>
+          <div class="notifications-header">
+            <span>Notificações</span>
+            <button class="button button-ghost notification-clear-button" data-notifications-clear type="button">Limpar</button>
+          </div>
+          <div class="notifications-list">
+            {% if messages %}
+              {% for message in messages %}
+                <button class="notification-item {{ message.tags }}" data-notification-item data-server-notification type="button">
+                  <span class="notification-time" data-notification-time></span>
+                  <span class="notification-text">{{ message }}</span>
+                </button>
+              {% endfor %}
+            {% else %}
+              <div class="notification-empty">Nenhuma notificação.</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="blocking-notification" data-blocking-notification hidden>
+          <div class="blocking-notification-backdrop" aria-hidden="true"></div>
+          <section class="blocking-notification-card" role="dialog" aria-modal="true">
+            <strong data-blocking-title>Notificação</strong>
+            <p data-blocking-message></p>
+            <div class="blocking-notification-extra" data-blocking-extra></div>
+            <div class="blocking-notification-actions">
+              <button class="toolbar-button" data-blocking-cancel type="button">Cancelar</button>
+              <button class="toolbar-button" data-blocking-confirm type="button">OK</button>
+            </div>
+          </section>
+        </div>
+        <div class="dropdown">
+          <button class="user-menu-button dropdown-toggle" data-bs-toggle="dropdown" type="button" aria-expanded="false">
+            <span class="svg-icon" data-nav-icon="user"></span>
+            <span class="user-chip">{{ current_user_short_name|default:request.user.username }}</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end celeris-dropdown">
+            <div class="dropdown-header user-company-header">
+              <strong>{{ request.user.display_name|default:request.user.username }}</strong>
+              <span>{% if current_empresa %}{{ current_empresa.nm_empresa }}{% else %}Empresa não selecionada{% endif %}</span>
+            </div>
+            <a class="dropdown-item" href="{% url 'password_change' %}">
+              <span class="svg-icon" data-nav-icon="key"></span>
+              Alterar senha
+            </a>
+            <form action="{% url 'logout' %}" method="post">
+              {% csrf_token %}
+              <button class="dropdown-item" type="submit">
+                <span class="svg-icon" data-nav-icon="logout"></span>
+                Sair
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="pep-standalone-main">
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="pep-standalone-statusbar">
+      <span>PEP</span>
+      <time data-pep-live-clock></time>
+    </footer>
+    <script>
+      (() => {
+        const clock = document.querySelector("[data-pep-live-clock]");
+        if (!clock) return;
+        const tick = () => {
+          clock.textContent = new Intl.DateTimeFormat("pt-BR", {
+            weekday: "long",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }).format(new Date());
+        };
+        tick();
+        window.setInterval(tick, 1000);
+      })();
+    </script>
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

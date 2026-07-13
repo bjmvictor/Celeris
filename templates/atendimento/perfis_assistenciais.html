@@ -109,6 +109,11 @@
                   {% if item.sn_somente_historico %}<span>Histórico</span>{% endif %}
                   {% if not item.sn_imprimivel %}<span>Sem impressão</span>{% endif %}
                 </div>
+                {% if item.tp_item == "GRUPO" %}
+                  <button class="icon-button" type="button" data-profile-item-add-child title="Adicionar item filho">
+                    <span class="svg-icon" data-nav-icon="plus"></span>
+                  </button>
+                {% endif %}
                 <button class="icon-button" type="button" data-profile-item-settings title="Configurar item">
                   <span class="svg-icon" data-nav-icon="wrench"></span>
                 </button>
@@ -128,8 +133,8 @@
           </div>
         </section>
 
-        <section class="document-move-modal profile-item-modal" data-profile-item-modal hidden>
-        <form class="card profile-item-form" method="post" data-profile-item-builder>
+        <section class="card profile-item-inline" data-profile-item-modal hidden>
+        <form class="profile-item-form" method="post" data-profile-item-builder>
           {% csrf_token %}
           <input type="hidden" name="acao" value="adicionar_item">
           <input type="hidden" name="perfil" value="{{ perfil.pk }}">
@@ -154,14 +159,19 @@
             <label class="field-md">Chave técnica <input name="cd_item_tecnico" placeholder="ATENDER_ADMISSAO"></label>
             <label class="field-sm">Ordem <input name="nr_ordem" type="number" value="0"></label>
             <label class="field-md">Ícone
-              <select name="ds_icone" data-profile-icon-select data-native-select>
+              <input type="hidden" name="ds_icone" value="file-text" data-profile-icon-select>
+              <button class="button button-secondary profile-icon-trigger" type="button" data-profile-icon-toggle title="Selecionar ícone">
+                <span class="profile-icon-preview" data-profile-icon-preview>
+                  <span class="svg-icon" data-nav-icon="file-text"></span>
+                </span>
+              </button>
+              <div class="profile-icon-dropdown" data-profile-icon-dropdown hidden>
                 {% for value,label in icones_assistenciais %}
-                  <option value="{{ value }}">{{ label }}</option>
+                  <button type="button" data-profile-icon-option="{{ value }}" title="{{ label }}" aria-label="{{ label }}">
+                    <span class="svg-icon" data-nav-icon="{{ value }}"></span>
+                  </button>
                 {% endfor %}
-              </select>
-              <span class="profile-icon-preview" data-profile-icon-preview>
-                <span class="svg-icon" data-nav-icon="file-text"></span>
-              </span>
+              </div>
             </label>
             <label class="field-lg" data-profile-parent-field hidden>Dentro de
               <select name="cd_item_pai">
@@ -238,7 +248,7 @@
           </div>
           <div class="form-actions">
             <button class="button button-primary" type="submit">
-              <span class="svg-icon" data-nav-icon="plus"></span> Adicionar
+              <span class="svg-icon" data-nav-icon="check"></span> Aplicar
             </button>
           </div>
         </form>
@@ -302,6 +312,8 @@
         const screenOptions = builder.querySelector("[data-profile-screen-options]");
         const iconSelect = builder.querySelector("[data-profile-icon-select]");
         const iconPreview = builder.querySelector("[data-profile-icon-preview] [data-nav-icon]");
+        const iconDropdown = builder.querySelector("[data-profile-icon-dropdown]");
+        const iconToggle = builder.querySelector("[data-profile-icon-toggle]");
         const scaleSelect = builder.querySelector('[name="cd_escala_clinica"]');
         const scaleBuilder = builder.querySelector(".profile-scale-builder");
         const questionsList = builder.querySelector("[data-scale-question-list]");
@@ -334,8 +346,8 @@
             button.draggable = true;
             button.textContent = token;
             button.addEventListener("click", () => {
-              const start = expression.selectionStart ?? expression.value.length;
-              expression.setRangeText(token, start, expression.selectionEnd ?? start, "end");
+              const start = expression.selectionStart  expression.value.length;
+              expression.setRangeText(token, start, expression.selectionEnd  start, "end");
               expression.focus();
             });
             button.addEventListener("dragstart", (event) => {
@@ -353,7 +365,7 @@
           option.innerHTML = `
             <input data-option-value placeholder="Valor" value="${data.valor || ""}">
             <input data-option-description placeholder="Descrição exibida" value="${data.descricao || ""}">
-            <input data-option-points type="number" step="0.01" placeholder="Pontos" value="${data.pontos ?? ""}">
+            <input data-option-points type="number" step="0.01" placeholder="Pontos" value="${data.pontos  ""}">
             <button class="icon-button" type="button" data-remove-option title="Remover opção">×</button>`;
           list.appendChild(option);
         };
@@ -374,7 +386,7 @@
             <div class="scale-option-list" data-question-options></div>
             <button class="button button-secondary" type="button" data-add-option><span class="svg-icon" data-nav-icon="plus"></span> Opção</button>`;
           questionsList.appendChild(question);
-          (data.opcoes?.length ? data.opcoes : [{}]).forEach((option) => addOption(question, option));
+          (data.opcoes.length  data.opcoes : [{}]).forEach((option) => addOption(question, option));
           updateTokens();
         };
         const addRange = (data = {}) => {
@@ -387,11 +399,11 @@
               <option value=">">Maior</option><option value="<=">Menor ou igual</option>
               <option value="<">Menor</option><option value="=">Igual</option>
             </select>
-            <input data-range-value type="number" step="0.01" placeholder="Valor inicial" value="${data.valor ?? data.min ?? ""}">
-            <input data-range-final type="number" step="0.01" placeholder="Valor final" value="${data.valor_final ?? data.max ?? ""}">
+            <input data-range-value type="number" step="0.01" placeholder="Valor inicial" value="${data.valor  data.min  ""}">
+            <input data-range-final type="number" step="0.01" placeholder="Valor final" value="${data.valor_final  data.max  ""}">
             <input data-range-description placeholder="Texto exibido" value="${data.descricao || ""}">
             <span class="color-hex-control"><input data-range-color type="color" value="${data.cor || "#22c55e"}"><input data-range-color-hex value="${data.cor || "#22c55e"}" maxlength="7"></span>
-            <label class="provider-checkbox"><input data-range-bold type="checkbox" ${data.negrito ? "checked" : ""}><span>Negrito</span></label>
+            <label class="provider-checkbox"><input data-range-bold type="checkbox" ${data.negrito  "checked" : ""}><span>Negrito</span></label>
             <button class="icon-button" type="button" data-remove-range title="Remover faixa">×</button>`;
           range.querySelector("[data-range-operator]").value = data.operador || "INTERVALO";
           rangesList.appendChild(range);
@@ -412,7 +424,7 @@
           setSectionVisible(parentField, nodeKind.value !== "MENU");
           setSectionVisible(screenTypeField, isScreen);
           setSectionVisible(screenOptions, isScreen);
-          itemType.value = isScreen ? screenType.value : "GRUPO";
+          itemType.value = isScreen  screenType.value : "GRUPO";
           builder.querySelectorAll("[data-profile-type]").forEach((section) => {
             setSectionVisible(section, isScreen && section.dataset.profileType === itemType.value);
           });
@@ -429,31 +441,32 @@
         const updateIconPreview = () => {
           if (!iconPreview || !iconSelect) return;
           iconPreview.setAttribute("data-nav-icon", iconSelect.value || "file-text");
-          window.CelerisRenderIcons?.();
+          window.CelerisRenderIcons.();
         };
         const setField = (name, value) => {
           const field = builder.elements[name];
           if (!field) return;
           if (field.type === "checkbox") field.checked = Boolean(value);
-          else field.value = value ?? "";
+          else field.value = value  "";
         };
-        openProfileItemModal = async (itemId = "") => {
+        openProfileItemModal = async (itemId = "", parentId = "") => {
           builder.reset();
           editItem.value = itemId;
-          nodeKind.value = "MENU";
+          nodeKind.value = parentId  "SUBMENU" : "MENU";
           screenType.selectedIndex = 0;
           resetScaleBuilder();
-          modalTitle.textContent = itemId ? "Configurar item da estrutura" : "Adicionar à estrutura do PEP";
+          modalTitle.textContent = itemId  "Configurar item da estrutura" : "Adicionar à estrutura do PEP";
+          if (parentId) setField("cd_item_pai", parentId);
           if (itemId) {
             const response = await fetch(document.querySelector("[data-profile-tree]").dataset.profileTreeUrl, {
               credentials: "same-origin",
               headers: {Accept: "application/json"},
             });
             const data = await response.json();
-            const item = data.items?.find((value) => String(value.id) === String(itemId));
+            const item = data.items.find((value) => String(value.id) === String(itemId));
             if (!item) return;
-            nodeKind.value = item.type === "GRUPO" ? (item.parent_id ? "SUBMENU" : "MENU") : "TELA";
-            screenType.value = item.type === "GRUPO" ? screenType.options[0].value : item.type;
+            nodeKind.value = item.type === "GRUPO"  (item.parent_id  "SUBMENU" : "MENU") : "TELA";
+            screenType.value = item.type === "GRUPO"  screenType.options[0].value : item.type;
             setField("nm_item", item.name);
             setField("cd_item_tecnico", item.technical_key);
             setField("nr_ordem", item.order);
@@ -462,7 +475,7 @@
             setField("ds_acao", item.action);
             setField("ds_url", item.url);
             setField("cd_modelo_documento", item.document_model_id || "");
-            setField("cd_escala_clinica", item.configuration?.escala || "");
+            setField("cd_escala_clinica", item.configuration.escala || "");
             setField("sn_privado", item.private);
             setField("sn_imprimivel", item.printable);
             setField("sn_permite_criar", item.can_create);
@@ -473,15 +486,31 @@
           syncBuilder();
           updateIconPreview();
           modal.hidden = false;
-          builder.querySelector('[name="nm_item"]')?.focus();
+          modal.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          builder.querySelector('[name="nm_item"]').focus();
         };
         nodeKind.addEventListener("change", syncBuilder);
         screenType.addEventListener("change", syncBuilder);
-        iconSelect?.addEventListener("change", updateIconPreview);
-        scaleSelect?.addEventListener("change", syncBuilder);
-        builder.querySelector("[data-scale-add-question]")?.addEventListener("click", () => addQuestion());
-        builder.querySelector("[data-scale-add-range]")?.addEventListener("click", () => addRange());
-        questionsList?.addEventListener("click", (event) => {
+        iconToggle.addEventListener("click", () => {
+          iconDropdown.hidden = !iconDropdown.hidden;
+        });
+        iconDropdown.addEventListener("click", (event) => {
+          const option = event.target.closest("[data-profile-icon-option]");
+          if (!option) return;
+          iconSelect.value = option.dataset.profileIconOption || "file-text";
+          iconDropdown.hidden = true;
+          updateIconPreview();
+        });
+        document.addEventListener("click", (event) => {
+          if (!iconDropdown || iconDropdown.hidden) return;
+          if (!builder.contains(event.target) || (!iconDropdown.contains(event.target) && !iconToggle.contains(event.target))) {
+            iconDropdown.hidden = true;
+          }
+        });
+        scaleSelect.addEventListener("change", syncBuilder);
+        builder.querySelector("[data-scale-add-question]").addEventListener("click", () => addQuestion());
+        builder.querySelector("[data-scale-add-range]").addEventListener("click", () => addRange());
+        questionsList.addEventListener("click", (event) => {
           const question = event.target.closest("[data-scale-question]");
           if (event.target.closest("[data-add-option]")) addOption(question);
           if (event.target.closest("[data-remove-option]")) event.target.closest("[data-scale-option]").remove();
@@ -490,16 +519,16 @@
             updateTokens();
           }
         });
-        questionsList?.addEventListener("input", updateTokens);
-        rangesList?.addEventListener("click", (event) => {
+        questionsList.addEventListener("input", updateTokens);
+        rangesList.addEventListener("click", (event) => {
           if (event.target.closest("[data-remove-range]")) event.target.closest("[data-scale-range]").remove();
         });
-        expression?.addEventListener("dragover", (event) => event.preventDefault());
-        expression?.addEventListener("drop", (event) => {
+        expression.addEventListener("dragover", (event) => event.preventDefault());
+        expression.addEventListener("drop", (event) => {
           event.preventDefault();
           const token = event.dataTransfer.getData("text/plain");
-          const start = expression.selectionStart ?? expression.value.length;
-          expression.setRangeText(token, start, expression.selectionEnd ?? start, "end");
+          const start = expression.selectionStart  expression.value.length;
+          expression.setRangeText(token, start, expression.selectionEnd  start, "end");
         });
         builder.addEventListener("submit", () => {
           questionsJson.value = JSON.stringify([...questionsList.querySelectorAll("[data-scale-question]")].map((question, index) => ({
@@ -520,20 +549,17 @@
             negrito: range.querySelector("[data-range-bold]").checked,
           })));
         });
-        builder.querySelector("[data-profile-item-close]")?.addEventListener("click", () => {
+        builder.querySelector("[data-profile-item-close]").addEventListener("click", () => {
           modal.hidden = true;
         });
-        modal?.addEventListener("click", (event) => {
-          if (event.target === modal) modal.hidden = true;
-        });
-        document.querySelector("[data-profile-item-open]")?.addEventListener("click", () => openProfileItemModal());
+        document.querySelector("[data-profile-item-open]").addEventListener("click", () => openProfileItemModal());
         resetScaleBuilder();
         syncBuilder();
         updateIconPreview();
       }
       const tree = document.querySelector("[data-profile-tree]");
       const profileContextMenu = document.querySelector("[data-profile-context-menu]");
-      const profileContextId = profileContextMenu?.querySelector("[data-profile-context-id]");
+      const profileContextId = profileContextMenu.querySelector("[data-profile-context-id]");
       document.querySelectorAll("[data-profile-list-item]").forEach((profileLink) => {
         profileLink.addEventListener("contextmenu", (event) => {
           event.preventDefault();
@@ -558,12 +584,17 @@
           openProfileItemModal(button.closest("[data-profile-item]").dataset.profileItem);
         });
       });
+      tree.querySelectorAll("[data-profile-item-add-child]").forEach((button) => {
+        button.addEventListener("click", () => {
+          openProfileItemModal("", button.closest("[data-profile-item]").dataset.profileItem);
+        });
+      });
       let dragged = null;
-      const csrf = document.querySelector("[name='csrfmiddlewaretoken']")?.value || "";
+      const csrf = document.querySelector("[name='csrfmiddlewaretoken']").value || "";
       const persist = () => {
         const items = [...tree.querySelectorAll("[data-profile-item]")].map((item, index) => ({
           id: Number(item.dataset.profileItem),
-          parent_id: item.dataset.parent ? Number(item.dataset.parent) : null,
+          parent_id: item.dataset.parent  Number(item.dataset.parent) : null,
           order: index,
         }));
         fetch(tree.dataset.profileTreeUrl, {
@@ -589,10 +620,10 @@
         ) return;
         event.preventDefault();
         const rect = target.getBoundingClientRect();
-        tree.insertBefore(dragged, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+        tree.insertBefore(dragged, event.clientY < rect.top + rect.height / 2  target : target.nextSibling);
       });
       tree.addEventListener("dragend", () => {
-        dragged?.classList.remove("dragging");
+        dragged.classList.remove("dragging");
         if (dragged) persist();
         dragged = null;
       });

@@ -1,7 +1,7 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-  <form class="card form-grid" data-table="paciente" method="get">
+  <form class="card form-grid" data-table="paciente" method="get" data-query-only-form>
     {% for field in form %}
       <label>
         {{ field.label }}
@@ -50,13 +50,13 @@
       const text = wrapper.querySelector("[data-social-name-text]");
       const button = wrapper.querySelector(".social-name-info");
       let showingSocial = true;
-      button?.addEventListener("click", (event) => {
+      button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
         showingSocial = !showingSocial;
-        text.textContent = showingSocial ? wrapper.dataset.social : wrapper.dataset.register;
+        text.textContent = showingSocial  wrapper.dataset.social : wrapper.dataset.register;
         button.title = showingSocial
-          ? `Nome de registro: ${wrapper.dataset.register}`
+           `Nome de registro: ${wrapper.dataset.register}`
           : `Nome social: ${wrapper.dataset.social}`;
       });
     });

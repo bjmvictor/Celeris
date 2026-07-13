@@ -1,8 +1,9 @@
 {% if item.tp_item == "GRUPO" %}
-  <details class="pep-action-group" open>
+  <details class="pep-action-group{% if item.tem_item_ativo %} active-branch{% endif %}" {% if item.tem_item_ativo %}open{% endif %}>
     <summary>
       {% if item.ds_icone %}<span class="svg-icon" data-nav-icon="{{ item.ds_icone }}"></span>{% endif %}
       <span>{{ item.nm_item }}</span>
+      <span class="svg-icon nav-chevron" data-nav-icon="chevron-down"></span>
     </summary>
     <div>
       {% for child in item.filhos_renderizados %}
@@ -12,15 +13,7 @@
   </details>
 {% else %}
   <a class="pep-action-link{% if item_selecionado.pk == item.pk %} active{% endif %}{% if item.somente_consulta %} disabled{% endif %}" href="{% if item.somente_consulta %}#{% else %}{{ item.url_renderizada }}{% endif %}" title="{{ item.nm_item }}" {% if item.somente_consulta %}aria-disabled="true"{% endif %}>
-    <span>
-      {% if item.ds_icone %}<span class="svg-icon" data-nav-icon="{{ item.ds_icone }}"></span>{% endif %}
-      {{ item.nm_item }}
-    </span>
-    <small>
-      {% if item.sn_imprimivel %}Impressão{% else %}Sem impressão{% endif %}
-      {% if item.sn_permite_criar %} · Novo{% endif %}
-      {% if item.sn_somente_historico %} · Somente histórico{% endif %}
-      {% if item.sn_privado %} · Privado{% endif %}
-    </small>
+    {% if item.ds_icone %}<span class="svg-icon" data-nav-icon="{{ item.ds_icone }}"></span>{% endif %}
+    <span>{{ item.nm_item }}</span>
   </a>
 {% endif %}

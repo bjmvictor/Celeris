@@ -254,7 +254,9 @@ class PerfilForm(forms.ModelForm):
     )
     telas = forms.ModelMultipleChoiceField(
         label="Telas Permitidas",
-        queryset=ScreenDefinition.objects.filter(active=True, module__active=True).order_by(
+        queryset=ScreenDefinition.objects.filter(active=True, module__active=True).exclude(
+            access_key="atendimento:atendimentos",
+        ).order_by(
             "module__title", "order", "title"
         ),
         required=False,

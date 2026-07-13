@@ -142,7 +142,7 @@
   <script>
     (() => {
       const form = document.querySelector(".attendance-registration-form");
-      const checkbox = form?.querySelector("[data-responsible-same-address]");
+      const checkbox = form.querySelector("[data-responsible-same-address]");
       if (!form || !checkbox) return;
       let address = {};
       try { address = JSON.parse(form.dataset.patientAddress || "{}"); } catch {}
@@ -161,14 +161,14 @@
       checkbox.addEventListener("change", copyAddress);
       copyAddress();
       const documentsModal = document.querySelector("[data-attendance-documents-modal]");
-      document.querySelector("[data-attendance-documents-open]")?.addEventListener("click", () => {
+      document.querySelector("[data-attendance-documents-open]").addEventListener("click", () => {
         documentsModal.hidden = false;
       });
       document.querySelectorAll("[data-attendance-documents-close]").forEach((button) => {
         button.addEventListener("click", () => { documentsModal.hidden = true; });
       });
       const printPreview = document.querySelector("[data-attendance-print-preview]");
-      const printFrame = printPreview?.querySelector("[data-attendance-print-frame]");
+      const printFrame = printPreview.querySelector("[data-attendance-print-frame]");
       document.querySelectorAll("[data-attendance-document-preview-url]").forEach((button) => {
         button.addEventListener("click", () => {
           printFrame.src = button.dataset.attendanceDocumentPreviewUrl;
@@ -176,14 +176,14 @@
           printPreview.hidden = false;
         });
       });
-      printPreview?.querySelectorAll("[data-attendance-print-close]").forEach((button) => {
+      printPreview.querySelectorAll("[data-attendance-print-close]").forEach((button) => {
         button.addEventListener("click", () => {
           printPreview.hidden = true;
           printFrame.removeAttribute("src");
         });
       });
-      printPreview?.querySelector("[data-attendance-print-execute]")?.addEventListener("click", () => {
-        printFrame.contentWindow?.print();
+      printPreview.querySelector("[data-attendance-print-execute]").addEventListener("click", () => {
+        printFrame.contentWindow.print();
       });
     })();
   </script>

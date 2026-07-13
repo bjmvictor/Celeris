@@ -263,7 +263,7 @@ def navigation(request):
         current_empresa = None
     current_new_url = getattr(request, "current_new_url", new_url_by_route.get(route_name, ""))
     if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
-        current_new_url = f"{current_new_url}?{urlencode({'return_to': request.get_full_path()})}"
+        current_new_url = f"{current_new_url}{urlencode({'return_to': request.get_full_path()})}"
     return {
         "modules_menu": _filter_menu_for_user(_merge_configured_menu(), request.user),
         "current_tab_title": current_tab_title,

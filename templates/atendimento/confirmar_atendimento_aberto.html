@@ -8,7 +8,7 @@
         {{ paciente.nm_social|default:paciente.nm_paciente }} já possui o atendimento
         <strong>{{ atendimento.pk }}</strong>, aberto em {{ atendimento.dh_inicio|date:"d/m/Y H:i" }}.
       </p>
-      <p>Deseja prosseguir com uma nova recepção ou cancelar?</p>
+      <p>Deseja prosseguir com uma nova recepção ou cancelar</p>
     </div>
     <div class="form-actions">
       <a class="button button-secondary" href="{{ cancelar_url }}">Cancelar</a>

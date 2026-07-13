@@ -5,10 +5,10 @@
     {% csrf_token %}
     <table class="editable-table">
       <thead><tr>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'id' %}-{% endif %}id">Código</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'tp_prestador' %}-{% endif %}tp_prestador">Tipo de prestador</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_conselho' %}-{% endif %}ds_conselho">Conselho</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'id' %}-{% endif %}id">Código</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'tp_prestador' %}-{% endif %}tp_prestador">Tipo de prestador</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_conselho' %}-{% endif %}ds_conselho">Conselho</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
       </tr></thead>
       <tbody>
         {% for registro in registros %}

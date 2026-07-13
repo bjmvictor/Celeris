@@ -4,12 +4,12 @@
     {% csrf_token %}
     <table class="editable-table">
       <thead><tr>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_classe_senha' %}-{% endif %}cd_classe_senha">Código</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_classe_senha' %}-{% endif %}nm_classe_senha">Nome da classe</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sg_classe_senha' %}-{% endif %}sg_classe_senha">Sigla</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_prioridade' %}-{% endif %}nr_prioridade">Prioridade</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_icone' %}-{% endif %}ds_icone">Ícone</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_classe_senha' %}-{% endif %}cd_classe_senha">Código</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_classe_senha' %}-{% endif %}nm_classe_senha">Nome da classe</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sg_classe_senha' %}-{% endif %}sg_classe_senha">Sigla</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_prioridade' %}-{% endif %}nr_prioridade">Prioridade</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_icone' %}-{% endif %}ds_icone">Ícone</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
       </tr></thead>
       <tbody>
         {% for item in registros %}
