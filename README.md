@@ -24,10 +24,11 @@ Principais pontos:
 
 ## Anotações técnicas
 Decidido dividir o sistema em partes/telas externas, algumas delas sendo:
-* Celeris Hub — Gestão Administrativa (maior núcleo do sistema, envolvendo a maior parte ERP)
+* Celeris Central — Gestão Administrativa (maior núcleo do sistema, envolvendo a maior parte ERP)
 * Celeris PEP — Prontuário Eletrônico
 * Celeris Class — Classificação de Risco
 * Celeris Totem — Autoatendimento
+* Celeris Painel — Chamada de senhas e pacientes
 * Celeris BI — Indicadores
 
 ## Status
