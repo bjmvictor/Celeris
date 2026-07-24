@@ -38,6 +38,11 @@
         <button class="button button-primary" type="submit"><span class="svg-icon" data-nav-icon="folder"></span> Criar</button>
       </form>
 
+      <label class="document-library-search">
+        <span class="svg-icon" data-nav-icon="search"></span>
+        <input type="search" data-document-library-search placeholder="Pesquisar documentos, campos, blocos...">
+      </label>
+
       <div class="document-library-scroll">
         <details class="document-system-root" {% if modelo and not modelo.cd_empresa_id or pasta_selecionada and not pasta_selecionada.cd_empresa_id %}open{% endif %}>
           <summary><span class="svg-icon" data-nav-icon="library"></span> Documentos do Celeris</summary>
@@ -102,7 +107,7 @@
           <span>Selecione um item da biblioteca ou use Novo para começar.</span>
         </div>
       {% endif %}
-      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-layout-only="{% if layout_apenas %}true{% else %}false{% endif %}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
+      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-layout-only="{% if layout_apenas %}true{% else %}false{% endif %}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-editor-postback="{% if request.method == 'POST' %}true{% else %}false{% endif %}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
         {% csrf_token %}
         <input type="hidden" name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
         <input type="hidden" name="return_to" value="">
@@ -141,13 +146,21 @@
           <section class="document-custom-variable card">
             <header class="document-custom-variable-heading">
               <h3>Regra da variável personalizada</h3>
-              <button class="icon-button document-help-button" type="button" data-custom-variable-help-open title="Ajuda sobre expressões">?</button>
+              <button class="icon-button document-help-button" type="button" data-custom-variable-help-open title="Ajuda sobre expressões" aria-label="Ajuda">?</button>
             </header>
             <div class="form-grid">
-              <label class="field-lg">Nome técnico <input data-custom-variable-name placeholder="sexo_extenso"></label>
-              <label class="field-fluid">Expressão
-                <textarea data-custom-variable-expression rows="5" placeholder='"Feminino" if paciente.sexo == "F" else "Masculino" if paciente.sexo == "M" else "Outro"'></textarea>
-              </label>
+              <label class="field-lg">Nome técnico <input name="custom_variable_name" data-custom-variable-name placeholder="sexo_extenso"></label>
+              <div class="document-custom-variable-expression-row">
+                <label>Expressão
+                  <textarea name="custom_variable_expression" data-custom-variable-expression rows="5" placeholder='"Feminino" if paciente.sexo == "F" else "Masculino" if paciente.sexo == "M" else "Outro"'></textarea>
+                </label>
+                <aside class="document-variable-palette document-custom-variable-palette" data-custom-variable-palette>
+                  <strong>Variáveis disponíveis</strong>
+                  <span>Arraste ou clique para inserir na expressão.</span>
+                  <input type="search" data-custom-variable-search placeholder="Pesquisar variável">
+                  <div data-custom-variable-list></div>
+                </aside>
+              </div>
               <label class="field-xl">Atendimento usado no teste
                 <select data-document-test-context>
                   {% for contexto in contextos_teste %}<option value="{{ contexto.id }}">{{ contexto.label }}</option>{% endfor %}
@@ -177,6 +190,7 @@
           {% if not layout_apenas and elemento_editor == "DOCUMENTO" %}
             <button class="button button-secondary" type="button" data-generate-print-model title="Atualizar a impressão conforme a grade"><span class="svg-icon" data-nav-icon="file-text"></span> Gerar impressão</button>
           {% endif %}
+          <button class="button button-secondary" type="button" data-document-fullscreen title="Maximizar editor"><span class="svg-icon" data-nav-icon="maximize"></span> <span data-document-fullscreen-label>Maximizar</span></button>
         </nav>
         <p class="document-editor-help">
           Os dados dos campos criados no formulário podem ser recuperados no layout de impressão por <code>{% verbatim %}{{ campo.nome }}{% endverbatim %}</code>.
@@ -239,6 +253,11 @@
                     <option value="monospace">Monoespaçada</option>
                   </select>
                 </label>
+                <label>Margem padrão <input type="text" value="5px 0 0" data-print-grid-default-margin placeholder="5px 0 0"></label>
+                <label class="provider-checkbox document-fit-one-page">
+                  <input type="checkbox" data-print-fit-one-page>
+                  <span>Limitar conteúdo a uma página</span>
+                </label>
               </div>
               <div class="document-form-field-list document-position-grid document-print-grid" data-print-element-list></div>
             </section>
@@ -286,7 +305,7 @@
     <input name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
   </form>
   <div class="document-context-menu" data-document-context-menu hidden>
-    <button type="button" data-context-action="copiar"><span class="svg-icon" data-nav-icon="file-text"></span> Copiar para empresa</button>
+    <button type="button" data-context-action="copiar"><span class="svg-icon" data-nav-icon="file-text"></span> Duplicar</button>
     <button type="button" data-context-action="renomear"><span class="svg-icon" data-nav-icon="edit"></span> Renomear</button>
     <button type="button" data-context-action="mover"><span class="svg-icon" data-nav-icon="move"></span> Mover</button>
     <button type="button" data-context-action="excluir"><span class="svg-icon" data-nav-icon="trash"></span> Excluir</button>
@@ -366,6 +385,15 @@
       </header>
       <iframe title="Pré-visualização do documento" data-document-preview-frame></iframe>
       <footer>
+        <div class="document-preview-pager" data-document-preview-pager hidden>
+          <button class="toolbar-button" type="button" data-document-preview-prev title="Página anterior">
+            <span class="svg-icon" data-nav-icon="arrow-left"></span>
+          </button>
+          <span data-document-preview-page-status>Página 1 de 1</span>
+          <button class="toolbar-button" type="button" data-document-preview-next title="Próxima página">
+            <span class="svg-icon" data-nav-icon="arrow-right"></span>
+          </button>
+        </div>
         <button class="button button-secondary" type="button" data-document-preview-close>Fechar</button>
         <button class="button button-secondary" type="button" data-document-preview-browser-print><span class="svg-icon" data-nav-icon="printer"></span> Imprimir layout</button>
         <button class="button button-primary" type="button" data-document-preview-print hidden>Salvar teste e visualizar impressão</button>
@@ -377,7 +405,7 @@
       <header>
         <h2 data-field-settings-title>Configuração do campo</h2>
         <div class="document-modal-header-actions">
-          <button class="icon-button document-help-button" type="button" data-field-settings-help-toggle title="Ajuda">?</button>
+          <button class="icon-button document-help-button" type="button" data-field-settings-help-toggle title="Ajuda" aria-label="Ajuda">?</button>
           <button class="icon-button" type="button" data-field-settings-close>×</button>
         </div>
       </header>
@@ -396,6 +424,12 @@
             <option value="static-text">Texto informativo</option><option value="static-variable">Variável informativa</option>
             <option value="line">Linha</option>
             <option value="image">Imagem</option>
+          </select>
+        </label>
+        <label class="field-md" data-setting-types="checkbox">Apresentação Sim/Não
+          <select data-settings-property="booleanStyle">
+            <option value="double">Opção dupla: Sim / Não</option>
+            <option value="single">Opção única: Sim</option>
           </select>
         </label>
         <label class="field-xl" data-setting-types="static-text">Texto fixo e variáveis
@@ -510,7 +544,7 @@
       <header>
         <h2 data-print-settings-title>Configuração do elemento impresso</h2>
         <div class="document-modal-header-actions">
-          <button class="icon-button document-help-button" type="button" data-print-settings-help-toggle title="Ajuda">?</button>
+          <button class="icon-button document-help-button" type="button" data-print-settings-help-toggle title="Ajuda" aria-label="Ajuda">?</button>
           <button class="icon-button" type="button" data-print-settings-close>×</button>
         </div>
       </header>
@@ -614,7 +648,7 @@
   <section class="document-move-modal" data-document-leave-modal hidden>
     <div class="card">
       <h2>Alterações não salvas</h2>
-      <p>O documento atual foi alterado. Deseja salvar antes de abrir outro documento?</p>
+      <p>O documento atual foi alterado. Deseja salvar antes de abrir outro documento</p>
       <div class="form-actions">
         <button class="button button-secondary" type="button" data-document-leave-cancel>Continuar editando</button>
         <button class="button button-secondary" type="button" data-document-leave-discard>Sair sem salvar</button>
@@ -624,7 +658,7 @@
   </section>
   <section class="document-move-modal" data-print-regenerate-modal hidden>
     <div class="card">
-      <h2>Gerar novo layout de impressão?</h2>
+      <h2>Gerar novo layout de impressão</h2>
       <p>O layout atual possui elementos. Ao continuar, ele será removido e recriado conforme o formulário.</p>
       <div class="form-actions">
         <button class="button button-secondary" type="button" data-print-regenerate-cancel>Cancelar</button>
@@ -634,7 +668,7 @@
   </section>
   <section class="document-move-modal" data-system-model-copy-modal hidden>
     <div class="card">
-      <h2>Salvar uma cópia para a empresa?</h2>
+      <h2>Salvar uma cópia para a empresa</h2>
       <p>O modelo padrão do Celeris é protegido. As alterações serão gravadas em uma nova cópia editável da empresa.</p>
       <label>Pasta de destino
         <select data-system-model-copy-folder>
@@ -650,7 +684,7 @@
   </section>
   <section class="document-move-modal" data-document-clear-modal hidden>
     <div class="card">
-      <h2>Limpar o editor?</h2>
+      <h2>Limpar o editor</h2>
       <p>Existem dados ou alterações na tela. Você pode salvar antes de continuar ou limpar sem salvar.</p>
       <div class="form-actions">
         <button class="button button-secondary" type="button" data-document-clear-cancel>Cancelar</button>
@@ -706,18 +740,24 @@ substituir(atendimento.tipo, "_", " ")</code></pre>
             <h3>Realizar cálculos</h3>
             <p>São permitidos <code>+ - * / %</code>, comparações e arredondamento.</p>
             <pre><code>arredondar(paciente.peso / ((paciente.altura / 100) * (paciente.altura / 100)), 2)</code></pre>
+            <hr>
+            <h3>Calcular idade do paciente</h3>
+            <p>Use a data de nascimento do paciente e a data atual do sistema.</p>
+            <pre><code>idade(paciente.nascimento)</code></pre>
+            <p>Se precisar calcular em uma data específica, use a data do atendimento como referência.</p>
+            <pre><code>idade(paciente.nascimento, atendimento.data_hora)</code></pre>
           </article>
         </div>
       </div>
     </div>
   </section>
 
-  {{ modelo.ds_html_tela|default:""|json_script:"initial-html-tela" }}
-  {{ modelo.ds_css_tela|default:""|json_script:"initial-css-tela" }}
-  {{ modelo.ds_projeto_tela|default_if_none:""|json_script:"initial-project-tela" }}
-  {{ modelo.ds_html_impressao|default:""|json_script:"initial-html-impressao" }}
-  {{ modelo.ds_css_impressao|default:""|json_script:"initial-css-impressao" }}
-  {{ modelo.ds_projeto_impressao|default_if_none:""|json_script:"initial-project-impressao" }}
+  {{ initial_html_tela|default:""|json_script:"initial-html-tela" }}
+  {{ initial_css_tela|default:""|json_script:"initial-css-tela" }}
+  {{ initial_project_tela|default_if_none:""|json_script:"initial-project-tela" }}
+  {{ initial_html_impressao|default:""|json_script:"initial-html-impressao" }}
+  {{ initial_css_impressao|default:""|json_script:"initial-css-impressao" }}
+  {{ initial_project_impressao|default_if_none:""|json_script:"initial-project-impressao" }}
   {{ campos_reutilizaveis|json_script:"reusable-document-fields" }}
   {{ variaveis_personalizadas|json_script:"custom-document-variables" }}
   {{ elementos_impressao|json_script:"reusable-print-elements" }}

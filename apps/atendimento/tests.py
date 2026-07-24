@@ -351,7 +351,7 @@ class FluxoHomologacaoTests(TestCase):
         self.login_as(self.recepcionista)
         return_to = (
             f"{reverse('atendimento:agendamentos-operacionais')}"
-            "?data=2026-07-02&mes=7&ano=2026&q=MEDICO&especialidades=CLINICA_GERAL"
+            "data=2026-07-02&mes=7&ano=2026&q=MEDICO&especialidades=CLINICA_GERAL"
         )
         response = self.client.post(
             reverse("atendimento:cancelar-agendamento", args=[self.agendamento.pk]),
@@ -391,12 +391,12 @@ class FluxoHomologacaoTests(TestCase):
         agendamento = Agendamento.objects.latest("pk")
         expected = (
             f"{reverse('atendimento:selecionar-agenda', args=[self.paciente.pk])}"
-            f"?comprovante={agendamento.pk}"
+            f"comprovante={agendamento.pk}"
         )
         self.assertRedirects(first, expected)
         modal = self.client.get(first.url)
         self.assertContains(modal, "data-appointment-receipt-modal")
-        self.assertContains(modal, "?embed=1")
+        self.assertContains(modal, "embed=1")
         second = self.client.post(confirmation_url, {"ds_tipo_atendimento": "CONSULTA"})
         self.assertRedirects(second, reverse("atendimento:selecionar-agenda", args=[self.paciente.pk]))
         self.assertEqual(Agendamento.objects.filter(cd_horario_agenda=horario["horario"]).count(), 1)
@@ -577,7 +577,7 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.assertRedirects(
             delete_response,
-            f"{reverse('atendimento:escalas')}?exclusao_concluida=1",
+            f"{reverse('atendimento:escalas')}exclusao_concluida=1",
         )
         self.assertFalse(AgendaProfissional.objects.filter(pk=escala.pk).exists())
 
@@ -967,6 +967,39 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(sem_mudanca.status_code, 200)
         self.assertContains(sem_mudanca, "Nenhuma alteração real foi identificada")
         self.assertEqual(ModeloDocumento.objects.filter(nm_modelo="Ficha visual").count(), 2)
+
+        dados_variavel = {
+            "nm_modelo": "Sexo extenso",
+            "tp_documento": "ADMINISTRATIVO",
+            "tp_elemento": "VARIAVEL",
+            "ds_alteracoes_versao": "Cria vari?vel",
+            "custom_variable_name": "sexo_extenso",
+            "custom_variable_expression": '"Feminino" if paciente.sexo == "F" else "Masculino"',
+            "ds_html_tela": "",
+            "ds_css_tela": "",
+            "ds_projeto_tela": "{}",
+            "ds_html_impressao": "",
+            "ds_css_impressao": "",
+            "ds_projeto_impressao": "{}",
+            "sn_ativo": "on",
+        }
+        resposta_variavel = self.client.post(reverse("atendimento:modelos-documento"), dados_variavel)
+        self.assertEqual(resposta_variavel.status_code, 302)
+        variavel_inicial = ModeloDocumento.objects.get(nm_modelo="Sexo extenso", nr_versao=1)
+        self.assertEqual(variavel_inicial.ds_projeto_tela["customVariable"]["name"], "sexo_extenso")
+        self.assertIn("Feminino", variavel_inicial.ds_projeto_tela["customVariable"]["expression"])
+
+        dados_variavel["ds_alteracoes_versao"] = "Ajusta regra"
+        dados_variavel["custom_variable_expression"] = '"Outro" if paciente.sexo == "O" else "Informado"'
+        resposta_variavel = self.client.post(
+            reverse("atendimento:editar-modelo-documento", args=[variavel_inicial.pk]),
+            dados_variavel,
+        )
+        self.assertEqual(resposta_variavel.status_code, 302)
+        variavel_revisada = ModeloDocumento.objects.get(nm_modelo="Sexo extenso", nr_versao=2)
+        self.assertIn("Outro", variavel_revisada.ds_projeto_tela["customVariable"]["expression"])
+        variavel_inicial.refresh_from_db()
+        self.assertFalse(variavel_inicial.sn_versao_atual)
 
     def test_assinatura_documento_respeita_exibicao_alinhamento_e_conselho(self):
         modelo = ModeloDocumento(
@@ -1992,6 +2025,17 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(RascunhoEditorDocumento.objects.filter(cd_modelo_documento=modelo).exists())
 
+        response = self.client.post(query, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        discarded = self.client.post(query, data={"acao": "descartar"})
+        self.assertEqual(discarded.status_code, 200)
+        self.assertFalse(RascunhoEditorDocumento.objects.filter(cd_modelo_documento=modelo).exists())
+
+        response = self.client.post(query, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.client.post(reverse("logout"))
+        self.assertFalse(RascunhoEditorDocumento.objects.filter(cd_modelo_documento=modelo).exists())
+
     def test_documento_fecha_com_senha_hash_e_evento(self):
         atendimento = Atendimento.objects.create(
             cd_empresa=self.empresa,
@@ -2102,7 +2146,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertIn("freePrintColumnSpan(position.row, position.col)", javascript)
         self.assertIn('element.type === "junction"', javascript)
         self.assertIn("const minimumHeight = Math.max(24, Number(element.rowSpan || 1) * 24)", javascript)
-        self.assertNotIn('rowSpan: type === "vline" ? printLayout.grid.rows - position.row + 1 : 1', javascript)
+        self.assertNotIn('rowSpan: type === "vline"  printLayout.grid.rows - position.row + 1 : 1', javascript)
         self.assertIn("<span>+ Campo</span>", javascript)
         self.assertIn('marginTop: Math.max(0, Number(field.marginTop || 0))', javascript)
         self.assertIn("grid-template-rows:repeat(${gridConfig.rows},minmax(0,auto))", javascript)
@@ -2123,13 +2167,17 @@ class FluxoHomologacaoTests(TestCase):
         self.assertIn("const formatRichText = (value) =>", javascript)
         self.assertIn('<span style="display:block;text-align:center">', javascript)
         self.assertIn("*texto* para negrito", javascript)
-        self.assertIn('if (!occupants.length || verticalOnly) return "4px"', javascript)
+        self.assertIn('return hasOccupiedBefore(column) && hasOccupiedAfter(column) ?"minmax(0,1fr)" : "4px"', javascript)
+        self.assertIn("measuredHeight(main)", javascript)
         self.assertIn("const horizontalExtension = 6", javascript)
-        self.assertIn("margin-left:${hasLeftVertical ? -horizontalExtension : 0}px", javascript)
-        self.assertIn("margin-right:${hasRightVertical ? -horizontalExtension : 0}px", javascript)
+        self.assertIn("margin-left:${hasLeftVertical ?-horizontalExtension : 0}px", javascript)
+        self.assertIn("margin-right:${hasRightVertical ?-horizontalExtension : 0}px", javascript)
         self.assertIn("margin:0;padding:2px;background:#fff", javascript)
         self.assertIn("[...formFields].sort", javascript)
         self.assertIn('["prestador.uf_conselho", "UF do conselho"]', javascript)
+        self.assertIn("targetIsCustomVariableEditor", javascript)
+        self.assertIn("overflow-wrap:anywhere;word-break:break-word;white-space:normal", javascript)
+        self.assertIn("contentWidth > availableWidth ?availableWidth / contentWidth : 1", javascript)
         self.assertNotIn('["paciente.nome_social", "Nome social"]', javascript)
 
         template = (settings.BASE_DIR / "templates" / "atendimento" / "modelos_documento.html").read_text(
@@ -2514,7 +2562,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertIn("group.open = openStateBeforeSearch.get(group) || false", javascript)
         self.assertIn("if (!term && searchActive)", javascript)
         self.assertIn("formHasActualChanges(form)", javascript)
-        self.assertIn('form?.method?.toLowerCase() === "get"', javascript)
+        self.assertIn('form.method.toLowerCase() === "get"', javascript)
         self.assertIn('document.addEventListener("pointerdown"', javascript)
         patient_template = (
             settings.BASE_DIR / "templates" / "atendimento" / "cadastro_paciente.html"

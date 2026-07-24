@@ -14,7 +14,7 @@
     <div class="configurable-forms-toolbar">
       <label>
         Formulário
-        <select name="formulario" data-consultable="true" data-editable="true">
+        <select name="formulario" data-consultable="true" data-editable="true" data-query-only="true">
           <option value="">Todos os formulários</option>
           {% for codigo, nome in formularios %}
             <option value="{{ codigo }}" {% if codigo == formulario_selecionado %}selected{% endif %}>{{ nome }}</option>
@@ -23,9 +23,13 @@
       </label>
       <label>
         Nome do campo
-        <input name="nome_campo" value="{{ nome_campo }}" placeholder="Ex.: CPF, nome, data" data-consultable="true" data-editable="true">
+        <input name="nome_campo" value="{{ nome_campo }}" placeholder="Ex.: CPF, nome, data" data-consultable="true" data-editable="true" data-query-only="true">
       </label>
     </div>
+    {% if campos %}
+      <input type="hidden" name="formulario" value="{{ formulario_selecionado }}">
+      <input type="hidden" name="nome_campo" value="{{ nome_campo }}">
+    {% endif %}
 
     {% if campos %}
       <div class="configurable-forms-heading" data-query-results>
@@ -77,10 +81,7 @@
         As alterações de obrigatoriedade são aplicadas à validação do servidor e à indicação visual dos formulários.
       </p>
     {% else %}
-      <div class="empty-state">
-        <strong>Selecione um formulário</strong>
-        <span>Abra a consulta, informe os filtros e execute para carregar os campos configuráveis.</span>
-      </div>
+      <div class="empty-state" hidden></div>
     {% endif %}
   </form>
 {% endblock %}

@@ -1,18 +1,17 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <form class="card query-card" method="get">
+  <form class="card query-card" method="get" data-query-only-form>
     <div class="form-grid">
-      <label class="field-xs">Código <input name="codigo" value="{{ code }}"></label>
-      <label class="field-xl">Nome do Papel <input name="q" value="{{ query }}"></label>
+      <label class="field-xs">Código <input name="codigo" value="{{ code }}" data-consultable="true"></label>
+      <label class="field-xl">Nome do Papel <input name="q" value="{{ query }}" data-consultable="true"></label>
       <label class="field-sm">Status
-        <select name="status">
+        <select name="status" data-consultable="true">
           <option value="">Ativos</option>
           <option value="ativo" {% if status == "ativo" %}selected{% endif %}>Ativo</option>
           <option value="inativo" {% if status == "inativo" %}selected{% endif %}>Inativo</option>
           <option value="todos" {% if status == "todos" %}selected{% endif %}>Todos</option>
         </select>
       </label>
-      <button class="button button-primary" type="submit">Consultar</button>
     </div>
   </form>
   <section class="card table-card">

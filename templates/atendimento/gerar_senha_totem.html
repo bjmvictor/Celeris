@@ -65,7 +65,7 @@
       const printWindow = window.open(modal.dataset.printUrl, "_blank", "noopener");
       window.setTimeout(() => {
         modal.remove();
-        printWindow?.focus();
+        printWindow.focus();
       }, 4500);
     })();
   </script>

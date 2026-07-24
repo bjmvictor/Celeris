@@ -4,10 +4,10 @@
     {% csrf_token %}
     <table class="editable-table">
       <thead><tr>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_protocolo_senha' %}-{% endif %}cd_protocolo_senha">Código</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_protocolo' %}-{% endif %}nm_protocolo">Nome do protocolo</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_protocolo' %}-{% endif %}ds_protocolo">Descrição/orientação</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_protocolo_senha' %}-{% endif %}cd_protocolo_senha">Código</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_protocolo' %}-{% endif %}nm_protocolo">Nome do protocolo</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_protocolo' %}-{% endif %}ds_protocolo">Descrição/orientação</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
       </tr></thead>
       <tbody>
         {% for item in registros %}

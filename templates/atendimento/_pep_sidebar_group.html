@@ -1,0 +1,16 @@
+{% if item.tp_item == "GRUPO" %}
+  <details class="nav-subgroup pep-action-group{% if item.tem_item_ativo %} active-branch{% endif %}{% if item.eh_grupo_atual %} current-menu{% endif %}{% if item.tem_subgrupo_renderizado %} has-subgroups{% endif %}" {% if item.tem_item_ativo and item.tem_subgrupo_renderizado %}open{% endif %}>
+    <summary>
+      <span class="nav-icon"><span class="svg-icon" data-nav-icon="{% if item.ds_icone %}{{ item.ds_icone }}{% else %}folder{% endif %}"></span></span>
+      <a class="nav-label pep-sidebar-group-link" href="{{ item.url_renderizada }}">{{ item.nm_item }}</a>
+      {% if item.tem_subgrupo_renderizado %}<span class="svg-icon nav-chevron" data-nav-icon="chevron-down"></span>{% endif %}
+    </summary>
+    <div>
+      {% for child in item.filhos_renderizados %}
+        {% if child.tp_item == "GRUPO" %}
+          {% include "atendimento/_pep_sidebar_group.html" with item=child %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </details>
+{% endif %}

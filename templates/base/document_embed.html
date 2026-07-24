@@ -1,0 +1,15 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Documento Celeris</title>
+    <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body class="document-embed-body">
+    {% block content %}{% endblock %}
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

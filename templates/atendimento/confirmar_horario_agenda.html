@@ -86,14 +86,14 @@
       const preview = document.querySelector("[data-appointment-type-preview]");
       if (!select || !preview) return;
       const update = () => {
-        preview.textContent = select.selectedOptions[0]?.textContent.trim() || "Não informado";
+        preview.textContent = select.selectedOptions[0].textContent.trim() || "Não informado";
       };
       select.addEventListener("change", update);
       update();
     })();
     (() => {
       const header = document.querySelector("[data-schedule-patient-header]");
-      const toggle = header?.querySelector("[data-schedule-patient-toggle]");
+      const toggle = header.querySelector("[data-schedule-patient-toggle]");
       if (!header || !toggle) return;
       const updateStickyOffset = () => {
         document.documentElement.style.setProperty("--schedule-patient-sticky-height", `${header.offsetHeight + 8}px`);
@@ -101,7 +101,7 @@
       toggle.addEventListener("click", () => {
         const collapsed = header.classList.toggle("is-collapsed");
         toggle.setAttribute("aria-expanded", String(!collapsed));
-        toggle.title = collapsed ? "Expandir dados do paciente" : "Recolher dados do paciente";
+        toggle.title = collapsed  "Expandir dados do paciente" : "Recolher dados do paciente";
         window.requestAnimationFrame(updateStickyOffset);
       });
       window.addEventListener("resize", updateStickyOffset);

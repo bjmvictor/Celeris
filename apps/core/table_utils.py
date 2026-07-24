@@ -26,7 +26,7 @@ def paginate_table(request, queryset, allowed_ordering, default_ordering, *, loa
     def page_url(number):
         params = request.GET.copy()
         params["pagina"] = number
-        return f"{request.path}?{urlencode(params, doseq=True)}"
+        return f"{request.path}{urlencode(params, doseq=True)}"
 
     if page.has_previous():
         request.current_first_url = page_url(1)

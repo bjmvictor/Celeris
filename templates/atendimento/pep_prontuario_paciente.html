@@ -1,6 +1,20 @@
-{% extends "base/layout.html" %}
+﻿{% extends pep_base_template|default:"base/layout.html" %}
+{% block body_class_extra %}{% if pep_standalone and atendimento and menu_assistencial_raizes %} pep-has-sidebar{% endif %}{% endblock %}
 {% block content %}
-  <section class="card patient-summary patient-summary-detailed">
+
+  {% if pep_standalone and atendimento and menu_assistencial_raizes %}
+    <aside class="sidebar pep-standalone-sidebar" data-pep-sidebar>
+      <nav>
+        {% for item in menu_assistencial_raizes %}
+          {% include "atendimento/_pep_sidebar_group.html" with item=item %}
+        {% endfor %}
+      </nav>
+    </aside>
+  {% endif %}
+  <section class="card patient-summary patient-summary-detailed is-compact" data-pep-patient-summary>
+    <a class="icon-button pep-patient-summary-toggle" href="{{ return_to }}" title="Voltar para a lista de pacientes" aria-label="Voltar para a lista de pacientes">
+      <span class="svg-icon" data-nav-icon="arrow-left"></span>
+    </a>
     <div class="patient-summary-name">
       <small>Prontuário {{ paciente.pk }}</small>
       <strong>{{ paciente.nm_paciente }}</strong>
@@ -28,11 +42,90 @@
         {% empty %}<span class="empty-state">Nenhum atendimento registrado.</span>{% endfor %}
       </div>
     </details>
+    <div class="pep-patient-expanded-panel" data-pep-expanded-panel>
+      <nav class="pep-patient-topic-nav" aria-label="Tópicos do prontuário">
+        <a href="#pep-topic-paciente" title="Paciente"></a>
+        <a href="#pep-topic-atendimento" title="Atendimento atual"></a>
+        <a href="#pep-topic-sinais" title="Sinais vitais"></a>
+        <a href="#pep-topic-exames" title="Exames"></a>
+        <a href="#pep-topic-pendencias" title="Pendências"></a>
+      </nav>
+      <div class="pep-patient-expanded-content">
+        <section id="pep-topic-paciente">
+          <h3>Paciente</h3>
+          <div class="summary-grid">
+            <span><strong>Prontuário:</strong> {{ paciente.pk }}</span>
+            <span><strong>Nome:</strong> {{ paciente.nm_paciente }}</span>
+            <span><strong>Nome social:</strong> {{ paciente.nm_social|default:"-" }}</span>
+            <span><strong>Nascimento:</strong> {{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}{% if idade %} · {{ idade }} anos{% endif %}</span>
+            <span><strong>Sexo:</strong> {{ paciente.tp_sexo|default:"-" }}</span>
+            <span><strong>Nome da mãe:</strong> {{ paciente.nm_mae|default:"-" }}</span>
+            <span><strong>CPF:</strong> {{ paciente.nr_cpf|default:"-" }}</span>
+            <span><strong>CNS:</strong> {{ paciente.nr_cartao_sus|default:"-" }}</span>
+            <span><strong>Convênio:</strong> {% if paciente.cd_convenio %}{{ paciente.cd_convenio.nm_convenio }}{% elif paciente.nm_convenio %}{{ paciente.nm_convenio }}{% else %}-{% endif %}</span>
+          </div>
+        </section>
+        <section id="pep-topic-atendimento">
+          <h3>Atendimento atual</h3>
+          <div class="summary-grid">
+            <span><strong>Código:</strong> {{ atendimento.pk }}</span>
+            <span><strong>Status:</strong> {{ atendimento.get_ds_status_display }}</span>
+            <span><strong>Origem:</strong> {{ atendimento.get_ds_origem_display }}</span>
+            <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
+            <span><strong>Setor:</strong> {{ atendimento.cd_setor_atual.nm_setor|default:"-" }}</span>
+            <span><strong>Especialidade:</strong> {{ atendimento.ds_especialidade|default:"-" }}</span>
+            <span><strong>Diagnóstico:</strong> {{ atendimento.ds_diagnostico|default:atendimento.ds_hipotese_diagnostica|default:"-" }}</span>
+            <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
+          </div>
+        </section>
+        <section id="pep-topic-sinais">
+          <h3>Sinais vitais</h3>
+          <div class="summary-grid">
+            <span><strong>PA:</strong> {{ ultimos_sinais_vitais.nr_pressao_arterial|default:"-" }}</span>
+            <span><strong>FC:</strong> {{ ultimos_sinais_vitais.nr_frequencia_cardiaca|default:"-" }} bpm</span>
+            <span><strong>FR:</strong> {{ ultimos_sinais_vitais.nr_frequencia_respiratoria|default:"-" }} irpm</span>
+            <span><strong>SpO₂:</strong> {{ ultimos_sinais_vitais.nr_saturacao|default:"-" }}%</span>
+            <span><strong>Temperatura:</strong> {{ ultimos_sinais_vitais.nr_temperatura|default:"-" }} °C</span>
+            <span><strong>Coleta:</strong> {{ ultimos_sinais_vitais.dh_classificacao|date:"d/m/Y H:i"|default:"-" }}</span>
+          </div>
+        </section>
+        <section id="pep-topic-exames">
+          <h3>Exames</h3>
+          <ul>
+            {% for exame in atendimento.solicitacoes_exames.all %}
+              <li>{{ exame.ds_exame }} — {{ exame.get_ds_status_display }}{% if exame.resultado %} · Resultado: {{ exame.resultado.dh_resultado|date:"d/m/Y H:i"|default:"-" }}{% endif %}</li>
+            {% empty %}
+              <li>Nenhum exame registrado.</li>
+            {% endfor %}
+          </ul>
+        </section>
+        <section id="pep-topic-pendencias">
+          <h3>Pendências</h3>
+          <ul>
+            {% for item in atendimento.prescricoes.all %}<li>Prescrição: {{ item.ds_prescricao|truncatechars:140 }}</li>{% empty %}<li>Nenhuma prescrição pendente registrada.</li>{% endfor %}
+            {% for documento in atendimento.documentos.all %}{% if documento.ds_status == "ABERTO" or documento.ds_status == "RASCUNHO" %}<li>Documento em aberto: {{ documento.ds_titulo }}</li>{% endif %}{% endfor %}
+          </ul>
+        </section>
+      </div>
+    </div>
   </section>
 
-  <div class="pep-record-layout">
+  {% if pep_standalone and pep_telas_barra %}
+    <nav class="card pep-screen-tabs" data-pep-screen-tabs>
+      <button class="icon-button pep-screen-tabs-arrow" type="button" data-pep-tabs-left aria-label="Rolar telas para a esquerda" hidden><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
+      <div class="pep-screen-tabs-scroll" data-pep-tabs-scroll>
+        {% for tela in pep_telas_barra %}
+          <a class="button {% if item_selecionado.pk == tela.pk %}button-primary{% else %}button-secondary{% endif %}" href="{{ tela.url_renderizada }}" title="{{ tela.nm_item }}">{{ tela.nm_item }}</a>
+        {% endfor %}
+      </div>
+      <button class="icon-button pep-screen-tabs-arrow" type="button" data-pep-tabs-right aria-label="Rolar telas para a direita" hidden><span class="svg-icon" data-nav-icon="arrow-right"></span></button>
+    </nav>
+  {% endif %}
+
+  <div class="pep-record-layout{% if pep_standalone %} pep-record-layout-standalone{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' %} has-selected-item{% endif %}">
     <main class="pep-record-main">
       {% if atendimento %}
+        {% if not item_selecionado %}
         <details class="card pep-vital-signs pep-clinical-section" open>
           <summary>Últimos sinais vitais</summary>
           {% if ultimos_sinais_vitais %}
@@ -66,36 +159,90 @@
             <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
           </div>
         </details>
+        {% endif %}
         {% if item_selecionado %}
           <section class="card pep-selected-screen">
             <header class="section-heading">
               <div>
                 <h2>{% if item_selecionado.ds_icone %}<span class="svg-icon" data-nav-icon="{{ item_selecionado.ds_icone }}"></span>{% endif %} {{ item_selecionado.nm_item }}</h2>
-                <small>{{ item_selecionado.get_tp_item_display }}</small>
               </div>
-              {% if not somente_consulta and item_selecionado.sn_permite_criar and not item_selecionado.sn_somente_historico and atendimento_aberto %}
-                <button class="button button-primary" type="button" data-pep-new-document>Novo</button>
-              {% endif %}
-            </header>
-            {% if ultimo_documento_item %}
-              <div class="summary-grid">
-                <span><strong>Documento:</strong> {{ ultimo_documento_item.pk }}</span>
-                <span><strong>Atendimento:</strong> {{ ultimo_documento_item.cd_atendimento_id }}</span>
-                <span><strong>Data/hora:</strong> {{ ultimo_documento_item.dh_emissao|date:"d/m/Y H:i" }}</span>
-                <span><strong>Status:</strong> {{ ultimo_documento_item.get_ds_status_display }}</span>
-                <span><strong>Responsável:</strong> {{ ultimo_documento_item.cd_usuario_responsavel|default:"-" }}</span>
-              </div>
-              <div class="form-actions">
-                <a class="button button-primary" href="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}{% if somente_consulta %}?somente_consulta=1{% endif %}">{% if somente_consulta %}Visualizar documento{% else %}Abrir documento{% endif %}</a>
-                {% if item_selecionado.sn_imprimivel %}
-                  <a class="button button-secondary" href="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao{% if somente_consulta %}&somente_consulta=1{% endif %}">Imprimir</a>
+              <div class="pep-selected-actions">
+                {% if item_selecionado.tp_item == "DOCUMENTO" and not somente_consulta and item_selecionado.sn_permite_criar and not item_selecionado.sn_somente_historico and atendimento_aberto and not documento_aberto_item %}
+                  <button class="toolbar-button" type="button" data-pep-new-document title="Novo documento" aria-label="Novo documento"><span class="svg-icon" data-nav-icon="plus"></span></button>
+                {% endif %}
+                {% if ultimo_documento_item and item_selecionado.sn_imprimivel %}
+                  <button class="toolbar-button" type="button" data-pep-print-document="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao" title="Imprimir" aria-label="Imprimir"><span class="svg-icon" data-nav-icon="printer"></span></button>
+                {% endif %}
+                {% if documento_editavel_item %}
+                  <button class="toolbar-button" type="submit" form="pep-document-fill-form" formaction="{% url 'atendimento:fechar-documento-clinico' ultimo_documento_item.pk %}" title="Fechar e assinar" aria-label="Fechar e assinar"><span class="svg-icon" data-nav-icon="check"></span></button>
+                  {% if item_selecionado.sn_permite_abandonar %}
+                    <button class="toolbar-button danger" type="button" data-pep-abandon-open title="Abandonar" aria-label="Abandonar"><span class="svg-icon" data-nav-icon="ban"></span></button>
+                  {% endif %}
                 {% endif %}
               </div>
+            </header>
+            {% if ultimo_documento_item and apresentacao_documento_item %}
+              {% if apresentacao_documento_item.css %}<style>{{ apresentacao_documento_item.css }}</style>{% endif %}
+              <div class="pep-document-workarea">
+                {% if documento_editavel_item %}
+                  <form id="pep-document-fill-form" method="post" action="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}" class="document-fill-form pep-document-fill-form" data-document-fill-form>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
+                    <input type="hidden" name="ds_conteudo" value="{{ ultimo_documento_item.ds_conteudo }}">
+                    <input type="hidden" name="ds_dados_formulario">
+                    <section class="document-section document-content">{{ apresentacao_documento_item.conteudo }}</section>
+                    <div class="document-screen-actions">
+                      <button class="button button-primary" type="submit">Salvar</button>
+                    </div>
+                  </form>
+                {% elif documento_modo_impressao_item %}
+                  <iframe
+                    class="pep-document-print-frame"
+                    data-pep-visible-print-frame
+                    title="Visualização de impressão do documento"
+                    src="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&embed=1"
+                  ></iframe>
+                {% else %}
+                  <section class="document-section document-content">{{ apresentacao_documento_item.conteudo }}</section>
+                {% endif %}
+              </div>
+              {{ ultimo_documento_item.ds_dados_formulario|json_script:"pep-document-form-data" }}
+              {% if not somente_consulta and item_selecionado.sn_permite_abandonar %}
+                <section class="document-move-modal" data-pep-abandon-modal hidden>
+                  <form class="card" method="post" action="{% url 'atendimento:abandonar-documento-clinico' ultimo_documento_item.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
+                    <h2>Abandonar documento</h2>
+                    <label>Motivo
+                      <textarea name="motivo" required></textarea>
+                    </label>
+                    <div class="form-actions">
+                      <button class="button button-secondary" type="button" data-pep-abandon-cancel>Cancelar</button>
+                      <button class="button button-danger" type="submit">Confirmar abandono</button>
+                    </div>
+                  </form>
+                </section>
+              {% endif %}
             {% else %}
-              <span class="empty-state">Nenhum documento deste tipo no prontuário.</span>
+              {% if item_selecionado.tp_item == "DOCUMENTO" %}
+                <span class="empty-state">Nenhum documento deste tipo no prontuário.</span>
+              {% elif item_selecionado.ds_acao == "ALTA_MEDICA" %}
+                <div class="pep-document-workarea">
+                  <iframe
+                    class="pep-document-print-frame pep-system-action-frame"
+                    title="Alta médica"
+                    src="{% url 'atendimento:conceder-alta' atendimento.pk %}?embed=1"
+                  ></iframe>
+                </div>
+              {% else %}
+                <div class="empty-state">
+                  Esta tela está selecionada no PEP. A execução completa deste tipo será carregada aqui, sem sair para o Celeris.
+                </div>
+              {% endif %}
             {% endif %}
           </section>
         {% endif %}
+        {% if not item_selecionado %}
         <details class="card pep-clinical-section" open>
           <summary>Resumo clínico do prontuário</summary>
           <section class="pep-clinical-grid pep-section-content">
@@ -105,13 +252,34 @@
             <div><h3>Documentos</h3><ul>{% for item in atendimento.documentos.all %}<li>{{ item.ds_titulo }} — {{ item.get_ds_status_display }}</li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul></div>
           </section>
         </details>
+        {% endif %}
       {% endif %}
     </main>
 
+    {% if not pep_standalone or item_selecionado and item_selecionado.tp_item == "DOCUMENTO" %}
     <aside class="card pep-clinical-actions">
-      <h2>{% if somente_consulta %}Prontuário — consulta{% else %}Ações clínicas{% endif %}</h2>
       {% if atendimento %}
-        {% if menu_assistencial_raizes %}
+        {% if item_selecionado %}
+          <section class="pep-document-history-panel">
+            <header class="section-heading">
+              <h2>Histórico de documentos</h2>
+            </header>
+            <div class="pep-document-history-list">
+              {% for documento in historico_documentos_item %}
+                <a class="pep-document-history-item{% if forloop.counter > 5 %} is-hidden{% endif %}{% if ultimo_documento_item.pk == documento.pk %} active{% endif %}" data-pep-history-item href="{{ pep_patient_url|default:request.path }}?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ atendimento.pk }}&item={{ item_selecionado.pk }}&documento={{ documento.pk }}&return_to={{ return_to|urlencode }}">
+                  <strong>{{ documento.ds_titulo }}</strong>
+                  <span>{{ documento.dh_emissao|date:"d/m/Y H:i" }} · {{ documento.get_ds_status_display }}</span>
+                  <small>{{ documento.cd_usuario_responsavel|default:"Sem responsável" }}</small>
+                </a>
+              {% empty %}
+                <span class="empty-state">Nenhum documento anterior deste tipo.</span>
+              {% endfor %}
+            </div>
+            {% if historico_documentos_item|length > 5 %}
+              <button class="button button-secondary pep-history-load-more" type="button" data-pep-history-load-more>Exibir mais</button>
+            {% endif %}
+          </section>
+        {% elif menu_assistencial_raizes %}
           <nav class="pep-profile-menu">
             {% for item in menu_assistencial_raizes %}
               {% include "atendimento/_pep_menu_item.html" with item=item %}
@@ -124,14 +292,222 @@
         <span class="empty-state">Selecione um atendimento.</span>
       {% endif %}
     </aside>
+    {% endif %}
   </div>
-  {% if item_selecionado and not somente_consulta %}
+  <script>
+    (() => {
+      const header = document.querySelector("[data-pep-patient-summary]");
+      header?.addEventListener("click", (event) => {
+        if (event.target.closest("a, button, details, summary, input, select, textarea, [data-pep-expanded-panel]")) return;
+        header.classList.toggle("is-expanded");
+      });
+      const pepSidebar = document.querySelector("[data-pep-sidebar]");
+      document.body.classList.toggle("pep-has-sidebar", Boolean(pepSidebar));
+      document.body.classList.toggle("pep-sidebar-collapsed", document.documentElement.classList.contains("pep-sidebar-collapsed"));
+      const pepSidebarToggle = document.querySelector("[data-pep-sidebar-toggle]");
+      pepSidebarToggle?.addEventListener("click", () => {
+        document.documentElement.classList.toggle("pep-sidebar-collapsed");
+        document.body.classList.toggle("pep-sidebar-collapsed", document.documentElement.classList.contains("pep-sidebar-collapsed"));
+        localStorage.setItem("celeris-pep-sidebar", document.documentElement.classList.contains("pep-sidebar-collapsed") ? "collapsed" : "expanded");
+        document.querySelector("[data-pep-sidebar-flyout]")?.remove();
+      });
+      const closePepFlyout = () => document.querySelector("[data-pep-sidebar-flyout]")?.remove();
+      const openPepFlyout = (details) => {
+        closePepFlyout();
+        if (!pepSidebar || !details) return;
+        const summary = details.querySelector(":scope > summary");
+        const children = details.querySelector(":scope > div");
+        const link = summary?.querySelector(".pep-sidebar-group-link");
+        const title = link?.textContent?.trim() || "Menu";
+        const flyout = document.createElement("section");
+        flyout.className = "pep-sidebar-flyout";
+        flyout.dataset.pepSidebarFlyout = "true";
+        const rect = summary.getBoundingClientRect();
+        flyout.style.top = `${Math.max(58, Math.min(rect.top, window.innerHeight - 260))}px`;
+        flyout.innerHTML = `<header>${title}</header>`;
+        const content = document.createElement("div");
+        content.className = "pep-sidebar-flyout-content";
+        if (children) {
+          const clone = children.cloneNode(true);
+          clone.querySelectorAll("details").forEach((item) => item.open = true);
+          content.appendChild(clone);
+        }
+        flyout.appendChild(content);
+        document.body.appendChild(flyout);
+      };
+      pepSidebar?.addEventListener("click", (event) => {
+        const summary = event.target.closest(".pep-action-group > summary");
+        if (!summary || !pepSidebar.contains(summary)) return;
+        const group = summary.closest(".pep-action-group");
+        const hasSubgroups = Boolean(group?.querySelector(":scope > div .pep-action-group"));
+        const link = summary.querySelector(".pep-sidebar-group-link");
+        if (!document.documentElement.classList.contains("pep-sidebar-collapsed")) {
+          if (!hasSubgroups && link?.href) {
+            event.preventDefault();
+            window.location.href = link.href;
+            return;
+          }
+          if (event.target.closest(".pep-sidebar-group-link")) {
+            event.preventDefault();
+          }
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (!hasSubgroups && link?.href) {
+          window.location.href = link.href;
+          return;
+        }
+        openPepFlyout(group);
+      });
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest("[data-pep-sidebar]") && !event.target.closest("[data-pep-sidebar-flyout]")) closePepFlyout();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closePepFlyout();
+      });
+      const tabsScroll = document.querySelector("[data-pep-tabs-scroll]");
+      const tabsLeft = document.querySelector("[data-pep-tabs-left]");
+      const tabsRight = document.querySelector("[data-pep-tabs-right]");
+      const updateTabsArrows = () => {
+        if (!tabsScroll || !tabsLeft || !tabsRight) return;
+        const canScroll = tabsScroll.scrollWidth > tabsScroll.clientWidth + 2;
+        tabsLeft.hidden = !canScroll || tabsScroll.scrollLeft <= 0;
+        tabsRight.hidden = !canScroll || tabsScroll.scrollLeft + tabsScroll.clientWidth >= tabsScroll.scrollWidth - 2;
+      };
+      tabsLeft?.addEventListener("click", () => tabsScroll?.scrollBy({ left: -240, behavior: "smooth" }));
+      tabsRight?.addEventListener("click", () => tabsScroll?.scrollBy({ left: 240, behavior: "smooth" }));
+      tabsScroll?.addEventListener("scroll", updateTabsArrows);
+      window.addEventListener("resize", updateTabsArrows);
+      updateTabsArrows();
+      document.querySelector("[data-pep-history-load-more]")?.addEventListener("click", (event) => {
+        const hiddenItems = [...document.querySelectorAll("[data-pep-history-item].is-hidden")];
+        hiddenItems.slice(0, 5).forEach((item) => item.classList.remove("is-hidden"));
+        if (document.querySelectorAll("[data-pep-history-item].is-hidden").length === 0) {
+          event.currentTarget.hidden = true;
+        }
+      });
+      const form = document.querySelector("[data-document-fill-form]");
+      if (form) {
+        let saved = {};
+        const script = document.getElementById("pep-document-form-data");
+        try { saved = script ? JSON.parse(script.textContent) : {}; } catch {}
+        Object.entries(saved).forEach(([name, value]) => {
+          form.querySelectorAll(`[name="campo_${CSS.escape(name)}"]`).forEach((field) => {
+            if (field.matches("[data-exclusive-choice]")) field.checked = String(field.value) === String(value);
+            else if (field.type === "checkbox") field.checked = Boolean(value);
+            else field.value = value ?? "";
+          });
+        });
+        const syncExclusive = (fieldset, selected = null) => {
+          const readonly = fieldset.dataset.exclusiveReadonly === "true";
+          fieldset.querySelectorAll("[data-exclusive-choice]").forEach((choice) => {
+            if (selected && choice !== selected) choice.checked = false;
+            const detail = choice.closest("label").querySelector("[data-exclusive-detail]");
+            if (!detail) return;
+            detail.disabled = readonly || !choice.checked;
+            detail.tabIndex = detail.disabled ? -1 : 0;
+          });
+        };
+        form.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => syncExclusive(fieldset));
+        form.addEventListener("change", (event) => {
+          const choice = event.target.closest("[data-exclusive-choice]");
+          if (!choice) return;
+          const fieldset = choice.closest("[data-exclusive-group]");
+          if (!fieldset) return;
+          syncExclusive(fieldset, choice.checked ? choice : null);
+          choice.closest("label")?.querySelector("[data-exclusive-detail]:not(:disabled)")?.focus();
+        });
+        form.addEventListener("submit", (event) => {
+          const invalidGroup = [...form.querySelectorAll('[data-exclusive-required="true"]')]
+            .find((fieldset) => !fieldset.querySelector("[data-exclusive-choice]:checked"));
+          if (invalidGroup) {
+            event.preventDefault();
+            invalidGroup.classList.add("is-invalid");
+            invalidGroup.scrollIntoView({ block: "center", behavior: "smooth" });
+            invalidGroup.querySelector("[data-exclusive-choice]").focus();
+            return;
+          }
+          const data = {};
+          form.querySelectorAll("[data-document-field][name]").forEach((field) => {
+            const name = field.name.replace(/^campo_/, "");
+            if (field.matches("[data-exclusive-choice]")) {
+              if (field.checked) data[name] = field.value;
+              else if (!(name in data)) data[name] = "";
+              return;
+            }
+            data[name] = field.type === "checkbox" ? field.checked : field.value;
+          });
+          form.elements.ds_dados_formulario.value = JSON.stringify(data);
+        });
+      }
+      const abandonModal = document.querySelector("[data-pep-abandon-modal]");
+      document.querySelector("[data-pep-abandon-open]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = false; });
+      document.querySelector("[data-pep-abandon-cancel]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = true; });
+      document.querySelectorAll("[data-pep-visible-print-frame]").forEach((frame) => {
+        frame.addEventListener("load", () => {
+          frame.dataset.loaded = "true";
+        });
+      });
+      document.querySelectorAll("[data-pep-print-document]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const url = button.dataset.pepPrintDocument;
+          if (!url || button.dataset.printing === "true") return;
+          button.dataset.printing = "true";
+          const visibleFrame = document.querySelector("[data-pep-visible-print-frame]");
+          if (visibleFrame?.contentWindow) {
+            const printVisible = () => {
+              try {
+                visibleFrame.contentWindow.focus();
+                visibleFrame.contentWindow.print();
+              } finally {
+                button.dataset.printing = "false";
+              }
+            };
+            if (visibleFrame.dataset.loaded === "true") {
+              window.setTimeout(printVisible, 100);
+            } else {
+              visibleFrame.addEventListener("load", () => window.setTimeout(printVisible, 100), { once: true });
+            }
+            return;
+          }
+          const previousFrame = document.querySelector("[data-pep-print-frame]");
+          previousFrame?.remove();
+          const frame = document.createElement("iframe");
+          frame.dataset.pepPrintFrame = "true";
+          frame.style.position = "absolute";
+          frame.style.left = "-10000px";
+          frame.style.top = "0";
+          frame.style.width = "1px";
+          frame.style.height = "1px";
+          frame.style.opacity = "0";
+          frame.style.border = "0";
+          frame.src = url;
+          frame.addEventListener("load", () => {
+            frame.dataset.loaded = "true";
+            window.setTimeout(() => {
+              try {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+              } finally {
+                window.setTimeout(() => {
+                  button.dataset.printing = "false";
+                }, 1200);
+              }
+            }, 500);
+          }, { once: true });
+          document.body.appendChild(frame);
+        });
+      });
+    })();
+  </script>
+  {% if item_selecionado and item_selecionado.tp_item == "DOCUMENTO" and not somente_consulta %}
     <section class="document-move-modal" data-pep-new-document-modal hidden>
       <form class="card" method="post">
         {% csrf_token %}
         <input type="hidden" name="acao" value="novo_documento">
         <input type="hidden" name="item" value="{{ item_selecionado.pk }}">
-        <h2>Novo documento — {{ item_selecionado.nm_item }}</h2>
+        <h2 class="pep-new-document-title">Novo documento — {{ item_selecionado.nm_item }}</h2>
         <label>Data e hora do documento
           <input type="datetime-local" name="dh_documento" value="{{ agora_documento }}" required>
         </label>
@@ -144,15 +520,15 @@
     <script>
       (() => {
         const modal = document.querySelector("[data-pep-new-document-modal]");
-        document.querySelector("[data-pep-new-document]")?.addEventListener("click", () => { modal.hidden = false; });
-        document.querySelector("[data-pep-new-document-cancel]")?.addEventListener("click", () => { modal.hidden = true; });
+        document.querySelector("[data-pep-new-document]").addEventListener("click", () => { modal.hidden = false; });
+        document.querySelector("[data-pep-new-document-cancel]").addEventListener("click", () => { modal.hidden = true; });
       })();
     </script>
   {% endif %}
   <section class="document-move-modal vital-history-modal" data-vital-history-modal hidden>
     <div class="card">
       <header class="section-heading">
-        <div><h2>Histórico de sinais vitais</h2><small>Últimas 30 coletas do paciente.</small></div>
+        <div><h2>Histórico de sinais vitais</h2><small>Ãšltimas 30 coletas do paciente.</small></div>
         <button class="toolbar-button" type="button" data-vital-history-close title="Fechar">×</button>
       </header>
       <div class="vital-history-scroll">
@@ -179,10 +555,13 @@
   <script>
     (() => {
       const modal = document.querySelector("[data-vital-history-modal]");
-      document.querySelector("[data-vital-history-open]")?.addEventListener("click", () => { modal.hidden = false; });
+      document.querySelector("[data-vital-history-open]").addEventListener("click", () => { modal.hidden = false; });
       document.querySelectorAll("[data-vital-history-close]").forEach((button) => {
         button.addEventListener("click", () => { modal.hidden = true; });
       });
     })();
   </script>
 {% endblock %}
+
+
+

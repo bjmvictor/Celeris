@@ -578,7 +578,7 @@ class ConsultaCadastroNavigationTests(TestCase):
         edit_response = self.client.get(reverse("perfil_editar", args=[group.pk]), {"return_to": list_url})
         self.assertNotContains(edit_response, 'data-action="return"')
         self.assertContains(edit_response, 'data-close-mode="back"')
-        self.assertContains(edit_response, 'data-close-url="/accounts/perfis/?q=RETORNO&amp;pagina=2"')
+        self.assertContains(edit_response, 'data-close-url="/accounts/perfis/q=RETORNO&amp;pagina=2"')
         self.assertEqual(edit_response.context["current_return_url"], list_url)
 
     def test_tela_aberta_diretamente_mantem_fechar_e_contextual_usa_voltar(self):
@@ -589,7 +589,7 @@ class ConsultaCadastroNavigationTests(TestCase):
             {"return_to": f"{reverse('usuarios')}?q=TESTE"},
         )
         self.assertContains(contextual_response, 'data-close-mode="back"')
-        self.assertContains(contextual_response, 'data-close-url="/accounts/usuarios/?q=TESTE"')
+        self.assertContains(contextual_response, 'data-close-url="/accounts/usuarios/q=TESTE"')
 
     def test_erro_de_consulta_exibe_mensagem_obrigatoria(self):
         with patch("apps.accounts.views.paginate_table", side_effect=RuntimeError("falha")):

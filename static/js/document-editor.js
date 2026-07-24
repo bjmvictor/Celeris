@@ -18,10 +18,10 @@
   const layoutOnlyTypes = new Set(["COMPROVANTE_AGENDAMENTO", "FICHA_ATENDIMENTO", "ETIQUETA_ATENDIMENTO"]);
   const syncLayoutOnlyOptions = () => {
     const selectedType = documentTypeSelect?.value || "";
-    const layoutOnly = selectedType ? layoutOnlyTypes.has(selectedType) : form.dataset.layoutOnly === "true";
+    const layoutOnly = selectedType ?layoutOnlyTypes.has(selectedType) : form.dataset.layoutOnly === "true";
     if (signatureRoot) signatureRoot.hidden = layoutOnly;
     if (signatureToggle && layoutOnly) signatureToggle.checked = false;
-    form.dataset.layoutOnly = layoutOnly ? "true" : "false";
+    form.dataset.layoutOnly = layoutOnly ?"true" : "false";
     document.querySelector('[data-editor-tab="tela"]')?.toggleAttribute("hidden", layoutOnly);
     document.querySelector('[data-editor-pane="tela"]')?.toggleAttribute("hidden", layoutOnly);
     syncSignatureOptions();
@@ -38,7 +38,7 @@
     const limitedElement = ["CABECALHO", "RODAPE"].includes(elementType);
     const editor = grapesjs.init({
       container: `#editor-${kind}`,
-      height: limitedElement ? (elementType === "CABECALHO" ? "300px" : "240px") : "680px",
+      height: limitedElement ?(elementType === "CABECALHO" ?"300px" : "240px") : "680px",
       width: "auto",
       storageManager: false,
       noticeOnUnload: false,
@@ -94,7 +94,7 @@
     if (project && Object.keys(project).length) editor.loadProjectData(project);
     else {
       const initialContent = limitedElement
-        ? `<section style="width:210mm;min-height:${elementType === "CABECALHO" ? "35mm" : "22mm"};max-height:${elementType === "CABECALHO" ? "55mm" : "35mm"};margin:auto;padding:6mm;background:#fff;color:#111;overflow:hidden">Monte aqui o ${elementType === "CABECALHO" ? "cabeçalho" : "rodapé"}.</section>`
+        ?`<section style="width:210mm;min-height:${elementType === "CABECALHO" ?"35mm" : "22mm"};max-height:${elementType === "CABECALHO" ?"55mm" : "35mm"};margin:auto;padding:6mm;background:#fff;color:#111;overflow:hidden">Monte aqui o ${elementType === "CABECALHO" ?"cabeçalho" : "rodapé"}.</section>`
         : '<main style="width:210mm;min-height:297mm;margin:auto;padding:18mm;background:#fff;color:#111">Monte aqui o relatório que será impresso.</main>';
       editor.setComponents(html || initialContent);
       editor.setStyle(css || "");
@@ -109,7 +109,7 @@
   const fieldEmpty = builder?.querySelector("[data-form-field-empty]");
   const initialScreenProject = readJson("initial-project-tela", {});
   const initialScreenHtml = readJson("initial-html-tela", "");
-  let formFields = Array.isArray(initialScreenProject.formFields) ? initialScreenProject.formFields : [];
+  let formFields = Array.isArray(initialScreenProject.formFields) ?initialScreenProject.formFields : [];
   const gridConfig = {
     columns: Math.max(1, Number(initialScreenProject.grid?.columns || 2)),
     rows: Math.max(1, Number(initialScreenProject.grid?.rows || 4)),
@@ -142,7 +142,7 @@
   const draftGuideKey = form.dataset.editorGuideKey || "editor-documentos";
   const activeEditorTab = () => (
     document.querySelector("[data-editor-tab].active")?.dataset.editorTab
-    || (isLayoutOnlyDocument() || form.dataset.documentElement !== "CAMPO" ? "impressao" : "tela")
+    || (isLayoutOnlyDocument() || form.dataset.documentElement !== "CAMPO" ?"impressao" : "tela")
   );
   if (customVariableNameInput) customVariableNameInput.value = initialScreenProject.customVariable?.name || "";
   if (customVariableExpressionInput) customVariableExpressionInput.value = initialScreenProject.customVariable?.expression || "";
@@ -188,10 +188,12 @@
   const customVariableTestResult = document.querySelector("[data-custom-variable-test-result]");
   customVariableTestButton?.addEventListener("click", async () => {
     const expression = customVariableExpressionInput?.value.trim() || "";
+    customVariableExpressionInput?.classList.remove("expression-error");
     if (!expression) {
       customVariableTestResult.hidden = false;
       customVariableTestResult.className = "document-variable-test-result error";
-      customVariableTestResult.textContent = "Informe uma expressão antes de executar.";
+      customVariableTestResult.textContent = "Erro na expressão: informe uma regra antes de executar.";
+      customVariableExpressionInput?.classList.add("expression-error");
       return;
     }
     customVariableTestButton.disabled = true;
@@ -208,14 +210,16 @@
       });
       const result = await response.json();
       customVariableTestResult.hidden = false;
-      customVariableTestResult.className = `document-variable-test-result ${result.ok ? "success" : "error"}`;
+      customVariableTestResult.className = `document-variable-test-result ${result.ok ?"success" : "error"}`;
       customVariableTestResult.textContent = result.ok
-        ? `Resultado: ${String(result.result ?? "")}`
-        : result.error || "Não foi possível executar a expressão.";
+        ?`Resultado: ${String(result.result ?? "")}`
+        : `Erro na expressão: ${result.error || "verifique variáveis, operadores e parênteses."}`;
+      if (!result.ok) customVariableExpressionInput?.classList.add("expression-error");
     } catch {
       customVariableTestResult.hidden = false;
       customVariableTestResult.className = "document-variable-test-result error";
-      customVariableTestResult.textContent = "Falha ao executar a expressão.";
+      customVariableTestResult.textContent = "Erro ao testar a expressão: falha de comunicação com o servidor.";
+      customVariableExpressionInput?.classList.add("expression-error");
     } finally {
       customVariableTestButton.disabled = false;
     }
@@ -224,6 +228,66 @@
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[character]));
+  const insertTextAtCursor = (field, text) => {
+    if (!field || !text) return;
+    const start = field.selectionStart ?? field.value.length;
+    const end = field.selectionEnd ?? start;
+    field.setRangeText(text, start, end, "end");
+    field.focus();
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const availableDocumentVariables = () => {
+    const variables = new Map();
+    (testContexts || []).forEach((context) => {
+      Object.keys(context.variables || {}).forEach((name) => variables.set(name, name));
+    });
+    (customVariables || []).forEach((item) => {
+      const name = item.nome_tecnico || item.nm_modelo || item.name || item.codigo || "";
+      if (name) variables.set(`variavel.${name}`, `Variável: ${name}`);
+    });
+    return [...variables.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+  };
+  const renderVariablePalette = (listElement, searchElement, onSelect) => {
+    if (!listElement) return;
+    const query = String(searchElement?.value || "").trim().toLowerCase();
+    listElement.replaceChildren();
+    availableDocumentVariables()
+      .filter(([value, label]) => !query || `${value} ${label}`.toLowerCase().includes(query))
+      .forEach(([value, label]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.draggable = true;
+        button.dataset.variableToken = value;
+        button.innerHTML = `<strong>${escapeHtml(label)}</strong><code>{{ ${escapeHtml(value)} }}</code>`;
+        button.addEventListener("click", () => onSelect(value));
+        button.addEventListener("dragstart", (event) => {
+          event.dataTransfer.setData("text/document-variable", value);
+          event.dataTransfer.effectAllowed = "copy";
+        });
+        listElement.appendChild(button);
+      });
+  };
+  const customVariableList = document.querySelector("[data-custom-variable-list]");
+  const customVariableSearch = document.querySelector("[data-custom-variable-search]");
+  const renderCustomVariablePalette = () => renderVariablePalette(
+    customVariableList,
+    customVariableSearch,
+    (value) => insertTextAtCursor(customVariableExpressionInput, value)
+  );
+  customVariableSearch?.addEventListener("input", renderCustomVariablePalette);
+  customVariableExpressionInput?.addEventListener("dragover", (event) => {
+    if (event.dataTransfer.types.includes("text/document-variable")) event.preventDefault();
+  });
+  customVariableExpressionInput?.addEventListener("drop", (event) => {
+    const variable = event.dataTransfer.getData("text/document-variable");
+    if (!variable) return;
+    event.preventDefault();
+    insertTextAtCursor(customVariableExpressionInput, variable);
+  });
+  customVariableExpressionInput?.addEventListener("input", () => {
+    customVariableExpressionInput.classList.remove("expression-error");
+  });
+  renderCustomVariablePalette();
   const formatRichText = (value) => {
     const template = document.createElement("template");
     template.innerHTML = String(value || "")
@@ -326,17 +390,18 @@
       id: `legacy-${index}`,
       name: normalizeName(field.name),
       label: field.closest("label")?.childNodes?.[0]?.textContent?.trim() || field.placeholder || `Campo ${index + 1}`,
-      type: field.tagName === "TEXTAREA" ? "textarea" : (field.tagName === "SELECT" ? "select" : field.type || "text"),
+      type: field.tagName === "TEXTAREA" ?"textarea" : (field.tagName === "SELECT" ?"select" : field.type || "text"),
       placeholder: field.placeholder || "",
       required: field.required,
-      options: field.tagName === "SELECT" ? [...field.options].map((option) => option.textContent).filter(Boolean).join(", ") : "",
+      options: field.tagName === "SELECT" ?[...field.options].map((option) => option.textContent).filter(Boolean).join(", ") : "",
     }));
   }
   formFields = formFields.map((field, index) => ({
     id: field.id || `field-${index}`,
     name: normalizeName(field.name || `campo_${index + 1}`),
-    label: Object.prototype.hasOwnProperty.call(field, "label") ? field.label : `Campo ${index + 1}`,
+    label: Object.prototype.hasOwnProperty.call(field, "label") ?field.label : `Campo ${index + 1}`,
     type: field.type || "text",
+    booleanStyle: field.booleanStyle || "double",
     placeholder: field.placeholder || "",
     prefix: field.prefix || "",
     suffix: field.suffix || "",
@@ -380,41 +445,45 @@
   const printRowsInput = printBuilder?.querySelector("[data-print-grid-rows]");
   const printFontSizeInput = printBuilder?.querySelector("[data-print-grid-font-size]");
   const printFontFamilyInput = printBuilder?.querySelector("[data-print-grid-font-family]");
+  const printDefaultMarginInput = printBuilder.querySelector("[data-print-grid-default-margin]");
+  const printFitOnePageInput = printBuilder.querySelector("[data-print-fit-one-page]");
   const printSettingsModal = document.querySelector("[data-print-settings-modal]");
   let activePrintElement = null;
+  const DEFAULT_PRINT_ELEMENT_MARGIN = "5px 0 0";
   const printElementFromField = (field) => ({
     id: `print-${field.id}`,
     type: field.type === "image"
-      ? "image"
+      ?"image"
       : field.type === "static-text"
-      ? "text"
+      ?"text"
       : field.type === "static-variable"
-      ? "variable"
+      ?"variable"
       : field.type === "line"
-      ? "line"
+      ?"line"
       : "field",
     label: field.label,
     content: field.type === "static-text"
-      ? field.content
+      ?field.content
       : field.type === "image" || field.type === "line" || field.type === "static-variable"
-      ? ""
+      ?""
       : field.type === "multiple-fields"
-      ? splitStructuredOptions(field.options).map((option) => {
+      ?splitStructuredOptions(field.options).map((option) => {
           const parsed = parseEmbeddedField(option);
           if (parsed.type === "literal") return parsed.text;
           const value = `{{ campo.${parsed.name} }}`;
-          return parsed.label ? `<strong>${escapeHtml(parsed.label)}:</strong> ${value}` : value;
+          return parsed.label ?`<strong>${escapeHtml(parsed.label)}:</strong> ${value}` : value;
         }).join(" ")
       : `${field.prefix || ""}{{ ${field.binding || `campo.${field.name}`} }}${field.suffix || ""}`,
-    sourceField: field.type === "static-variable" ? field.binding : (field.binding || `campo.${field.name}`),
-    fontSize: field.fontSizeCustom ? field.fontSize : "",
-    fontFamily: field.fontFamilyCustom ? field.fontFamily : "",
+    sourceField: field.type === "static-variable" ?field.binding : (field.binding || `campo.${field.name}`),
+    fontSize: field.fontSizeCustom ?field.fontSize : "",
+    fontFamily: field.fontFamilyCustom ?field.fontFamily : "",
     fontSizeCustom: Boolean(field.fontSizeCustom),
     fontFamilyCustom: Boolean(field.fontFamilyCustom),
     textColor: field.textColor || "#111111",
     hideLabel: false,
     showBottomBorder: true,
-    margin: "10px 0 0",
+    margin: DEFAULT_PRINT_ELEMENT_MARGIN,
+    usesDefaultMargin: true,
     padding: "",
     imageUrl: field.imageUrl || "",
     imageWidth: field.imageWidth || 240,
@@ -435,12 +504,13 @@
       rows: Math.max(gridConfig.rows, 1),
       fontSize: 11,
       fontFamily: "Arial, sans-serif",
+      defaultMargin: DEFAULT_PRINT_ELEMENT_MARGIN,
     },
     elements: formFields.map(printElementFromField),
   };
   if (!initialPrintProject.printLayout && !formFields.length && initialPrintHtml) {
     printLayout = {
-      grid: { columns: 1, rows: 1, fontSize: 11, fontFamily: "Arial, sans-serif" },
+      grid: { columns: 1, rows: 1, fontSize: 11, fontFamily: "Arial, sans-serif", defaultMargin: DEFAULT_PRINT_ELEMENT_MARGIN },
       elements: [{
         id: "existing-print-content",
         type: "html",
@@ -458,39 +528,48 @@
     rows: Math.max(1, Number(printLayout.grid?.rows || gridConfig.rows || 4)),
     fontSize: Math.max(7, Number(printLayout.grid?.fontSize || 11)),
     fontFamily: printLayout.grid?.fontFamily || "Arial, sans-serif",
+    defaultMargin: printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN,
+    fitOnePage: Boolean(printLayout.grid.fitOnePage),
   };
-  printLayout.elements = (printLayout.elements || []).map((element, index) => ({
-    id: element.id || `print-element-${index}`,
-    type: element.type || "text",
-    label: element.label ?? (element.type === "variable" ? "" : "Elemento"),
-    content: element.content || "",
-    sourceField: element.sourceField || "",
-    hideLabel: Boolean(element.hideLabel),
-    labelColor: element.labelColor || "#111111",
-    textColor: element.textColor || "#111111",
-    textBold: Boolean(element.textBold),
-    textAlign: element.textAlign || "left",
-    verticalAlign: element.verticalAlign || "start",
-    fontSize: element.fontSize ? Math.max(7, Number(element.fontSize)) : "",
-    fontFamily: element.fontFamily || "",
-    fontSizeCustom: element.fontSizeCustom === true || Boolean(element.fontSize && Number(element.fontSize) !== printLayout.grid.fontSize),
-    fontFamilyCustom: element.fontFamilyCustom === true || Boolean(element.fontFamily && element.fontFamily !== printLayout.grid.fontFamily),
-    imageUrl: element.imageUrl || "",
-    imageWidth: Math.max(1, Number(element.imageWidth || 240)),
-    imageHeight: Math.max(1, Number(element.imageHeight || 120)),
-    lineColor: element.lineColor || "#111111",
-    lineWidth: Math.max(1, Number(element.lineWidth || 1)),
-    lineStyle: element.lineStyle || "solid",
-    showBottomBorder: element.showBottomBorder !== false,
-    marginTop: Math.max(0, Number(element.marginTop || 0)),
-    marginBottom: Math.max(0, Number(element.marginBottom || 0)),
-    margin: element.margin || "",
-    padding: element.padding || "",
-    col: Math.max(1, Number(element.col || 1)),
-    row: Math.max(1, Number(element.row || index + 1)),
-    colSpan: Math.max(1, Number(element.colSpan || 1)),
-    rowSpan: Math.max(1, Number(element.rowSpan || 1)),
-  }));
+  printLayout.elements = (printLayout.elements || []).map((element, index) => {
+    const storedMargin = element.margin === "10px 0 0" ?DEFAULT_PRINT_ELEMENT_MARGIN : (element.margin || "");
+    const usesDefaultMargin = element.usesDefaultMargin !== false
+      && (!storedMargin || storedMargin === DEFAULT_PRINT_ELEMENT_MARGIN || storedMargin === printLayout.grid.defaultMargin);
+    const hasStoredLabel = Object.prototype.hasOwnProperty.call(element, "label");
+    return {
+      id: element.id || `print-element-${index}`,
+      type: element.type || "text",
+      label: hasStoredLabel ?String(element.label ?? "") : (element.type === "variable" ?"" : "Elemento"),
+      content: element.content || "",
+      sourceField: element.sourceField || "",
+      hideLabel: Boolean(element.hideLabel),
+      labelColor: element.labelColor || "#111111",
+      textColor: element.textColor || "#111111",
+      textBold: Boolean(element.textBold),
+      textAlign: element.textAlign || "left",
+      verticalAlign: element.verticalAlign || "start",
+      fontSize: element.fontSize ?Math.max(7, Number(element.fontSize)) : "",
+      fontFamily: element.fontFamily || "",
+      fontSizeCustom: element.fontSizeCustom === true || Boolean(element.fontSize && Number(element.fontSize) !== printLayout.grid.fontSize),
+      fontFamilyCustom: element.fontFamilyCustom === true || Boolean(element.fontFamily && element.fontFamily !== printLayout.grid.fontFamily),
+      imageUrl: element.imageUrl || "",
+      imageWidth: Math.max(1, Number(element.imageWidth || 240)),
+      imageHeight: Math.max(1, Number(element.imageHeight || 120)),
+      lineColor: element.lineColor || "#111111",
+      lineWidth: Math.max(1, Number(element.lineWidth || 1)),
+      lineStyle: element.lineStyle || "solid",
+      showBottomBorder: element.showBottomBorder !== false,
+      marginTop: Math.max(0, Number(element.marginTop || 0)),
+      marginBottom: Math.max(0, Number(element.marginBottom || 0)),
+      margin: usesDefaultMargin ?printLayout.grid.defaultMargin : storedMargin,
+      usesDefaultMargin,
+      padding: element.padding || "",
+      col: Math.max(1, Number(element.col || 1)),
+      row: Math.max(1, Number(element.row || index + 1)),
+      colSpan: Math.max(1, Number(element.colSpan || 1)),
+      rowSpan: Math.max(1, Number(element.rowSpan || 1)),
+    };
+  });
   printLayout.elements.forEach((element) => {
     element.col = Math.min(printLayout.grid.columns, element.col);
     element.row = Math.min(printLayout.grid.rows, element.row);
@@ -525,8 +604,8 @@
             col,
             left: leftLine,
             right: rightLine,
-            top: top ? topLine : null,
-            bottom: bottom ? bottomLine : null,
+            top: top ?topLine : null,
+            bottom: bottom ?bottomLine : null,
           });
         }
       }
@@ -534,13 +613,13 @@
     return junctions;
   };
   const lineJunctionHtml = (junction, positioned = false, customPosition = "") => {
-    const position = customPosition || (positioned ? `grid-column:${junction.col};grid-row:${junction.row};` : "");
-    const layer = positioned ? "z-index:2;background:#fff;" : "";
+    const position = customPosition || (positioned ?`grid-column:${junction.col};grid-row:${junction.row};` : "");
+    const layer = positioned ?"z-index:2;background:#fff;" : "";
     const armStyle = (line, direction) => {
       if (!line) return "";
       const color = escapeHtml(line.lineColor || "#111111");
       const style = escapeHtml(line.lineStyle || "solid");
-      const width = Math.max(style === "double" ? 3 : 1, Number(line.lineWidth || 1));
+      const width = Math.max(style === "double" ?3 : 1, Number(line.lineWidth || 1));
       const placement = {
         left: "left:0;right:50%;top:50%;",
         right: "left:50%;right:0;top:50%;",
@@ -548,31 +627,44 @@
         bottom: "top:50%;bottom:0;left:50%;",
       }[direction];
       const border = ["left", "right"].includes(direction)
-        ? `border-top:${width}px ${style} ${color}`
+        ?`border-top:${width}px ${style} ${color}`
         : `border-left:${width}px ${style} ${color}`;
       return `<span style="position:absolute;${placement}${border}"></span>`;
     };
-    return `<div class="document-line-junction" aria-label="Junção automática" style="${position}${layer}position:relative;min-width:0;min-height:${positioned ? 0 : 24}px;pointer-events:none">`
+    return `<div class="document-line-junction" aria-label="Junção automática" style="${position}${layer}position:relative;min-width:0;min-height:${positioned ?0 : 24}px;pointer-events:none">`
       + armStyle(junction.left, "left")
       + armStyle(junction.right, "right")
       + armStyle(junction.top, "top")
       + armStyle(junction.bottom, "bottom")
       + "</div>";
   };
-  const printGridColumns = () => Array.from({ length: printLayout.grid.columns }, (_, index) => {
-    const column = index + 1;
-    const occupants = printLayout.elements.filter((element) => (
-      !["line", "pagebreak"].includes(element.type)
-      && column >= element.col
-      && column < element.col + element.colSpan
-    ));
-    const imageOnly = occupants.length > 0 && occupants.every((element) => (
-      element.type === "image" && element.colSpan === 1
-    ));
-    const verticalOnly = occupants.length > 0 && occupants.every((element) => element.type === "vline");
-    if (!occupants.length || verticalOnly) return "4px";
-    return imageOnly ? "max-content" : "minmax(0,1fr)";
-  }).join(" ");
+  const printGridColumns = () => {
+    const occupiedColumns = new Set();
+    printLayout.elements.forEach((element) => {
+      if (["line", "pagebreak"].includes(element.type)) return;
+      for (let column = element.col; column < element.col + element.colSpan; column += 1) {
+        occupiedColumns.add(column);
+      }
+    });
+    const hasOccupiedBefore = (column) => [...occupiedColumns].some((occupiedColumn) => occupiedColumn < column);
+    const hasOccupiedAfter = (column) => [...occupiedColumns].some((occupiedColumn) => occupiedColumn > column);
+    return Array.from({ length: printLayout.grid.columns }, (_, index) => {
+      const column = index + 1;
+      const occupants = printLayout.elements.filter((element) => (
+        !["line", "pagebreak"].includes(element.type)
+        && column >= element.col
+        && column < element.col + element.colSpan
+      ));
+      const imageOnly = occupants.length > 0 && occupants.every((element) => (
+        element.type === "image" && element.colSpan === 1
+      ));
+      const verticalOnly = occupants.length > 0 && occupants.every((element) => element.type === "vline");
+      if (!occupants.length || verticalOnly) {
+        return hasOccupiedBefore(column) && hasOccupiedAfter(column) ?"minmax(0,1fr)" : "4px";
+      }
+      return imageOnly ?"max-content" : "minmax(0,1fr)";
+    }).join(" ");
+  };
 
   const captureEditorState = () => JSON.stringify({
     gridConfig,
@@ -622,6 +714,9 @@
     registerHistoryState();
     setEditorDirty();
   };
+  [customVariableNameInput, customVariableExpressionInput].forEach((field) => {
+    field?.addEventListener("input", markEditorDirty);
+  });
   const draftEndpoint = () => {
     if (!draftUrl) return "";
     const url = new URL(draftUrl, window.location.origin);
@@ -642,7 +737,7 @@
         type: field.type,
         checked: Boolean(field.checked),
         value: field instanceof HTMLSelectElement && field.multiple
-          ? [...field.selectedOptions].map((option) => option.value)
+          ?[...field.selectedOptions].map((option) => option.value)
           : field.value,
       })),
   });
@@ -684,12 +779,20 @@
   const deleteEditorDraft = () => {
     const endpoint = draftEndpoint();
     if (!endpoint) return Promise.resolve();
+    window.clearTimeout(draftSyncTimer);
     draftSyncPending = false;
+    const payload = new URLSearchParams();
+    payload.set("acao", "descartar");
+    payload.set("csrfmiddlewaretoken", csrfToken());
     return fetch(endpoint, {
-      method: "DELETE",
+      method: "POST",
       credentials: "same-origin",
       keepalive: true,
-      headers: { "X-CSRFToken": csrfToken() },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "X-CSRFToken": csrfToken(),
+      },
+      body: payload.toString(),
     }).catch(() => {});
   };
   const restoreFormFieldsFromDraft = (fields) => {
@@ -698,7 +801,7 @@
       candidates.forEach((field) => {
         if (field.type === "checkbox" || field.type === "radio") field.checked = Boolean(saved.checked);
         else if (field instanceof HTMLSelectElement && field.multiple) {
-          const selected = Array.isArray(saved.value) ? saved.value.map(String) : [];
+          const selected = Array.isArray(saved.value) ?saved.value.map(String) : [];
           [...field.options].forEach((option) => { option.selected = selected.includes(option.value); });
         } else if (!field.readOnly) field.value = saved.value ?? "";
       });
@@ -709,7 +812,7 @@
     if (!endpoint) return;
     try {
       const response = await fetch(endpoint, { credentials: "same-origin" });
-      const payload = response.ok ? await response.json() : null;
+      const payload = response.ok ?await response.json() : null;
       const draft = payload?.state;
       if (!draft?.editorState) return;
       restoringHistory = true;
@@ -718,7 +821,7 @@
       gridConfig.rows = state.gridConfig?.rows || gridConfig.rows;
       gridConfig.fontSize = state.gridConfig?.fontSize || gridConfig.fontSize;
       gridConfig.fontFamily = state.gridConfig?.fontFamily || gridConfig.fontFamily;
-      formFields = Array.isArray(state.formFields) ? state.formFields : formFields;
+      formFields = Array.isArray(state.formFields) ?state.formFields : formFields;
       printLayout = state.printLayout || printLayout;
       if (customVariableNameInput) customVariableNameInput.value = state.customVariableName || "";
       if (customVariableExpressionInput) customVariableExpressionInput.value = state.customVariableExpression || "";
@@ -818,7 +921,7 @@
     const groups = new Map();
     screenVariableOptionsProvider().forEach(([value, label]) => {
       const prefix = String(value).split(".")[0];
-      const group = labels[prefix] ? prefix : "outras";
+      const group = labels[prefix] ?prefix : "outras";
       if (!groups.has(group)) groups.set(group, []);
       groups.get(group).push([value, label]);
     });
@@ -874,7 +977,7 @@
         date: "Campo de data com validação nativa do navegador.",
         time: "Campo de horário com validação nativa do navegador.",
         number: "Campo numérico. Pode usar prefixo e sufixo, como R$ ou °C.",
-        checkbox: "Opção Sim/Não exibida como checkbox.",
+        checkbox: "Opção Sim/Não. No modo duplo exibe duas opções exclusivas: Sim e Não. No modo único exibe somente Sim; desmarcado representa Não.",
         select: "Lista fixa. Separe cada opção por vírgula.",
         "exclusive-checkboxes": "Cria checkboxes exclusivos na mesma linha. Separe as opções por vírgula. Use HIPOT.[hipot] ou HIPOT.[hipot; Pressão arterial]. O ponto e vírgula separa o nome técnico do placeholder. O complemento é habilitado somente quando HIPOT. estiver marcado e pode ser recuperado por {{ hipot }}.",
         "multiple-fields": "Cria vários campos na mesma área. Use Campo 1[campo_1], \"+\", [campo_2]. Itens entre aspas são textos fixos; campos sem texto antes dos colchetes não exibem título.",
@@ -902,7 +1005,7 @@
     updateVisibleFieldSettings();
     const title = settingsModal.querySelector("[data-field-settings-title]");
     if (title) {
-      const noun = ["static-text", "static-variable", "line", "image"].includes(field.type) ? "elemento" : "campo";
+      const noun = ["static-text", "static-variable", "line", "image"].includes(field.type) ?"elemento" : "campo";
       title.textContent = `Configuração do ${noun} (${field.id})`;
     }
     settingsModal.hidden = false;
@@ -977,7 +1080,7 @@
     const updates = {};
     settingsInputs.forEach((input) => {
       const property = input.dataset.settingsProperty;
-      let value = input.type === "checkbox" ? input.checked : input.value;
+      let value = input.type === "checkbox" ?input.checked : input.value;
       if (property === "name") value = normalizeName(value);
       if (["colSpan", "rowSpan", "imageWidth", "imageHeight", "lineWidth"].includes(property)) value = Math.max(1, Number(value || 1));
       if (["marginTop", "marginBottom"].includes(property)) value = Math.max(0, Number(value || 0));
@@ -1065,7 +1168,7 @@
         ...field,
         id: crypto.randomUUID?.() || `field-${Date.now()}-${Math.random()}`,
         reusableId: reusable.cd_modelo_documento,
-        ...(cellIsOccupied(targetRow, targetCol) && index > 0 ? firstFreePosition() : { row: targetRow, col: targetCol }),
+        ...(cellIsOccupied(targetRow, targetCol) && index > 0 ?firstFreePosition() : { row: targetRow, col: targetCol }),
       });
     });
   };
@@ -1150,7 +1253,7 @@
   };
   const fieldTouchesTrack = (field, kind, index) => (
     kind === "row"
-      ? index >= field.row && index < field.row + field.rowSpan
+      ?index >= field.row && index < field.row + field.rowSpan
       : index >= field.col && index < field.col + field.colSpan
   );
   const fieldsOverlap = (first, second) => !(
@@ -1161,7 +1264,7 @@
   );
   const gridState = (scope) => (
     scope === "print"
-      ? { grid: printLayout.grid, elements: printLayout.elements, maxRows: 60 }
+      ?{ grid: printLayout.grid, elements: printLayout.elements, maxRows: 60 }
       : { grid: gridConfig, elements: formFields, maxRows: 30 }
   );
   const renderGridScope = (scope) => {
@@ -1254,7 +1357,7 @@
   const reorderGridTrack = (scope, kind, from, to) => {
     if (from === to) return;
     const { elements } = gridState(scope);
-    const property = kind === "row" ? "row" : "col";
+    const property = kind === "row" ?"row" : "col";
     const previous = elements.map((element) => ({ element, value: element[property] }));
     elements.forEach((element) => {
       element[property] = remapTrackIndex(element[property], from, to);
@@ -1307,10 +1410,10 @@
     const trackScope = event.dataTransfer.getData("text/document-grid-scope");
     if (trackKind && trackScope === scope) {
       const from = Number(event.dataTransfer.getData("text/document-grid-index"));
-      reorderGridTrack(scope, trackKind, from, trackKind === "row" ? row : col);
+      reorderGridTrack(scope, trackKind, from, trackKind === "row" ?row : col);
       return true;
     }
-    const mime = scope === "print" ? "text/print-element" : "text/document-field";
+    const mime = scope === "print" ?"text/print-element" : "text/document-field";
     const elementId = event.dataTransfer.getData(mime);
     const rowOffset = Math.max(0, Number(event.dataTransfer.getData("text/document-drag-row-offset") || 0));
     const colOffset = Math.max(0, Number(event.dataTransfer.getData("text/document-drag-col-offset") || 0));
@@ -1355,7 +1458,7 @@
       || (direction === "bottom" && field.row + field.rowSpan - 1 === gridConfig.rows)
     );
     if (atBoundary) {
-      return ["left", "right"].includes(direction) ? gridConfig.columns < 12 : gridConfig.rows < 30;
+      return ["left", "right"].includes(direction) ?gridConfig.columns < 12 : gridConfig.rows < 30;
     }
     const candidate = expandedFieldCandidate(field, direction);
     return !formFields.some((other) => other.id !== field.id && fieldsOverlap(candidate, other));
@@ -1411,9 +1514,9 @@
       else formFields = retained;
       state.elements = retained;
     }
-    const sizeProperty = kind === "row" ? "rows" : "columns";
-    const positionProperty = kind === "row" ? "row" : "col";
-    const spanProperty = kind === "row" ? "rowSpan" : "colSpan";
+    const sizeProperty = kind === "row" ?"rows" : "columns";
+    const positionProperty = kind === "row" ?"row" : "col";
+    const spanProperty = kind === "row" ?"rowSpan" : "colSpan";
     state.grid[sizeProperty] = Math.max(1, state.grid[sizeProperty] - 1);
     state.elements.forEach((element) => {
       if (element[positionProperty] > index) element[positionProperty] -= 1;
@@ -1432,7 +1535,7 @@
     const { kind, index, scope, targetSize } = pendingGridDelete;
     if (targetSize) {
       const state = gridState(scope);
-      const sizeProperty = kind === "row" ? "rows" : "columns";
+      const sizeProperty = kind === "row" ?"rows" : "columns";
       while (state.grid[sizeProperty] > targetSize) {
         deleteGridTrack(scope, kind, state.grid[sizeProperty], mode);
       }
@@ -1449,8 +1552,8 @@
     renderGridScope(scope);
   };
   const requestGridDelete = (kind, index, scope = "form") => {
-    const grid = scope === "print" ? printLayout.grid : gridConfig;
-    const elements = scope === "print" ? printLayout.elements : formFields;
+    const grid = scope === "print" ?printLayout.grid : gridConfig;
+    const elements = scope === "print" ?printLayout.elements : formFields;
     if ((kind === "row" && grid.rows <= 1) || (kind === "column" && grid.columns <= 1)) return;
     pendingGridDelete = { kind, index, scope };
     const affected = elements.filter((field) => fieldTouchesTrack(field, kind, index));
@@ -1458,14 +1561,14 @@
       applyGridDelete("adjust");
       return;
     }
-    const label = kind === "row" ? "linha" : "coluna";
+    const label = kind === "row" ?"linha" : "coluna";
     gridDeleteTitle.textContent = `Excluir ${label}`;
     gridDeleteMessage.textContent = `${affected.length} campo(s) ocupam esta ${label}. Exclua-os ou reajuste-os na grade restante.`;
     gridDeleteModal.hidden = false;
   };
   const requestGridResize = (kind, targetSize, scope = "form") => {
     const state = gridState(scope);
-    const sizeProperty = kind === "row" ? "rows" : "columns";
+    const sizeProperty = kind === "row" ?"rows" : "columns";
     const currentSize = state.grid[sizeProperty];
     if (targetSize >= currentSize) {
       state.grid[sizeProperty] = targetSize;
@@ -1482,7 +1585,7 @@
       applyGridDelete("adjust");
       return;
     }
-    const label = kind === "row" ? "linhas" : "colunas";
+    const label = kind === "row" ?"linhas" : "colunas";
     gridDeleteTitle.textContent = `Reduzir ${label}`;
     gridDeleteMessage.textContent = `${affected.length} campo(s) ocupam as ${label} finais que serão removidas. Exclua-os ou reajuste-os na grade restante.`;
     gridDeleteModal.hidden = false;
@@ -1513,7 +1616,7 @@
       const panelRect = panel.getBoundingClientRect();
       const padding = 8;
       const fitsRight = triggerRect.right + panelRect.width + padding <= window.innerWidth;
-      panel.style.left = `${Math.max(padding, fitsRight ? triggerRect.right + 2 : triggerRect.left - panelRect.width - 2)}px`;
+      panel.style.left = `${Math.max(padding, fitsRight ?triggerRect.right + 2 : triggerRect.left - panelRect.width - 2)}px`;
       panel.style.top = `${Math.max(padding, Math.min(triggerRect.top, window.innerHeight - panelRect.height - padding))}px`;
       panel.style.visibility = "visible";
     });
@@ -1552,9 +1655,9 @@
       const contextElement = contextState.elements.find((item) => item.id === gridContextPosition.elementId);
       const contextStart = contextElement?.row || gridContextPosition.row;
       const contextEnd = contextElement
-        ? contextElement.row + contextElement.rowSpan
+        ?contextElement.row + contextElement.rowSpan
         : gridContextPosition.row + 1;
-      const row = insertDirection === "after" ? contextEnd : contextStart;
+      const row = insertDirection === "after" ?contextEnd : contextStart;
       if (gridContextPosition.scope === "print") insertPrintRow(row);
       else insertGridRow(row);
       gridContextMenu.hidden = true;
@@ -1566,9 +1669,9 @@
       const contextElement = contextState.elements.find((item) => item.id === gridContextPosition.elementId);
       const contextStart = contextElement?.col || gridContextPosition.col;
       const contextEnd = contextElement
-        ? contextElement.col + contextElement.colSpan
+        ?contextElement.col + contextElement.colSpan
         : gridContextPosition.col + 1;
-      const column = insertColumnDirection === "after" ? contextEnd : contextStart;
+      const column = insertColumnDirection === "after" ?contextEnd : contextStart;
       if (gridContextPosition.scope === "print") insertPrintColumn(column);
       else insertGridColumn(column);
       gridContextMenu.hidden = true;
@@ -1579,7 +1682,7 @@
     gridContextMenu.hidden = true;
     requestGridDelete(
       kind,
-      kind === "row" ? gridContextPosition.row : gridContextPosition.col,
+      kind === "row" ?gridContextPosition.row : gridContextPosition.col,
       gridContextPosition.scope,
     );
   });
@@ -1596,7 +1699,7 @@
     duplicateGhost.style.left = `${Math.min(window.innerWidth - duplicateGhost.offsetWidth - 8, event.clientX + 12)}px`;
     duplicateGhost.style.top = `${Math.min(window.innerHeight - duplicateGhost.offsetHeight - 8, event.clientY + 12)}px`;
     const container = event.target.closest?.(".document-position-grid");
-    const expectedContainer = pendingDuplicate.scope === "print" ? printElementList : fieldList;
+    const expectedContainer = pendingDuplicate.scope === "print" ?printElementList : fieldList;
     if (!container || container !== expectedContainer) {
       duplicateGhost.classList.add("invalid");
       return;
@@ -1610,13 +1713,13 @@
   document.addEventListener("click", (event) => {
     if (!pendingDuplicate) return;
     const container = event.target.closest?.(".document-position-grid");
-    const expectedContainer = pendingDuplicate.scope === "print" ? printElementList : fieldList;
+    const expectedContainer = pendingDuplicate.scope === "print" ?printElementList : fieldList;
     if (!container || container !== expectedContainer) return;
     event.preventDefault();
     event.stopPropagation();
     const position = gridPositionFromPointer(container, event, 1, 1);
     if (!duplicateFitsAt(pendingDuplicate.scope, pendingDuplicate.duplicate, position.row, position.col)) {
-      duplicateGhost?.classList.add("invalid");
+      duplicateGhost.classList.add("invalid");
       showHistoryIndicator("A cópia não cabe nessa posição");
       return;
     }
@@ -1696,7 +1799,7 @@
         const reusableOptions = reusableFields.filter((item) => item.ds_projeto_tela?.formFields?.length).map((item) => (
           `<button type="button" data-cell-create-reusable="${item.cd_modelo_documento}">${escapeHtml(item.nm_modelo)}</button>`
         )).join("");
-        cell.innerHTML = cellIsOccupied(row, col) ? "" : `
+        cell.innerHTML = cellIsOccupied(row, col) ?"" : `
           <div class="document-cell-actions">
             <button class="cell-direction cell-direction-top" type="button" data-cell-row-before title="↑ Adicionar linha acima">+</button>
             <button class="cell-direction cell-direction-bottom" type="button" data-cell-row-after title="↓ Adicionar linha abaixo">+</button>
@@ -1711,7 +1814,7 @@
                 <button type="button" data-cell-create-display="static-variable">Variável</button>
                 <button type="button" data-cell-create-display="line">Linha</button>
                 <button type="button" data-cell-create-image>Imagem</button>
-                ${reusableOptions ? `
+                ${reusableOptions ?`
                   <button class="document-cell-fields-toggle" type="button" data-form-fields-toggle>Campos reutilizáveis <span>›</span></button>
                   <div class="document-cell-fields-menu" data-form-fields-menu hidden>${reusableOptions}</div>
                 ` : ""}
@@ -1732,11 +1835,11 @@
             const type = action.dataset.cellCreateDisplay;
             addField({
               name: `elemento_${formFields.length + 1}`,
-              label: type === "static-text" ? "Texto" : (type === "static-variable" ? "Variável" : "Linha"),
+              label: type === "static-text" ?"Texto" : (type === "static-variable" ?"Variável" : "Linha"),
               type,
               row,
               col,
-              colSpan: type === "line" ? freeFormColumnSpan(row, col) : 1,
+              colSpan: type === "line" ?freeFormColumnSpan(row, col) : 1,
             });
           } else if (action.matches("[data-cell-create-image]")) {
             addField({
@@ -1762,16 +1865,16 @@
           cell.insertAdjacentHTML("beforeend", '<button class="document-track-handle document-row-handle" type="button" draggable="true" title="Arrastar linha" aria-label="Reordenar linha">⋮</button>');
         }
         if (row === 1 || row === gridConfig.rows) {
-          const edgeClass = row === 1 ? "document-column-handle-top" : "document-column-handle-bottom";
+          const edgeClass = row === 1 ?"document-column-handle-top" : "document-column-handle-bottom";
           cell.insertAdjacentHTML("beforeend", `<button class="document-track-handle document-column-handle ${edgeClass}" type="button" draggable="true" title="Arrastar coluna" aria-label="Reordenar coluna">⋯</button>`);
         }
         cell.querySelectorAll(".document-track-handle").forEach((handle) => {
           handle.addEventListener("dragstart", (event) => {
             event.stopPropagation();
-            const kind = handle.classList.contains("document-row-handle") ? "row" : "column";
+            const kind = handle.classList.contains("document-row-handle") ?"row" : "column";
             event.dataTransfer.setData("text/document-grid-track", kind);
             event.dataTransfer.setData("text/document-grid-scope", "form");
-            event.dataTransfer.setData("text/document-grid-index", String(kind === "row" ? row : col));
+            event.dataTransfer.setData("text/document-grid-index", String(kind === "row" ?row : col));
             event.dataTransfer.effectAllowed = "move";
           });
         });
@@ -1815,19 +1918,19 @@
       card.dataset.fieldIndex = String(index);
       card.innerHTML = `
         <div class="document-field-expand-actions">
-          ${canExpandField(field, "top") ? '<button class="field-expand-top" type="button" data-field-expand="top" title="Expandir campo para cima">⌃</button>' : ""}
-          ${canExpandField(field, "bottom") ? '<button class="field-expand-bottom" type="button" data-field-expand="bottom" title="Expandir campo para baixo">⌄</button>' : ""}
-          ${canExpandField(field, "left") ? '<button class="field-expand-left" type="button" data-field-expand="left" title="Expandir campo para a esquerda">‹</button>' : ""}
-          ${canExpandField(field, "right") ? '<button class="field-expand-right" type="button" data-field-expand="right" title="Expandir campo para a direita">›</button>' : ""}
-          ${field.rowSpan > 1 ? '<button class="field-shrink-top" type="button" data-field-shrink="top" title="Diminuir pela parte superior">⌄</button><button class="field-shrink-bottom" type="button" data-field-shrink="bottom" title="Diminuir pela parte inferior">⌃</button>' : ""}
-          ${field.colSpan > 1 ? '<button class="field-shrink-left" type="button" data-field-shrink="left" title="Diminuir pela esquerda">›</button><button class="field-shrink-right" type="button" data-field-shrink="right" title="Diminuir pela direita">‹</button>' : ""}
+          ${canExpandField(field, "top") ?'<button class="field-expand-top" type="button" data-field-expand="top" title="Expandir campo para cima">⌃</button>' : ""}
+          ${canExpandField(field, "bottom") ?'<button class="field-expand-bottom" type="button" data-field-expand="bottom" title="Expandir campo para baixo">⌄</button>' : ""}
+          ${canExpandField(field, "left") ?'<button class="field-expand-left" type="button" data-field-expand="left" title="Expandir campo para a esquerda">‹</button>' : ""}
+          ${canExpandField(field, "right") ?'<button class="field-expand-right" type="button" data-field-expand="right" title="Expandir campo para a direita">›</button>' : ""}
+          ${field.rowSpan > 1 ?'<button class="field-shrink-top" type="button" data-field-shrink="top" title="Diminuir pela parte superior">⌄</button><button class="field-shrink-bottom" type="button" data-field-shrink="bottom" title="Diminuir pela parte inferior">⌃</button>' : ""}
+          ${field.colSpan > 1 ?'<button class="field-shrink-left" type="button" data-field-shrink="left" title="Diminuir pela esquerda">›</button><button class="field-shrink-right" type="button" data-field-shrink="right" title="Diminuir pela direita">‹</button>' : ""}
         </div>
         <div class="document-field-card-heading">
-          <span class="document-field-kind-icon" aria-hidden="true">${field.type === "image" ? "□" : (field.type === "line" ? "_" : (field.type === "static-variable" ? "V" : "T"))}</span>
+          <span class="document-field-kind-icon" aria-hidden="true">${field.type === "image" ?"□" : (field.type === "line" ?"_" : (field.type === "static-variable" ?"V" : "T"))}</span>
           <strong>${escapeHtml(field.label || field.name)}</strong>
-          ${field.readonly ? "<small>Somente leitura</small>" : ""}
+          ${field.readonly ?"<small>Somente leitura</small>" : ""}
         </div>
-        <span>${escapeHtml(field.type === "image" ? `${field.imageWidth} × ${field.imageHeight}px` : (field.binding || field.sourceTable || field.type))}</span>
+        <span>${escapeHtml(field.type === "image" ?`${field.imageWidth} × ${field.imageHeight}px` : (field.binding || field.sourceTable || field.type))}</span>
         <div class="document-field-card-actions">
           <button type="button" data-field-settings title="Configurar">⚙</button>
           <button type="button" data-field-remove title="Remover">×</button>
@@ -1883,15 +1986,15 @@
       left.row - right.row || left.col - right.col || String(left.id).localeCompare(String(right.id))
     )).map((field) => {
       const name = normalizeName(field.name || field.label);
-      const required = field.required ? " required" : "";
-      const placeholder = field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : "";
-      const readonly = field.readonly ? ' disabled tabindex="-1" aria-disabled="true"' : "";
-      const bindingValue = field.binding ? `{{ ${field.binding} }}` : "";
+      const required = field.required ?" required" : "";
+      const placeholder = field.placeholder ?` placeholder="${escapeHtml(field.placeholder)}"` : "";
+      const readonly = field.readonly ?' disabled tabindex="-1" aria-disabled="true"' : "";
+      const bindingValue = field.binding ?`{{ ${field.binding} }}` : "";
       const positionStyle = `grid-column:${field.col} / span ${field.colSpan};grid-row:${field.row} / span ${field.rowSpan}`;
       const fieldFontSize = Math.max(7, Number(field.fontSize || gridConfig.fontSize));
       const fieldFontFamily = escapeHtml(field.fontFamily || gridConfig.fontFamily);
       const fieldTextColor = escapeHtml(field.textColor || "#111111");
-      const fieldSpacing = `${field.margin ? `;margin:${escapeHtml(field.margin)}` : ""}${field.padding ? `;padding:${escapeHtml(field.padding)}` : ""}`;
+      const fieldSpacing = `${field.margin ?`;margin:${escapeHtml(field.margin)}` : ""}${field.padding ?`;padding:${escapeHtml(field.padding)}` : ""}`;
       const fieldStyle = `${positionStyle}${fieldSpacing};--field-font-size:${fieldFontSize}px;font-size:${fieldFontSize + 1}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
       const position = `style="${fieldStyle}"`;
       const textStyle = `font-size:${fieldFontSize}px;font-family:${fieldFontFamily};color:${fieldTextColor}`;
@@ -1900,14 +2003,14 @@
         const styledPosition = `style="${positionStyle}${fieldSpacing};${textStyle}"`;
         if (field.displayStyle === "title") return `<h2 class="generated-screen-title" ${styledPosition}>${content}</h2>`;
         if (field.displayStyle === "help") return `<aside class="generated-screen-help" ${styledPosition}>${content}</aside>`;
-        return `<div class="generated-screen-${field.displayStyle === "description" ? "description" : "text"}" ${styledPosition}>${content}</div>`;
+        return `<div class="generated-screen-${field.displayStyle === "description" ?"description" : "text"}" ${styledPosition}>${content}</div>`;
       }
       if (field.type === "static-variable") {
         const label = String(field.label || "").trim();
-        return `<div class="generated-screen-variable" style="${positionStyle}${fieldSpacing};${textStyle}">${label ? `<strong>${escapeHtml(label)}:</strong> ` : ""}${escapeHtml(bindingValue)}</div>`;
+        return `<div class="generated-screen-variable" style="${positionStyle}${fieldSpacing};${textStyle}">${label ?`<strong>${escapeHtml(label)}:</strong> ` : ""}${escapeHtml(bindingValue)}</div>`;
       }
       if (field.type === "line") {
-        const lineWidth = Math.max(field.lineStyle === "double" ? 3 : 1, Number(field.lineWidth || 1));
+        const lineWidth = Math.max(field.lineStyle === "double" ?3 : 1, Number(field.lineWidth || 1));
         return `<div class="generated-screen-line" style="${positionStyle};margin-top:${Number(field.marginTop || 0)}px;margin-bottom:${Number(field.marginBottom || 0)}px"><hr style="margin:0;border:0;border-top:${lineWidth}px ${escapeHtml(field.lineStyle)} ${escapeHtml(field.lineColor)}"></div>`;
       }
       if (field.type === "image") {
@@ -1929,15 +2032,18 @@
         const choices = splitStructuredOptions(field.options)
           .map((option) => {
             const parsed = parseEmbeddedField(option);
+            if (parsed.type === "literal") {
+              return `<span class="generated-exclusive-literal">${escapeHtml(parsed.text)}</span>`;
+            }
             const label = parsed.label || option.replace(/\[.*$/, "").trim();
-            const detailName = parsed.name && option.includes("[") ? parsed.name : "";
+            const detailName = parsed.name && option.includes("[") ?parsed.name : "";
             const detailPlaceholder = parsed.placeholder || "";
             const detail = detailName
-              ? `<input class="generated-exclusive-detail" data-document-field="true" data-exclusive-detail="${escapeHtml(label)}" name="campo_${escapeHtml(detailName)}" type="text" disabled tabindex="-1" placeholder="${escapeHtml(detailPlaceholder)}">`
+              ?`<input class="generated-exclusive-detail" data-document-field="true" data-exclusive-detail="${escapeHtml(label)}" name="campo_${escapeHtml(detailName)}" type="text" disabled tabindex="-1" placeholder="${escapeHtml(detailPlaceholder)}">`
               : "";
             return `<label class="generated-exclusive-option"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="${escapeHtml(label)}"${readonly}><span>${escapeHtml(label)}</span>${detail}</label>`;
           }).join("");
-        return `<fieldset class="generated-exclusive-checkboxes" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ? "true" : "false"}" data-exclusive-readonly="${field.readonly ? "true" : "false"}"><legend>${field.label ? escapeHtml(field.label) : "&nbsp;"}</legend><div>${choices}</div></fieldset>`;
+        return `<fieldset class="generated-exclusive-checkboxes" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ?"true" : "false"}" data-exclusive-readonly="${field.readonly ?"true" : "false"}"><legend>${field.label ?escapeHtml(field.label) : "&nbsp;"}</legend><div>${choices}</div></fieldset>`;
       }
       if (field.type === "multiple-fields") {
         const controls = splitStructuredOptions(field.options).map((option) => {
@@ -1945,16 +2051,19 @@
           if (parsed.type === "literal") {
             return `<span class="generated-multiple-literal">${escapeHtml(parsed.text)}</span>`;
           }
-          return `<label class="generated-multiple-item">${parsed.label ? `<span>${escapeHtml(parsed.label)}</span>` : ""}<input data-document-field="true" name="campo_${escapeHtml(parsed.name)}" type="text" placeholder="${escapeHtml(parsed.placeholder)}"${required}${readonly}></label>`;
+          return `<label class="generated-multiple-item">${parsed.label ?`<span>${escapeHtml(parsed.label)}</span>` : ""}<input data-document-field="true" name="campo_${escapeHtml(parsed.name)}" type="text" placeholder="${escapeHtml(parsed.placeholder)}"${required}${readonly}></label>`;
         }).join("");
-        return `<fieldset class="generated-multiple-fields" style="${fieldStyle}"><legend>${field.label ? escapeHtml(field.label) : "&nbsp;"}</legend><div>${controls}</div></fieldset>`;
+        return `<fieldset class="generated-multiple-fields" style="${fieldStyle}"><legend>${field.label ?escapeHtml(field.label) : "&nbsp;"}</legend><div>${controls}</div></fieldset>`;
       }
       if (field.type === "checkbox") {
-        return `<fieldset class="generated-boolean-field" style="${fieldStyle}"><legend>${field.label ? escapeHtml(field.label) : "&nbsp;"}</legend><label class="provider-checkbox"><input data-document-field="true" name="campo_${name}" type="checkbox"${required}${readonly}><span>Sim</span></label></fieldset>`;
+        if (field.booleanStyle === "single") {
+          return `<fieldset class="generated-boolean-field" style="${fieldStyle}" data-boolean-style="single"><legend>${field.label ?escapeHtml(field.label) : "&nbsp;"}</legend><label class="provider-checkbox"><input data-document-field="true" name="campo_${name}" type="checkbox"${required}${readonly}><span>Sim</span></label></fieldset>`;
+        }
+        return `<fieldset class="generated-exclusive-checkboxes generated-boolean-field" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ?"true" : "false"}" data-exclusive-readonly="${field.readonly ?"true" : "false"}" data-boolean-style="double"><legend>${field.label ?escapeHtml(field.label) : "&nbsp;"}</legend><div><label class="generated-exclusive-option"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="Sim"${readonly}><span>Sim</span></label><label class="generated-exclusive-option"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="Não"${readonly}><span>Não</span></label></div></fieldset>`;
       }
       const control = `<input data-document-field="true" name="campo_${name}" type="${escapeHtml(field.type || "text")}" value="${escapeHtml(bindingValue)}"${placeholder}${required}${readonly}>`;
       if (["text", "number"].includes(field.type) && (field.prefix || field.suffix)) {
-        return `<label ${position}>${escapeHtml(field.label)}<span class="generated-field-affix">${field.prefix ? `<span>${escapeHtml(field.prefix)}</span>` : ""}${control}${field.suffix ? `<span>${escapeHtml(field.suffix)}</span>` : ""}</span></label>`;
+        return `<label ${position}>${escapeHtml(field.label)}<span class="generated-field-affix">${field.prefix ?`<span>${escapeHtml(field.prefix)}</span>` : ""}${control}${field.suffix ?`<span>${escapeHtml(field.suffix)}</span>` : ""}</span></label>`;
       }
       return `<label ${position}>${escapeHtml(field.label)}${control}</label>`;
     }).join("");
@@ -2005,20 +2114,20 @@
       return template.innerHTML;
     };
   const renderPrintElement = (element, position = "", compactColumn = false) => {
-      const boxSpacing = `${element.margin ? `;margin:${escapeHtml(element.margin)}` : ""}${element.padding ? `;padding:${escapeHtml(element.padding)}` : ""}`;
+      const boxSpacing = `${element.margin ?`;margin:${escapeHtml(element.margin)}` : ""}${element.padding ?`;padding:${escapeHtml(element.padding)}` : ""}`;
       const typography = ["field", "variable", "text", "html"].includes(element.type)
-        ? `${element.fontSize ? `;font-size:${Number(element.fontSize)}px` : ""}${element.fontFamily ? `;font-family:${escapeHtml(element.fontFamily)}` : ""}`
+        ?`${element.fontSize ?`;font-size:${Number(element.fontSize)}px` : ""}${element.fontFamily ?`;font-family:${escapeHtml(element.fontFamily)}` : ""}`
         : "";
-      const verticalAlignment = ["center", "end"].includes(element.verticalAlign) ? element.verticalAlign : "start";
+      const verticalAlignment = ["center", "end"].includes(element.verticalAlign) ?element.verticalAlign : "start";
       const compactVerticalStyle = compactColumn
-        ? (verticalAlignment === "end" ? ";margin-top:auto" : (verticalAlignment === "center" ? ";margin-top:auto;margin-bottom:auto" : ""))
+        ?(verticalAlignment === "end" ?";margin-top:auto" : (verticalAlignment === "center" ?";margin-top:auto;margin-bottom:auto" : ""))
         : `;align-self:${verticalAlignment}`;
       const positionStyle = `${position}${boxSpacing}${typography}${compactVerticalStyle}`;
       if (element.type === "image") {
         return `<div style="${positionStyle};position:relative;width:${element.imageWidth}px;max-width:100%;height:${element.imageHeight}px;overflow:visible"><img src="${escapeHtml(element.imageUrl)}" alt="${escapeHtml(element.label)}" style="display:block;width:${element.imageWidth}px;height:${element.imageHeight}px;max-width:100%;object-fit:contain"></div>`;
       }
       if (element.type === "line") {
-        const lineWidth = Math.max(element.lineStyle === "double" ? 3 : 1, Number(element.lineWidth || 1));
+        const lineWidth = Math.max(element.lineStyle === "double" ?3 : 1, Number(element.lineWidth || 1));
         const overlapsRow = (vertical) => (
           element.row < vertical.row + vertical.rowSpan
           && vertical.row < element.row + element.rowSpan
@@ -2034,10 +2143,10 @@
           && overlapsRow(vertical)
         ));
         const horizontalExtension = 6;
-        return `<div style="${positionStyle};margin-top:${Number(element.marginTop || 0)}px;margin-right:${hasRightVertical ? -horizontalExtension : 0}px;margin-bottom:${Number(element.marginBottom || 0)}px;margin-left:${hasLeftVertical ? -horizontalExtension : 0}px;overflow:visible"><hr style="margin:0;border:0;border-top:${lineWidth}px ${escapeHtml(element.lineStyle)} ${escapeHtml(element.lineColor)}"></div>`;
+        return `<div style="${positionStyle};margin-top:${Number(element.marginTop || 0)}px;margin-right:${hasRightVertical ?-horizontalExtension : 0}px;margin-bottom:${Number(element.marginBottom || 0)}px;margin-left:${hasLeftVertical ?-horizontalExtension : 0}px;overflow:visible"><hr style="margin:0;border:0;border-top:${lineWidth}px ${escapeHtml(element.lineStyle)} ${escapeHtml(element.lineColor)}"></div>`;
       }
       if (element.type === "vline") {
-        const lineWidth = Math.max(element.lineStyle === "double" ? 3 : 1, Number(element.lineWidth || 1));
+        const lineWidth = Math.max(element.lineStyle === "double" ?3 : 1, Number(element.lineWidth || 1));
         const minimumHeight = Math.max(24, Number(element.rowSpan || 1) * 24);
         return `<div style="${positionStyle};justify-self:center;width:0;min-height:${minimumHeight}px;height:100%;border-left:${lineWidth}px ${escapeHtml(element.lineStyle)} ${escapeHtml(element.lineColor)}"></div>`;
       }
@@ -2051,24 +2160,25 @@
         if (!element.sourceField) {
           return `<div style="${positionStyle};min-width:0"></div>`;
         }
-        const variable = element.sourceField ? `{{ ${element.sourceField} }}` : "";
+        const variable = element.sourceField ?`{{ ${element.sourceField} }}` : "";
         const label = String(element.label || "").trim();
         const labelHtml = label
-          ? `<strong style="color:${escapeHtml(element.labelColor)}">${escapeHtml(label)}:</strong> `
+          ?`<strong style="color:${escapeHtml(element.labelColor)}">${escapeHtml(label)}:</strong> `
           : "";
-        return `<div style="${positionStyle};${compactColumn ? "width:100%;" : ""}min-width:0;text-align:${escapeHtml(element.textAlign)};overflow-wrap:anywhere">${labelHtml}<span style="color:${escapeHtml(element.textColor)};font-weight:${element.textBold ? "700" : "400"}">${variable}</span></div>`;
+        return `<div style="${positionStyle};${compactColumn ?"width:100%;" : ""}min-width:0;text-align:${escapeHtml(element.textAlign)};overflow-wrap:anywhere;word-break:break-word;white-space:normal">${labelHtml}<span style="color:${escapeHtml(element.textColor)};font-weight:${element.textBold ?"700" : "400"}">${variable}</span></div>`;
       }
-      const content = ["html", "text"].includes(element.type)
-        ? safeRichHtml(element.content)
+      const fieldContentHasHtml = element.type === "field" && /<\/(strong|b|em|i|u|span|br|div|p)\b/i.test(element.content || "");
+      const content = ["html", "text"].includes(element.type) || fieldContentHasHtml
+        ?safeRichHtml(element.content)
         : escapeHtml(element.content || "").replace(/\n/g, "<br>");
       const label = element.type === "field" && !element.hideLabel && element.label
-        ? `<strong>${escapeHtml(element.label)}:</strong> `
+        ?`<strong>${escapeHtml(element.label)}:</strong> `
         : "";
-      const minimumHeight = element.type === "field" ? (element.rowSpan > 1 ? 68 : 38) : 0;
+      const minimumHeight = element.type === "field" ?(element.rowSpan > 1 ?34 : 20) : 0;
       const fieldBorder = element.type === "field" && element.showBottomBorder !== false
-        ? ";border-bottom:1px solid #d1d5db"
+        ?";border-bottom:1px solid #d1d5db"
         : "";
-      return `<div style="${positionStyle};width:100%;min-width:0;min-height:${minimumHeight}px${fieldBorder};overflow-wrap:anywhere">${label}${content}</div>`;
+      return `<div style="${positionStyle};width:100%;max-width:100%;min-width:0;min-height:${minimumHeight}px${fieldBorder};overflow-wrap:anywhere;word-break:break-word;white-space:normal">${label}${content}</div>`;
     };
     const useIndependentColumns = !printLayout.elements.some((element) => (
       ["line", "vline"].includes(element.type)
@@ -2200,14 +2310,17 @@
       center: "16px auto 0",
     }[signatureAlignment];
     const signatureCouncil = form.elements.sn_exibe_conselho_assinatura?.checked
-      ? " - {{ prestador.conselho }} {{ prestador.numero_conselho }} {{ prestador.uf_conselho }}"
+      ?" - {{ prestador.conselho }} {{ prestador.numero_conselho }} {{ prestador.uf_conselho }}"
       : "";
     const signature = `<section data-celeris-signature="true" style="display:grid;width:max-content;min-width:92mm;max-width:100%;margin:${signatureBlockMargin};break-inside:avoid;text-align:${signatureAlignment}"><div style="width:100%;height:34px;border-bottom:1px solid #111;margin:0 0 6px"></div><strong>{{ prestador.nome }}${signatureCouncil}</strong></section>`;
-    const signatureHtml = form.dataset.documentElement === "DOCUMENTO" && signatureEnabled ? signature : "";
+    const signatureHtml = form.dataset.documentElement === "DOCUMENTO" && signatureEnabled ?signature : "";
     const floatingImageHeight = printLayout.elements
       .filter((element) => element.type === "image" && element.rowSpan > 1)
       .reduce((height, element) => Math.max(height, element.imageHeight), 0);
-    return `<main data-celeris-grid-print="true" style="width:100%;max-width:none;min-height:0;margin:0;padding:2px;background:#fff;color:#111;font-size:${printLayout.grid.fontSize}px;font-family:${escapeHtml(printLayout.grid.fontFamily)};line-height:1.15;box-sizing:border-box"><section style="${layoutStyle};min-height:${useIndependentColumns ? 0 : floatingImageHeight}px">${fields}</section>${signatureHtml}</main>`;
+    const fitOnePageStyle = printLayout.grid.fitOnePage
+      ?";transform-origin:top left"
+      : "";
+    return `<main data-celeris-grid-print="true" data-fit-one-page="${printLayout.grid.fitOnePage ?"true" : "false"}" style="width:100%;max-width:100%;min-height:0;margin:0;padding:2px;background:#fff;color:#111;font-size:${printLayout.grid.fontSize}px;font-family:${escapeHtml(printLayout.grid.fontFamily)};line-height:1.15;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word${fitOnePageStyle}"><section style="${layoutStyle};max-width:100%;min-height:${useIndependentColumns ?0 : floatingImageHeight}px">${fields}</section>${signatureHtml}</main>`;
   };
   const printSourceSelect = printSettingsModal?.querySelector('[data-print-property="sourceField"]');
   const printSourceGroup = printSettingsModal?.querySelector("[data-print-source-group]");
@@ -2477,6 +2590,8 @@
     printLayout.elements.push({
       ...printElementFromField(field),
       id: crypto.randomUUID?.() || `print-${Date.now()}`,
+      margin: printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN,
+      usesDefaultMargin: true,
       row,
       col,
     });
@@ -2492,7 +2607,7 @@
     );
     if (atBoundary) {
       return ["left", "right"].includes(direction)
-        ? printLayout.grid.columns < 12
+        ?printLayout.grid.columns < 12
         : printLayout.grid.rows < 60;
     }
     const candidate = { ...element };
@@ -2658,7 +2773,7 @@
                   <button type="button" data-print-create-type="line">Linha</button>
                   <button type="button" data-print-create-type="vline">Linha vertical</button>
                   <button type="button" data-print-create-type="pagebreak">Quebra de página</button>
-                  ${fieldOptions ? `
+                  ${fieldOptions ?`
                     <button class="document-cell-fields-toggle" type="button" data-print-fields-toggle>Campos do documento <span>›</span></button>
                     <div class="document-cell-fields-menu" data-print-fields-menu hidden>${fieldOptions}</div>
                   ` : ""}
@@ -2692,16 +2807,16 @@
           cell.insertAdjacentHTML("beforeend", '<button class="document-track-handle document-row-handle" type="button" draggable="true" title="Arrastar linha" aria-label="Reordenar linha">⋮</button>');
         }
         if (row === 1 || row === printLayout.grid.rows) {
-          const edgeClass = row === 1 ? "document-column-handle-top" : "document-column-handle-bottom";
+          const edgeClass = row === 1 ?"document-column-handle-top" : "document-column-handle-bottom";
           cell.insertAdjacentHTML("beforeend", `<button class="document-track-handle document-column-handle ${edgeClass}" type="button" draggable="true" title="Arrastar coluna" aria-label="Reordenar coluna">⋯</button>`);
         }
         cell.querySelectorAll(".document-track-handle").forEach((handle) => {
           handle.addEventListener("dragstart", (event) => {
             event.stopPropagation();
-            const kind = handle.classList.contains("document-row-handle") ? "row" : "column";
+            const kind = handle.classList.contains("document-row-handle") ?"row" : "column";
             event.dataTransfer.setData("text/document-grid-track", kind);
             event.dataTransfer.setData("text/document-grid-scope", "print");
-            event.dataTransfer.setData("text/document-grid-index", String(kind === "row" ? row : col));
+            event.dataTransfer.setData("text/document-grid-index", String(kind === "row" ?row : col));
             event.dataTransfer.effectAllowed = "move";
           });
         });
@@ -2753,15 +2868,15 @@
       card.style.gridRow = `${element.row} / span ${element.rowSpan}`;
       card.innerHTML = `
         <div class="document-field-expand-actions">
-          ${canExpandPrintElement(element, "top") ? '<button class="field-expand-top" type="button" data-print-resize="top" title="Expandir para cima">⌃</button>' : ""}
-          ${canExpandPrintElement(element, "bottom") ? '<button class="field-expand-bottom" type="button" data-print-resize="bottom" title="Expandir para baixo">⌄</button>' : ""}
-          ${canExpandPrintElement(element, "left") ? '<button class="field-expand-left" type="button" data-print-resize="left" title="Expandir para a esquerda">‹</button>' : ""}
-          ${canExpandPrintElement(element, "right") ? '<button class="field-expand-right" type="button" data-print-resize="right" title="Expandir para a direita">›</button>' : ""}
-          ${element.rowSpan > 1 ? '<button class="field-shrink-top" type="button" data-print-shrink="top">⌄</button><button class="field-shrink-bottom" type="button" data-print-shrink="bottom">⌃</button>' : ""}
-          ${element.colSpan > 1 ? '<button class="field-shrink-left" type="button" data-print-shrink="left">›</button><button class="field-shrink-right" type="button" data-print-shrink="right">‹</button>' : ""}
+          ${canExpandPrintElement(element, "top") ?'<button class="field-expand-top" type="button" data-print-resize="top" title="Expandir para cima">⌃</button>' : ""}
+          ${canExpandPrintElement(element, "bottom") ?'<button class="field-expand-bottom" type="button" data-print-resize="bottom" title="Expandir para baixo">⌄</button>' : ""}
+          ${canExpandPrintElement(element, "left") ?'<button class="field-expand-left" type="button" data-print-resize="left" title="Expandir para a esquerda">‹</button>' : ""}
+          ${canExpandPrintElement(element, "right") ?'<button class="field-expand-right" type="button" data-print-resize="right" title="Expandir para a direita">›</button>' : ""}
+          ${element.rowSpan > 1 ?'<button class="field-shrink-top" type="button" data-print-shrink="top">⌄</button><button class="field-shrink-bottom" type="button" data-print-shrink="bottom">⌃</button>' : ""}
+          ${element.colSpan > 1 ?'<button class="field-shrink-left" type="button" data-print-shrink="left">›</button><button class="field-shrink-right" type="button" data-print-shrink="right">‹</button>' : ""}
         </div>
         <div class="document-field-card-heading">
-          <span class="document-field-kind-icon" aria-hidden="true">${element.type === "image" ? "□" : (element.type === "line" ? "_" : (element.type === "vline" ? "|" : (element.type === "pagebreak" ? "┄" : (element.type === "variable" ? "V" : "T"))))}</span>
+          <span class="document-field-kind-icon" aria-hidden="true">${element.type === "image" ?"□" : (element.type === "line" ?"_" : (element.type === "vline" ?"|" : (element.type === "pagebreak" ?"┄" : (element.type === "variable" ?"V" : "T"))))}</span>
           <strong>${escapeHtml(element.label)}</strong>
         </div>
         <span>${escapeHtml(element.content || element.type)}</span>
@@ -2823,6 +2938,8 @@
     if (printRowsInput) printRowsInput.value = String(printLayout.grid.rows);
     if (printFontSizeInput) printFontSizeInput.value = String(printLayout.grid.fontSize);
     if (printFontFamilyInput) printFontFamilyInput.value = printLayout.grid.fontFamily;
+    if (printDefaultMarginInput) printDefaultMarginInput.value = printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN;
+    if (printFitOnePageInput) printFitOnePageInput.checked = Boolean(printLayout.grid.fitOnePage);
   };
   const addPrintElement = (type, requestedPosition = null) => {
     const requested = requestedPosition || firstFreePrintPosition();
@@ -2833,7 +2950,7 @@
         && requested.row < element.row + element.rowSpan
       ));
       const targetRow = occupants.length
-        ? Math.max(...occupants.map((element) => element.row + element.rowSpan))
+        ?Math.max(...occupants.map((element) => element.row + element.rowSpan))
         : requested.row;
       if (occupants.length && !insertPrintRow(targetRow)) return;
       position = { row: targetRow, col: 1 };
@@ -2861,10 +2978,11 @@
       imageWidth: 240,
       imageHeight: 120,
       colSpan: type === "pagebreak"
-        ? printLayout.grid.columns
-        : (type === "line" ? freePrintColumnSpan(position.row, position.col) : 1),
-      rowSpan: type === "vline" ? freePrintRowSpan(position.row, position.col) : 1,
-      margin: "",
+        ?printLayout.grid.columns
+        : (type === "line" ?freePrintColumnSpan(position.row, position.col) : 1),
+      rowSpan: type === "vline" ?freePrintRowSpan(position.row, position.col) : 1,
+      margin: printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN,
+      usesDefaultMargin: true,
       padding: "",
       verticalAlign: "start",
       ...position,
@@ -2898,6 +3016,30 @@
     markEditorDirty();
     renderPrintBuilder();
   });
+  printDefaultMarginInput.addEventListener("change", () => {
+    const previousDefault = printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN;
+    const nextDefault = printDefaultMarginInput.value.trim() || DEFAULT_PRINT_ELEMENT_MARGIN;
+    printLayout.grid.defaultMargin = nextDefault;
+    printLayout.elements.forEach((element) => {
+      if (
+        element.usesDefaultMargin !== false
+        || !element.margin
+        || element.margin === previousDefault
+        || element.margin === DEFAULT_PRINT_ELEMENT_MARGIN
+        || element.margin === "10px 0 0"
+      ) {
+        element.margin = nextDefault;
+        element.usesDefaultMargin = true;
+      }
+    });
+    markEditorDirty();
+    renderPrintBuilder();
+  });
+  printFitOnePageInput.addEventListener("change", () => {
+    printLayout.grid.fitOnePage = printFitOnePageInput.checked;
+    markEditorDirty();
+    renderPrintBuilder();
+  });
   printSettingsModal?.querySelector("[data-print-settings-close]")?.addEventListener("click", () => {
     if (printSettingsHelp) printSettingsHelp.hidden = true;
     printSettingsModal.hidden = true;
@@ -2909,13 +3051,13 @@
     printSettingsModal.querySelectorAll("[data-print-property]").forEach((input) => {
       const property = input.dataset.printProperty;
       updates[property] = input.type === "checkbox"
-        ? input.checked
+        ?input.checked
         : property === "fontSize"
-        ? (input.value ? Math.max(7, Math.min(72, Number(input.value))) : "")
+        ?(input.value ?Math.max(7, Math.min(72, Number(input.value))) : "")
         : ["colSpan", "rowSpan", "imageWidth", "imageHeight", "lineWidth"].includes(property)
-        ? Math.max(1, Number(input.value || 1))
+        ?Math.max(1, Number(input.value || 1))
         : ["marginTop", "marginBottom"].includes(property)
-        ? Math.max(0, Number(input.value || 0))
+        ?Math.max(0, Number(input.value || 0))
         : input.value;
     });
     if (["field", "variable", "text", "html"].includes(activePrintElement.type)) {
@@ -2923,8 +3065,12 @@
       const selectedFontFamily = updates.fontFamily || printLayout.grid.fontFamily;
       updates.fontSizeCustom = selectedFontSize !== printLayout.grid.fontSize;
       updates.fontFamilyCustom = selectedFontFamily !== printLayout.grid.fontFamily;
-      updates.fontSize = updates.fontSizeCustom ? selectedFontSize : "";
-      updates.fontFamily = updates.fontFamilyCustom ? selectedFontFamily : "";
+      updates.fontSize = updates.fontSizeCustom ?selectedFontSize : "";
+      updates.fontFamily = updates.fontFamilyCustom ?selectedFontFamily : "";
+    }
+    if ("margin" in updates) {
+      updates.usesDefaultMargin = !updates.margin || updates.margin === (printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN);
+      if (!updates.margin) updates.margin = printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN;
     }
     updates.colSpan = Math.min(
       Number(updates.colSpan || activePrintElement.colSpan),
@@ -2950,8 +3096,8 @@
     renderPrintBuilder();
   });
   renderPrintBuilder();
-  const screenCss = ".generated-clinical-form{display:grid;column-gap:18px;row-gap:14px;color:var(--text,#111)}.generated-clinical-form label{display:grid;gap:5px;font-weight:700;min-width:0}.generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form textarea{width:100%;min-width:100%;max-width:100%;min-height:96px;max-height:144px;resize:vertical}.generated-clinical-form input:not([type=checkbox]),.generated-clinical-form select{height:38px;min-height:38px}.generated-clinical-form select:hover{border-color:var(--primary,#2563eb);background:var(--primary-soft,#eff6ff)}.generated-clinical-form select:focus{border-color:var(--primary,#2563eb);outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#2563eb),transparent 76%)}.generated-clinical-form select option,.generated-clinical-form select optgroup{background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form select option:checked{background:var(--primary,#2563eb);color:#fff}.dark .generated-clinical-form select{color-scheme:dark}.light .generated-clinical-form select{color-scheme:light}.generated-clinical-form :disabled{cursor:not-allowed;background:var(--panel-soft,#e9eef5);color:var(--muted,#475569);opacity:1}.generated-clinical-form .provider-checkbox{display:flex;align-self:end;align-items:center;box-sizing:border-box;width:100%;height:38px;min-height:38px;padding:0 8px;border:1px solid var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form .provider-checkbox input{appearance:none;display:grid;place-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;border:1px solid var(--line,#cbd5e1);border-radius:5px;background:var(--field-bg,#fff)}.generated-clinical-form .provider-checkbox input:checked{border-color:var(--primary,#2563eb);background-color:var(--primary,#2563eb);background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='m5 12 4 4L19 6'/%3E%3C/svg%3E\");background-position:center;background-repeat:no-repeat;background-size:20px}.generated-field-affix{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px}.generated-field-affix>input{flex:1 1 auto;width:auto;min-width:0;max-width:none}.generated-field-affix>span{flex:0 0 auto;white-space:nowrap}.generated-image-field img{display:block;max-width:100%;max-height:100%;object-fit:contain}.generated-screen-title{margin:0;align-self:end;font-size:20px}.generated-screen-description,.generated-screen-text,.generated-screen-variable{align-self:center;color:var(--text,#111)}.generated-screen-help{align-self:stretch;padding:8px 10px;border-left:3px solid var(--primary,#2563eb);border-radius:5px;background:var(--primary-soft,#eff6ff);color:var(--text,#111)}.generated-screen-line{align-self:center;width:100%}.provider-select-popup{position:fixed;z-index:1000;display:grid;gap:3px;max-height:240px;padding:5px;overflow:auto;border:1px solid var(--line,#cbd5e1);border-radius:8px;background:var(--panel,#fff);box-shadow:0 12px 28px rgba(15,23,42,.24)}.provider-select-popup button{width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--text,#111);text-align:left;cursor:pointer}.provider-select-popup button:hover,.provider-select-popup button[aria-selected=true]{background:var(--primary-soft,#eff6ff);color:var(--primary-dark,#1d4ed8)}";
-  const exclusiveCheckboxCss = ".generated-exclusive-checkboxes{display:flex;align-items:center;align-self:start;flex-wrap:wrap;gap:6px 8px;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0 0 4px;padding:0;border:0}.generated-exclusive-checkboxes legend{flex:0 0 auto;margin:0;padding:0;font-weight:700;color:inherit}.generated-exclusive-checkboxes>div{display:flex;align-items:center;flex:1 1 240px;flex-wrap:wrap;gap:6px;min-width:0}.generated-exclusive-checkboxes .generated-exclusive-option{display:flex;align-items:center;flex:1 1 140px;gap:5px;box-sizing:border-box;max-width:100%;min-height:38px;min-width:0;padding:3px 7px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);font-weight:600}.generated-exclusive-checkboxes .generated-exclusive-option>span{flex:0 1 auto;min-width:0;overflow-wrap:anywhere}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{appearance:none;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:0;border-radius:5px}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]:checked{border-color:var(--primary,#2563eb);background:var(--primary,#2563eb)}.generated-exclusive-checkboxes .generated-exclusive-detail{flex:1 1 80px;width:auto;min-width:70px;max-width:100%;height:30px;min-height:30px}";
+  const screenCss = ".generated-clinical-form{display:grid;column-gap:18px;row-gap:14px;color:var(--text,#111)}.generated-clinical-form label{display:grid;align-self:end;gap:5px;font-weight:700;min-width:0}.generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form textarea{width:100%;min-width:100%;max-width:100%;min-height:96px;max-height:144px;resize:vertical}.generated-clinical-form input:not([type=checkbox]),.generated-clinical-form select{height:38px;min-height:38px}.generated-clinical-form select:hover{border-color:var(--primary,#2563eb);background:var(--primary-soft,#eff6ff)}.generated-clinical-form select:focus{border-color:var(--primary,#2563eb);outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#2563eb),transparent 76%)}.generated-clinical-form select option,.generated-clinical-form select optgroup{background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form select option:checked{background:var(--primary,#2563eb);color:#fff}.dark .generated-clinical-form select{color-scheme:dark}.light .generated-clinical-form select{color-scheme:light}.generated-clinical-form :disabled{cursor:not-allowed;background:var(--panel-soft,#e9eef5);color:var(--muted,#475569);opacity:1}.generated-clinical-form .provider-checkbox{display:flex;align-self:end;align-items:center;box-sizing:border-box;width:100%;height:38px;min-height:38px;padding:0 8px;border:1px solid var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form .provider-checkbox input{appearance:none;display:grid;place-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;border:1px solid var(--line,#cbd5e1);border-radius:5px;background:var(--field-bg,#fff)}.generated-clinical-form .provider-checkbox input:checked{border-color:var(--primary,#2563eb);background-color:var(--primary,#2563eb);background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='m5 12 4 4L19 6'/%3E%3C/svg%3E\");background-position:center;background-repeat:no-repeat;background-size:20px}.generated-field-affix{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px}.generated-field-affix>input{flex:1 1 auto;width:auto;min-width:0;max-width:none}.generated-field-affix>span{flex:0 0 auto;white-space:nowrap}.generated-image-field img{display:block;max-width:100%;max-height:100%;object-fit:contain}.generated-screen-title{margin:0;align-self:center;font-size:20px;line-height:1.2}.generated-screen-description,.generated-screen-text,.generated-screen-variable{align-self:center;color:var(--text,#111)}.generated-screen-help{align-self:stretch;padding:8px 10px;border-left:3px solid var(--primary,#2563eb);border-radius:5px;background:var(--primary-soft,#eff6ff);color:var(--text,#111)}.generated-screen-line{align-self:center;width:100%}.provider-select-popup{position:fixed;z-index:1000;display:grid;gap:3px;max-height:240px;padding:5px;overflow:auto;border:1px solid var(--line,#cbd5e1);border-radius:8px;background:var(--panel,#fff);box-shadow:0 12px 28px rgba(15,23,42,.24)}.provider-select-popup button{width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--text,#111);text-align:left;cursor:pointer}.provider-select-popup button:hover,.provider-select-popup button[aria-selected=true]{background:var(--primary-soft,#eff6ff);color:var(--primary-dark,#1d4ed8)}";
+  const exclusiveCheckboxCss = ".generated-exclusive-checkboxes{display:flex;align-items:end;align-self:end;flex-wrap:wrap;gap:7px 9px;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0 0 4px;padding:0;border:0}.generated-exclusive-checkboxes legend{flex:0 0 auto;min-height:18px;margin:0;padding:0;font-weight:700;color:inherit}.generated-exclusive-checkboxes>div{display:flex;align-items:center;flex:1 1 240px;flex-wrap:wrap;gap:7px;min-width:0}.generated-exclusive-checkboxes .generated-exclusive-option{display:flex;align-items:center;flex:1 1 140px;gap:7px;box-sizing:border-box;max-width:100%;min-height:38px;min-width:0;padding:3px 7px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);font-weight:600}.generated-exclusive-checkboxes .generated-exclusive-option>span{flex:0 1 auto;min-width:0;overflow-wrap:anywhere}.generated-exclusive-checkboxes .generated-exclusive-literal{align-self:center;flex:0 0 auto;margin:0 4px;white-space:nowrap;font-weight:700;color:var(--text,#111)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{appearance:none;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:0;border-radius:5px}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]:checked{border-color:var(--primary,#2563eb);background:var(--primary,#2563eb)}.generated-exclusive-checkboxes .generated-exclusive-detail{flex:1 1 80px;width:auto;min-width:70px;max-width:100%;height:30px;min-height:30px}.generated-exclusive-checkboxes .generated-exclusive-detail:disabled{border-color:transparent;background:transparent;color:var(--muted,#475569)}.generated-exclusive-checkboxes input[data-exclusive-choice]:checked~.generated-exclusive-detail:not(:disabled){border-color:var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}";
   const multipleFieldsCss = ".generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{font-size:var(--field-font-size,14px);font-family:inherit}.generated-clinical-form .provider-checkbox>span{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes legend,.generated-multiple-fields legend,.generated-boolean-field legend{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-exclusive-checkboxes .generated-exclusive-option{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{flex-basis:32px;width:32px;height:32px;min-height:32px}.generated-multiple-fields,.generated-boolean-field{box-sizing:border-box;min-width:0;margin:0;padding:0;border:0}.generated-multiple-fields>div{display:flex;align-items:end;flex-wrap:wrap;gap:8px;min-width:0}.generated-multiple-item{flex:1 1 120px;min-width:90px}.generated-multiple-item>span{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-multiple-literal{align-self:center;padding:0 2px;font-size:var(--field-font-size,14px)}.generated-boolean-field .provider-checkbox{margin-top:5px}";
   const providerSelectScript = `<script>
     (() => {
@@ -2980,7 +3126,7 @@
         const width = popup.offsetWidth;
         const height = Math.min(popup.offsetHeight, 240);
         popup.style.left = Math.max(6, Math.min(rect.left, innerWidth - width - 6)) + "px";
-        popup.style.top = (rect.bottom + height <= innerHeight - 6 ? rect.bottom + 3 : Math.max(6, rect.top - height - 3)) + "px";
+        popup.style.top = (rect.bottom + height <= innerHeight - 6 ?rect.bottom + 3 : Math.max(6, rect.top - height - 3)) + "px";
       };
       document.addEventListener("mousedown", (event) => {
         const select = event.target.closest(".generated-clinical-form select");
@@ -3000,7 +3146,7 @@
           const detail = choice.closest("label")?.querySelector("[data-exclusive-detail]");
           if (!detail) return;
           detail.disabled = readonly || !choice.checked;
-          detail.tabIndex = detail.disabled ? -1 : 0;
+          detail.tabIndex = detail.disabled ?-1 : 0;
         });
       };
       document.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => syncExclusive(fieldset));
@@ -3009,7 +3155,7 @@
         if (!choice) return;
         const fieldset = choice.closest("[data-exclusive-group]");
         if (!fieldset) return;
-        syncExclusive(fieldset, choice.checked ? choice : null);
+        syncExclusive(fieldset, choice.checked ?choice : null);
         choice.closest("label")?.querySelector("[data-exclusive-detail]:not(:disabled)")?.focus();
       });
     })();
@@ -3021,6 +3167,7 @@
       name: `campo_${formFields.length + 1}`,
       label: `Campo ${formFields.length + 1}`,
       type: "text",
+      booleanStyle: "double",
       placeholder: "",
       prefix: "",
       suffix: "",
@@ -3112,15 +3259,21 @@
   if (builder) renderFieldBuilder();
   const printRegenerateModal = document.querySelector("[data-print-regenerate-modal]");
   const regeneratePrintLayout = () => {
+    const currentDefaultMargin = printLayout.grid.defaultMargin || DEFAULT_PRINT_ELEMENT_MARGIN;
     printLayout = {
       grid: {
         columns: gridConfig.columns,
         rows: Math.max(gridConfig.rows, 1),
         fontSize: 11,
         fontFamily: "Arial, sans-serif",
+        defaultMargin: currentDefaultMargin,
       },
       elements: formFields.map(printElementFromField),
     };
+    printLayout.elements.forEach((element) => {
+      element.margin = currentDefaultMargin;
+      element.usesDefaultMargin = true;
+    });
     renderPrintBuilder();
     markEditorDirty();
     document.querySelector('[data-editor-tab="impressao"]')?.click();
@@ -3145,6 +3298,147 @@
   const previewTitle = previewModal?.querySelector("[data-document-preview-title]");
   const previewPrint = previewModal?.querySelector("[data-document-preview-print]");
   const previewBrowserPrint = previewModal?.querySelector("[data-document-preview-browser-print]");
+  const previewPager = previewModal.querySelector("[data-document-preview-pager]");
+  const previewPrev = previewModal.querySelector("[data-document-preview-prev]");
+  const previewNext = previewModal.querySelector("[data-document-preview-next]");
+  const previewPageStatus = previewModal.querySelector("[data-document-preview-page-status]");
+  let previewCurrentPage = 1;
+  let previewTotalPages = 1;
+  let previewPageHeight = 1122;
+  let previewKind = "impressao";
+  const updatePreviewPager = () => {
+    if (!previewFrame.contentDocument || !previewPager) return;
+    if (previewKind !== "impressao") {
+      previewTotalPages = 1;
+      previewCurrentPage = 1;
+      previewPager.hidden = true;
+      if (previewPageStatus) previewPageStatus.textContent = "Página 1 de 1";
+      return;
+    }
+    const doc = previewFrame.contentDocument;
+    const sheet = doc.querySelector(".preview-sheet");
+    if (doc.querySelector("[data-fit-one-page='true']")) {
+      previewTotalPages = 1;
+      previewCurrentPage = 1;
+      previewPager.hidden = true;
+      if (previewPageStatus) previewPageStatus.textContent = "Página 1 de 1";
+      if (previewPrev) previewPrev.disabled = true;
+      if (previewNext) previewNext.disabled = true;
+      return;
+    }
+    previewPageHeight = Math.max(1, sheet.getBoundingClientRect().height || previewPageHeight);
+    const main = doc.querySelector("[data-celeris-grid-print='true']");
+    const headerHeight = doc.querySelector(".preview-print-table thead").getBoundingClientRect().height || 0;
+    const footerHeight = doc.querySelector(".preview-print-table tfoot").getBoundingClientRect().height || 0;
+    const contentHeight = main
+      ?(main.scrollHeight * (Number.parseFloat(main.dataset.previewScale || "1") || 1)) + headerHeight + footerHeight
+      : Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight || 0);
+    previewTotalPages = Math.max(1, Math.ceil(contentHeight / previewPageHeight));
+    previewCurrentPage = Math.min(previewCurrentPage, previewTotalPages);
+    previewPager.hidden = previewTotalPages <= 1;
+    if (previewPageStatus) previewPageStatus.textContent = `Página ${previewCurrentPage} de ${previewTotalPages}`;
+    if (previewPrev) previewPrev.disabled = previewCurrentPage <= 1;
+    if (previewNext) previewNext.disabled = previewCurrentPage >= previewTotalPages;
+  };
+  const goToPreviewPage = (pageNumber) => {
+    if (!previewFrame.contentWindow) return;
+    previewCurrentPage = Math.max(1, Math.min(previewTotalPages, pageNumber));
+    previewFrame.contentWindow.scrollTo({ top: (previewCurrentPage - 1) * previewPageHeight, behavior: "smooth" });
+    updatePreviewPager();
+  };
+  const fitPreviewToOnePage = () => {
+    const doc = previewFrame.contentDocument;
+    const main = doc.querySelector("[data-fit-one-page='true']");
+    if (!doc || !main) return;
+    main.style.transform = "";
+    main.style.zoom = "";
+    main.style.width = "100%";
+    main.style.maxHeight = "none";
+    main.style.overflow = "visible";
+    const table = doc.querySelector(".preview-print-table.fit-one-page");
+    const headerTargets = [...doc.querySelectorAll(".preview-print-table thead > tr > td > *")].filter(Boolean);
+    const footerTargets = [...doc.querySelectorAll(".preview-print-table tfoot > tr > td > *")].filter(Boolean);
+    const targets = [main, ...headerTargets, ...footerTargets].filter(Boolean);
+    targets.forEach((target) => {
+      target.style.zoom = "";
+      target.style.setProperty("width", "100%", "important");
+      target.style.setProperty("max-width", "100%", "important");
+      target.style.setProperty("box-sizing", "border-box", "important");
+      target.style.setProperty("overflow-wrap", "anywhere", "important");
+      target.style.setProperty("word-break", "break-word", "important");
+      target.querySelectorAll?.("*").forEach((node) => {
+        node.style.setProperty("max-width", "100%", "important");
+        node.style.setProperty("box-sizing", "border-box", "important");
+        node.style.setProperty("overflow-wrap", "anywhere", "important");
+        node.style.setProperty("word-break", "break-word", "important");
+      });
+    });
+    if (table) {
+      table.style.zoom = "";
+      table.style.width = "100%";
+      table.style.height = "";
+    }
+    const measurePrintBox = () => {
+      const probe = doc.createElement("div");
+      probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;height:279mm;width:198mm;inset:auto";
+      doc.body.appendChild(probe);
+      const rect = probe.getBoundingClientRect();
+      const box = { width: rect.width || 748, height: rect.height || 1054 };
+      probe.remove();
+      return box;
+    };
+    const printBox = measurePrintBox();
+    const availableHeight = Math.max(1, printBox.height - 8);
+    const measuredHeight = (target) => Math.max(
+      target.scrollHeight || 0,
+      target.offsetHeight || 0,
+      target.getBoundingClientRect().height || 0
+    );
+    const measuredWidth = (target) => Math.max(
+      target.scrollWidth || 0,
+      target.offsetWidth || 0,
+      target.getBoundingClientRect().width || 0
+    );
+    const headerHeight = headerTargets.reduce((total, target) => total + measuredHeight(target), 0);
+    const footerHeight = footerTargets.reduce((total, target) => total + measuredHeight(target), 0);
+    const contentHeight = Math.max(1, measuredHeight(main));
+    const availableWidth = Math.max(1, printBox.width - 8);
+    const contentWidth = Math.max(...targets.map((target) => Math.max(1, measuredWidth(target))), 1);
+    const scaleHeight = Math.max(0.01, (availableHeight - headerHeight - footerHeight - 12) / contentHeight);
+    const scaleWidth = contentWidth > availableWidth ?availableWidth / contentWidth : 1;
+    const requestedScale = Math.min(0.995, scaleHeight, scaleWidth) * 0.985;
+    const overflowToMorePages = requestedScale < 0.78;
+    const scale = overflowToMorePages ?1 : Math.max(0.78, requestedScale);
+    main.dataset.previewScale = String(scale);
+    main.dataset.fitOverflow = overflowToMorePages ?"true" : "false";
+    doc.documentElement.style.setProperty("--fit-scale", String(scale));
+    main.style.setProperty("--fit-scale", String(scale));
+    if (table) {
+      table.classList.toggle("fit-overflow", overflowToMorePages);
+      table.style.height = overflowToMorePages ?"auto" : "279mm";
+      table.style.maxHeight = overflowToMorePages ?"none" : "279mm";
+      table.style.overflow = overflowToMorePages ?"visible" : "hidden";
+      table.style.zoom = "1";
+      table.style.width = "100%";
+      main.style.zoom = String(scale);
+      main.style.setProperty("width", overflowToMorePages ?"100%" : `${100 / scale}%`, "important");
+      main.style.setProperty("max-width", overflowToMorePages ?"100%" : "none", "important");
+    } else {
+      main.style.zoom = String(scale);
+      main.style.setProperty("width", overflowToMorePages ?"100%" : `${100 / scale}%`, "important");
+      main.style.setProperty("max-width", overflowToMorePages ?"100%" : "none", "important");
+    }
+    main.style.padding = "0";
+    main.querySelectorAll("[style]").forEach((node) => {
+      if (scale < 1) {
+        node.style.marginTop = node.style.marginTop || "0";
+        node.style.marginBottom = node.style.marginBottom || "0";
+        node.style.paddingTop = node.style.paddingTop || "0";
+        node.style.paddingBottom = node.style.paddingBottom || "0";
+      }
+    });
+    main.style.width = "100%";
+  };
   const selectedTestContext = () => (
     testContexts.find((context) => String(context.id) === String(testContextSelect?.value))
     || testContexts[0]
@@ -3158,8 +3452,55 @@
     });
     return result;
   };
+  const draftWatermarkDataUri = (() => {
+    let cached = "";
+    return () => {
+      if (cached) return cached;
+      const canvas = document.createElement("canvas");
+      canvas.width = 1400;
+      canvas.height = 2000;
+      const context = canvas.getContext("2d");
+      if (!context) return "";
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.font = "900 210px Arial, sans-serif";
+      context.fillStyle = "rgba(148, 163, 184, 0.22)";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      [420, 1000, 1580].forEach((y) => {
+        context.save();
+        context.translate(700, y);
+        context.rotate(-39 * Math.PI / 180);
+        context.fillText("RASCUNHO", 0, 0);
+        context.restore();
+      });
+      cached = canvas.toDataURL("image/png");
+      return cached;
+    };
+  })();
+  const printCheckbox = (checked) => `<span class="print-check-box${checked ?" checked" : ""}"></span>`;
+  const printChoice = (label, checked = false, detail = "") => (
+    `<span class="print-choice">${printCheckbox(checked)}<span class="print-choice-label">${escapeHtml(label)}${detail ?` ${escapeHtml(detail)}` : ""}</span></span>`
+  );
+  const defaultPrintValueForField = (fieldName) => {
+    const field = formFields.find((item) => item.name === fieldName);
+    if (!field) return "";
+    if (field.type === "exclusive-checkboxes") {
+      return splitStructuredOptions(field.options).map((option) => {
+        const parsed = parseEmbeddedField(option);
+        if (parsed.type === "literal") return escapeHtml(parsed.text);
+        const label = parsed.label || option.replace(/\[.*$/, "").trim();
+        return printChoice(label, false);
+      }).join(" ");
+    }
+    if (field.type === "checkbox") {
+      if (field.booleanStyle === "single") return printChoice("Sim", false);
+      return `${printChoice("Sim", false)} ${printChoice("Não", false)}`;
+    }
+    return "";
+  };
   const renderPreview = (kind, values = {}) => {
-    let html = kind === "tela" ? buildScreenHtml() : buildPrintLayoutHtml();
+    previewKind = kind;
+    let html = kind === "tela" ?buildScreenHtml() : buildPrintLayoutHtml();
     let extraCss = "";
     if (kind === "impressao") {
       const headerId = form.querySelector("[name='cd_cabecalho']")?.value;
@@ -3168,7 +3509,8 @@
       const footer = printElements.find((item) => String(item.cd_modelo_documento) === String(footerId));
       const headerHtml = header?.ds_html_impressao || "";
       const footerHtml = footer?.ds_html_impressao || "";
-      html = `<table class="preview-print-table"><thead><tr><td>${headerHtml}</td></tr></thead><tbody><tr><td class="preview-print-body">${html}</td></tr></tbody><tfoot><tr><td><div class="preview-print-footer">${footerHtml}</div></td></tr></tfoot></table>`;
+      const fitClass = printLayout.grid.fitOnePage ?" fit-one-page" : "";
+      html = `<table class="preview-print-table${fitClass}"><thead><tr><td>${headerHtml}</td></tr></thead><tbody><tr><td class="preview-print-body">${html}</td></tr></tbody><tfoot><tr><td><div class="preview-print-footer">${footerHtml}</div></td></tr></tfoot></table>`;
       extraCss = `${header?.ds_css_impressao || ""}\n${footer?.ds_css_impressao || ""}`;
     }
     html = applyTestContext(html);
@@ -3179,44 +3521,55 @@
         html = html.replace(new RegExp(`{{\\s*campo\\.${escapedName}\\s*}}`, "g"), String(value ?? ""));
         html = html.replace(new RegExp(`{{\\s*${escapedName}\\s*}}`, "g"), String(value ?? ""));
       });
-      html = html.replace(/{{\s*campo\.[^}]+\s*}}/g, "");
+      html = html.replace(/{{\s*campo\.([^}\s]+)\s*}}/g, (_match, name) => defaultPrintValueForField(name));
     }
-    const css = kind === "tela" ? `${screenCss}${exclusiveCheckboxCss}${multipleFieldsCss}` : extraCss;
-    const watermarkSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1400 2000'%3E%3Cg font-family='Arial,sans-serif' font-size='190' font-weight='900' fill='%2394a3b8' fill-opacity='.22' text-anchor='middle'%3E%3Ctext x='700' y='420' transform='rotate(-36 700 420)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1000' transform='rotate(-36 700 1000)'%3ERASCUNHO%3C/text%3E%3Ctext x='700' y='1580' transform='rotate(-36 700 1580)'%3ERASCUNHO%3C/text%3E%3C/g%3E%3C/svg%3E";
-    const watermark = kind === "impressao" ? `<img class="preview-watermark" alt="Rascunho" draggable="false" src="${watermarkSvg}">` : "";
+    const css = kind === "tela" ?`${screenCss}${exclusiveCheckboxCss}${multipleFieldsCss}` : extraCss;
+    const watermark = kind === "impressao" ?`<img class="preview-watermark" alt="Rascunho" draggable="false" src="${draftWatermarkDataUri()}">` : "";
     const themeSource = getComputedStyle(document.documentElement);
     const themeVariables = ["--text", "--muted", "--line", "--field-bg", "--panel", "--panel-soft", "--primary", "--primary-soft"]
       .map((name) => `${name}:${themeSource.getPropertyValue(name).trim() || "initial"}`)
       .join(";");
     const previewBodyStyle = kind === "tela"
-      ? "background:var(--panel-soft,#eef2f7);color:var(--text,#111)"
+      ?"background:var(--panel-soft,#eef2f7);color:var(--text,#111)"
       : "background:#eef2f7;color:#111";
     const previewContent = kind === "impressao"
-      ? `<div class="preview-sheet">${watermark}<div class="preview-print-area">${html}</div></div>`
+      ?`<div class="preview-sheet">${watermark}<div class="preview-print-area">${html}</div></div>`
       : html;
     const darkTheme = document.documentElement.classList.contains("dark") || document.body.classList.contains("dark");
-    previewFrame.srcdoc = `<!doctype html><html class="${darkTheme ? "dark" : "light"}"><head><style>
-      :root{${themeVariables};color-scheme:${darkTheme ? "dark" : "light"}}
+    previewFrame.srcdoc = `<!doctype html><html class="${darkTheme ?"dark" : "light"}"><head><style>
+      :root{${themeVariables};color-scheme:${darkTheme ?"dark" : "light"}}
       body{margin:0;padding:18px;${previewBodyStyle};font:14px Arial}
-      .preview-sheet{position:relative;box-sizing:border-box;width:210mm;min-height:297mm;margin:0 auto;padding:4mm;overflow:hidden;background:#fff;box-shadow:0 8px 28px rgba(15,23,42,.25)}
-      .preview-print-area{position:relative;width:100%;height:289mm;overflow:hidden}
+      .preview-sheet{position:relative;box-sizing:border-box;width:210mm;min-height:297mm;margin:0 auto;padding:4mm;overflow:visible;background:#fff;box-shadow:0 8px 28px rgba(15,23,42,.25)}
+      .preview-print-area{position:relative;width:100%;min-height:289mm;height:auto;overflow:visible}
       .preview-watermark{position:absolute;inset:5%;z-index:20;width:90%;height:90%;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-select:none}
-      .preview-print-table{width:100%;height:289mm;min-height:289mm;margin:0;border-collapse:collapse;table-layout:fixed;background:#fff}.preview-print-table td{padding:0;border:0;vertical-align:top}.preview-print-table thead{display:table-header-group}.preview-print-table tfoot{display:table-footer-group}.preview-print-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;min-height:38px}.preview-print-footer>:first-child{flex:1}.document-page-variable::after{content:counter(page)}
-      .print-check-box{display:inline-grid;place-content:center;width:9px;height:9px;margin-left:3px;border:1px solid #111;vertical-align:-1px}.print-check-box.checked::after{content:"";width:5px;height:3px;border-left:2px solid #111;border-bottom:2px solid #111;transform:rotate(-45deg)}
-      @media print{@page{size:A4;margin:4mm}.preview-sheet{width:auto;min-height:0;margin:0;padding:0;overflow:visible;box-shadow:none}.preview-print-area{width:100%;height:289mm;overflow:hidden}.preview-print-table{width:100%;height:289mm;min-height:0;margin:0}.preview-print-table thead{display:table-header-group!important}.preview-print-table tfoot{display:table-footer-group!important}.preview-print-body{height:auto}.preview-watermark{position:fixed;inset:5%;width:90%;height:90%}body{padding:0;background:#fff}}
+      .preview-print-table{width:100%;height:279mm;min-height:279mm;margin:0;border-collapse:collapse;table-layout:fixed;background:#fff;counter-reset:celerisPage}.preview-print-table.fit-one-page{height:279mm;min-height:279mm}.preview-print-table td{padding:0;border:0;vertical-align:top}.preview-print-table thead{display:table-header-group;counter-increment:celerisPage}.preview-print-table tfoot{display:table-footer-group}.preview-print-body{padding-bottom:4mm}.preview-print-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;min-height:10mm;background:#fff}.preview-print-footer>:first-child{flex:1}.document-page-variable::after{content:counter(celerisPage)}
+      .print-check-box{display:inline-grid;place-content:center;flex:0 0 9px;width:9px;height:9px;margin:0;border:1px solid #111;vertical-align:middle;line-height:1}.print-check-box.checked::after{content:"";width:5px;height:3px;border-left:2px solid #111;border-bottom:2px solid #111;transform:rotate(-45deg)}.print-choice{display:inline-flex;align-items:center;gap:3px;max-width:100%;margin:0 6px 1px 0;vertical-align:middle;white-space:nowrap}.print-choice-label{min-width:0;overflow-wrap:normal;word-break:normal}
+      @media print{@page{size:A4;margin:6mm 6mm 10mm}.preview-sheet{width:auto;min-height:0;margin:0;padding:0;overflow:visible;box-shadow:none}.preview-print-area{width:100%;min-height:0;height:auto;overflow:visible}.preview-print-table{width:100%;height:auto;min-height:calc(297mm - 16mm);margin:0}.preview-print-table.fit-one-page{height:calc(297mm - 16mm)!important;min-height:calc(297mm - 16mm)!important;max-height:calc(297mm - 16mm)!important;overflow:hidden;transform-origin:top left}.preview-print-table.fit-one-page.fit-overflow{height:auto!important;max-height:none!important;overflow:visible!important}.preview-print-table thead{display:table-header-group!important}.preview-print-table tfoot{display:table-footer-group!important}.preview-print-body{height:auto;padding-bottom:4mm}.preview-print-table.fit-one-page [data-fit-one-page='true']{zoom:var(--fit-scale,1)!important;width:calc(100% / var(--fit-scale,1))!important;padding:0!important;max-width:none!important;box-sizing:border-box!important;overflow-wrap:anywhere!important;word-break:break-word!important}.preview-print-table.fit-one-page.fit-overflow [data-fit-one-page='true']{zoom:1!important;width:100%!important;max-width:100%!important}.preview-print-table.fit-one-page [data-fit-one-page='true'] *{box-sizing:border-box!important;overflow-wrap:anywhere!important;word-break:break-word!important}.preview-print-footer{position:static!important;background:#fff;break-inside:avoid;page-break-inside:avoid}.preview-watermark{position:fixed;inset:5%;width:90%;height:90%}body{padding:0;background:#fff}}
       ${css}
-    </style></head><body>${previewContent}${kind === "tela" ? providerSelectScript : ""}</body></html>`;
-    previewTitle.textContent = kind === "tela" ? "Formulário visto pelo prestador" : "Relatório / impressão em rascunho";
+    </style></head><body>${previewContent}${kind === "tela" ?providerSelectScript : ""}</body></html>`;
+    previewTitle.textContent = kind === "tela" ?"Formulário visto pelo prestador" : "Relatório / impressão em rascunho";
     previewPrint.hidden = kind !== "tela";
     previewBrowserPrint.hidden = kind === "tela";
     previewModal.hidden = false;
+    previewCurrentPage = 1;
+    if (previewPager) previewPager.hidden = true;
+    previewFrame.onload = () => {
+      fitPreviewToOnePage();
+      requestAnimationFrame(updatePreviewPager);
+    };
+    window.setTimeout(() => {
+      fitPreviewToOnePage();
+      updatePreviewPager();
+    }, 80);
   };
+  previewPrev.addEventListener("click", () => goToPreviewPage(previewCurrentPage - 1));
+  previewNext.addEventListener("click", () => goToPreviewPage(previewCurrentPage + 1));
   document.querySelectorAll("[data-document-preview]").forEach((button) => {
     button.addEventListener("click", () => renderPreview(button.dataset.documentPreview));
   });
   document.querySelector("[data-document-preview-active]")?.addEventListener("click", () => {
     const activeKind = document.querySelector("[data-editor-tab].active")?.dataset.editorTab
-      || (!isLayoutOnlyDocument() && form.dataset.documentElement === "CAMPO" ? "tela" : "impressao");
+      || (!isLayoutOnlyDocument() && form.dataset.documentElement === "CAMPO" ?"tela" : "impressao");
     renderPreview(activeKind);
   });
   document.querySelectorAll("[data-document-preview-close]").forEach((button) => {
@@ -3224,14 +3577,13 @@
   });
   previewPrint?.addEventListener("click", () => {
     const values = {};
-    const printCheckbox = (checked) => `<span class="print-check-box${checked ? " checked" : ""}"></span>`;
     previewFrame.contentDocument?.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => {
       const name = (fieldset.dataset.exclusiveGroup || "").replace(/^campo_/, "");
       if (!name) return;
       values[name] = [...fieldset.querySelectorAll("[data-exclusive-choice]")].map((choice) => {
         const detail = choice.closest("label")?.querySelector("[data-exclusive-detail]");
         const detailValue = detail?.value?.trim();
-        return `${escapeHtml(choice.value)} ${printCheckbox(choice.checked)}${detailValue ? ` ${escapeHtml(detailValue)}` : ""}`;
+        return printChoice(choice.value, choice.checked, detailValue);
       }).join(" ");
     });
     previewFrame.contentDocument?.querySelectorAll("[data-document-field][name]").forEach((field) => {
@@ -3239,7 +3591,7 @@
       if (field.matches("[data-exclusive-choice]")) {
         return;
       }
-      values[name] = field.type === "checkbox" ? printCheckbox(field.checked) : field.value;
+      values[name] = field.type === "checkbox" ?printCheckbox(field.checked) : field.value;
     });
     renderPreview("impressao", values);
   });
@@ -3284,7 +3636,7 @@
     undoStack.push(historyCurrent);
     restoreEditorState(redoStack.pop(), "Ação refeita");
   };
-  const clearDocumentEditor = () => {
+  const clearDocumentEditor = async () => {
     closeAllVisibleCellMenus();
     form.querySelectorAll("input:not([type='hidden']), select, textarea").forEach((field) => {
       if (field.name === "sn_ativo") {
@@ -3331,7 +3683,7 @@
     updateHistoryButtons();
     showHistoryIndicator("Editor limpo");
     const indexUrl = form.dataset.editorIndexUrl;
-    deleteEditorDraft();
+    await deleteEditorDraft();
     if (indexUrl) {
       internalEditorNavigation = true;
       window.location.assign(indexUrl);
@@ -3369,7 +3721,8 @@
   redoButton?.addEventListener("click", redoEditorAction);
   document.addEventListener("keydown", (event) => {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-    if (event.target.closest("input, textarea, [contenteditable='true']")) return;
+    const targetIsCustomVariableEditor = event.target.matches?.("[data-custom-variable-name], [data-custom-variable-expression]");
+    if (!targetIsCustomVariableEditor && event.target.closest("input, textarea, [contenteditable='true']")) return;
     const key = event.key.toLowerCase();
     if (key === "z" && !event.shiftKey) {
       event.preventDefault();
@@ -3401,15 +3754,15 @@
   form.addEventListener("submit", () => {
     form.dataset.submitting = "true";
     if (isLayoutOnlyDocument() && signatureToggle) signatureToggle.checked = false;
-    form.elements.ds_html_tela.value = isLayoutOnlyDocument() ? "" : buildScreenHtml();
-    form.elements.ds_css_tela.value = isLayoutOnlyDocument() ? "" : screenCss;
+    form.elements.ds_html_tela.value = isLayoutOnlyDocument() ?"" : buildScreenHtml();
+    form.elements.ds_css_tela.value = isLayoutOnlyDocument() ?"" : screenCss;
     const customVariableName = form.querySelector("[data-custom-variable-name]")?.value || "";
     const customVariableExpression = form.querySelector("[data-custom-variable-expression]")?.value || "";
     form.elements.ds_projeto_tela.value = JSON.stringify({
       grid: gridConfig,
-      formFields: isLayoutOnlyDocument() ? [] : formFields,
+      formFields: isLayoutOnlyDocument() ?[] : formFields,
       ...(form.dataset.documentElement === "VARIAVEL"
-        ? { customVariable: { name: normalizeName(customVariableName), expression: customVariableExpression } }
+        ?{ customVariable: { name: normalizeName(customVariableName), expression: customVariableExpression } }
         : {}),
     });
     form.elements.ds_html_impressao.value = buildPrintLayoutHtml();
@@ -3426,10 +3779,43 @@
   const libraryViewOptions = studio?.querySelector("[data-document-library-view-options]");
   const libraryScroll = studio?.querySelector(".document-library-scroll");
   const libraryFolderForm = studio?.querySelector("[data-document-folder-form]");
+  const librarySearch = studio?.querySelector("[data-document-library-search]");
+  const fullscreenButton = studio?.querySelector("[data-document-fullscreen]");
+  librarySearch?.addEventListener("input", () => {
+    const query = librarySearch.value.trim().toLowerCase();
+    const items = [...(libraryScroll?.querySelectorAll("[data-library-item], .document-file") || [])];
+    if (!query) {
+      libraryScroll?.querySelectorAll(".document-library-item-hidden").forEach((item) => item.classList.remove("document-library-item-hidden"));
+      return;
+    }
+    items.forEach((item) => {
+      const matches = item.textContent.toLowerCase().includes(query) || String(item.dataset.itemName || "").toLowerCase().includes(query);
+      item.classList.toggle("document-library-item-hidden", !matches);
+      if (matches) {
+        let parent = item.parentElement;
+        while (parent) {
+          if (parent.matches?.("details")) parent.open = true;
+          parent = parent.parentElement;
+        }
+      }
+    });
+    libraryScroll?.querySelectorAll("details").forEach((details) => {
+      const hasMatch = Boolean(details.querySelector("[data-library-item]:not(.document-library-item-hidden), .document-file:not(.document-library-item-hidden)"));
+      details.classList.toggle("document-library-item-hidden", !hasMatch);
+      if (hasMatch) details.open = true;
+    });
+  });
+  fullscreenButton?.addEventListener("click", () => {
+    const active = !studio.classList.contains("is-fullscreen");
+    studio.classList.toggle("is-fullscreen", active);
+    fullscreenButton.title = active ? "Sair da tela inteira" : "Maximizar editor";
+    const label = fullscreenButton.querySelector("[data-document-fullscreen-label]");
+    if (label) label.textContent = active ? "Sair da tela inteira" : "Maximizar";
+  });
   if (history && library) library.appendChild(history);
   libraryToggle?.addEventListener("click", () => {
     libraryViewOptions.hidden = !libraryViewOptions.hidden;
-    libraryToggle.setAttribute("aria-expanded", libraryViewOptions.hidden ? "false" : "true");
+    libraryToggle.setAttribute("aria-expanded", libraryViewOptions.hidden ?"false" : "true");
   });
   libraryViewOptions?.querySelectorAll("[data-document-side-view]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -3439,7 +3825,7 @@
       if (libraryFolderForm) libraryFolderForm.hidden = true;
       newMenu.hidden = showHistory;
       library?.classList.toggle("show-history", showHistory);
-      libraryToggle.querySelector("[data-document-library-label]").textContent = showHistory ? "Histórico de versões" : "Biblioteca";
+      libraryToggle.querySelector("[data-document-library-label]").textContent = showHistory ?"Histórico de versões" : "Biblioteca";
       libraryViewOptions.hidden = true;
     });
   });
@@ -3523,7 +3909,7 @@
       contextMenu.querySelectorAll("[data-context-action]").forEach((button) => {
         const action = button.dataset.contextAction;
         button.hidden = action === "copiar"
-          ? item.dataset.itemType !== "documento"
+          ?item.dataset.itemType !== "documento"
           : item.dataset.protected === "true";
       });
       if (![...contextMenu.querySelectorAll("[data-context-action]")].some((button) => !button.hidden)) return;
@@ -3610,12 +3996,14 @@
   });
   window.addEventListener("beforeunload", (event) => {
     if (!draftSyncPending || internalEditorNavigation || form.dataset.submitting === "true") return;
+    syncEditorDraft({ keepalive: true });
     event.preventDefault();
     event.returnValue = "";
   });
   document.addEventListener("click", (event) => {
     const internalNavigation = event.target.closest("a[href]");
     if (!internalNavigation || internalNavigation.target === "_blank" || internalNavigation.hasAttribute("download")) return;
+    if (internalNavigation.closest("[data-library-item]")) return;
     const destination = new URL(internalNavigation.href, window.location.origin);
     if (destination.origin !== window.location.origin || form.dataset.dirty !== "true") return;
     internalEditorNavigation = true;
@@ -3651,5 +4039,5 @@
   if (redoButton) redoButton.hidden = false;
   historyCurrent = captureEditorState();
   updateHistoryButtons();
-  restoreEditorDraft();
+  if (form.dataset.editorPostback !== "true") restoreEditorDraft();
 })();

@@ -6,10 +6,10 @@
     <table class="editable-table">
       <thead>
         <tr>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_valor_auxiliar_global' %}-{% endif %}cd_valor_auxiliar_global">Código</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_valor' %}-{% endif %}ds_valor">Descrição</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_grupo' %}-{% endif %}ds_grupo">Grupo/UF</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_valor_auxiliar_global' %}-{% endif %}cd_valor_auxiliar_global">Código</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_valor' %}-{% endif %}ds_valor">Descrição</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_grupo' %}-{% endif %}ds_grupo">Grupo/UF</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
         </tr>
       </thead>
       <tbody>

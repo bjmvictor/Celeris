@@ -5,9 +5,9 @@
     {% csrf_token %}
     <table class="editable-table">
       <thead><tr>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_convenio' %}-{% endif %}cd_convenio">Código</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_convenio' %}-{% endif %}nm_convenio">Convênio</a></th>
-        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_convenio' %}-{% endif %}cd_convenio">Código</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_convenio' %}-{% endif %}nm_convenio">Convênio</a></th>
+        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
       </tr></thead>
       <tbody>
         {% for registro in registros %}

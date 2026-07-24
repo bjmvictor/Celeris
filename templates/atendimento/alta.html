@@ -1,4 +1,4 @@
-{% extends "base/layout.html" %}
+{% extends alta_base_template|default:"base/layout.html" %}
 {% block content %}
   {% if pendencias %}
     <section class="card validation-summary">

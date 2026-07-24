@@ -90,14 +90,17 @@ def _perfis_assistenciais_usuario(usuario, empresa):
     tipos = _tipos_prestador_usuario(usuario)
     if not tipos:
         return PerfilAssistencial.objects.none()
-    normalizados = PerfilAssistencial.objects.filter(
+    base_normalizados = PerfilAssistencial.objects.filter(
         cd_empresa=empresa,
-        sn_ativo=True,
         tipos_vinculados__sn_ativo=True,
         tipos_vinculados__cd_tipo_prestador__in=tipos,
-    ).distinct()
+    )
+    normalizados = base_normalizados.filter(sn_ativo=True).distinct()
     if normalizados.exists():
         return normalizados
+    normalizados_inativos = base_normalizados.distinct()
+    if normalizados_inativos.exists():
+        return normalizados_inativos
     ids_legados = [
         perfil.pk
         for perfil in PerfilAssistencial.objects.filter(cd_empresa=empresa, sn_ativo=True)
@@ -112,7 +115,10 @@ def _itens_menu_assistencial_mesclados(usuario, empresa):
         return perfis, []
     itens = []
     for perfil in perfis:
-        versao = perfil.versoes.filter(ds_status="PUBLICADO").first()
+        versao = (
+            perfil.versoes.filter(ds_status="RASCUNHO").first()
+            or perfil.versoes.filter(ds_status="PUBLICADO").first()
+        )
         queryset = perfil.itens.select_related(
             "cd_modelo_documento",
             "cd_item_pai",
@@ -160,6 +166,35 @@ def _itens_menu_assistencial_mesclados(usuario, empresa):
         item.chave_pai_mesclagem = id_para_chave.get(item.cd_item_pai_id)
         item.filhos_renderizados = []
     return perfis, sorted(resultado, key=lambda value: (value.nr_ordem, value.nm_item))
+
+
+def _marcar_ramo_menu_assistencial(itens, item_selecionado):
+    selecionado_id = getattr(item_selecionado, "pk", None)
+
+    def marcar(item):
+        filhos = list(getattr(item, "filhos_renderizados", []) or [])
+        ativo = item.pk == selecionado_id
+        for filho in filhos:
+            ativo = marcar(filho) or ativo
+        item.tem_item_ativo = ativo
+        return ativo
+
+    for item in itens:
+        marcar(item)
+
+
+def _preparar_arvore_menu_assistencial(itens, grupo_atual=None):
+    grupo_atual_id = getattr(grupo_atual, "pk", None)
+
+    def preparar(item):
+        filhos = list(getattr(item, "filhos_renderizados", []) or [])
+        for filho in filhos:
+            preparar(filho)
+        item.tem_subgrupo_renderizado = any(getattr(filho, "tp_item", "") == "GRUPO" for filho in filhos)
+        item.eh_grupo_atual = bool(grupo_atual_id and item.pk == grupo_atual_id)
+
+    for item in itens:
+        preparar(item)
 
 
 def _url_externa_permitida(empresa, url):
@@ -248,7 +283,7 @@ def _usuario_pode_operar_documento(usuario, documento):
     if not item:
         grupos = set(usuario.groups.values_list("name", flat=True))
         return bool(grupos.intersection({
-            "TI", "Médico", "MÃ©dico", "Enfermeiro", "Laboratório", "Laboratorio",
+            "TI", "Médico", "Médico", "Enfermeiro", "Laboratório", "Laboratorio",
         }))
     return _perfis_assistenciais_usuario(usuario, documento.cd_empresa).filter(
         pk=item.cd_perfil_assistencial_id
@@ -269,7 +304,7 @@ def _usuario_pode_visualizar_documento(usuario, documento):
 def _configurar_assinatura_prestador(html, modelo):
     conteudo = html or ""
     conteudo = re.sub(
-        r'<section[^>]*data-celeris-signature="true"[^>]*>.*?</section>',
+        r'<section[^>]*data-celeris-signature="true"[^>]*>.*</section>',
         "",
         conteudo,
         flags=re.IGNORECASE | re.DOTALL,
@@ -868,6 +903,16 @@ def cadastro_profissional(request, cd_prestador=None):
         )
         provider_code = request.GET.get("cd_prestador", "").strip()
         has_filter = False
+        provider_name_alias = (
+            request.GET.get("nome")
+            or request.GET.get("q")
+            or request.GET.get("ds_nome")
+            or request.GET.get("prestador")
+            or ""
+        ).strip()
+        if provider_name_alias and not request.GET.get("nm_prestador"):
+            registros = registros.filter(nm_prestador__icontains=provider_name_alias.replace("%", ""))
+            has_filter = True
         if provider_code.isdigit():
             registros = registros.filter(cd_prestador=int(provider_code))
             has_filter = True
@@ -926,11 +971,14 @@ def cadastro_profissional(request, cd_prestador=None):
         )
         if not result_ids:
             messages.warning(request, "Nenhum prestador encontrado para os filtros informados.")
-            return redirect(request.path)
+            request.session["consulta_prestadores"] = []
+            return redirect(f"{request.path}?sem_resultados=1")
         return redirect(
             f"{reverse('atendimento:cadastro-profissional', args=[result_ids[0]])}?origem=consulta"
         )
     prestador = get_object_or_404(Prestador, cd_empresa=empresa, cd_prestador=cd_prestador) if cd_prestador else None
+    if request.GET.get("sem_resultados") == "1":
+        request.current_start_query = True
     if prestador:
         request.current_toggle_active_url = reverse("atendimento:alternar-status-prestador", args=[prestador.pk])
         request.current_toggle_active_label = "Desativar" if prestador.sn_ativo else "Ativar"
@@ -1507,7 +1555,7 @@ def ficha_atendimento(request, cd_atendimento):
     historico = Atendimento.objects.filter(cd_empresa=empresa, cd_paciente=atendimento.cd_paciente).exclude(pk=atendimento.pk)[:10]
     grupos = set(request.user.groups.values_list("name", flat=True))
     clinical_permissions = {
-        "medico": request.user.is_superuser or bool(grupos.intersection({"TI", "Médico", "MÃ©dico"})),
+        "medico": request.user.is_superuser or bool(grupos.intersection({"TI", "Médico", "Médico"})),
         "enfermeiro": request.user.is_superuser or bool(grupos.intersection({"TI", "Enfermeiro"})),
         "laboratorio": request.user.is_superuser or bool(grupos.intersection({"TI", "Laboratório", "Laboratorio"})),
     }
@@ -2383,6 +2431,7 @@ def evoluir(request, cd_atendimento):
 
 @login_required
 @role_required("Médico")
+@xframe_options_sameorigin
 def conceder_alta(request, cd_atendimento):
     atendimento = get_object_or_404(Atendimento, cd_empresa=_empresa_logada(request), cd_atendimento=cd_atendimento)
     pendencias = []
@@ -2408,7 +2457,12 @@ def conceder_alta(request, cd_atendimento):
     if request.method == "POST":
         if pendencias:
             messages.error(request, f"Alta bloqueada: {', '.join(pendencias)}.")
-            return render(request, "atendimento/alta.html", {"atendimento": atendimento, "pendencias": pendencias})
+            return render(request, "atendimento/alta.html", {
+                "atendimento": atendimento,
+                "pendencias": pendencias,
+                "embed": request.GET.get("embed") == "1",
+                "alta_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
+            })
         atendimento.ds_cid = request.POST.get("ds_cid", "").strip()
         atendimento.ds_diagnostico = request.POST.get("ds_diagnostico", "").strip()
         atendimento.ds_conduta = request.POST.get("ds_conduta", "").strip()
@@ -2416,7 +2470,11 @@ def conceder_alta(request, cd_atendimento):
         atendimento.ds_motivo_alta = request.POST.get("ds_motivo_alta", "").strip()
         if not atendimento.cd_prestador or not atendimento.ds_diagnostico or not atendimento.ds_conduta or not atendimento.ds_destino or not atendimento.ds_motivo_alta:
             messages.error(request, "Informe CID quando aplicável, diagnóstico, conduta, motivo e destino da alta.")
-            return render(request, "atendimento/alta.html", {"atendimento": atendimento})
+            return render(request, "atendimento/alta.html", {
+                "atendimento": atendimento,
+                "embed": request.GET.get("embed") == "1",
+                "alta_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
+            })
         with transaction.atomic():
             atendimento.dh_alta_medica = timezone.now()
             _apply_audit(atendimento, request.user)
@@ -2442,7 +2500,12 @@ def conceder_alta(request, cd_atendimento):
             _mudar_status_atendimento(atendimento, "ALTA_MEDICA", request.user, origem="alta_medica")
         messages.success(request, "Alta médica registrada. O resumo está disponível para impressão.")
         return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
-    return render(request, "atendimento/alta.html", {"atendimento": atendimento, "pendencias": pendencias})
+    return render(request, "atendimento/alta.html", {
+        "atendimento": atendimento,
+        "pendencias": pendencias,
+        "embed": request.GET.get("embed") == "1",
+        "alta_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
+    })
 
 
 @login_required
@@ -2497,7 +2560,7 @@ def finalizar_atendimento(request, cd_atendimento):
         atendimento.cd_agendamento.ds_status = "FINALIZADO"
         atendimento.cd_agendamento.save(update_fields=["ds_status", "dh_atualizacao"])
     messages.success(request, "Atendimento finalizado com sucesso.")
-    return redirect("atendimento:atendimentos")
+    return redirect("atendimento:pep")
 
 
 @login_required
@@ -2635,6 +2698,9 @@ def rascunho_editor_documento(request):
             "updated_at": rascunho.dh_atualizacao.isoformat() if rascunho else None,
         })
     if request.method == "POST":
+        if request.POST.get("acao") == "descartar":
+            RascunhoEditorDocumento.objects.filter(**filtros).delete()
+            return JsonResponse({"ok": True})
         try:
             if int(request.META.get("CONTENT_LENGTH") or 0) > 3_000_000:
                 return JsonResponse({"ok": False, "error": "Rascunho excede o limite de 3 MB."}, status=413)
@@ -2694,6 +2760,12 @@ def _resposta_modelos_documento(request, empresa, modelo):
     redirect_url = reverse("atendimento:modelos-documento")
     if pasta_gravacao:
         redirect_url = f"{redirect_url}?{urlencode({'pasta': pasta_gravacao.pk})}"
+    initial_html_tela = getattr(modelo, "ds_html_tela", "") if modelo else ""
+    initial_css_tela = getattr(modelo, "ds_css_tela", "") if modelo else ""
+    initial_project_tela = getattr(modelo, "ds_projeto_tela", {}) if modelo else {}
+    initial_html_impressao = getattr(modelo, "ds_html_impressao", "") if modelo else ""
+    initial_css_impressao = getattr(modelo, "ds_css_impressao", "") if modelo else ""
+    initial_project_impressao = getattr(modelo, "ds_projeto_impressao", {}) if modelo else {}
     modelo_protegido = bool(modelo and (modelo.sn_sistema or not modelo.sn_editavel))
     acao = request.POST.get("acao")
     if request.method == "POST" and acao == "criar_pasta":
@@ -2896,6 +2968,13 @@ def _resposta_modelos_documento(request, empresa, modelo):
                 setattr(saved, field_name, json.loads(request.POST.get(field_name) or "{}"))
             except json.JSONDecodeError:
                 form.add_error(None, f"Não foi possível interpretar o projeto do editor ({field_name}).")
+        if saved.tp_elemento == "VARIAVEL":
+            projeto_tela = saved.ds_projeto_tela if isinstance(saved.ds_projeto_tela, dict) else {}
+            projeto_tela["customVariable"] = {
+                "name": request.POST.get("custom_variable_name", "").strip(),
+                "expression": request.POST.get("custom_variable_expression", ""),
+            }
+            saved.ds_projeto_tela = projeto_tela
         if saved.tp_elemento == "DOCUMENTO" and not _impressao_possui_grade(saved):
             saved.ds_html_impressao = _gerar_impressao_pela_grade(saved)
         if modelo and not salvar_como_empresa and not form.errors:
@@ -2926,6 +3005,26 @@ def _resposta_modelos_documento(request, empresa, modelo):
                 return redirect("atendimento:editar-modelo-documento", cd_modelo=saved.pk)
             messages.success(request, f"Versão {saved.nr_versao} do modelo salva com sucesso.")
             return redirect(_safe_return_url(request) or redirect_url)
+    if request.method == "POST":
+        initial_html_tela = request.POST.get("ds_html_tela", initial_html_tela)
+        initial_css_tela = request.POST.get("ds_css_tela", initial_css_tela)
+        initial_html_impressao = request.POST.get("ds_html_impressao", initial_html_impressao)
+        initial_css_impressao = request.POST.get("ds_css_impressao", initial_css_impressao)
+        try:
+            initial_project_tela = json.loads(request.POST.get("ds_projeto_tela") or "{}")
+        except json.JSONDecodeError:
+            initial_project_tela = {}
+        try:
+            initial_project_impressao = json.loads(request.POST.get("ds_projeto_impressao") or "{}")
+        except json.JSONDecodeError:
+            initial_project_impressao = {}
+        if elemento_editor == "VARIAVEL":
+            if not isinstance(initial_project_tela, dict):
+                initial_project_tela = {}
+            initial_project_tela["customVariable"] = {
+                "name": request.POST.get("custom_variable_name", "").strip(),
+                "expression": request.POST.get("custom_variable_expression", ""),
+            }
     modelos = ModeloDocumento.objects.filter(
         Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
         sn_versao_atual=True,
@@ -3075,6 +3174,12 @@ def _resposta_modelos_documento(request, empresa, modelo):
             "modo_criacao": novo_tipo,
             "contextos_teste": contextos_teste,
             "empresa": empresa,
+            "initial_html_tela": initial_html_tela,
+            "initial_css_tela": initial_css_tela,
+            "initial_project_tela": initial_project_tela,
+            "initial_html_impressao": initial_html_impressao,
+            "initial_css_impressao": initial_css_impressao,
+            "initial_project_impressao": initial_project_impressao,
         },
     )
 
@@ -3208,7 +3313,7 @@ def _preencher_opcoes_documento(conteudo, documento):
         return f"<select{atributos}>{html_opcoes}</select>"
 
     return re.sub(
-        r"<select(?P<attributes>[^>]*)>.*?</select>",
+        r"<select(P<attributes>[^>]*)>.*</select>",
         preencher,
         conteudo or "",
         flags=re.IGNORECASE | re.DOTALL,
@@ -3216,9 +3321,9 @@ def _preencher_opcoes_documento(conteudo, documento):
 
 
 def _css_documento_seguro(conteudo):
-    seguro = re.sub(r"@import[^;]*;?", "", conteudo or "", flags=re.IGNORECASE)
+    seguro = re.sub(r"@import[^;]*;", "", conteudo or "", flags=re.IGNORECASE)
     seguro = re.sub(r"expression\s*\([^)]*\)", "", seguro, flags=re.IGNORECASE)
-    seguro = re.sub(r"url\s*\(\s*['\"]?\s*javascript:[^)]*\)", "", seguro, flags=re.IGNORECASE)
+    seguro = re.sub(r"url\s*\(\s*['\"]\s*javascript:[^)]*\)", "", seguro, flags=re.IGNORECASE)
     seguro = seguro.replace("</style", "")
     return mark_safe(seguro)
 
@@ -3257,9 +3362,21 @@ def _avaliar_expressao_variavel(expressao, contexto, strict=False):
                 continue
         return None
 
+    def calcular_idade(nascimento, referencia=None):
+        data_nascimento = converter_data_hora(nascimento)
+        if not data_nascimento:
+            return ""
+        data_referencia = converter_data_hora(referencia) if referencia is not None else None
+        data_referencia = data_referencia.date() if data_referencia else timezone.localdate()
+        data_nascimento = data_nascimento.date()
+        return data_referencia.year - data_nascimento.year - (
+            (data_referencia.month, data_referencia.day) < (data_nascimento.month, data_nascimento.day)
+        )
+
     funcoes = {
         "data": lambda valor: converter_data_hora(valor).strftime("%d/%m/%Y") if converter_data_hora(valor) else "",
         "hora": lambda valor: converter_data_hora(valor).strftime("%H:%M:%S") if converter_data_hora(valor) else "",
+        "idade": calcular_idade,
         "maiusculo": lambda valor: str(valor or "").upper(),
         "minusculo": lambda valor: str(valor or "").lower(),
         "titulo": lambda valor: str(valor or "").title(),
@@ -3312,9 +3429,18 @@ def _avaliar_expressao_variavel(expressao, contexto, strict=False):
     try:
         arvore = ast.parse(expressao or '""', mode="eval")
         return avaliar(arvore)
-    except (SyntaxError, TypeError, ValueError, ZeroDivisionError, OverflowError) as error:
+    except SyntaxError as error:
         if strict:
-            raise ValueError("A expressão é inválida ou utiliza uma operação não permitida.") from error
+            detalhe = f"linha {error.lineno}, coluna {error.offset}" if error.lineno and error.offset else "sintaxe inválida"
+            raise ValueError(f"Erro de sintaxe na expressão ({detalhe}). Verifique parênteses, aspas e operadores.") from error
+        return ""
+    except ZeroDivisionError as error:
+        if strict:
+            raise ValueError("Erro na expressão: divisão por zero.") from error
+        return ""
+    except (TypeError, ValueError, OverflowError) as error:
+        if strict:
+            raise ValueError("Erro na expressão: variável inexistente, função não permitida ou tipo de dado incompatível.") from error
         return ""
 
 
@@ -3401,6 +3527,7 @@ def _variaveis_atendimento_documento(atendimento, empresa):
 def _renderizar_documento(documento, modo_impressao):
     modelo = documento.cd_modelo_documento
     variaveis = _variaveis_atendimento_documento(documento.cd_atendimento, documento.cd_empresa)
+    variaveis_html = set()
     variaveis["documento.conteudo"] = documento.ds_conteudo
     variaveis["documento.codigo"] = documento.pk
     variaveis["documento.titulo"] = documento.ds_titulo
@@ -3413,9 +3540,94 @@ def _renderizar_documento(documento, modo_impressao):
         else getattr(documento.cd_usuario_criacao, "username", "")
     )
     variaveis.update(getattr(documento, "_variaveis_adicionais", {}) or {})
+    projeto_tela = modelo.ds_projeto_tela if modelo and isinstance(modelo.ds_projeto_tela, dict) else {}
+    campos_por_nome = {
+        campo.get("name"): campo
+        for campo in (projeto_tela.get("formFields") or [])
+        if campo.get("name")
+    }
+
+    def opcoes_estruturadas(texto):
+        opcoes = []
+        atual = []
+        dentro_chaves = False
+        entre_aspas = None
+        for char in str(texto or ""):
+            if entre_aspas:
+                atual.append(char)
+                if char == entre_aspas:
+                    entre_aspas = None
+                continue
+            if char in {'"', "'"}:
+                entre_aspas = char
+                atual.append(char)
+            elif char == "[":
+                dentro_chaves = True
+                atual.append(char)
+            elif char == "]":
+                dentro_chaves = False
+                atual.append(char)
+            elif char == "," and not dentro_chaves:
+                valor = "".join(atual).strip()
+                if valor:
+                    opcoes.append(valor)
+                atual = []
+            else:
+                atual.append(char)
+        valor = "".join(atual).strip()
+        if valor:
+            opcoes.append(valor)
+        return opcoes
+
+    def rotulo_opcao(texto):
+        return re.sub(r"\[.*$", "", str(texto or "")).strip()
+
+    def opcao_literal(texto):
+        valor = str(texto or "").strip()
+        return len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in {"'", '"'}
+
+    def texto_literal(texto):
+        valor = str(texto or "").strip()
+        return valor[1:-1] if opcao_literal(valor) else valor
+
+    def checkbox_impresso(marcado):
+        classe = "print-check-box checked" if marcado else "print-check-box"
+        return f'<span class="{classe}"></span>'
+
+    def formatar_valor_campo(nome, valor):
+        campo = campos_por_nome.get(nome) or {}
+        tipo = campo.get("type")
+        if modo_impressao and tipo == "exclusive-checkboxes":
+            selecionado = str(valor or "")
+            variaveis_html.add(f"campo.{nome}")
+            variaveis_html.add(nome)
+            return mark_safe(" ".join(
+                str(conditional_escape(texto_literal(opcao))) if opcao_literal(opcao)
+                else f"{checkbox_impresso(rotulo_opcao(opcao) == selecionado)}{conditional_escape(rotulo_opcao(opcao))}"
+                for opcao in opcoes_estruturadas(campo.get("options"))
+            ))
+        if modo_impressao and tipo == "checkbox":
+            variaveis_html.add(f"campo.{nome}")
+            variaveis_html.add(nome)
+            if campo.get("booleanStyle") == "single":
+                return mark_safe(f"{checkbox_impresso(bool(valor))}Sim")
+            selecionado = str(valor or "")
+            return mark_safe(
+                f"{checkbox_impresso(selecionado == 'Sim')}Sim "
+                f"{checkbox_impresso(selecionado == 'Não')}Não"
+            )
+        return valor
+
     for nome, valor in (documento.ds_dados_formulario or {}).items():
+        valor = formatar_valor_campo(nome, valor)
         variaveis[f"campo.{nome}"] = valor
         variaveis[nome] = valor
+    if modo_impressao:
+        for nome, campo in campos_por_nome.items():
+            if f"campo.{nome}" not in variaveis and campo.get("type") in {"exclusive-checkboxes", "checkbox"}:
+                valor = formatar_valor_campo(nome, "")
+                variaveis[f"campo.{nome}"] = valor
+                variaveis[nome] = valor
 
     def renderizar(html):
         resultado = _preencher_opcoes_documento(html or "", documento)
@@ -3425,12 +3637,16 @@ def _renderizar_documento(documento, modo_impressao):
             resultado,
         )
         for chave, valor in variaveis.items():
-            substituicao = str(valor) if chave == "documento.conteudo" else str(conditional_escape(valor))
+            substituicao = str(valor) if chave == "documento.conteudo" or chave in variaveis_html else str(conditional_escape(valor))
             resultado = resultado.replace(f"{{{{ {chave} }}}}", substituicao)
             resultado = resultado.replace(f"{{{{{chave}}}}}", substituicao)
+        if modo_impressao:
+            resultado = resultado.replace("margin:10px 0 0", "margin:5px 0 0")
+            resultado = resultado.replace("min-height:38px", "min-height:20px")
+            resultado = resultado.replace("min-height:68px", "min-height:34px")
         if not modo_impressao:
             resultado = re.sub(
-                r"\sreadonly(?=[\s>])",
+                r"\sreadonly(=[\s>])",
                 ' disabled tabindex="-1" aria-disabled="true"',
                 resultado,
                 flags=re.IGNORECASE,
@@ -3483,6 +3699,8 @@ def _renderizar_documento(documento, modo_impressao):
         if not modo_impressao
         else ".document-content main>section{column-gap:0!important;row-gap:0!important}"
     )
+    projeto_impressao = modelo.ds_projeto_impressao if isinstance(modelo.ds_projeto_impressao, dict) else {}
+    limitar_uma_pagina = bool((projeto_impressao.get("printLayout") or {}).get("grid", {}).get("fitOnePage"))
     conteudo_modelo = getattr(modelo, campo_html, "") or documento.ds_conteudo
     if modo_impressao and not _impressao_possui_grade(modelo):
         conteudo_modelo = _gerar_impressao_pela_grade(modelo)
@@ -3493,10 +3711,12 @@ def _renderizar_documento(documento, modo_impressao):
         "conteudo": renderizar(conteudo_modelo),
         "rodape": renderizar(getattr(rodape, campo_html, "") if modo_impressao and rodape else ""),
         "css": _css_documento_seguro(f"{css_base}\n{css_layout}"),
+        "limitar_uma_pagina": limitar_uma_pagina,
     }
 
 
 @login_required
+@xframe_options_sameorigin
 def imprimir_documento_clinico(request, cd_documento):
     empresa = _empresa_logada(request)
     documento = get_object_or_404(
@@ -3545,6 +3765,9 @@ def imprimir_documento_clinico(request, cd_documento):
             tp_evento="ATUALIZADO",
         )
         messages.success(request, "Rascunho atualizado.")
+        next_url = request.POST.get("next", "")
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            return redirect(next_url)
         return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
     AcessoClinicoAuditado.objects.create(
         cd_empresa=empresa,
@@ -3554,6 +3777,7 @@ def imprimir_documento_clinico(request, cd_documento):
         ds_ip=request.META.get("REMOTE_ADDR") or None,
     )
     modo_impressao = request.GET.get("modo") == "impressao"
+    embed = request.GET.get("embed") == "1"
     if modo_impressao and documento.cd_item_menu_assistencial and not documento.cd_item_menu_assistencial.sn_imprimivel:
         raise PermissionDenied("A impressão foi desativada na configuração desta tela.")
     return render(
@@ -3564,6 +3788,8 @@ def imprimir_documento_clinico(request, cd_documento):
             "atendimento": documento.cd_atendimento,
             "empresa": empresa,
             "modo_impressao": modo_impressao,
+            "embed": embed,
+            "documento_base_template": "base/document_embed.html" if embed else "base/layout.html",
             "somente_consulta": somente_consulta,
             "pode_imprimir": not documento.cd_item_menu_assistencial or documento.cd_item_menu_assistencial.sn_imprimivel,
             "apresentacao": _renderizar_documento(documento, modo_impressao),
@@ -3584,6 +3810,13 @@ def imprimir_documento_clinico(request, cd_documento):
             ),
         },
     )
+
+
+def _redirect_documento_clinico(request, documento):
+    next_url = request.POST.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
 
 
 def _registrar_evento_documento(documento, usuario, tipo, motivo="", dados=None):
@@ -3646,16 +3879,13 @@ def assumir_documento_clinico(request, cd_documento):
             {"usuario_anterior": anterior},
         )
     messages.success(request, "Documento assumido com sucesso.")
-    return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
+    return _redirect_documento_clinico(request, documento)
 
 
 @login_required
 def fechar_documento_clinico(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    if not request.user.check_password(request.POST.get("senha", "")):
-        messages.error(request, "Senha inválida. O documento não foi fechado.")
-        return redirect("atendimento:imprimir-documento-clinico", cd_documento=cd_documento)
     empresa = _empresa_logada(request)
     with transaction.atomic():
         documento = get_object_or_404(
@@ -3668,10 +3898,17 @@ def fechar_documento_clinico(request, cd_documento):
             raise PermissionDenied
         if documento.cd_usuario_responsavel_id not in {None, request.user.pk}:
             raise PermissionDenied("Assuma o documento antes de fechá-lo.")
+        if "ds_dados_formulario" in request.POST:
+            documento.ds_conteudo = _conteudo_documento_seguro(request.POST.get("ds_conteudo", ""))
+            try:
+                documento.ds_dados_formulario = json.loads(request.POST.get("ds_dados_formulario") or "{}")
+            except json.JSONDecodeError:
+                messages.error(request, "Nao foi possivel interpretar os campos preenchidos.")
+                return _redirect_documento_clinico(request, documento)
         ausentes = _campos_obrigatorios_documento_preenchidos(documento)
         if ausentes:
             messages.error(request, f"Preencha os campos obrigatórios: {', '.join(ausentes)}.")
-            return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
+            return _redirect_documento_clinico(request, documento)
         conteudo_hash = json.dumps(
             {
                 "conteudo": documento.ds_conteudo,
@@ -3714,6 +3951,8 @@ def fechar_documento_clinico(request, cd_documento):
             "cd_usuario_responsavel",
             "dh_finalizacao",
             "dh_assinatura",
+            "ds_conteudo",
+            "ds_dados_formulario",
             "ds_hash_conteudo",
             "ds_campos_bloqueados",
             "dh_atualizacao",
@@ -3726,7 +3965,7 @@ def fechar_documento_clinico(request, cd_documento):
             dados={"hash": documento.ds_hash_conteudo, "assinatura": assinatura},
         )
     messages.success(request, "Documento fechado e assinado eletronicamente.")
-    return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
+    return _redirect_documento_clinico(request, documento)
 
 
 @login_required
@@ -3754,7 +3993,7 @@ def abandonar_documento_clinico(request, cd_documento):
         documento.save(update_fields=["ds_status", "dh_atualizacao", "cd_usuario_atualizacao"])
         _registrar_evento_documento(documento, request.user, "ABANDONADO", motivo)
     messages.success(request, "Documento abandonado e mantido na auditoria.")
-    return redirect("atendimento:ficha-atendimento", cd_atendimento=documento.cd_atendimento_id)
+    return _redirect_documento_clinico(request, documento)
 
 
 @login_required
@@ -4437,7 +4676,7 @@ def cadastro_escala(request, cd_escala=None):
         if removido:
             messages.success(request, "Escala excluída e alteração salva com sucesso.")
             parametros = "origem=consulta&exclusao_concluida=1" if query_context else "exclusao_concluida=1"
-            return redirect(f"{reverse('atendimento:escalas')}?{parametros}")
+            return redirect(f"{reverse('atendimento:escalas')}{parametros}")
         destino = reverse("atendimento:cadastro-escala", args=[escala.pk])
         return redirect(f"{destino}?origem=consulta" if query_context else destino)
     if request.method == "POST" and form.is_valid():
@@ -4541,6 +4780,7 @@ def atendimentos(request):
 @role_required("TI", "Médico", "Enfermeiro")
 def pep(request):
     empresa = _empresa_logada(request)
+    pep_standalone = getattr(request, "pep_standalone", False)
     request.current_tab_title = "Atendimento > PEP"
     request.current_tab_root_title = "PEP"
     request.current_module_title = "Atendimento"
@@ -4696,6 +4936,9 @@ def pep(request):
         request,
         "atendimento/pep.html",
         {
+            "pep_standalone": pep_standalone,
+            "pep_base_template": "base/pep_layout.html" if pep_standalone else "base/layout.html",
+            "pep_list_url": reverse("pep_standalone") if pep_standalone else reverse("atendimento:pep"),
             "setores": setores,
             "setores_filtrados": setores_filtrados,
             "setor_ids": [str(value) for value in setores_filtrados.values_list("pk", flat=True)],
@@ -4724,6 +4967,9 @@ def pep(request):
 @role_required("TI", "Médico", "Enfermeiro")
 def pep_prontuario_paciente(request, cd_paciente):
     empresa = _empresa_logada(request)
+    pep_standalone = getattr(request, "pep_standalone", False)
+    pep_list_route = "pep_standalone" if pep_standalone else "atendimento:pep"
+    pep_patient_route = "pep_prontuario_standalone" if pep_standalone else "atendimento:pep-prontuario-paciente"
     paciente = get_object_or_404(
         Paciente.objects.select_related("cd_convenio"),
         cd_empresa=empresa,
@@ -4761,14 +5007,14 @@ def pep_prontuario_paciente(request, cd_paciente):
         .select_related("cd_prestador_responsavel")
         .order_by("-dh_classificacao")[:30]
     )
-    return_to = _safe_return_url(request) or f"{reverse('atendimento:pep')}?aba=todos"
+    return_to = _safe_return_url(request) or f"{reverse(pep_list_route)}?aba=todos"
     request.current_return_url = return_to
     request.current_tab_title = "Atendimento > PEP > Prontuário"
     request.current_tab_root_title = "PEP"
     request.current_module_title = "Atendimento"
     request.current_can_query = False
     grupos = set(request.user.groups.values_list("name", flat=True))
-    can_clinical_actions = request.user.is_superuser or bool(grupos.intersection({"TI", "Médico", "MÃ©dico"}))
+    can_clinical_actions = request.user.is_superuser or bool(grupos.intersection({"TI", "Médico", "Médico"}))
     perfis_assistenciais, itens_assistenciais = _itens_menu_assistencial_mesclados(request.user, empresa)
     menu_assistencial_raizes = []
     if atendimento_selecionado:
@@ -4785,33 +5031,29 @@ def pep_prontuario_paciente(request, cd_paciente):
         }
         for item in itens_assistenciais:
             item.somente_consulta = somente_consulta and item.tp_item not in {"DOCUMENTO", "HISTORICO", "GRUPO"}
-            if item.tp_item == "DOCUMENTO" and item.cd_modelo_documento_id:
+            if item.tp_item == "GRUPO":
                 item.url_renderizada = (
-                    f"{reverse('atendimento:pep-prontuario-paciente', args=[paciente.pk])}?"
+                    f"{reverse(pep_patient_route, args=[paciente.pk])}?"
+                    f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'grupo': item.pk, 'return_to': return_to})}"
+                )
+            elif item.tp_item == "DOCUMENTO" and item.cd_modelo_documento_id:
+                item.url_renderizada = (
+                    f"{reverse(pep_patient_route, args=[paciente.pk])}?"
                     f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item.pk, 'return_to': return_to})}"
                 )
-            elif item.tp_item == "ESCALA":
-                item.url_renderizada = reverse(
-                    "atendimento:executar-escala-clinica",
-                    args=[atendimento_selecionado.pk, item.pk],
-                )
-            elif item.tp_item == "ANEXO":
-                item.url_renderizada = reverse(
-                    "atendimento:anexos-clinicos",
-                    args=[atendimento_selecionado.pk, item.pk],
-                )
-            elif item.tp_item == "HISTORICO":
-                item.url_renderizada = reverse(
-                    "atendimento:historico-documentos-assistencial",
-                    args=[atendimento_selecionado.pk, item.pk],
-                )
-            elif item.tp_item == "LINK_EXTERNO":
-                item.url_renderizada = reverse(
-                    "atendimento:link-externo-assistencial",
-                    args=[atendimento_selecionado.pk, item.pk],
+            elif item.tp_item in {"ESCALA", "ANEXO", "HISTORICO", "LINK_EXTERNO"}:
+                item.url_renderizada = (
+                    f"{reverse(pep_patient_route, args=[paciente.pk])}?"
+                    f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item.pk, 'return_to': return_to})}"
                 )
             else:
-                item.url_renderizada = mapa_acoes.get(item.ds_acao, item.ds_url or "#")
+                if pep_standalone and item.ds_acao:
+                    item.url_renderizada = (
+                        f"{reverse(pep_patient_route, args=[paciente.pk])}?"
+                        f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item.pk, 'return_to': return_to})}"
+                    )
+                else:
+                    item.url_renderizada = mapa_acoes.get(item.ds_acao, item.ds_url or "#")
         itens_por_chave = {item.chave_mesclagem: item for item in itens_assistenciais}
         for item in itens_assistenciais:
             pai = itens_por_chave.get(item.chave_pai_mesclagem)
@@ -4821,23 +5063,33 @@ def pep_prontuario_paciente(request, cd_paciente):
                 menu_assistencial_raizes.append(item)
     item_selecionado = None
     ultimo_documento_item = None
+    documento_aberto_item = None
+    apresentacao_documento_item = None
+    documento_editavel_item = False
+    documento_modo_impressao_item = False
+    pep_documento_next_url = ""
     historico_documentos_item = DocumentoClinico.objects.none()
     item_id = (request.POST.get("item") or request.GET.get("item") or "").strip()
     if atendimento_selecionado and item_id.isdigit():
         item_selecionado = next(
             (
                 item for item in itens_assistenciais
-                if item.pk == int(item_id) and item.tp_item == "DOCUMENTO" and item.cd_modelo_documento_id
+                if item.pk == int(item_id) and item.tp_item != "GRUPO"
             ),
             None,
         )
-    if item_selecionado:
+    if item_selecionado and item_selecionado.tp_item == "DOCUMENTO" and item_selecionado.cd_modelo_documento_id:
         historico_documentos_item = DocumentoClinico.objects.filter(
             cd_empresa=empresa,
             cd_atendimento__cd_paciente=paciente,
             cd_modelo_documento=item_selecionado.cd_modelo_documento,
         ).select_related("cd_atendimento", "cd_usuario_responsavel").order_by("-dh_emissao")
-        ultimo_documento_item = historico_documentos_item.first()
+        documento_id = (request.GET.get("documento") or "").strip()
+        if documento_id.isdigit():
+            ultimo_documento_item = historico_documentos_item.filter(pk=int(documento_id)).first()
+        documento_aberto_item = historico_documentos_item.filter(ds_status__in=["ABERTO", "RASCUNHO"]).first()
+        if not ultimo_documento_item:
+            ultimo_documento_item = documento_aberto_item or historico_documentos_item.first()
         if request.method == "POST" and request.POST.get("acao") == "novo_documento":
             if somente_consulta:
                 raise PermissionDenied("O prontuário foi aberto em modo de consulta.")
@@ -4876,11 +5128,59 @@ def pep_prontuario_paciente(request, cd_paciente):
                     "ds_status",
                     "dh_emissao",
                 ])
-                return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
+                params = urlencode({
+                    "modo": "atendimento",
+                    "atendimento": atendimento_selecionado.pk,
+                    "item": item_selecionado.pk,
+                    "documento": documento.pk,
+                    "return_to": return_to,
+                })
+                return redirect(f"{reverse(pep_patient_route, args=[paciente.pk])}?{params}")
+        if ultimo_documento_item:
+            documento_editavel_item = bool(
+                not somente_consulta
+                and ultimo_documento_item.ds_status in {"ABERTO", "RASCUNHO"}
+                and ultimo_documento_item.cd_usuario_responsavel_id in {None, request.user.pk}
+            )
+            documento_modo_impressao_item = not documento_editavel_item
+            apresentacao_documento_item = _renderizar_documento(ultimo_documento_item, documento_modo_impressao_item)
+            pep_documento_next_url = (
+                f"{reverse(pep_patient_route, args=[paciente.pk])}?"
+                f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item_selecionado.pk, 'documento': ultimo_documento_item.pk, 'return_to': return_to})}"
+            )
+    _marcar_ramo_menu_assistencial(menu_assistencial_raizes, item_selecionado)
+    itens_por_id = {item.pk: item for item in itens_assistenciais}
+    grupo_id = (request.GET.get("grupo") or "").strip()
+    grupo_requisitado = itens_por_id.get(int(grupo_id)) if grupo_id.isdigit() else None
+    if item_selecionado:
+        grupo_telas = itens_por_id.get(item_selecionado.cd_item_pai_id)
+        pep_telas_barra = [
+            item for item in itens_assistenciais
+            if item.tp_item != "GRUPO"
+            and item.cd_item_pai_id == getattr(grupo_telas, "pk", None)
+        ] if grupo_telas else [
+            item for item in itens_assistenciais
+            if item.tp_item != "GRUPO" and not item.cd_item_pai_id
+        ]
+        pep_grupo_tela_atual = grupo_telas
+    else:
+        pep_grupo_tela_atual = grupo_requisitado if getattr(grupo_requisitado, "tp_item", "") == "GRUPO" else None
+        pep_telas_barra = [
+            item for item in itens_assistenciais
+            if item.tp_item != "GRUPO"
+            and item.cd_item_pai_id == getattr(pep_grupo_tela_atual, "pk", None)
+        ] if pep_grupo_tela_atual else []
+        if pep_grupo_tela_atual:
+            pep_grupo_tela_atual.tem_item_ativo = True
+    _preparar_arvore_menu_assistencial(menu_assistencial_raizes, pep_grupo_tela_atual)
     return render(
         request,
         "atendimento/pep_prontuario_paciente.html",
         {
+            "pep_standalone": pep_standalone,
+            "pep_base_template": "base/pep_layout.html" if pep_standalone else "base/layout.html",
+            "pep_list_url": reverse(pep_list_route),
+            "pep_patient_url": reverse(pep_patient_route, args=[paciente.pk]),
             "paciente": paciente,
             "idade": _idade(paciente.dt_nascimento),
             "atendimentos": atendimentos,
@@ -4891,8 +5191,15 @@ def pep_prontuario_paciente(request, cd_paciente):
             "can_clinical_actions": can_clinical_actions,
             "perfis_assistenciais": perfis_assistenciais,
             "menu_assistencial_raizes": menu_assistencial_raizes,
+            "pep_telas_barra": pep_telas_barra,
+            "pep_grupo_tela_atual": pep_grupo_tela_atual,
             "item_selecionado": item_selecionado,
             "ultimo_documento_item": ultimo_documento_item,
+            "documento_aberto_item": documento_aberto_item,
+            "documento_editavel_item": documento_editavel_item,
+            "documento_modo_impressao_item": documento_modo_impressao_item,
+            "apresentacao_documento_item": apresentacao_documento_item,
+            "pep_documento_next_url": pep_documento_next_url,
             "historico_documentos_item": historico_documentos_item[:30],
             "agora_documento": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
             "atendimento_aberto": atendimento_selecionado and atendimento_selecionado.ds_status not in {
@@ -4901,6 +5208,35 @@ def pep_prontuario_paciente(request, cd_paciente):
             "somente_consulta": somente_consulta,
         },
     )
+
+
+def _validar_prestador_pep_standalone(request):
+    if getattr(request.user, "cd_prestador_id", None):
+        return True
+    messages.error(request, "O PEP exige um prestador vinculado ao usuário.")
+    return False
+
+
+def _view_sem_decoradores(view):
+    while getattr(view, "__wrapped__", None):
+        view = view.__wrapped__
+    return view
+
+
+@login_required
+def pep_standalone(request):
+    if not _validar_prestador_pep_standalone(request):
+        return redirect("core:home")
+    request.pep_standalone = True
+    return _view_sem_decoradores(pep)(request)
+
+
+@login_required
+def pep_prontuario_paciente_standalone(request, cd_paciente):
+    if not _validar_prestador_pep_standalone(request):
+        return redirect("core:home")
+    request.pep_standalone = True
+    return _view_sem_decoradores(pep_prontuario_paciente)(request, cd_paciente)
 
 
 @login_required
@@ -5745,14 +6081,14 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
         if recepcao_direta:
             continue_url = reverse("atendimento:novo-atendimento-direto", args=[paciente.pk])
             request.current_continue_url = (
-                f"{continue_url}?{urlencode({'senha': senha_recepcao_id})}"
+                f"{continue_url}{urlencode({'senha': senha_recepcao_id})}"
                 if senha_recepcao_id.isdigit()
                 else continue_url
             )
         elif agendamento_recepcao:
             continue_url = reverse("atendimento:novo-atendimento-agendado", args=[agendamento_recepcao.pk])
             query = urlencode({"return_to": request.current_return_url}) if request.current_return_url else ""
-            request.current_continue_url = f"{continue_url}?{query}" if query else continue_url
+            request.current_continue_url = f"{continue_url}{query}" if query else continue_url
         else:
             request.current_continue_url = reverse("atendimento:selecionar-agenda", kwargs={"cd_paciente": paciente.cd_paciente})
     form = PacienteForm(request.POST or None, instance=paciente, empresa=empresa)
@@ -5797,12 +6133,12 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
                 query = {"recepcionar": agendamento_recepcao.pk}
                 if request.current_return_url:
                     query["return_to"] = request.current_return_url
-                response = redirect(f"{target}?{urlencode(query)}")
+                response = redirect(f"{target}{urlencode(query)}")
             elif recepcao_direta:
                 messages.success(request, "Dados do paciente confirmados. Continue para cadastrar o atendimento.")
                 target = reverse("atendimento:novo-atendimento-direto", args=[saved.pk])
                 response = redirect(
-                    f"{target}?{urlencode({'senha': senha_recepcao_id})}"
+                    f"{target}{urlencode({'senha': senha_recepcao_id})}"
                     if senha_recepcao_id.isdigit()
                     else target
                 )
@@ -5996,7 +6332,7 @@ def confirmar_horario_agenda(request, cd_paciente, cd_horario):
             _apply_audit(slot, request.user)
             slot.save(update_fields=["ds_status", "dh_atualizacao", "cd_usuario_atualizacao"])
         messages.success(request, "Agendamento confirmado.")
-        separador = "&" if "?" in return_to else "?"
+        separador = "&" if "" in return_to else ""
         return redirect(f"{return_to}{separador}{urlencode({'comprovante': agendamento.pk})}")
     return render(
         request,

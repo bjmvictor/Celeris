@@ -6,16 +6,16 @@
     <table class="editable-table">
       <thead>
         <tr>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_agenda_profissional' %}-{% endif %}cd_agenda_profissional">Código</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_prestador__nm_prestador' %}-{% endif %}cd_prestador__nm_prestador">Profissional</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_agenda' %}-{% endif %}ds_agenda">Escala</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_agenda_profissional' %}-{% endif %}cd_agenda_profissional">Código</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_prestador__nm_prestador' %}-{% endif %}cd_prestador__nm_prestador">Profissional</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_agenda' %}-{% endif %}ds_agenda">Escala</a></th>
           <th>Dias da semana</th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_inicio' %}-{% endif %}hr_inicio">Início</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_fim' %}-{% endif %}hr_fim">Fim</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_tempo_atendimento' %}-{% endif %}nr_tempo_atendimento">Tempo</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_intervalo' %}-{% endif %}nr_intervalo">Intervalo</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_atende_feriado' %}-{% endif %}sn_atende_feriado">Atende feriado</a></th>
-          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_inicio' %}-{% endif %}hr_inicio">Início</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'hr_fim' %}-{% endif %}hr_fim">Fim</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_tempo_atendimento' %}-{% endif %}nr_tempo_atendimento">Tempo</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_intervalo' %}-{% endif %}nr_intervalo">Intervalo</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_atende_feriado' %}-{% endif %}sn_atende_feriado">Atende feriado</a></th>
+          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
         </tr>
       </thead>
       <tbody>
