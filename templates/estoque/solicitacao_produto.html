@@ -1,0 +1,32 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<form method="post" class="provider-form" data-primary-form data-query-url="{{ request.path }}" data-table="{{ form_table }}" autocomplete="off">
+  {% csrf_token %}
+  <details class="card form-section" open>
+    <summary>{{ title }}</summary>
+    <div class="form-grid">
+      {% for field in form %}
+        <label class="field-md">{{ field.label }} {{ field }} {{ field.errors }}</label>
+      {% endfor %}
+    </div>
+  </details>
+  <details class="card form-section" open>
+    <summary>Produtos solicitados</summary>
+    {{ formset.management_form }}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Produto</th><th>Quantidade</th><th>Remover</th></tr></thead>
+        <tbody>
+          {% for item_form in formset %}
+            <tr>
+              <td>{{ item_form.id }}{{ item_form.cd_produto }}</td>
+              <td>{{ item_form.qt_solicitada }}</td>
+              <td>{% if item_form.DELETE %}{{ item_form.DELETE }}{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</form>
+{% endblock %}

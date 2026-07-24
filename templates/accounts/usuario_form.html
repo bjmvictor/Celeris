@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <form class="user-form" data-table="usuario" data-user-id="{{ usuario.pk|default:'' }}" data-query-url="{{ request.path }}" method="post" autocomplete="off">
+  <form class="user-form" data-table="usuario" data-user-id="{{ usuario.pk|default:'' }}" data-query-url="{{ request.path }}"{% if usuario and not usuario_bloqueado %} data-record-lock-acquire-url="{% url 'usuario_adquirir_trava' usuario.pk %}" data-record-lock-release-url="{% url 'usuario_liberar_trava' usuario.pk %}"{% endif %}{% if usuario_bloqueado %} data-readonly-lock="true" data-lock-message="{{ mensagem_trava_usuario }}"{% endif %} method="post" autocomplete="off">
     {% csrf_token %}{{ form.non_field_errors }}
     <input type="hidden" name="return_to" value="{{ return_to }}">
 

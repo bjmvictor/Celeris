@@ -25,16 +25,16 @@
   <section class="card schedule-page schedule-filter-panel">
     <aside class="calendar-card">
       <div class="calendar-header">
-        <a class="button button-secondary" href="data={{ data_filtro }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}&q={{ termo|urlencode }}{% if todas_especialidades %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">‹</a>
+        <a class="button button-secondary" href="?data={{ data_filtro }}&mes={{ calendario.previous.month }}&ano={{ calendario.previous.year }}&q={{ termo|urlencode }}{% if todas_especialidades %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">‹</a>
         <strong>{{ calendario.month|date:"F/Y" }}</strong>
-        <a class="button button-secondary" href="data={{ data_filtro }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}&q={{ termo|urlencode }}{% if todas_especialidades %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">›</a>
+        <a class="button button-secondary" href="?data={{ data_filtro }}&mes={{ calendario.next.month }}&ano={{ calendario.next.year }}&q={{ termo|urlencode }}{% if todas_especialidades %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">›</a>
       </div>
       <div class="calendar-grid">
         {% for label in calendario.weekdays %}<span class="calendar-weekday">{{ label }}</span>{% endfor %}
         {% for week in calendario.weeks %}
           {% for day in week %}
             <a class="calendar-day{% if not day.in_month %} muted{% endif %}{% if day.selected %} selected{% endif %}{% if day.holiday %} holiday{% endif %}{% if day.has_schedule %} has-schedule{% endif %}{% if day.today %} today{% endif %}"
-               href="data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}&q={{ termo|urlencode }}{% if todas_especialidades %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">
+               href="?data={{ day.iso }}&mes={{ day.date.month }}&ano={{ day.date.year }}&q={{ termo|urlencode }}{% if todas_especialidades %}&todas_especialidades=1{% endif %}{% for codigo in especialidades_selecionadas %}&especialidades={{ codigo|urlencode }}{% endfor %}">
               {{ day.day }}
             </a>
           {% endfor %}
@@ -114,7 +114,7 @@
           <button class="toolbar-button" type="button" data-appointment-receipt-close title="Fechar">×</button>
         </header>
         <div class="document-preview-body">
-          <iframe class="appointment-receipt-frame" data-appointment-receipt-frame src="{% url 'atendimento:comprovante-agendamento' comprovante.pk %}embed=1" title="Comprovante de agendamento"></iframe>
+          <iframe class="appointment-receipt-frame" data-appointment-receipt-frame src="{% url 'atendimento:comprovante-agendamento' comprovante.pk %}?pdf=1" title="Comprovante de agendamento"></iframe>
         </div>
         <footer>
           <button class="button button-secondary" type="button" data-appointment-receipt-close>Fechar</button>
@@ -194,7 +194,7 @@
       toggle.addEventListener("click", () => {
         const collapsed = header.classList.toggle("is-collapsed");
         toggle.setAttribute("aria-expanded", String(!collapsed));
-        toggle.title = collapsed  "Expandir dados do paciente" : "Recolher dados do paciente";
+        toggle.title = collapsed ? "Expandir dados do paciente" : "Recolher dados do paciente";
         window.requestAnimationFrame(updateStickyOffset);
       });
       window.addEventListener("resize", updateStickyOffset);

@@ -10,7 +10,7 @@
           <strong>{{ senha.ds_senha }}</strong>
           <span>{{ senha.cd_tipo_senha.nm_tipo_senha }} · {{ senha.cd_classe_senha.nm_classe_senha }}</span>
           <small>Classificada em {{ senha.dh_classificacao|date:"H:i" }}</small>
-          <a class="button button-secondary" href="senha={{ senha.pk }}">Recepcionar senha</a>
+        <a class="button button-secondary" href="?senha={{ senha.pk }}">Recepcionar senha</a>
         </article>
       {% empty %}
         <div class="empty-state">Nenhum paciente classificado aguardando recepção.</div>
@@ -42,7 +42,7 @@
                 <span class="patient-social-name" data-social-name data-social="{{ paciente.nm_social }}" data-register="{{ paciente.nm_paciente }}">
                   <span data-social-name-text>{{ paciente.nm_social }}</span>
                   <button class="social-name-info" type="button" title="Nome de registro: {{ paciente.nm_paciente }}" aria-label="Alternar nome social e nome de registro">
-                    <span class="svg-icon" data-nav-icon="user"></span>
+                    <span class="svg-icon" data-nav-icon="contact"></span>
                   </button>
                 </span>
               {% else %}
@@ -73,8 +73,8 @@
       };
       let showingSocial = true;
       const update = () => {
-        text.textContent = showingSocial  values.social : values.register;
-        button.title = showingSocial  `Nome de registro: ${values.register}` : `Nome social: ${values.social}`;
+        text.textContent = showingSocial ? values.social : values.register;
+        button.title = showingSocial ? `Nome de registro: ${values.register}` : `Nome social: ${values.social}`;
       };
       button.addEventListener("click", () => {
         showingSocial = !showingSocial;

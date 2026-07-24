@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: {{ margem_superior_pdf_mm|default:27 }}mm 7mm 10mm 7mm;
+      {% if not apenas_layout or tipo_layout == "CABECALHO" %}
+      @top-center {
+        content: element(celeris-header);
+        width: 196mm;
+      }
+      {% endif %}
+      {% if not apenas_layout or tipo_layout == "RODAPE" %}
+      @bottom-center {
+        content: element(celeris-footer);
+        width: 196mm;
+      }
+      {% endif %}
+      {% if pagina_no_cabecalho %}
+      @top-right {
+        content: "Página: " counter(page);
+        font: 700 11px Arial, sans-serif;
+        color: #111;
+        width: 24mm;
+        text-align: right;
+        white-space: nowrap;
+        padding-top: 18mm;
+      }
+      {% elif pagina_no_rodape %}
+      @bottom-right {
+        content: "Página: " counter(page);
+        font: 700 11px Arial, sans-serif;
+        color: #111;
+        width: 24mm;
+        text-align: right;
+        white-space: nowrap;
+        padding-bottom: 1mm;
+      }
+      {% endif %}
+    }
+    @page celeris-header-page-number {
+      size: A4;
+      margin: 27mm 7mm 10mm 7mm;
+      @top-center {
+        content: element(celeris-header);
+        width: 196mm;
+      }
+      @top-right {
+        content: "Página: " counter(page);
+        font: 700 11px Arial, sans-serif;
+        color: #111;
+        padding-top: 18mm;
+      }
+      @bottom-center {
+        content: element(celeris-footer);
+        width: 196mm;
+      }
+    }
+    @page celeris-footer-page-number {
+      size: A4;
+      margin: 27mm 7mm 10mm 7mm;
+      @top-center {
+        content: element(celeris-header);
+        width: 196mm;
+      }
+      @bottom-center {
+        content: element(celeris-footer);
+        width: 196mm;
+      }
+      @bottom-right {
+        content: "Página: " counter(page);
+        font: 700 11px Arial, sans-serif;
+        color: #111;
+        padding-bottom: 1mm;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #111;
+      font-family: Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.16;
+    }
+    body {
+      position: relative;
+    }
+    body.layout-only {
+      padding: 0;
+    }
+    .document-pdf-header {
+      position: running(celeris-header);
+      width: 196mm;
+      max-width: 196mm;
+      padding: {{ cabecalho_padding_superior_mm|default:10 }}mm 0 10px;
+      background: transparent;
+      overflow: hidden;
+    }
+    .document-pdf-footer {
+      position: running(celeris-footer);
+      width: 196mm;
+      max-width: 196mm;
+      padding: .3mm 0 0;
+      background: transparent;
+    }
+    .document-pdf-content {
+      position: relative;
+      margin-top: 1.5mm;
+      z-index: 1;
+      width: 100%;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .document-pdf-content * {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .document-pdf-header > *,
+    .document-pdf-footer > *,
+    .document-pdf-content > * {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .document-pdf-header main,
+    .document-pdf-header main > section,
+    .document-pdf-header .pdf-grid-table,
+    .document-pdf-footer main,
+    .document-pdf-footer main > section,
+    .document-pdf-footer .pdf-grid-table,
+    .document-pdf-content main,
+    .document-pdf-content main > section:not([data-celeris-signature="true"]),
+    .document-pdf-content .pdf-grid-table {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+    .document-pdf-header main,
+    .document-pdf-header main > section,
+    .document-pdf-footer main,
+    .document-pdf-footer main > section {
+      background: transparent !important;
+    }
+    .document-pdf-content main,
+    .document-pdf-content main > section:not([data-celeris-signature="true"]) {
+      background: transparent !important;
+    }
+    .pdf-grid-table {
+      width: 100% !important;
+      max-width: 100% !important;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin: 0;
+      padding: 0;
+    }
+    .pdf-grid-table td {
+      vertical-align: top;
+      padding: 0;
+      border: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .pdf-grid-table td > div,
+    .pdf-grid-table td > main,
+    .pdf-grid-table td > section {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+    .document-page-variable::after { content: counter(page); }
+    .document-total-pages::after { content: counter(pages); }
+    .document-preserve-text {
+      white-space: pre-wrap;
+      tab-size: 4;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    body.page-number-header .document-pdf-header .document-page-variable::after,
+    body.page-number-footer .document-pdf-footer .document-page-variable::after {
+      content: "";
+    }
+    body.layout-header-preview .document-pdf-header {
+      position: running(celeris-header);
+      width: 196mm !important;
+      max-width: 196mm !important;
+      padding: {{ cabecalho_padding_superior_mm|default:10 }}mm 0 0;
+    }
+    .print-check-box {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin: 0 3px 0 0;
+      border: 1px solid #111;
+      vertical-align: -1px;
+    }
+    .print-check-box.checked::after {
+      content: "";
+      display: block;
+      width: 5px;
+      height: 3px;
+      margin: 0 0 0 1px;
+      border-left: 2px solid #111;
+      border-bottom: 2px solid #111;
+      transform: rotate(-45deg);
+    }
+    .document-watermark {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .document-cancelled-watermark {
+      position: fixed;
+      top: 40%;
+      left: 0;
+      right: 0;
+      z-index: -1;
+      color: rgba(185, 28, 28, .16);
+      font-size: 86px;
+      font-weight: 900;
+      text-align: center;
+      transform: rotate(-32deg);
+    }
+    .document-pdf-header,
+    .document-pdf-footer {
+      position: running(celeris-header);
+      z-index: 1;
+    }
+    .document-pdf-footer {
+      position: running(celeris-footer);
+    }
+    [data-celeris-signature="true"] {
+      break-before: avoid;
+      break-before: avoid-page;
+      break-inside: avoid;
+      page-break-before: avoid;
+      page-break-inside: avoid;
+      width: 92mm !important;
+      min-width: 72mm;
+      max-width: 100%;
+      margin-top: {% if assinatura_compacta %}4px{% else %}40px{% endif %} !important;
+      orphans: 1;
+      widows: 1;
+    }
+    [data-celeris-signature="true"] > div {
+      height: {% if assinatura_compacta %}10px{% else %}18px{% endif %} !important;
+      margin-bottom: 2px !important;
+    }
+    {% if assinatura_compacta %}
+    .document-pdf-content main {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .document-pdf-content .pdf-grid-table td > div {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    {% endif %}
+    {{ apresentacao.css|safe }}
+    .document-pdf-header main {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .document-pdf-header .pdf-grid-table td,
+    .document-pdf-header .pdf-grid-table td > div {
+      background: transparent !important;
+    }
+    .document-pdf-header hr {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    .document-pdf-header .pdf-grid-table tr:first-child td > div {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .document-pdf-header .pdf-layout-image-box {
+      height: 0 !important;
+      min-height: 0 !important;
+      margin-bottom: 0 !important;
+      padding-bottom: 0 !important;
+      overflow: visible !important;
+      line-height: 0 !important;
+    }
+    .document-pdf-header,
+    .document-pdf-footer {
+      width: 196mm !important;
+      max-width: 196mm !important;
+      background: transparent !important;
+    }
+    .document-pdf-header > *,
+    .document-pdf-footer > *,
+    .document-pdf-content > * {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .document-pdf-header main,
+    .document-pdf-header main > section,
+    .document-pdf-header .pdf-grid-table,
+    .document-pdf-footer main,
+    .document-pdf-footer main > section,
+    .document-pdf-footer .pdf-grid-table,
+    .document-pdf-content main,
+    .document-pdf-content main > section:not([data-celeris-signature="true"]),
+    .document-pdf-content .pdf-grid-table {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+    .document-pdf-content main,
+    .document-pdf-content main > section:not([data-celeris-signature="true"]) {
+      background: transparent !important;
+    }
+    .pdf-grid-table {
+      width: 100% !important;
+      max-width: 100% !important;
+      border-collapse: collapse !important;
+      table-layout: fixed !important;
+    }
+    .pdf-grid-table td {
+      vertical-align: top;
+      padding: 0 !important;
+      border: 0;
+      min-width: 0;
+    }
+    .pdf-grid-table td > div,
+    .pdf-grid-table td > main,
+    .pdf-grid-table td > section {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+  </style>
+</head>
+<body class="{% if pagina_no_cabecalho %}page-number-header{% elif pagina_no_rodape %}page-number-footer{% endif %}{% if apenas_layout %} layout-only{% endif %}{% if apenas_layout and tipo_layout == "CABECALHO" %} layout-header-preview{% endif %}">
+  {% if rascunho %}
+    <img class="document-watermark" draggable="false" alt="Rascunho" src="{{ marca_dagua_rascunho }}">
+  {% elif cancelado %}
+    <div class="document-cancelled-watermark">CANCELADO</div>
+  {% endif %}
+
+  {% if not apenas_layout or tipo_layout == "CABECALHO" %}
+  <header class="document-pdf-header">
+    {% if apresentacao.cabecalho %}
+      {{ apresentacao.cabecalho|safe }}
+    {% else %}
+      <strong>{{ empresa.nm_empresa }}</strong><br>
+      Documento clínico {{ documento.pk }} · {{ documento.ds_titulo }}
+    {% endif %}
+  </header>
+  {% endif %}
+
+  {% if not apenas_layout or tipo_layout == "RODAPE" %}
+  <footer class="document-pdf-footer">
+    {% if apresentacao.rodape %}
+      {{ apresentacao.rodape|safe }}
+    {% else %}
+      <div style="display:flex;justify-content:space-between;border-top:1px solid #111;padding-top:2mm">
+        <span>Gerado pelo Celeris</span>
+        <span>Página <span class="document-page-variable"></span></span>
+      </div>
+    {% endif %}
+  </footer>
+  {% endif %}
+
+  {% if not apenas_layout or tipo_layout not in "CABECALHO,RODAPE" %}
+  <section class="document-pdf-content">
+    {{ apresentacao.conteudo|safe }}
+  </section>
+  {% elif apenas_layout and tipo_layout == "CABECALHO" %}
+  <section style="height:1px"></section>
+  {% endif %}
+</body>
+</html>

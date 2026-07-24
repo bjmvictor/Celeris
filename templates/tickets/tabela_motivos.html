@@ -1,0 +1,63 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="{{ table_name|default:'suporte_motivo_servico' }}" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead>
+        <tr>
+          <th><a href="?consultar=1&ordem={% if request.GET.ordem == pk_sort %}-{% endif %}{{ pk_sort|default:'cd_motivo_servico_suporte' }}">Código</a></th>
+          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'nm_motivo' %}-{% endif %}nm_motivo">Motivo</a></th>
+          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'cd_oficina__nm_oficina' %}-{% endif %}cd_oficina__nm_oficina">Oficina</a></th>
+          <th><a href="?consultar=1&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in registros %}
+          <tr data-editable-row>
+            <td>
+              <input value="{{ item.pk }}" readonly data-primary-key="true">
+              <input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0">
+            </td>
+            <td><input name="name_{{ item.pk }}" value="{{ item.nm_motivo }}" required></td>
+            <td>
+              <select name="office_{{ item.pk }}">
+                <option value="">Todas</option>
+                {% for oficina in oficinas %}
+                  <option value="{{ oficina.pk }}" {% if item.cd_oficina_id == oficina.pk %}selected{% endif %}>{{ oficina.nm_oficina }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="active_{{ item.pk }}">
+                <option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option>
+                <option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option>
+              </select>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty-cell">Nenhum dado carregado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_name" placeholder="Motivo" required></td>
+        <td>
+          <select name="new_office">
+            <option value="">Todas</option>
+            {% for oficina in oficinas %}<option value="{{ oficina.pk }}">{{ oficina.nm_oficina }}</option>{% endfor %}
+          </select>
+        </td>
+        <td>
+          <select name="new_active">
+            <option value="true" selected>Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </td>
+      </tr>
+    </template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

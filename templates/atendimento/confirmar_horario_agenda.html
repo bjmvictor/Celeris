@@ -101,7 +101,7 @@
       toggle.addEventListener("click", () => {
         const collapsed = header.classList.toggle("is-collapsed");
         toggle.setAttribute("aria-expanded", String(!collapsed));
-        toggle.title = collapsed  "Expandir dados do paciente" : "Recolher dados do paciente";
+        toggle.title = collapsed ? "Expandir dados do paciente" : "Recolher dados do paciente";
         window.requestAnimationFrame(updateStickyOffset);
       });
       window.addEventListener("resize", updateStickyOffset);

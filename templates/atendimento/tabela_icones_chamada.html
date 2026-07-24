@@ -1,0 +1,40 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="icone_chamada" method="post">
+    {% csrf_token %}
+    <table class="editable-table call-icons-table">
+      <thead>
+        <tr>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_icone_chamada' %}-{% endif %}cd_icone_chamada">Código</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_icone' %}-{% endif %}nm_icone">Nome</a></th>
+          <th>Prévia</th>
+          <th>SVG</th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in registros %}
+          <tr data-editable-row>
+            <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
+            <td><input name="name_{{ item.pk }}" value="{{ item.nm_icone }}" required></td>
+            <td class="td-icon"><span class="call-icon-preview call-icon-preview-lg" data-svg-preview>{{ item.ds_svg|safe }}</span></td>
+            <td><textarea name="svg_{{ item.pk }}" rows="2" data-svg-source>{{ item.ds_svg }}</textarea></td>
+            <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-cell">Nenhum dado encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_name" required></td>
+        <td><span class="call-icon-preview call-icon-preview-lg" data-svg-preview></span></td>
+        <td><textarea name="new_svg" rows="2" data-svg-source></textarea></td>
+        <td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>
+      </tr>
+    </template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

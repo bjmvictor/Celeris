@@ -9,6 +9,9 @@ from .models import Module, ScreenDefinition
 from .navigation import MODULES, item
 
 
+HIDDEN_UNIMPLEMENTED_MODULE_CODES = {"COMPRAS", "FINANCEIRO", "RH"}
+
+
 def _flatten_items(items):
     for nav_item in items:
         yield nav_item
@@ -79,10 +82,47 @@ def _configured_screen_items():
     }
     configured = {}
     for screen in screens:
+        access_key = screen.access_key or ""
+        if screen.module.code in HIDDEN_UNIMPLEMENTED_MODULE_CODES:
+            continue
         if (
-            screen.slug == "cadastros-profissionais"
+            screen.module.code == "ESTOQUE"
+            or screen.module.code == "ALMOXARIFADO"
+            or screen.access_key in {"estoque-produtos", "estoque-entradas", "estoque-saidas", "estoque-inventario"}
+            or screen.slug.startswith("estoque-")
+            or screen.slug.startswith("almoxarifado-")
+            or screen.slug.startswith("produtos-")
+            or screen.slug.startswith("inventario")
+            or screen.slug.startswith("entradas")
+            or screen.slug.startswith("saidas")
+            or screen.slug.startswith("movimentacao")
+            or screen.slug.startswith("movimentacoes")
+            or screen.slug.startswith("produto")
+            or screen.slug.startswith("produtos")
+            or screen.slug.startswith("solicitacao-produto")
+            or screen.slug.startswith("solicitacoes-produto")
+            or screen.slug.startswith("estoques")
+            or screen.slug.startswith("unidades")
+            or screen.slug.startswith("cotas")
+            or screen.slug.startswith("saldos")
+            or screen.slug.startswith("classificacao-produto")
+            or screen.slug.startswith("classificacoes-produto")
+            or screen.slug.startswith("motivos-baixa")
+            or screen.slug.startswith("motivos-devolucao")
+            or screen.slug.startswith("programacao-reposicao")
+            or screen.slug.startswith("motivos-cancelamento")
+            or screen.slug.startswith("carater-produto")
+            or screen.slug.startswith("classes-produto")
+            or screen.slug.startswith("recebimento-cadastro-produto")
+            or screen.slug.startswith("alteracao-exclusao-produto")
+            or screen.slug.startswith("fracionamento")
+            or screen.slug.startswith("acerto-estoque")
+            or screen.slug == "cadastros-profissionais"
             or screen.slug.startswith("acesso-")
-            or screen.access_key in static_access_keys
+            or screen.slug.startswith("totem-")
+            or access_key.startswith("acesso-totem-")
+            or screen.slug in {"ti-alteracao-senha-usuario", "ti-cadastro-copia-usuario"}
+            or access_key in static_access_keys
         ):
             continue
         configured.setdefault(screen.module.code, {})
@@ -157,7 +197,11 @@ def _merge_configured_menu():
                 items.extend(screens)
         merged.append({**module, "items": items})
     try:
-        modules = Module.objects.filter(active=True).order_by("title")
+        modules = (
+            Module.objects.filter(active=True)
+            .exclude(code__in=HIDDEN_UNIMPLEMENTED_MODULE_CODES)
+            .order_by("title")
+        )
     except (OperationalError, ProgrammingError):
         modules = []
     for module in modules:
@@ -286,6 +330,8 @@ def navigation(request):
         "current_toggle_active_url": getattr(request, "current_toggle_active_url", ""),
         "current_toggle_active_label": getattr(request, "current_toggle_active_label", ""),
         "current_password_url": getattr(request, "current_password_url", ""),
+        "current_reload_url": getattr(request, "current_reload_url", ""),
+        "current_print_url": getattr(request, "current_print_url", ""),
         "current_return_url": return_url,
         "current_close_url": return_url or (tab_key if close_mode == "back" else ""),
         "current_overlay_mode": request.GET.get("overlay") == "1",

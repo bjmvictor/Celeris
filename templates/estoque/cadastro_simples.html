@@ -1,0 +1,14 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<form method="post" class="provider-form" data-primary-form data-query-url="{{ request.path }}" data-table="{{ form_table }}" autocomplete="off">
+  {% csrf_token %}
+  <details class="card form-section" open>
+    <summary>{{ title }}</summary>
+    <div class="form-grid">
+      {% for field in form %}
+        <label class="field-md">{{ field.label }} {{ field }} {{ field.errors }}</label>
+      {% endfor %}
+    </div>
+  </details>
+</form>
+{% endblock %}

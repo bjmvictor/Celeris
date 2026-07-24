@@ -1,0 +1,43 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<form method="post" class="provider-form" data-primary-form data-query-url="{{ request.path }}" data-table="{{ form_table }}" autocomplete="off">
+  {% csrf_token %}
+  <details class="card form-section" open>
+    <summary>{{ title }}</summary>
+    <div class="form-grid">
+      {% for field in form %}
+        <label class="field-md">{{ field.label }} {{ field }} {{ field.errors }}</label>
+      {% endfor %}
+    </div>
+  </details>
+  <details class="card form-section" open>
+    <summary>Detalhes</summary>
+    {{ formset.management_form }}
+    <div class="table-wrapper inline-formset-wrapper">
+      <table class="editable-table inline-formset-table" data-inline-formset>
+        <thead><tr><th>Produto</th><th>Qtd.</th><th>Lote</th><th>Validade</th><th>Excluir item</th></tr></thead>
+        <tbody>
+          {% for item_form in formset %}
+            <tr data-inline-formset-row>
+              <td>{{ item_form.id }}{{ item_form.cd_produto }}</td>
+              <td>{{ item_form.qt_movimento }}</td>
+              <td>{{ item_form.ds_lote }}</td>
+              <td>{{ item_form.dt_validade }}</td>
+              <td>{% if item_form.DELETE %}{{ item_form.DELETE }}{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <template data-inline-formset-template>
+        <tr data-inline-formset-row>
+          <td>{{ formset.empty_form.id }}{{ formset.empty_form.cd_produto }}</td>
+          <td>{{ formset.empty_form.qt_movimento }}</td>
+          <td>{{ formset.empty_form.ds_lote }}</td>
+          <td>{{ formset.empty_form.dt_validade }}</td>
+          <td>{% if formset.empty_form.DELETE %}{{ formset.empty_form.DELETE }}{% endif %}</td>
+        </tr>
+      </template>
+    </div>
+  </details>
+</form>
+{% endblock %}

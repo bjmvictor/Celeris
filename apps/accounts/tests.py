@@ -368,12 +368,18 @@ class PapelAcessoTests(TestCase):
         for title in (
             "Editor de documentos",
             "Perfis assistenciais",
-            "PEP",
+            "Almoxarifado",
+            "Suporte",
+            "Solicitar",
+            "Atender",
+            "Motivos de serviço",
+            "Motivos de conclusão",
             "Empresas",
             "Setores",
             "Setores de Atendimento",
             "Painel de Chamada",
             "Cópia de usuário",
+            "Sessões e travas",
         ):
             self.assertContains(response, title)
 

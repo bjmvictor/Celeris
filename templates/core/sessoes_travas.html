@@ -1,0 +1,120 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+<section class="card sessions-locks-screen">
+  <div class="section-heading">
+    <div>
+      <h2>Sessões e travas</h2>
+      <p>Monitore usuários logados e registros bloqueados para edição.</p>
+    </div>
+  </div>
+
+  <nav class="settings-tabs sessions-locks-tabs" aria-label="Sessões e travas">
+    <a class="button {% if aba == 'sessoes' %}button-primary{% else %}button-secondary{% endif %}" href="?aba=sessoes">Sessões</a>
+    <a class="button {% if aba == 'travas' %}button-primary{% else %}button-secondary{% endif %}" href="?aba=travas">Travas</a>
+  </nav>
+
+  {% if aba == "sessoes" %}
+    <div class="table-wrapper sessions-locks-table">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Usuário</th>
+            <th>Empresa</th>
+            <th>Sistema</th>
+            <th>Última tela</th>
+            <th>Rota</th>
+            <th>Início</th>
+            <th>Tempo de acesso</th>
+            <th>Último acesso</th>
+            <th>Expira em</th>
+            <th>Travas ativas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sessao in sessoes %}
+            <tr class="{% if sessao.sessao_atual %}row-current{% endif %}">
+              <td>
+                <strong>{{ sessao.usuario_nome }}</strong>
+                {% if sessao.sessao_atual %}<small>Sessão atual</small>{% endif %}
+              </td>
+              <td>{{ sessao.empresa }}</td>
+              <td>{{ sessao.sistema }}</td>
+              <td>{{ sessao.ultima_tela }}</td>
+              <td><small>{{ sessao.ultima_rota }}</small></td>
+              <td>{% if sessao.inicio %}{{ sessao.inicio|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+              <td>{{ sessao.tempo_acesso }}</td>
+              <td>{% if sessao.ultimo_acesso %}{{ sessao.ultimo_acesso|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
+              <td>{{ sessao.expira_em|date:"d/m/Y H:i" }}</td>
+              <td>
+                {% if sessao.travas_ativas %}
+                  <details class="inline-details">
+                    <summary>{{ sessao.total_travas }} trava(s)</summary>
+                    <ul>
+                      {% for trava in sessao.travas_ativas %}
+                        <li>{{ trava.ds_recurso_titulo|default:trava.ds_recurso_id }} <small>{{ trava.ds_recurso_tipo }}</small></li>
+                      {% endfor %}
+                    </ul>
+                  </details>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="10">Nenhuma sessão logada encontrada para a empresa atual.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="table-wrapper sessions-locks-table">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Recurso</th>
+            <th>Registro</th>
+            <th>Usuário</th>
+            <th>Início</th>
+            <th>Atualização</th>
+            <th>Expiração</th>
+            <th>Tentativas bloqueadas</th>
+            <th>Último usuário bloqueado</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for trava in travas %}
+            <tr class="{% if trava.expirada %}row-warning{% endif %}">
+              <td>{{ trava.ds_recurso_tipo }}</td>
+              <td>
+                <strong>{{ trava.ds_recurso_titulo|default:trava.ds_recurso_id }}</strong>
+                <small>{{ trava.ds_recurso_id }}</small>
+              </td>
+              <td>{{ trava.cd_usuario.get_username }}</td>
+              <td>{{ trava.created_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ trava.updated_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ trava.dh_expiracao|date:"d/m/Y H:i" }}</td>
+              <td>{{ trava.nr_tentativas_bloqueadas }}</td>
+              <td>{{ trava.ds_ultimo_usuario_bloqueado|default:"-" }}</td>
+              <td>
+                <form method="post" data-confirm-message="Liberar esta trava manualmente?">
+                  {% csrf_token %}
+                  <input type="hidden" name="trava" value="{{ trava.pk }}">
+                  <button class="button button-danger" type="submit">Liberar</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9">Nenhuma trava ativa no momento.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

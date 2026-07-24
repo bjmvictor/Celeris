@@ -4,11 +4,13 @@
   <form class="card table-card" data-editable-table data-table="convenio" method="post">
     {% csrf_token %}
     <table class="editable-table">
-      <thead><tr>
-        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_convenio' %}-{% endif %}cd_convenio">Código</a></th>
-        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_convenio' %}-{% endif %}nm_convenio">Convênio</a></th>
-        <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
-      </tr></thead>
+      <thead>
+        <tr>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_convenio' %}-{% endif %}cd_convenio">Código</a></th>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_convenio' %}-{% endif %}nm_convenio">Convênio</a></th>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        </tr>
+      </thead>
       <tbody>
         {% for registro in registros %}
           <tr data-editable-row>
@@ -25,7 +27,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="3" class="empty-cell">Nenhum dado encontrado.</td></tr>
+          <tr><td colspan="3" class="empty-cell">Nenhum dado carregado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

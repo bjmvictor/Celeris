@@ -5,6 +5,10 @@
   {% if pep_standalone and atendimento and menu_assistencial_raizes %}
     <aside class="sidebar pep-standalone-sidebar" data-pep-sidebar>
       <nav>
+        <a class="pep-sidebar-home{% if not item_selecionado %} current-menu{% endif %}" href="{{ request.path }}?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ atendimento.pk }}&return_to={{ return_to|urlencode }}" title="Início">
+          <span class="nav-icon"><span class="svg-icon" data-nav-icon="home"></span></span>
+          <span class="nav-label">INÍCIO</span>
+        </a>
         {% for item in menu_assistencial_raizes %}
           {% include "atendimento/_pep_sidebar_group.html" with item=item %}
         {% endfor %}
@@ -110,19 +114,19 @@
     </div>
   </section>
 
-  {% if pep_standalone and pep_telas_barra %}
+  {% if pep_standalone and pep_telas_barra and item_selecionado %}
     <nav class="card pep-screen-tabs" data-pep-screen-tabs>
       <button class="icon-button pep-screen-tabs-arrow" type="button" data-pep-tabs-left aria-label="Rolar telas para a esquerda" hidden><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
       <div class="pep-screen-tabs-scroll" data-pep-tabs-scroll>
         {% for tela in pep_telas_barra %}
-          <a class="button {% if item_selecionado.pk == tela.pk %}button-primary{% else %}button-secondary{% endif %}" href="{{ tela.url_renderizada }}" title="{{ tela.nm_item }}">{{ tela.nm_item }}</a>
+          <a class="button {% if item_selecionado.pk == tela.pk %}button-pep-menu-primary{% else %}button-pep-menu-secondary{% endif %}" href="{{ tela.url_renderizada }}" title="{{ tela.nm_item }}">{{ tela.nm_item }}</a>
         {% endfor %}
       </div>
       <button class="icon-button pep-screen-tabs-arrow" type="button" data-pep-tabs-right aria-label="Rolar telas para a direita" hidden><span class="svg-icon" data-nav-icon="arrow-right"></span></button>
     </nav>
   {% endif %}
 
-  <div class="pep-record-layout{% if pep_standalone %} pep-record-layout-standalone{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' %} has-selected-item{% endif %}">
+  <div class="pep-record-layout{% if pep_standalone %} pep-record-layout-standalone{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' %} has-selected-item{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' and historico_documentos_item %} has-history-panel{% endif %}">
     <main class="pep-record-main">
       {% if atendimento %}
         {% if not item_selecionado %}
@@ -166,18 +170,42 @@
               <div>
                 <h2>{% if item_selecionado.ds_icone %}<span class="svg-icon" data-nav-icon="{{ item_selecionado.ds_icone }}"></span>{% endif %} {{ item_selecionado.nm_item }}</h2>
               </div>
+              {% if documento_modo_impressao_item %}
+                <div class="pep-pdf-controls" data-pep-pdf-controls>
+                  <button class="toolbar-button" type="button" data-pep-pdf-prev title="Página anterior" aria-label="Página anterior"><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
+                  <input type="number" min="1" value="1" data-pep-pdf-page aria-label="Página do documento">
+                  <span class="pep-pdf-page-total">/ <span data-pep-pdf-total>1</span></span>
+                  <button class="toolbar-button" type="button" data-pep-pdf-next title="Próxima página" aria-label="Próxima página"><span class="svg-icon" data-nav-icon="arrow-right"></span></button>
+                  <button class="toolbar-button" type="button" data-pep-pdf-zoom-out title="Diminuir zoom" aria-label="Diminuir zoom">−</button>
+                  <button class="toolbar-button" type="button" data-pep-pdf-zoom-in title="Aumentar zoom" aria-label="Aumentar zoom">+</button>
+                </div>
+              {% endif %}
               <div class="pep-selected-actions">
                 {% if item_selecionado.tp_item == "DOCUMENTO" and not somente_consulta and item_selecionado.sn_permite_criar and not item_selecionado.sn_somente_historico and atendimento_aberto and not documento_aberto_item %}
-                  <button class="toolbar-button" type="button" data-pep-new-document title="Novo documento" aria-label="Novo documento"><span class="svg-icon" data-nav-icon="plus"></span></button>
+                  <button class="toolbar-button primary" type="button" data-pep-new-document title="Novo documento" aria-label="Novo documento"><span class="svg-icon" data-nav-icon="plus"></span></button>
+                {% elif item_selecionado.ds_acao == "ALTA_MEDICA" and not somente_consulta and atendimento_aberto and request.GET.alta != "1" %}
+                  <button class="toolbar-button primary" type="button" data-pep-new-discharge title="Nova alta médica" aria-label="Nova alta médica"><span class="svg-icon" data-nav-icon="plus"></span></button>
                 {% endif %}
                 {% if ultimo_documento_item and item_selecionado.sn_imprimivel %}
-                  <button class="toolbar-button" type="button" data-pep-print-document="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao" title="Imprimir" aria-label="Imprimir"><span class="svg-icon" data-nav-icon="printer"></span></button>
+                  <button class="toolbar-button" type="button" data-pep-print-document="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1" title="Imprimir" aria-label="Imprimir"><span class="svg-icon" data-nav-icon="printer"></span></button>
+                {% endif %}
+                {% if pode_copiar_documento_item %}
+                  <form method="post" action="{% url 'atendimento:copiar-documento-clinico' ultimo_documento_item.pk %}" class="document-inline-action">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
+                    <button class="toolbar-button" type="submit" title="Criar cópia" aria-label="Criar cópia"><span class="svg-icon" data-nav-icon="copy"></span></button>
+                  </form>
                 {% endif %}
                 {% if documento_editavel_item %}
-                  <button class="toolbar-button" type="submit" form="pep-document-fill-form" formaction="{% url 'atendimento:fechar-documento-clinico' ultimo_documento_item.pk %}" title="Fechar e assinar" aria-label="Fechar e assinar"><span class="svg-icon" data-nav-icon="check"></span></button>
+                  <button class="toolbar-button success" type="submit" form="pep-document-fill-form" title="Salvar" aria-label="Salvar"><span class="svg-icon" data-nav-icon="save"></span></button>
+                  <button class="toolbar-button primary" type="submit" form="pep-document-fill-form" formaction="{% url 'atendimento:fechar-documento-clinico' ultimo_documento_item.pk %}" title="Fechar e assinar" aria-label="Fechar e assinar"><span class="svg-icon" data-nav-icon="badge-check"></span></button>
                   {% if item_selecionado.sn_permite_abandonar %}
-                    <button class="toolbar-button danger" type="button" data-pep-abandon-open title="Abandonar" aria-label="Abandonar"><span class="svg-icon" data-nav-icon="ban"></span></button>
+                    <button class="toolbar-button danger" type="button" data-pep-status-open title="Excluir" aria-label="Excluir"><span class="svg-icon" data-nav-icon="trash"></span></button>
                   {% endif %}
+                {% elif pode_assumir_documento_item %}
+                  <button class="toolbar-button" type="button" data-pep-assume-open title="Assumir documento" aria-label="Assumir documento"><span class="svg-icon" data-nav-icon="user-check"></span></button>
+                {% elif pode_cancelar_documento_item %}
+                  <button class="toolbar-button danger" type="button" data-pep-status-open title="Cancelar" aria-label="Cancelar"><span class="svg-icon" data-nav-icon="ban"></span></button>
                 {% endif %}
               </div>
             </header>
@@ -185,40 +213,76 @@
               {% if apresentacao_documento_item.css %}<style>{{ apresentacao_documento_item.css }}</style>{% endif %}
               <div class="pep-document-workarea">
                 {% if documento_editavel_item %}
-                  <form id="pep-document-fill-form" method="post" action="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}" class="document-fill-form pep-document-fill-form" data-document-fill-form>
+                  <form id="pep-document-fill-form" method="post" action="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}" class="document-fill-form pep-document-fill-form" data-document-fill-form data-document-lock-release-url="{% url 'atendimento:liberar-trava-documento-clinico' ultimo_documento_item.pk %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
                     <input type="hidden" name="ds_conteudo" value="{{ ultimo_documento_item.ds_conteudo }}">
                     <input type="hidden" name="ds_dados_formulario">
                     <section class="document-section document-content">{{ apresentacao_documento_item.conteudo }}</section>
-                    <div class="document-screen-actions">
-                      <button class="button button-primary" type="submit">Salvar</button>
-                    </div>
                   </form>
                 {% elif documento_modo_impressao_item %}
-                  <iframe
-                    class="pep-document-print-frame"
-                    data-pep-visible-print-frame
-                    title="Visualização de impressão do documento"
-                    src="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&embed=1"
-                  ></iframe>
+                  <div class="pep-pdf-viewer" data-pep-pdf-viewer data-pep-pdf-base-src="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1">
+                    <div class="pep-pdf-loading" data-pep-pdf-loading>
+                      <span class="loading-spinner" aria-hidden="true"></span>
+                      <strong>Carregando documento...</strong>
+                    </div>
+                    <canvas class="pep-pdf-canvas" data-pep-pdf-canvas aria-label="Visualização de impressão do documento"></canvas>
+                    <iframe
+                      class="pep-document-print-frame"
+                      data-pep-visible-print-frame
+                      hidden
+                      title="Visualização de impressão do documento"
+                      src="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1#toolbar=0&navpanes=0&scrollbar=1&page=1&zoom=100"
+                    ></iframe>
+                  </div>
                 {% else %}
                   <section class="document-section document-content">{{ apresentacao_documento_item.conteudo }}</section>
                 {% endif %}
+                <div class="pep-print-loading" data-pep-print-loading hidden>
+                  <span class="loading-spinner" aria-hidden="true"></span>
+                  <strong>Gerando impressão...</strong>
+                </div>
               </div>
               {{ ultimo_documento_item.ds_dados_formulario|json_script:"pep-document-form-data" }}
-              {% if not somente_consulta and item_selecionado.sn_permite_abandonar %}
-                <section class="document-move-modal" data-pep-abandon-modal hidden>
+              {% if not somente_consulta and documento_editavel_item and item_selecionado.sn_permite_abandonar %}
+                <section class="document-move-modal" data-pep-status-modal hidden>
                   <form class="card" method="post" action="{% url 'atendimento:abandonar-documento-clinico' ultimo_documento_item.pk %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
-                    <h2>Abandonar documento</h2>
-                    <label>Motivo
+                    <h2>Excluir documento aberto</h2>
+                    <p>Confirme a exclusão deste documento aberto.</p>
+                    <div class="form-actions">
+                      <button class="button button-secondary" type="button" data-pep-status-cancel>Voltar</button>
+                      <button class="button button-danger" type="submit">Confirmar exclusão</button>
+                    </div>
+                  </form>
+                </section>
+              {% elif pode_assumir_documento_item %}
+                <section class="document-move-modal" data-pep-assume-modal hidden>
+                  <form class="card" method="post" action="{% url 'atendimento:assumir-documento-clinico' ultimo_documento_item.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
+                    <input type="hidden" name="motivo" value="Assunção confirmada no PEP.">
+                    <h2>Assumir documento em aberto</h2>
+                    <p>Confirme que deseja assumir este documento. Após confirmar, você passa a ser o responsável pela edição.</p>
+                    <div class="form-actions">
+                      <button class="button button-secondary" type="button" data-pep-assume-cancel>Voltar</button>
+                      <button class="button button-primary" type="submit">Confirmar assunção</button>
+                    </div>
+                  </form>
+                </section>
+              {% elif pode_cancelar_documento_item %}
+                <section class="document-move-modal" data-pep-status-modal hidden>
+                  <form class="card" method="post" action="{% url 'atendimento:cancelar-documento-clinico' ultimo_documento_item.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
+                    <h2>Cancelar documento fechado</h2>
+                    <label>Motivo do cancelamento
                       <textarea name="motivo" required></textarea>
                     </label>
                     <div class="form-actions">
-                      <button class="button button-secondary" type="button" data-pep-abandon-cancel>Cancelar</button>
-                      <button class="button button-danger" type="submit">Confirmar abandono</button>
+                      <button class="button button-secondary" type="button" data-pep-status-cancel>Voltar</button>
+                      <button class="button button-danger" type="submit">Confirmar cancelamento</button>
                     </div>
                   </form>
                 </section>
@@ -227,13 +291,17 @@
               {% if item_selecionado.tp_item == "DOCUMENTO" %}
                 <span class="empty-state">Nenhum documento deste tipo no prontuário.</span>
               {% elif item_selecionado.ds_acao == "ALTA_MEDICA" %}
-                <div class="pep-document-workarea">
-                  <iframe
-                    class="pep-document-print-frame pep-system-action-frame"
-                    title="Alta médica"
-                    src="{% url 'atendimento:conceder-alta' atendimento.pk %}?embed=1"
-                  ></iframe>
-                </div>
+                {% if request.GET.alta == "1" %}
+                  <div class="pep-document-workarea">
+                    <iframe
+                      class="pep-document-print-frame pep-system-action-frame"
+                      title="Alta médica"
+                      src="{% url 'atendimento:conceder-alta' atendimento.pk %}?embed=1{% if request.GET.dh_alta_medica %}&dh_alta_medica={{ request.GET.dh_alta_medica|urlencode }}{% endif %}"
+                    ></iframe>
+                  </div>
+                {% else %}
+                  <span class="empty-state">Clique em + para registrar uma nova alta médica.</span>
+                {% endif %}
               {% else %}
                 <div class="empty-state">
                   Esta tela está selecionada no PEP. A execução completa deste tipo será carregada aqui, sem sair para o Celeris.
@@ -246,17 +314,17 @@
         <details class="card pep-clinical-section" open>
           <summary>Resumo clínico do prontuário</summary>
           <section class="pep-clinical-grid pep-section-content">
-            <div><h3>Exames e resultados</h3><ul>{% for exame in atendimento.solicitacoes_exames.all %}<li>{{ exame.ds_exame }} — {{ exame.get_ds_status_display }}{% if exame.resultado %}: {{ exame.resultado.ds_resultado|truncatechars:140 }}{% endif %}</li>{% empty %}<li>Nenhum exame.</li>{% endfor %}</ul></div>
-            <div><h3>Prescrições</h3><ul>{% for item in atendimento.prescricoes.all %}<li>{{ item.ds_prescricao|truncatechars:160 }}</li>{% empty %}<li>Nenhuma prescrição.</li>{% endfor %}</ul></div>
-            <div><h3>Evoluções</h3><ul>{% for item in atendimento.evolucoes.all %}<li>{{ item.dh_criacao|date:"d/m/Y H:i" }} — {{ item.ds_evolucao|truncatechars:160 }}</li>{% empty %}<li>Nenhuma evolução.</li>{% endfor %}</ul></div>
-            <div><h3>Documentos</h3><ul>{% for item in atendimento.documentos.all %}<li>{{ item.ds_titulo }} — {{ item.get_ds_status_display }}</li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul></div>
+            <div class="pep-summary-card pep-summary-exams"><h4><span class="svg-icon" data-nav-icon="activity"></span> Exames e resultados</h4><ul>{% for exame in atendimento.solicitacoes_exames.all %}<li>{{ exame.ds_exame }} — {{ exame.get_ds_status_display }}{% if exame.resultado %}: {{ exame.resultado.ds_resultado|truncatechars:140 }}{% endif %}</li>{% empty %}<li>Nenhum exame.</li>{% endfor %}</ul></div>
+            <div class="pep-summary-card pep-summary-prescriptions"><h4><span class="svg-icon" data-nav-icon="clipboard-plus"></span> Prescrições</h4><ul>{% for item in atendimento.prescricoes.all %}<li>{{ item.ds_prescricao|truncatechars:160 }}</li>{% empty %}<li>Nenhuma prescrição.</li>{% endfor %}</ul></div>
+            <div class="pep-summary-card pep-summary-evolutions"><h4><span class="svg-icon" data-nav-icon="edit"></span> Evoluções</h4><ul>{% for item in atendimento.evolucoes.all %}<li>{{ item.dh_criacao|date:"d/m/Y H:i" }} — {{ item.ds_evolucao|truncatechars:160 }}</li>{% empty %}<li>Nenhuma evolução.</li>{% endfor %}</ul></div>
+            <div class="pep-summary-card pep-summary-documents"><h4><span class="svg-icon" data-nav-icon="file-text"></span> Documentos</h4><ul>{% for item in atendimento.documentos.all %}<li class="pep-summary-document pep-summary-document-{{ item.ds_status|lower }}"><strong>{{ item.ds_titulo }}</strong><span>{{ item.get_ds_status_display }} · {{ item.dh_emissao|date:"d/m/Y H:i" }} · {{ item.cd_usuario_responsavel|default:item.cd_usuario_emissor|default:"Sem responsável" }}</span></li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul></div>
           </section>
         </details>
         {% endif %}
       {% endif %}
     </main>
 
-    {% if not pep_standalone or item_selecionado and item_selecionado.tp_item == "DOCUMENTO" %}
+    {% if not pep_standalone or item_selecionado and item_selecionado.tp_item == "DOCUMENTO" and historico_documentos_item %}
     <aside class="card pep-clinical-actions">
       {% if atendimento %}
         {% if item_selecionado %}
@@ -266,10 +334,25 @@
             </header>
             <div class="pep-document-history-list">
               {% for documento in historico_documentos_item %}
-                <a class="pep-document-history-item{% if forloop.counter > 5 %} is-hidden{% endif %}{% if ultimo_documento_item.pk == documento.pk %} active{% endif %}" data-pep-history-item href="{{ pep_patient_url|default:request.path }}?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ atendimento.pk }}&item={{ item_selecionado.pk }}&documento={{ documento.pk }}&return_to={{ return_to|urlencode }}">
+                <a class="pep-document-history-item{% if forloop.counter > 5 %} is-hidden{% endif %}{% if ultimo_documento_item.pk == documento.pk %} active{% endif %}{% if documento.pep_status_inativo %} inactive{% endif %}{% if documento.pep_travado_por_outro %} is-locked-by-other{% endif %}{% if documento.ds_status == 'FECHADO' or documento.ds_status == 'FINALIZADO' %} is-closed{% elif documento.ds_status == 'CANCELADO' %} is-canceled{% endif %}" data-pep-history-item href="{{ pep_patient_url|default:request.path }}?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ atendimento.pk }}&item={{ item_selecionado.pk }}&documento={{ documento.pk }}&return_to={{ return_to|urlencode }}">
+                  {% if documento.ds_status == "FECHADO" or documento.ds_status == "FINALIZADO" %}
+                    <span class="pep-history-status-icon" aria-label="Documento fechado">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-badge-check-icon lucide-badge-check"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
+                    </span>
+                  {% elif documento.ds_status == "CANCELADO" %}
+                    <span class="pep-history-status-icon" aria-label="Documento cancelado">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban-icon lucide-ban"><circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/></svg>
+                    </span>
+                  {% endif %}
                   <strong>{{ documento.ds_titulo }}</strong>
-                  <span>{{ documento.dh_emissao|date:"d/m/Y H:i" }} · {{ documento.get_ds_status_display }}</span>
+                  <span>{{ documento.dh_emissao|date:"d/m/Y H:i" }} · {% if documento.ds_status == "ABANDONADO" %}Excluído{% else %}{{ documento.get_ds_status_display }}{% endif %}</span>
                   <small>{{ documento.cd_usuario_responsavel|default:"Sem responsável" }}</small>
+                  {% if documento.pep_travado_por_outro %}
+                    <small class="pep-history-lock-note">Em edição por {{ documento.pep_trava_usuario }}</small>
+                  {% endif %}
+                  {% if documento.pep_status_inativo %}
+                    <small>{% if documento.ds_status == "CANCELADO" %}Cancelado por {{ documento.cd_usuario_cancelamento|default:documento.pep_evento_status.cd_usuario|default:"-" }}{% else %}Excluído por {{ documento.pep_evento_status.cd_usuario|default:"-" }}{% endif %}{% if documento.pep_evento_status.ds_motivo or documento.ds_motivo_cancelamento %} · {{ documento.ds_motivo_cancelamento|default:documento.pep_evento_status.ds_motivo }}{% endif %}</small>
+                  {% endif %}
                 </a>
               {% empty %}
                 <span class="empty-state">Nenhum documento anterior deste tipo.</span>
@@ -300,6 +383,16 @@
       header?.addEventListener("click", (event) => {
         if (event.target.closest("a, button, details, summary, input, select, textarea, [data-pep-expanded-panel]")) return;
         header.classList.toggle("is-expanded");
+      });
+      document.querySelectorAll(".pep-patient-topic-nav a[href^='#']").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          const target = document.querySelector(link.getAttribute("href"));
+          const container = target?.closest(".pep-patient-expanded-content");
+          if (target && container) {
+            container.scrollTo({ top: target.offsetTop - container.offsetTop, behavior: "smooth" });
+          }
+        });
       });
       const pepSidebar = document.querySelector("[data-pep-sidebar]");
       document.body.classList.toggle("pep-has-sidebar", Boolean(pepSidebar));
@@ -389,6 +482,19 @@
       });
       const form = document.querySelector("[data-document-fill-form]");
       if (form) {
+        const fitAutoSizeInput = (input) => {
+          if (!input?.matches("[data-auto-size-input]")) return;
+          const option = input.closest(".generated-exclusive-option");
+          const fieldset = input.closest(".generated-exclusive-checkboxes");
+          const reserved = [...(option?.children || [])]
+            .filter((child) => child !== input)
+            .reduce((total, child) => total + child.getBoundingClientRect().width, 0) + 38;
+          const containerWidth = option?.clientWidth || fieldset?.clientWidth || 260;
+          const available = Math.max(54, containerWidth - reserved);
+          input.style.width = `${Math.max(72, available)}px`;
+        };
+        form.querySelectorAll("[data-auto-size-input]").forEach(fitAutoSizeInput);
+        form.addEventListener("input", (event) => fitAutoSizeInput(event.target));
         let saved = {};
         const script = document.getElementById("pep-document-form-data");
         try { saved = script ? JSON.parse(script.textContent) : {}; } catch {}
@@ -405,8 +511,11 @@
             if (selected && choice !== selected) choice.checked = false;
             const detail = choice.closest("label").querySelector("[data-exclusive-detail]");
             if (!detail) return;
-            detail.disabled = readonly || !choice.checked;
-            detail.tabIndex = detail.disabled ? -1 : 0;
+            detail.disabled = false;
+            detail.readOnly = readonly || !choice.checked;
+            detail.setAttribute("aria-disabled", detail.readOnly ? "true" : "false");
+            detail.tabIndex = detail.readOnly ? -1 : 0;
+            fitAutoSizeInput(detail);
           });
         };
         form.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => syncExclusive(fieldset));
@@ -418,16 +527,7 @@
           syncExclusive(fieldset, choice.checked ? choice : null);
           choice.closest("label")?.querySelector("[data-exclusive-detail]:not(:disabled)")?.focus();
         });
-        form.addEventListener("submit", (event) => {
-          const invalidGroup = [...form.querySelectorAll('[data-exclusive-required="true"]')]
-            .find((fieldset) => !fieldset.querySelector("[data-exclusive-choice]:checked"));
-          if (invalidGroup) {
-            event.preventDefault();
-            invalidGroup.classList.add("is-invalid");
-            invalidGroup.scrollIntoView({ block: "center", behavior: "smooth" });
-            invalidGroup.querySelector("[data-exclusive-choice]").focus();
-            return;
-          }
+        const collectDocumentFormData = () => {
           const data = {};
           form.querySelectorAll("[data-document-field][name]").forEach((field) => {
             const name = field.name.replace(/^campo_/, "");
@@ -439,64 +539,273 @@
             data[name] = field.type === "checkbox" ? field.checked : field.value;
           });
           form.elements.ds_dados_formulario.value = JSON.stringify(data);
+          return data;
+        };
+        window.celerisPepSyncDocumentForm = () => {
+          collectDocumentFormData();
+          return new FormData(form);
+        };
+        form.addEventListener("submit", (event) => {
+          const invalidGroup = [...form.querySelectorAll('[data-exclusive-required="true"]')]
+            .find((fieldset) => !fieldset.querySelector("[data-exclusive-choice]:checked"));
+          if (invalidGroup) {
+            event.preventDefault();
+            invalidGroup.classList.add("is-invalid");
+            invalidGroup.scrollIntoView({ block: "center", behavior: "smooth" });
+            invalidGroup.querySelector("[data-exclusive-choice]").focus();
+            return;
+          }
+          collectDocumentFormData();
         });
       }
-      const abandonModal = document.querySelector("[data-pep-abandon-modal]");
-      document.querySelector("[data-pep-abandon-open]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = false; });
-      document.querySelector("[data-pep-abandon-cancel]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = true; });
-      document.querySelectorAll("[data-pep-visible-print-frame]").forEach((frame) => {
-        frame.addEventListener("load", () => {
-          frame.dataset.loaded = "true";
+      const statusModal = document.querySelector("[data-pep-status-modal]");
+      document.querySelector("[data-pep-status-open]")?.addEventListener("click", () => { if (statusModal) statusModal.hidden = false; });
+      document.querySelector("[data-pep-status-cancel]")?.addEventListener("click", () => { if (statusModal) statusModal.hidden = true; });
+      const assumeModal = document.querySelector("[data-pep-assume-modal]");
+      document.querySelector("[data-pep-assume-open]")?.addEventListener("click", () => { if (assumeModal) assumeModal.hidden = false; });
+      document.querySelector("[data-pep-assume-cancel]")?.addEventListener("click", () => { if (assumeModal) assumeModal.hidden = true; });
+      (() => {
+        const editableForm = document.querySelector("[data-document-fill-form][data-document-lock-release-url]");
+        const releaseUrl = editableForm?.dataset.documentLockReleaseUrl;
+        if (!releaseUrl) return;
+        let released = false;
+        const releaseLock = () => {
+          if (released) return;
+          released = true;
+          const payload = new FormData();
+          const token = editableForm.querySelector("[name=csrfmiddlewaretoken]")?.value;
+          if (token) payload.append("csrfmiddlewaretoken", token);
+          if (navigator.sendBeacon && navigator.sendBeacon(releaseUrl, payload)) return;
+          fetch(releaseUrl, {
+            method: "POST",
+            body: payload,
+            credentials: "same-origin",
+            keepalive: true,
+          }).catch(() => {});
+        };
+        window.addEventListener("pagehide", releaseLock);
+      })();
+      document.addEventListener("click", (event) => {
+        if (event.target.closest("[data-pep-new-discharge]")) {
+          const dischargeModal = document.querySelector("[data-pep-new-discharge-modal]");
+          if (dischargeModal) dischargeModal.hidden = false;
+        }
+        if (event.target.closest("[data-pep-new-discharge-cancel]")) {
+          const dischargeModal = document.querySelector("[data-pep-new-discharge-modal]");
+          if (dischargeModal) dischargeModal.hidden = true;
+        }
+      });
+      const loadPepPdfJs = (() => {
+        let promise = null;
+        return () => {
+          if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+          if (promise) return promise;
+          promise = new Promise((resolve, reject) => {
+            const sources = [
+              {
+                script: "/static/vendor/pdfjs/pdf.min.js",
+                worker: "/static/vendor/pdfjs/pdf.worker.min.js",
+              },
+              {
+                script: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+                worker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+              },
+            ];
+            const loadSource = (index) => {
+              const source = sources[index];
+              if (!source) {
+                reject(new Error("Não foi possível carregar PDF.js."));
+                return;
+              }
+              const script = document.createElement("script");
+              script.src = source.script;
+              script.async = true;
+              script.onload = () => {
+                if (!window.pdfjsLib) {
+                  loadSource(index + 1);
+                  return;
+                }
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = source.worker;
+                resolve(window.pdfjsLib);
+              };
+              script.onerror = () => loadSource(index + 1);
+              document.head.appendChild(script);
+            };
+            loadSource(0);
+          });
+          return promise;
+        };
+      })();
+      document.querySelectorAll("[data-pep-pdf-viewer]").forEach((viewer) => {
+        const controls = viewer.closest(".pep-selected-screen")?.querySelector("[data-pep-pdf-controls]");
+        const canvas = viewer.querySelector("[data-pep-pdf-canvas]");
+        const fallbackFrame = viewer.querySelector("[data-pep-visible-print-frame]");
+        const loading = viewer.querySelector("[data-pep-pdf-loading]");
+        const baseSrc = viewer.dataset.pepPdfBaseSrc || fallbackFrame?.src?.split("#")[0];
+        let page = 1;
+        let total = 1;
+        let zoom = 100;
+        let pdfDocument = null;
+        let renderTask = null;
+        let pdfBusy = true;
+        const pageInput = controls?.querySelector("[data-pep-pdf-page]");
+        const totalLabel = controls?.querySelector("[data-pep-pdf-total]");
+        const prevButton = controls?.querySelector("[data-pep-pdf-prev]");
+        const nextButton = controls?.querySelector("[data-pep-pdf-next]");
+        const zoomOutButton = controls?.querySelector("[data-pep-pdf-zoom-out]");
+        const zoomInButton = controls?.querySelector("[data-pep-pdf-zoom-in]");
+        const updateControls = () => {
+          if (pageInput) pageInput.value = String(page);
+          if (pageInput) pageInput.max = String(total);
+          if (totalLabel) totalLabel.textContent = String(total);
+          if (pageInput) pageInput.disabled = pdfBusy;
+          if (zoomOutButton) zoomOutButton.disabled = pdfBusy;
+          if (zoomInButton) zoomInButton.disabled = pdfBusy;
+          if (prevButton) prevButton.disabled = pdfBusy || page <= 1;
+          if (nextButton) nextButton.disabled = pdfBusy || page >= total;
+        };
+        const setPdfBusy = (busy) => {
+          pdfBusy = busy;
+          updateControls();
+        };
+        setPdfBusy(true);
+        const showFallbackFrame = () => {
+          if (!fallbackFrame) return;
+          fallbackFrame.hidden = false;
+          if (canvas) canvas.hidden = true;
+          if (loading) loading.hidden = true;
+          setPdfBusy(false);
+          fallbackFrame.src = `${baseSrc}#toolbar=0&navpanes=0&scrollbar=1&page=${page}&zoom=${zoom}`;
+          updateControls();
+        };
+        const renderPage = async () => {
+          if (!pdfDocument || !canvas) {
+            showFallbackFrame();
+            return;
+          }
+          if (loading) loading.hidden = false;
+          setPdfBusy(true);
+          let currentTask = null;
+          try {
+            if (renderTask) renderTask.cancel();
+            const pdfPage = await pdfDocument.getPage(page);
+            const viewport = pdfPage.getViewport({ scale: zoom / 100 });
+            const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+            const context = canvas.getContext("2d", { alpha: false });
+            canvas.width = Math.floor(viewport.width * outputScale);
+            canvas.height = Math.floor(viewport.height * outputScale);
+            canvas.style.width = `${viewport.width}px`;
+            canvas.style.height = `${viewport.height}px`;
+            currentTask = pdfPage.render({
+              canvasContext: context,
+              viewport,
+              transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null,
+            });
+            renderTask = currentTask;
+            await currentTask.promise;
+          } catch (error) {
+            if (error?.name !== "RenderingCancelledException") showFallbackFrame();
+          } finally {
+            if (!currentTask || renderTask === currentTask) {
+              renderTask = null;
+              if (loading) loading.hidden = true;
+            }
+            setPdfBusy(false);
+            updateControls();
+          }
+        };
+        const loadVisiblePdf = async () => {
+          try {
+            const pdfjsLib = await loadPepPdfJs();
+            pdfDocument = await pdfjsLib.getDocument({ url: baseSrc, withCredentials: true }).promise;
+            total = Math.max(1, pdfDocument.numPages || 1);
+            updateControls();
+            await renderPage();
+          } catch (error) {
+            total = 1;
+            showFallbackFrame();
+          }
+        };
+        controls?.querySelector("[data-pep-pdf-prev]")?.addEventListener("click", () => {
+          page = Math.max(1, page - 1);
+          renderPage();
         });
+        controls?.querySelector("[data-pep-pdf-next]")?.addEventListener("click", () => {
+          page = Math.min(total, page + 1);
+          renderPage();
+        });
+        controls?.querySelector("[data-pep-pdf-zoom-out]")?.addEventListener("click", () => {
+          zoom = Math.max(50, zoom - 10);
+          renderPage();
+        });
+        controls?.querySelector("[data-pep-pdf-zoom-in]")?.addEventListener("click", () => {
+          zoom = Math.min(220, zoom + 10);
+          renderPage();
+        });
+        pageInput?.addEventListener("change", () => {
+          page = Math.min(total, Math.max(1, Number.parseInt(pageInput.value || "1", 10) || 1));
+          renderPage();
+        });
+        loadVisiblePdf();
       });
       document.querySelectorAll("[data-pep-print-document]").forEach((button) => {
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           const url = button.dataset.pepPrintDocument;
           if (!url || button.dataset.printing === "true") return;
           button.dataset.printing = "true";
-          const visibleFrame = document.querySelector("[data-pep-visible-print-frame]");
-          if (visibleFrame?.contentWindow) {
-            const printVisible = () => {
-              try {
-                visibleFrame.contentWindow.focus();
-                visibleFrame.contentWindow.print();
-              } finally {
-                button.dataset.printing = "false";
-              }
-            };
-            if (visibleFrame.dataset.loaded === "true") {
-              window.setTimeout(printVisible, 100);
-            } else {
-              visibleFrame.addEventListener("load", () => window.setTimeout(printVisible, 100), { once: true });
+          button.disabled = true;
+          const loading = document.querySelector("[data-pep-print-loading]");
+          if (loading) loading.hidden = false;
+          let objectUrl = "";
+          try {
+            const editForm = document.querySelector("[data-document-fill-form]");
+            if (editForm && typeof window.celerisPepSyncDocumentForm === "function") {
+              const saveResponse = await fetch(editForm.action, {
+                method: "POST",
+                body: window.celerisPepSyncDocumentForm(),
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+              });
+              if (!saveResponse.ok) throw new Error(`HTTP ${saveResponse.status}`);
             }
-            return;
+            const response = await fetch(url, { credentials: "same-origin" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            objectUrl = URL.createObjectURL(blob);
+            document.querySelector("[data-pep-print-frame]")?.remove();
+            const frame = document.createElement("iframe");
+            frame.dataset.pepPrintFrame = "true";
+            frame.style.position = "fixed";
+            frame.style.left = "-10000px";
+            frame.style.top = "0";
+            frame.style.width = "1px";
+            frame.style.height = "1px";
+            frame.style.opacity = "0";
+            frame.style.border = "0";
+            frame.src = objectUrl;
+            frame.addEventListener("load", () => {
+              window.setTimeout(() => {
+                try {
+                  frame.contentWindow.focus();
+                  frame.contentWindow.print();
+                } finally {
+                  window.setTimeout(() => {
+                    button.dataset.printing = "false";
+                    button.disabled = false;
+                    if (loading) loading.hidden = true;
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                  }, 1400);
+                }
+              }, 250);
+            }, { once: true });
+            document.body.appendChild(frame);
+          } catch (error) {
+            button.dataset.printing = "false";
+            button.disabled = false;
+            if (loading) loading.hidden = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            alert("Não foi possível gerar a impressão do documento. Tente novamente.");
           }
-          const previousFrame = document.querySelector("[data-pep-print-frame]");
-          previousFrame?.remove();
-          const frame = document.createElement("iframe");
-          frame.dataset.pepPrintFrame = "true";
-          frame.style.position = "absolute";
-          frame.style.left = "-10000px";
-          frame.style.top = "0";
-          frame.style.width = "1px";
-          frame.style.height = "1px";
-          frame.style.opacity = "0";
-          frame.style.border = "0";
-          frame.src = url;
-          frame.addEventListener("load", () => {
-            frame.dataset.loaded = "true";
-            window.setTimeout(() => {
-              try {
-                frame.contentWindow.focus();
-                frame.contentWindow.print();
-              } finally {
-                window.setTimeout(() => {
-                  button.dataset.printing = "false";
-                }, 1200);
-              }
-            }, 500);
-          }, { once: true });
-          document.body.appendChild(frame);
         });
       });
     })();
@@ -520,15 +829,35 @@
     <script>
       (() => {
         const modal = document.querySelector("[data-pep-new-document-modal]");
-        document.querySelector("[data-pep-new-document]").addEventListener("click", () => { modal.hidden = false; });
-        document.querySelector("[data-pep-new-document-cancel]").addEventListener("click", () => { modal.hidden = true; });
+        if (!modal) return;
+        document.querySelector("[data-pep-new-document]")?.addEventListener("click", () => { modal.hidden = false; });
+        document.querySelector("[data-pep-new-document-cancel]")?.addEventListener("click", () => { modal.hidden = true; });
       })();
     </script>
+  {% endif %}
+  {% if item_selecionado and item_selecionado.ds_acao == "ALTA_MEDICA" and not somente_consulta %}
+    <section class="document-move-modal" data-pep-new-discharge-modal hidden>
+      <form class="card" method="get">
+        <input type="hidden" name="modo" value="{% if somente_consulta %}consulta{% else %}atendimento{% endif %}">
+        <input type="hidden" name="atendimento" value="{{ atendimento.pk }}">
+        <input type="hidden" name="item" value="{{ item_selecionado.pk }}">
+        <input type="hidden" name="return_to" value="{{ return_to }}">
+        <input type="hidden" name="alta" value="1">
+        <h2 class="pep-new-document-title">Nova alta médica</h2>
+        <label>Data e hora da alta
+          <input type="datetime-local" name="dh_alta_medica" value="{{ agora_documento }}" required>
+        </label>
+        <div class="form-actions">
+          <button class="button button-secondary" type="button" data-pep-new-discharge-cancel>Cancelar</button>
+          <button class="button button-primary" type="submit">Confirmar</button>
+        </div>
+      </form>
+    </section>
   {% endif %}
   <section class="document-move-modal vital-history-modal" data-vital-history-modal hidden>
     <div class="card">
       <header class="section-heading">
-        <div><h2>Histórico de sinais vitais</h2><small>Ãšltimas 30 coletas do paciente.</small></div>
+        <div><h2>Histórico de sinais vitais</h2><small>Últimas 30 coletas do paciente.</small></div>
         <button class="toolbar-button" type="button" data-vital-history-close title="Fechar">×</button>
       </header>
       <div class="vital-history-scroll">
@@ -555,7 +884,8 @@
   <script>
     (() => {
       const modal = document.querySelector("[data-vital-history-modal]");
-      document.querySelector("[data-vital-history-open]").addEventListener("click", () => { modal.hidden = false; });
+      if (!modal) return;
+      document.querySelector("[data-vital-history-open]")?.addEventListener("click", () => { modal.hidden = false; });
       document.querySelectorAll("[data-vital-history-close]").forEach((button) => {
         button.addEventListener("click", () => { modal.hidden = true; });
       });

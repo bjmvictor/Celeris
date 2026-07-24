@@ -1,0 +1,37 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<form method="post" class="provider-form product-form" data-primary-form data-query-url="{{ request.path }}" data-table="{{ form_table }}" autocomplete="off">
+  {% csrf_token %}
+  <details class="card form-section" open>
+    <summary>{{ title }}</summary>
+    <div class="form-grid">
+      <label class="field-xs">Código {{ form.cd_codigo }} {{ form.cd_codigo.errors }}</label>
+      <label class="field-xl">Produto {{ form.nm_produto }} {{ form.nm_produto.errors }}</label>
+      <label class="field-sm">Tipo {{ form.tp_produto }} {{ form.tp_produto.errors }}</label>
+      <label class="field-sm">Unidade {{ form.cd_unidade }} {{ form.cd_unidade.errors }}</label>
+      <label class="field-lg">Classificação {{ form.cd_classificacao }} {{ form.cd_classificacao.errors }}</label>
+      <label class="field-sm">Lote {{ form.ds_lote }} {{ form.ds_lote.errors }}</label>
+      <label class="field-sm">Validade {{ form.dt_validade }} {{ form.dt_validade.errors }}</label>
+      <label class="field-md">Caráter {{ form.ds_carater }} {{ form.ds_carater.errors }}</label>
+      <label class="field-md">Classe {{ form.ds_classe }} {{ form.ds_classe.errors }}</label>
+      <label class="field-md">Procedimento faturamento {{ form.cd_procedimento_faturamento }} {{ form.cd_procedimento_faturamento.errors }}</label>
+      <label class="provider-checkbox">{{ form.sn_controla_lote }} <span>Controla lote</span></label>
+      <label class="provider-checkbox">{{ form.sn_controla_validade }} <span>Controla validade</span></label>
+      <label class="provider-checkbox">{{ form.sn_ativo }} <span>Ativo</span></label>
+      <label class="field-fluid">Descrição {{ form.ds_descricao }} {{ form.ds_descricao.errors }}</label>
+    </div>
+  </details>
+</form>
+<script>
+  (() => {
+    const resizeDescription = (field) => {
+      field.style.height = "34px";
+      field.style.height = `${Math.min(field.scrollHeight, 68)}px`;
+    };
+    document.querySelectorAll(".product-description-field").forEach((field) => {
+      resizeDescription(field);
+      field.addEventListener("input", () => resizeDescription(field));
+    });
+  })();
+</script>
+{% endblock %}

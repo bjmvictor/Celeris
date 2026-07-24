@@ -1,0 +1,452 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<section class="card form-section support-attendance-screen">
+  <form id="support-attendance-filter-form" method="get" class="provider-form" data-primary-form data-query-only-form data-query-url="{{ request.path }}" autocomplete="off">
+    <input type="hidden" name="ordenar" value="{{ sort_key }}" data-support-sort-key>
+    <input type="hidden" name="direcao" value="{{ sort_direction }}" data-support-sort-direction>
+    <input type="hidden" name="consultar" value="1">
+    <div class="form-grid compact-grid support-attendance-filters">
+      <label class="field-lg support-search-field">Título ou descrição
+        <input name="q" value="{{ request.GET.q }}" data-consultable="true" placeholder="Pesquisar no chamado">
+      </label>
+      <div class="field-md">
+        <span class="field-label">Usuário</span>
+        <div class="floating-multiselect support-filter-select" data-support-multiselect>
+          <button class="floating-multiselect-toggle" type="button" data-consultable="true" data-support-multiselect-toggle aria-expanded="false">
+            <strong data-support-multiselect-summary>{% if selected_users %}{{ selected_users|length }} selecionado(s){% else %}Todos{% endif %}</strong>
+          </button>
+          <div class="floating-multiselect-menu" data-support-multiselect-menu hidden>
+            <input class="floating-multiselect-search" type="search" placeholder="Filtrar usuário" data-support-multiselect-search>
+            <div class="multi-filter-options">
+              {% for usuario in usuarios %}
+                {% with value=usuario.pk|stringformat:"s" %}
+                  <label class="provider-checkbox" data-support-multiselect-option>
+                    <input form="support-attendance-filter-form" type="checkbox" name="usuario" value="{{ value }}" data-consultable="true" data-support-multiselect-item {% if value in selected_users %}checked{% endif %}>
+                    <span>{{ usuario.get_full_name|default:usuario.username }}</span>
+                  </label>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <label class="field-sm">Data
+        <input name="data" value="{{ request.GET.data }}" type="date" data-consultable="true">
+      </label>
+      <div class="field-md">
+        <span class="field-label">Oficina</span>
+        <div class="floating-multiselect support-filter-select" data-support-multiselect>
+          <button class="floating-multiselect-toggle" type="button" data-consultable="true" data-support-multiselect-toggle aria-expanded="false">
+            <strong data-support-multiselect-summary>{% if selected_offices %}{{ selected_offices|length }} selecionada(s){% else %}Todas{% endif %}</strong>
+          </button>
+          <div class="floating-multiselect-menu" data-support-multiselect-menu hidden>
+            <input class="floating-multiselect-search" type="search" placeholder="Filtrar oficina" data-support-multiselect-search>
+            <div class="multi-filter-options">
+              {% for oficina in oficinas %}
+                {% with value=oficina.pk|stringformat:"s" %}
+                  <label class="provider-checkbox" data-support-multiselect-option>
+                    <input form="support-attendance-filter-form" type="checkbox" name="oficina" value="{{ value }}" data-consultable="true" data-support-multiselect-item {% if value in selected_offices %}checked{% endif %}>
+                    <span>{{ oficina.nm_oficina }}</span>
+                  </label>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field-sm">
+        <span class="field-label">Status</span>
+        <div class="floating-multiselect support-filter-select" data-support-multiselect>
+          <button class="floating-multiselect-toggle" type="button" data-consultable="true" data-support-multiselect-toggle aria-expanded="false">
+            <strong data-support-multiselect-summary>{% if selected_statuses %}{{ selected_statuses|length }} selecionado(s){% else %}Todos{% endif %}</strong>
+          </button>
+          <div class="floating-multiselect-menu" data-support-multiselect-menu hidden>
+            <input class="floating-multiselect-search" type="search" placeholder="Filtrar status" data-support-multiselect-search>
+            <div class="multi-filter-options">
+              {% for value,label in status_choices %}
+                <label class="provider-checkbox" data-support-multiselect-option>
+                  <input form="support-attendance-filter-form" type="checkbox" name="status" value="{{ value }}" data-consultable="true" data-support-multiselect-item {% if value in selected_statuses %}checked{% endif %}>
+                  <span>{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</section>
+
+<section class="card table-card support-ticket-list">
+  <table class="editable-table">
+    <thead>
+      <tr>
+        <th class="ticket-date-column" data-support-sort="data">Chamado/Data</th>
+        <th class="ticket-summary-column" data-support-sort="chamado">Título e descrição do chamado</th>
+        <th data-support-sort="solicitante">Solicitante</th>
+        <th data-support-sort="oficina">Oficina</th>
+        <th data-support-sort="status">Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ticket in tickets %}
+        <tr class="{{ ticket.support_row_class }}" data-toolbar-print-url="{% url 'tickets:imprimir_chamado' ticket.pk %}" title="Clique para selecionar o chamado para impressão">
+          <td class="ticket-date-cell">
+            <div class="ticket-date-stack">
+              <strong>{{ ticket.pk }}</strong>
+              <span>{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
+            </div>
+          </td>
+          <td class="ticket-summary-cell">
+            <strong>{{ ticket.title }}</strong>
+            <small>{{ ticket.description|truncatechars:140 }}</small>
+            {% if ticket.transferencias.exists %}
+              <small>Transferências: {{ ticket.transferencias.count }}</small>
+            {% endif %}
+          </td>
+          <td>{% if ticket.requester %}{{ ticket.requester.get_full_name|default:ticket.requester.username }}{% else %}-{% endif %}</td>
+          <td>{{ ticket.cd_oficina|default:"-" }}</td>
+          <td>
+            <span class="support-status-pill {{ ticket.support_status_class }}">
+              <span class="svg-icon" data-nav-icon="{{ ticket.support_status_icon }}"></span>
+              {{ ticket.support_status_label }}
+            </span>
+          </td>
+          <td class="ticket-actions-cell">
+            <div class="ticket-actions-wrap">
+              <a class="icon-button" href="{% url 'tickets:imprimir_chamado' ticket.pk %}" target="_blank" rel="noopener" title="Imprimir comprovante">
+                <span class="svg-icon" data-nav-icon="printer"></span>
+              </a>
+              {% if ticket.status == "open" %}
+                <form method="post" class="inline-form" data-confirm-title="Receber chamado" data-confirm-message="Deseja receber este chamado? O status será alterado para Recebido." data-confirm-text="Receber">
+                  {% csrf_token %}
+                  <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                  <button class="icon-button support-action-receive" name="action" value="receber" type="submit" title="Receber">
+                    <span class="svg-icon" data-nav-icon="play"></span>
+                  </button>
+                </form>
+              {% endif %}
+              {% if ticket.status == "received" %}
+                <button
+                  class="icon-button support-action-complete"
+                  type="button"
+                  data-open-complete
+                  data-ticket="{{ ticket.pk }}"
+                  data-office="{{ ticket.cd_oficina_id|default:'' }}"
+                  data-created="{{ ticket.created_at|date:'c' }}"
+                  data-requester="{% if ticket.requester %}{{ ticket.requester.get_full_name|default:ticket.requester.username }}{% else %}-{% endif %}"
+                  data-created-label="{{ ticket.created_at|date:'d/m/Y H:i' }}"
+                  data-sector="{{ ticket.cd_setor|default:'-' }}"
+                  data-motive="{{ ticket.cd_motivo|default:'-' }}"
+                  data-title="{{ ticket.title }}"
+                  data-description="{{ ticket.description }}"
+                  title="Concluir">
+                  <span class="svg-icon" data-nav-icon="badge-check"></span>
+                </button>
+              {% endif %}
+              {% if ticket.status == "open" or ticket.status == "received" %}
+                <button class="icon-button support-action-transfer" type="button" data-open-transfer data-ticket="{{ ticket.pk }}" data-office="{{ ticket.cd_oficina_id|default:'' }}" title="Transferir / não realizado">
+                  <span class="svg-icon" data-nav-icon="arrow-right-to-line"></span>
+                </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="empty-cell">{% if query_executed %}Nenhum chamado encontrado.{% else %}Abra consulta e execute para listar os chamados.{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if tickets.paginator.num_pages > 1 %}
+    <div class="table-footer">
+      <span>{{ tickets.paginator.count }} chamado(s) · Página {{ tickets.number }} de {{ tickets.paginator.num_pages }}</span>
+      <div class="table-actions">
+        {% if tickets.has_previous %}
+          <a class="icon-button" href="?{{ request.GET.urlencode }}&page={{ tickets.previous_page_number }}">‹</a>
+        {% endif %}
+        {% if tickets.has_next %}
+          <a class="icon-button" href="?{{ request.GET.urlencode }}&page={{ tickets.next_page_number }}">›</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+<dialog class="modal-card support-ticket-modal" data-complete-modal>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="concluir">
+    <input type="hidden" name="ticket_id" data-complete-ticket>
+    <header class="modal-card-header">
+      <div>
+        <h3>Concluir chamado</h3>
+        <small>Informe a realização e os usuários envolvidos.</small>
+      </div>
+      <button class="icon-button modal-close-button" type="button" data-close-modal aria-label="Fechar">
+        <span class="svg-icon" data-nav-icon="x"></span>
+      </button>
+    </header>
+    <div class="support-ticket-details" data-complete-details></div>
+    <div class="form-grid">
+      <label class="field-lg">Motivo / realizado
+        <select name="motivo_conclusao" required>
+          <option value="">Selecione</option>
+          {% for motivo in motivos %}
+            <option value="{{ motivo.pk }}" data-office="{{ motivo.cd_oficina_id|default:'' }}">{{ motivo.nm_motivo }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field-md">Data/hora de realização
+        <input name="performed_at" type="datetime-local" data-complete-performed required>
+      </label>
+      <label class="field-fluid">Observação da realização
+        <textarea name="observacao_conclusao" rows="2" maxlength="1000" placeholder="Observação opcional sobre a conclusão"></textarea>
+      </label>
+    </div>
+    <div class="support-performers-block">
+      <span class="support-performers-label">Responsáveis pela conclusão</span>
+      <div class="support-performers" data-performers-list></div>
+    </div>
+    <button class="button button-secondary" type="button" data-add-performer>+ Usuário</button>
+    <div class="modal-actions">
+      <button class="button button-danger" type="button" data-close-modal>Cancelar</button>
+      <button class="button button-primary" type="submit">Concluir</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal-card support-ticket-modal" data-transfer-modal>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="transferir">
+    <input type="hidden" name="ticket_id" data-transfer-ticket>
+    <header class="modal-card-header">
+      <div>
+        <h3>Transferir chamado</h3>
+        <small>Escolha a oficina de destino ou marque como não realizado.</small>
+      </div>
+      <button class="icon-button modal-close-button" type="button" data-close-modal aria-label="Fechar">
+        <span class="svg-icon" data-nav-icon="x"></span>
+      </button>
+    </header>
+    <div class="form-grid support-transfer-grid">
+      <label class="field-md">Destino / motivo
+        <select name="oficina_destino" required>
+          <option value="">Selecione</option>
+          <option value="__not_done__" class="support-not-done-option">Não realizado</option>
+          {% for oficina in oficinas %}
+            <option value="{{ oficina.pk }}">{{ oficina.nm_oficina }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field-fluid">Observação / motivo
+        <input name="observacao" maxlength="240">
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="button button-danger" type="button" data-close-modal>Cancelar</button>
+      <button class="button button-primary" type="submit">Transferir</button>
+    </div>
+  </form>
+</dialog>
+
+{{ users_by_office|json_script:"support-users-by-office" }}
+<script>
+  (() => {
+    const usersByOffice = JSON.parse(document.getElementById("support-users-by-office")?.textContent || "{}");
+    const completeModal = document.querySelector("[data-complete-modal]");
+    const transferModal = document.querySelector("[data-transfer-modal]");
+    const performersList = document.querySelector("[data-performers-list]");
+    const detailsPanel = document.querySelector("[data-complete-details]");
+    let currentOffice = "";
+
+    const closeDialogs = () => document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
+    const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
+
+    const selectedPerformerIds = (exceptSelect = null) => new Set(
+      [...performersList.querySelectorAll('select[name="performers"]')]
+        .filter((select) => select !== exceptSelect)
+        .map((select) => select.value)
+        .filter(Boolean)
+    );
+
+    const refreshPerformerOptions = () => {
+      const selects = [...performersList.querySelectorAll('select[name="performers"]')];
+      selects.forEach((select) => {
+        const currentValue = select.value;
+        const selectedIds = selectedPerformerIds(select);
+        select.innerHTML = '<option value="">Selecione o usuário</option>';
+        (usersByOffice[currentOffice] || []).forEach((user) => {
+          if (selectedIds.has(String(user.id)) && String(user.id) !== currentValue) return;
+          const option = document.createElement("option");
+          option.value = user.id;
+          option.textContent = user.label;
+          if (String(user.id) === currentValue) option.selected = true;
+          select.appendChild(option);
+        });
+      });
+    };
+
+    const buildPerformerSelect = () => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "support-performer-row";
+      const label = document.createElement("label");
+      label.className = "field-lg";
+      const select = document.createElement("select");
+      select.name = "performers";
+      select.required = true;
+      select.addEventListener("change", refreshPerformerOptions);
+      const removeButton = document.createElement("button");
+      removeButton.className = "icon-button support-performer-remove support-action-danger";
+      removeButton.type = "button";
+      removeButton.title = "Remover usuário";
+      removeButton.innerHTML = '<span class="svg-icon" data-nav-icon="minus"></span>';
+      label.appendChild(select);
+      wrapper.append(label, removeButton);
+      performersList.appendChild(wrapper);
+      refreshPerformerOptions();
+      window.CelerisRenderIcons?.();
+      updatePerformerRemoveButtons();
+    };
+
+    const updatePerformerRemoveButtons = () => {
+      const rows = [...performersList.querySelectorAll(".support-performer-row")];
+      rows.forEach((row) => {
+        const remove = row.querySelector("[data-nav-icon='minus']")?.closest("button");
+        if (remove) remove.disabled = rows.length <= 1;
+      });
+    };
+
+    const setupMultiselect = (root) => {
+      const toggle = root.querySelector("[data-support-multiselect-toggle]");
+      const menu = root.querySelector("[data-support-multiselect-menu]");
+      const search = root.querySelector("[data-support-multiselect-search]");
+      const items = [...root.querySelectorAll("[data-support-multiselect-item]")];
+      const summary = root.querySelector("[data-support-multiselect-summary]");
+      const update = () => {
+        const selected = items.filter((item) => item.checked).length;
+        summary.textContent = selected ? `${selected} selecionado(s)` : "Todos";
+      };
+      const reset = () => {
+        items.forEach((item) => { item.checked = false; });
+        search.value = "";
+        menu.querySelectorAll("[data-support-multiselect-option]").forEach((option) => { option.hidden = false; });
+        menu.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+        update();
+      };
+      const position = () => {
+        if (menu.hidden) return;
+        const rect = toggle.getBoundingClientRect();
+        const width = Math.max(rect.width, 300);
+        const maxHeight = Math.max(180, window.innerHeight - rect.bottom - 12);
+        menu.style.position = "fixed";
+        menu.style.left = `${Math.min(rect.left, window.innerWidth - width - 8)}px`;
+        menu.style.top = `${rect.bottom + 4}px`;
+        menu.style.width = `${width}px`;
+        menu.style.maxHeight = `${maxHeight}px`;
+      };
+      toggle.addEventListener("click", () => {
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.hidden = !menu.hidden;
+        toggle.setAttribute("aria-expanded", String(!menu.hidden));
+        position();
+        if (!menu.hidden) search.focus();
+      });
+      items.forEach((item) => item.addEventListener("change", update));
+      search.addEventListener("input", () => {
+        const term = search.value.trim().toLocaleLowerCase("pt-BR");
+        menu.querySelectorAll("[data-support-multiselect-option]").forEach((option) => {
+          option.hidden = !option.textContent.toLocaleLowerCase("pt-BR").includes(term);
+        });
+      });
+      document.addEventListener("click", (event) => {
+        if (!root.contains(event.target) && !menu.contains(event.target)) {
+          menu.hidden = true;
+          toggle.setAttribute("aria-expanded", "false");
+        }
+      });
+      root.closest("form")?.addEventListener("celeris:reset-multiselects", reset);
+      window.addEventListener("resize", position);
+      document.querySelector(".content")?.addEventListener("scroll", position);
+      update();
+    };
+
+    document.querySelectorAll("[data-support-multiselect]").forEach(setupMultiselect);
+
+    document.addEventListener("click", (event) => {
+      const sortHeader = event.target.closest("[data-support-sort]");
+      if (sortHeader) {
+        const form = document.querySelector("[data-primary-form]");
+        const keyInput = form?.querySelector("[data-support-sort-key]");
+        const directionInput = form?.querySelector("[data-support-sort-direction]");
+        const sort = sortHeader.dataset.supportSort;
+        if (keyInput && directionInput) {
+          directionInput.value = keyInput.value === sort && directionInput.value !== "desc" ? "desc" : "asc";
+          keyInput.value = sort;
+          form.requestSubmit();
+        }
+      }
+
+      const completeButton = event.target.closest("[data-open-complete]");
+      const transferButton = event.target.closest("[data-open-transfer]");
+      if (event.target.closest("[data-close-modal]")) closeDialogs();
+      if (event.target.closest("[data-add-performer]")) buildPerformerSelect();
+      if (event.target.closest(".support-performer-remove")) {
+        const rows = performersList.querySelectorAll(".support-performer-row");
+        if (rows.length > 1) event.target.closest(".support-performer-row")?.remove();
+        refreshPerformerOptions();
+        updatePerformerRemoveButtons();
+      }
+      if (completeButton) {
+        currentOffice = completeButton.dataset.office || "";
+        completeModal.querySelector("[data-complete-ticket]").value = completeButton.dataset.ticket;
+        detailsPanel.innerHTML = `
+          <div><strong>Código</strong><span>${escapeHtml(completeButton.dataset.ticket)}</span></div>
+          <div><strong>Solicitante</strong><span>${escapeHtml(completeButton.dataset.requester)}</span></div>
+          <div><strong>Data/hora</strong><span>${escapeHtml(completeButton.dataset.createdLabel)}</span></div>
+          <div><strong>Setor</strong><span>${escapeHtml(completeButton.dataset.sector)}</span></div>
+          <div><strong>Motivo</strong><span>${escapeHtml(completeButton.dataset.motive)}</span></div>
+          <div class="span-2"><strong>Título</strong><span>${escapeHtml(completeButton.dataset.title)}</span></div>
+          <div class="span-2"><strong>Descrição</strong><span>${escapeHtml(completeButton.dataset.description)}</span></div>
+        `;
+        const motiveSelect = completeModal.querySelector('[name="motivo_conclusao"]');
+        const observationField = completeModal.querySelector('[name="observacao_conclusao"]');
+        if (observationField) observationField.value = "";
+        Array.from(motiveSelect.options).forEach((option) => {
+          const office = option.dataset.office || "";
+          const visible = !option.value || !office || office === currentOffice;
+          option.hidden = !visible;
+          option.disabled = !visible;
+        });
+        if (motiveSelect.selectedOptions[0]?.disabled) motiveSelect.value = "";
+        const created = completeButton.dataset.created ? new Date(completeButton.dataset.created) : new Date();
+        created.setMinutes(created.getMinutes() + 20);
+        completeModal.querySelector("[data-complete-performed]").value = created.toISOString().slice(0, 16);
+        performersList.innerHTML = "";
+        buildPerformerSelect();
+        completeModal.showModal();
+      }
+      if (transferButton) {
+        transferModal.querySelector("[data-transfer-ticket]").value = transferButton.dataset.ticket;
+        transferModal.showModal();
+      }
+    });
+
+    [completeModal, transferModal].forEach((modal) => {
+      modal?.addEventListener("click", (event) => {
+        if (event.target === modal) modal.close();
+      });
+    });
+  })();
+</script>
+{% endblock %}

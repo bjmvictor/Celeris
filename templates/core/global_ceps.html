@@ -6,8 +6,8 @@
     <table class="editable-table">
       <thead>
         <tr>
-          <th><a href="consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_cep' %}-{% endif %}cd_cep">Código</a></th>
-          <th><a href="consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_cep' %}-{% endif %}nr_cep">CEP</a></th>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_cep' %}-{% endif %}cd_cep">Código</a></th>
+          <th><a href="?consultar=1&q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_cep' %}-{% endif %}nr_cep">CEP</a></th>
           <th>UF</th><th>Cidade</th><th>Tipo</th><th>Logradouro</th><th>Bairro</th><th>Status</th>
         </tr>
       </thead>

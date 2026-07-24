@@ -24,7 +24,7 @@
                 <span class="patient-social-name" data-social-name data-social="{{ paciente.nm_social }}" data-register="{{ paciente.nm_paciente }}">
                   <span data-social-name-text>{{ paciente.nm_social }}</span>
                   <button class="social-name-info" type="button" title="Nome de registro: {{ paciente.nm_paciente }}" aria-label="Alternar nome social e nome de registro">
-                    <span class="svg-icon" data-nav-icon="user"></span>
+                    <span class="svg-icon" data-nav-icon="contact"></span>
                   </button>
                 </span>
               {% else %}
@@ -54,7 +54,7 @@
         event.preventDefault();
         event.stopPropagation();
         showingSocial = !showingSocial;
-        text.textContent = showingSocial  wrapper.dataset.social : wrapper.dataset.register;
+        text.textContent = showingSocial ? wrapper.dataset.social : wrapper.dataset.register;
         button.title = showingSocial
            `Nome de registro: ${wrapper.dataset.register}`
           : `Nome social: ${wrapper.dataset.social}`;
