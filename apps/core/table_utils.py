@@ -8,7 +8,8 @@ def paginate_table(request, queryset, allowed_ordering, default_ordering, *, loa
         request.current_record_status = "Nenhum item carregado"
         return queryset.none()
 
-    ordering = request.GET.get("ordem", default_ordering)
+    pk_name = queryset.model._meta.pk.name
+    ordering = request.GET.get("ordem") or (pk_name if pk_name in allowed_ordering else default_ordering)
     descending = ordering.startswith("-")
     field_name = ordering[1:] if descending else ordering
     if field_name not in allowed_ordering:
@@ -26,7 +27,7 @@ def paginate_table(request, queryset, allowed_ordering, default_ordering, *, loa
     def page_url(number):
         params = request.GET.copy()
         params["pagina"] = number
-        return f"{request.path}{urlencode(params, doseq=True)}"
+        return f"{request.path}?{urlencode(params, doseq=True)}"
 
     if page.has_previous():
         request.current_first_url = page_url(1)

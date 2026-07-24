@@ -265,6 +265,7 @@ class PrestadorForm(forms.ModelForm):
         mappings = TipoPrestadorConselho.objects.filter(sn_ativo=True).order_by("tp_prestador")
         self.fields["ds_conselho"].widget = forms.TextInput(attrs={"readonly": "readonly"})
         self.fields["tp_prestador"].widget.attrs["data-provider-type"] = "true"
+        self.fields["tp_prestador"].widget.attrs["data-force-submit"] = "true"
         self.fields["tp_prestador"].widget.attrs["data-council-map"] = json.dumps(
             {mapping.tp_prestador: mapping.ds_conselho for mapping in mappings}
         )

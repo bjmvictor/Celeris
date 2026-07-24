@@ -71,7 +71,7 @@
           </section>
         </div>
         <div class="dropdown">
-          <button class="user-menu-button dropdown-toggle" data-bs-toggle="dropdown" type="button" aria-expanded="false">
+          <button class="user-menu-button dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button" aria-expanded="false">
             <span class="svg-icon" data-nav-icon="user"></span>
             <span class="user-chip">{{ current_user_short_name|default:request.user.username }}</span>
           </button>
@@ -84,6 +84,26 @@
               <span class="svg-icon" data-nav-icon="key"></span>
               Alterar senha
             </a>
+            <details class="dropdown-product-selector">
+              <summary class="dropdown-item">
+                <span class="svg-icon" data-nav-icon="monitor"></span>
+                Selecionar produto
+              </summary>
+              <div class="dropdown-product-list">
+                <a class="dropdown-item" href="{% url 'core:home' %}">
+                  <span class="svg-icon" data-nav-icon="layout"></span>
+                  Celeris
+                </a>
+                <a class="dropdown-item" href="/painel/">
+                  <span class="svg-icon" data-nav-icon="presentation"></span>
+                  Painel
+                </a>
+                <a class="dropdown-item" href="/totem/">
+                  <span class="svg-icon" data-nav-icon="ticket"></span>
+                  Totem
+                </a>
+              </div>
+            </details>
             <form action="{% url 'logout' %}" method="post">
               {% csrf_token %}
               <button class="dropdown-item" type="submit">
@@ -126,6 +146,20 @@
         };
         tick();
         window.setInterval(tick, 1000);
+      })();
+      (() => {
+        const container = document.querySelector(".pep-standalone-main > .messages");
+        if (!container) return;
+        const messages = Array.from(container.querySelectorAll(".message"));
+        messages.forEach((message, index) => {
+          window.setTimeout(() => {
+            message.classList.add("is-dismissing");
+            window.setTimeout(() => {
+              message.remove();
+              if (!container.querySelector(".message")) container.remove();
+            }, 220);
+          }, 4500 + (index * 250));
+        });
       })();
     </script>
     {% block extra_scripts %}{% endblock %}

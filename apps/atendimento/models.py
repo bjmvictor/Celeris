@@ -402,6 +402,8 @@ class Paciente(AuditoriaModel):
     cd_cep = models.ForeignKey(Cep, null=True, blank=True, on_delete=models.PROTECT, related_name="pacientes", db_column="cd_cep")
     nr_cep = models.CharField(max_length=10, blank=True)
     ds_observacao = models.TextField(blank=True)
+    sn_obito = models.BooleanField(default=False)
+    dh_obito = models.DateTimeField(null=True, blank=True)
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -720,6 +722,49 @@ class PainelChamadaSetor(models.Model):
         unique_together = ("cd_painel_chamada", "cd_setor")
 
 
+class IconeChamada(AuditoriaModel):
+    cd_icone_chamada = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    nm_icone = models.CharField(max_length=80)
+    ds_svg = models.TextField(blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "icone_chamada"
+        ordering = ("nm_icone",)
+        unique_together = ("cd_empresa", "nm_icone")
+
+    def __str__(self):
+        return self.nm_icone
+
+
+class MaquinaChamada(AuditoriaModel):
+    TIPOS_SALA = [
+        ("CONSULTORIO", "Consultório"),
+        ("SALA", "Sala"),
+        ("GUICHE", "Guichê"),
+        ("TRIAGEM", "Triagem"),
+        ("OUTRO", "Outro"),
+    ]
+    cd_maquina_chamada = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    nm_maquina = models.CharField(max_length=120)
+    cd_setor = models.ForeignKey(Setor, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_setor")
+    nm_sala = models.CharField(max_length=120, blank=True)
+    tp_sala = models.CharField(max_length=20, choices=TIPOS_SALA, default="CONSULTORIO")
+    nr_sala = models.CharField(max_length=20, blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "maquina_chamada"
+        ordering = ("nm_maquina",)
+        unique_together = ("cd_empresa", "nm_maquina")
+
+    def __str__(self):
+        destino = f"{self.get_tp_sala_display()} {self.nr_sala}".strip()
+        return f"{self.nm_maquina} - {destino or self.nm_sala}"
+
+
 class ChamadaPainel(AuditoriaModel):
     STATUS = [
         ("CHAMADO", "Chamado"),
@@ -805,6 +850,13 @@ class ClasseSenhaAtendimento(AuditoriaModel):
     sg_classe_senha = models.CharField(max_length=4, blank=True)
     nr_prioridade = models.PositiveSmallIntegerField(default=5)
     ds_icone = models.CharField(max_length=40, blank=True)
+    cd_icone_chamada = models.ForeignKey(
+        IconeChamada,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_icone_chamada",
+    )
     nr_idade_minima = models.PositiveSmallIntegerField(null=True, blank=True)
     nr_idade_maxima = models.PositiveSmallIntegerField(null=True, blank=True)
     sn_ativo = models.BooleanField(default=True)
@@ -1080,6 +1132,7 @@ class ModeloDocumento(AuditoriaModel):
     ]
     TIPOS = [
         ("COMPROVANTE_AGENDAMENTO", "Comprovante de agendamento"),
+        ("COMPROVANTE_CHAMADO", "Comprovante de chamado"),
         ("FICHA_ATENDIMENTO", "Ficha de atendimento"),
         ("ETIQUETA_ATENDIMENTO", "Etiqueta de atendimento"),
         ("PRESCRICAO", "Prescrição"),

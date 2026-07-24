@@ -231,18 +231,33 @@ class UsuarioForm(UserCreationForm):
 
 
 class UsuarioPasswordForm(SetPasswordForm):
-    username = forms.CharField(label="Login", disabled=True, required=False)
+    username = forms.CharField(label="Login", required=False)
+    must_change_password = forms.BooleanField(label="Alterar no próximo login", required=False)
 
-    def __init__(self, user, *args, **kwargs):
+    def __init__(self, user, *args, initial_username=None, **kwargs):
         super().__init__(user, *args, **kwargs)
-        self.fields["username"].initial = user.username
-        self.order_fields(["username", "new_password1", "new_password2"])
+        self.fields["username"].initial = user.username if initial_username is None else initial_username
+        self.fields["must_change_password"].initial = user.must_change_password
+        self.fields["username"].widget.attrs.update({
+            "autocomplete": "off",
+            "data-consultable": "true",
+            "data-editable": "true",
+        })
+        self.fields["must_change_password"].widget.attrs.update({"class": "standard-checkbox"})
+        self.order_fields(["username", "new_password1", "new_password2", "must_change_password"])
 
     def clean_new_password1(self):
         password = self.cleaned_data.get("new_password1", "")
         if len(password) < 8:
             raise forms.ValidationError("A senha deve possuir no mínimo 8 caracteres.")
         return password
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.must_change_password = self.cleaned_data.get("must_change_password", False)
+        if commit:
+            user.save(update_fields=["password", "must_change_password"])
+        return user
 
 
 class PerfilForm(forms.ModelForm):

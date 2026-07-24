@@ -1,7 +1,7 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-  <form class="provider-form" data-table="prestador" data-provider-id="{{ prestador.cd_prestador|default:'' }}" data-query-url="{{ request.path }}" data-has-errors="{{ form.errors|yesno:'true,false' }}" method="post" autocomplete="off">
+  <form class="provider-form" data-table="prestador" data-provider-id="{{ prestador.cd_prestador|default:'' }}" data-query-url="{{ request.path }}" data-has-errors="{{ form.errors|yesno:'true,false' }}"{% if prestador and not prestador_bloqueado %} data-record-lock-acquire-url="{% url 'atendimento:adquirir-trava-prestador' prestador.pk %}" data-record-lock-release-url="{% url 'atendimento:liberar-trava-prestador' prestador.pk %}"{% endif %}{% if prestador_bloqueado %} data-readonly-lock="true" data-lock-message="{{ mensagem_trava_prestador }}"{% endif %} method="post" autocomplete="off">
     {% csrf_token %}
     <input type="hidden" name="return_to" value="{{ return_to }}">
     {{ form.non_field_errors }}
@@ -25,7 +25,7 @@
         <label class="field-sm">Data de nascimento * {{ form.dt_nascimento }} {{ form.dt_nascimento.errors }}</label>
         <label class="field-sm">Sexo {{ form.tp_sexo }}</label>
         <label class="field-md">Raça/Cor {{ form.ds_cor_raca }}</label>
-        <label class="field-md">CPF {{ form.nr_cpf }} {{ form.nr_cpf.errors }}</label>
+        <label class="field-md">CPF * {{ form.nr_cpf }} {{ form.nr_cpf.errors }}</label>
         <label class="field-md">RG {{ form.nr_rg }}</label>
         <label class="field-md">Órgão Emissor {{ form.ds_orgao_emissor }}</label>
         <label class="field-sm">Data de Expedição {{ form.dt_expedicao }}</label>
@@ -51,14 +51,13 @@
     <details class="card form-section" data-provider-section="2">
       <summary>2. Informações profissionais</summary>
       <div class="form-grid">
-        <div class="field-fluid specialty-manager" data-assignment-manager data-assignment-empty="Nenhum tipo de prestador adicionado.">
+        <div class="field-fluid specialty-manager" data-assignment-manager data-provider-type-assignment data-assignment-empty="Nenhum tipo de prestador adicionado.">
           <strong>Tipos de prestador *</strong>
           <div class="specialty-toolbar">
             <div class="specialty-chips" data-assignment-chips></div>
             <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar tipo</button>
             <div class="specialty-add-row" data-assignment-add-row hidden>
               <select data-assignment-picker><option value="">Adicionar tipo...</option></select>
-              <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
             </div>
           </div>
           <div class="specialty-storage" hidden>{{ form.tipos_prestador }}</div>
@@ -75,7 +74,6 @@
             <button class="button button-secondary specialty-open-button" data-specialty-open type="button">+ Adicionar especialidade</button>
             <div class="specialty-add-row" data-specialty-add-row hidden>
               <select data-specialty-picker><option value="">Adicionar especialidade...</option></select>
-              <button class="button button-secondary" data-specialty-add type="button">Incluir</button>
             </div>
           </div>
           <div class="specialty-storage" hidden>{{ form.ds_especialidades }}</div>
@@ -106,7 +104,7 @@
     <details class="card form-section" data-provider-section="4">
       <summary>4. Endereço Residencial</summary>
       <div class="form-grid">
-        <label class="field-sm">CEP <a class="field-overlay-link" data-screen-overlay-link href="{% url 'core:global_ceps' %}">Gerenciar</a> {{ form.cd_cep }}</label>
+        <label class="field-sm">CEP {{ form.cd_cep }}</label>
         <label class="field-xs">Estado {{ form.sg_estado }}</label>
         <label class="field-lg">Cidade {{ form.ds_cidade }}</label>
         <label class="field-md">Tipo de Logradouro {{ form.tp_logradouro }}</label>
@@ -120,8 +118,8 @@
     <details class="card form-section" data-provider-section="5">
       <summary>5. Endereço Comercial</summary>
       <div class="form-grid">
-        <label class="field-fluid provider-checkbox same-address-field">{{ form.sn_mesmo_endereco }} <span>Usar o mesmo endereço residencial</span></label>
-        <label class="field-sm">CEP Comercial <a class="field-overlay-link" data-screen-overlay-link href="{% url 'core:global_ceps' %}">Gerenciar</a> {{ form.cd_cep_comercial }}</label>
+        <label class="field-lg provider-checkbox same-address-field">{{ form.sn_mesmo_endereco }} <span>Usar o mesmo endereço residencial</span></label>
+        <label class="field-sm">CEP Comercial {{ form.cd_cep_comercial }}</label>
         <label class="field-xs">Estado Comercial {{ form.sg_estado_comercial }}</label>
         <label class="field-lg">Cidade Comercial {{ form.ds_cidade_comercial }}</label>
         <label class="field-md">Tipo de Logradouro Comercial {{ form.tp_logradouro_comercial }}</label>

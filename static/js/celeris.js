@@ -7,37 +7,80 @@
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     coins: '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1.5a1.5 1.5 0 0 1 0 3H7V6Z"/><path d="M7 9h2a1.5 1.5 0 0 1 0 3H7V9Z"/>',
     monitor: '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8"/><path d="M12 18v4"/>',
+    "monitor-config": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-monitor-cog-icon lucide-monitor-cog"><path d="M12 17v4"/><path d="m14.305 7.53.923-.382"/><path d="m15.228 4.852-.923-.383"/><path d="m16.852 3.228-.383-.924"/><path d="m16.852 8.772-.383.923"/><path d="m19.148 3.228.383-.924"/><path d="m19.53 9.696-.382-.924"/><path d="m20.772 4.852.924-.383"/><path d="m20.772 7.148.924.383"/><path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M8 21h8"/><circle cx="18" cy="6" r="3"/></svg>',
     table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/>',
     syringe: '<path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3a2.4 2.4 0 0 1-3.4 0l-.6-.6a2.4 2.4 0 0 1 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/>',
     handshake: '<path d="m11 17 2 2a2.8 2.8 0 0 0 4 0l3-3a2.8 2.8 0 0 0 0-4l-2-2"/><path d="m14 14 2 2"/><path d="m3 12 6-6 4 4-6 6H3v-4Z"/><path d="m14 6 2-2 5 5-2 2"/>',
     headset: '<path d="M3 13a9 9 0 0 1 18 0"/><path d="M21 13v4a2 2 0 0 1-2 2h-2v-6h4Z"/><path d="M3 13v4a2 2 0 0 0 2 2h2v-6H3Z"/><path d="M13 21h3a3 3 0 0 0 3-3"/>',
     wrench: '<path d="M14.7 6.3a4 4 0 0 0-5 5L3 18v3h3l6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3 2.4-2.4Z"/>',
+    hammer: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hammer-icon lucide-hammer"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>',
     shirt: '<path d="M20.4 7.2 16 4a4 4 0 0 1-8 0L3.6 7.2 6 12l2-1v9h8v-9l2 1 2.4-4.8Z"/>',
+    'shopping-cart': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart-icon lucide-shopping-cart"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>',
+    form: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-form-icon lucide-form"><path d="M4 14h6"/><path d="M4 2h10"/><rect x="4" y="18" width="16" height="4" rx="1"/><rect x="4" y="6" width="16" height="4" rx="1"/></svg>',
     "clipboard-plus": '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14h6"/><path d="M12 11v6"/>',
+    presentation: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-presentation-icon lucide-presentation"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>',
+    ticket: '<path d="M2 9a3 3 0 0 0 0 6v3a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3a3 3 0 0 0 0-6V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>',
+    stethoscope: '<path d="M6 4v6a4 4 0 0 0 8 0V4"/><path d="M4 4h4"/><path d="M12 4h4"/><path d="M10 14v2a4 4 0 0 0 8 0v-1"/><circle cx="19" cy="13" r="2"/>',
+    pill: '<path d="m10.5 20.5 10-10a4 4 0 0 0-5.7-5.7l-10 10a4 4 0 0 0 5.7 5.7Z"/><path d="m8.5 11.5 4 4"/>',
+    package: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package-icon lucide-package"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg>',
+    box: '<path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+    boxes: '<path d="M2.97 7.92 12 2.97l9.03 4.95L12 12.97 2.97 7.92Z"/><path d="M2.97 12.92 12 17.97l9.03-5.05"/><path d="M2.97 7.92v10.05L12 23.02l9.03-5.05V7.92"/><path d="M12 12.97v10.05"/><path d="m7.5 5.45 9.03 5.05"/><path d="m16.5 5.45-9.03 5.05"/>',
+    briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
+    car: '<path d="M5 17h14"/><path d="M6 17v2"/><path d="M18 17v2"/><path d="m4 13 2-6h12l2 6"/><path d="M3 13h18v4H3z"/><circle cx="7" cy="15" r="1"/><circle cx="17" cy="15" r="1"/>',
+    ambulance: '<path d="M3 17h18"/><path d="M5 17v2"/><path d="M18 17v2"/><path d="M4 7h9v10H4z"/><path d="M13 10h4l3 3v4h-7z"/><path d="M8.5 9v4"/><path d="M6.5 11h4"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+    truck: '<path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+    "heart-pulse": '<path d="M19.5 12.5 12 20l-7.5-7.5a5 5 0 0 1 7-7l.5.5.5-.5a5 5 0 0 1 7 7Z"/><path d="M3 12h4l2-4 3 8 2-4h7"/>',
+    flask: '<path d="M9 2h6"/><path d="M10 2v6l-5 9a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-9V2"/><path d="M7 15h10"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+    calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+    "map-pin": '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
     printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
     folder: '<path d="M3 5h6l2 2h10v12H3z"/>',
     "file-text": '<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h8"/><path d="M9 17h8"/>',
     library: '<path d="M4 3h5v18H4z"/><path d="M10 3h5v18h-5z"/><path d="m16 4 4-1 3 17-4 1z"/>',
     move: '<path d="M5 9 2 12l3 3"/><path d="M9 5 12 2l3 3"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
+    "layout-panel-left": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-panel-left-icon lucide-layout-panel-left"><rect width="7" height="18" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>',
+    "panel-left": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-icon lucide-panel-left"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>',
+    "panel-left-dashed": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed-icon lucide-panel-left-dashed"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
     home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
-    menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+    menu: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-text-align-justify-icon lucide-text-align-justify"><path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/></svg>',
+    "menu-dots": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grip-icon lucide-grip"><circle cx="12" cy="5" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="19" r="1"/></svg>',
+    list: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-icon lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>',
     theme: '<path d="M12 3a6 6 0 0 0 9 7.2A9 9 0 1 1 12 3Z"/>',
+    layout: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-template-icon lucide-layout-template"><rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/></svg>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 7.2A9 9 0 1 1 12 3Z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.38.35.72.64 1 .3.28.7.42 1.1.4H21v4h-.09a1.7 1.7 0 0 0-1.51.6Z"/>',
     filter: '<path d="M3 4h18l-7 8v6l-4 2v-8Z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
-    key: '<circle cx="7.5" cy="14.5" r="4.5"/><path d="m11 11 8-8"/><path d="m16 4 4 4"/><path d="m15 8 2 2"/>',
+    "circle-user": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-user-round-icon lucide-circle-user-round"><path d="M17.925 20.056a6 6 0 0 0-11.851.001"/><circle cx="12" cy="11" r="4"/><circle cx="12" cy="12" r="10"/></svg>',
+    "user-check": '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="m16 11 2 2 4-5"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    key: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-key-round-icon lucide-key-round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+    "rotate-right-square": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-cw-square-icon lucide-rotate-cw-square"><path d="M12 5H6a2 2 0 0 0-2 2v3"/><path d="m9 8 3-3-3-3"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    maximize: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-maximize-icon lucide-maximize"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
+    view: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-view-icon lucide-view"><path d="M21 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2"/><path d="M21 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2"/><circle cx="12" cy="12" r="1"/><path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0"/></svg>',
+    contact: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-contact-icon lucide-contact"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><circle cx="12" cy="11" r="3"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg>',
+    binoculars: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-binoculars-icon lucide-binoculars"><path d="M10 10h4"/><path d="M19 7V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v3"/><path d="M20 21a2 2 0 0 0 2-2v-3.851c0-1.39-2-2.962-2-4.829V8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2z"/><path d="M 22 16 L 2 16"/><path d="M4 21a2 2 0 0 1-2-2v-3.851c0-1.39 2-2.962 2-4.829V8a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2z"/><path d="M9 7V4a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v3"/></svg>',
+    "eye-dashed": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-dashed-icon lucide-eye-dashed"><path d="M13.054 18.946a11 11 0 0 1-2.11 0"/><path d="M13.054 5.054a11 11 0 0 0-2.11-.001"/><path d="M17.072 6.274a11 11 0 0 1 1.753 1.173"/><path d="M18.825 16.552a11 11 0 0 1-1.753 1.174"/><path d="M2.514 13.303a11 11 0 0 1-.452-.954 1 1 0 0 1 0-.697 11 11 0 0 1 .45-.955"/><path d="M21.485 10.697a11 11 0 0 1 .453.955 1 1 0 0 1 0 .697 11 11 0 0 1-.453.954"/><path d="M5.173 7.448a11 11 0 0 1 1.753-1.174"/><path d="M6.926 17.726a11 11 0 0 1-1.753-1.174"/><circle cx="12" cy="12" r="3"/></svg>',
+    fingerprint: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-fingerprint-pattern-icon lucide-fingerprint-pattern"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>',
     eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
-    eraser: '<path d="m7 21-4-4L14 6l4 4L7 21Z"/><path d="m11 10 4 4"/><path d="M7 21h14"/>',
+    eraser: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eraser-icon lucide-eraser"><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/></svg>',
     play: '<path d="m6 3 14 9-14 9V3Z"/>',
+    "grid-plus": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid2x2-plus-icon lucide-grid-2x2-plus"><path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"/><path d="M16 19h6"/><path d="M19 22v-6"/></svg>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+    "circle-check-big": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big-icon lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>',
+    "certificate-check": '<path d="M7 3h10a2 2 0 0 1 2 2v15l-4-2-3 2-3-2-4 2V5a2 2 0 0 1 2-2Z"/><path d="m8.2 11.7 2.5 2.4 5.1-5.6"/>',
+    "badge-check": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-badge-check-icon lucide-badge-check"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
     "arrow-left": '<path d="m15 18-6-6 6-6"/>',
     "chevrons-left": '<path d="M5 5v14"/><path d="m17 18-6-6 6-6"/>',
@@ -45,12 +88,15 @@
     "corner-up-right": '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
     "undo-2": '<path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 1 1-5.6 11.2"/>',
     "redo-2": '<path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 1 0 5.6 11.2"/>',
+    "refresh-cw": '<path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/>',
     "arrow-right": '<path d="m9 18 6-6-6-6"/>',
+    "arrow-right-to-line": '<path d="M5 12h13"/><path d="m12 5 7 7-7 7"/><path d="M21 5v14"/>',
     "chevrons-right": '<path d="M19 5v14"/><path d="m7 18 6-6-6-6"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     check: '<path d="m20 6-11 11-5-5"/>',
     help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4"/><path d="M12 17h.01"/>',
     plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    minus: '<path d="M5 12h14"/>',
     "ban": '<circle cx="12" cy="12" r="9"/><path d="m7 17 10-10"/>',
   };
 
@@ -63,13 +109,19 @@
   }
   window.CelerisRenderIcons = renderIcons;
 
+  function updateThemeToggleIcon() {
+    const icon = document.querySelector("[data-theme-toggle] [data-nav-icon]");
+    if (!icon) return;
+    icon.setAttribute("data-nav-icon", root.classList.contains("dark") ? "sun" : "moon");
+  }
+
   function clearUserRuntimeState() {
     localStorage.removeItem("celeris-tabs");
     Object.keys(localStorage)
       .filter((key) => key.startsWith("celeris-form-state:") || key.startsWith("celeris-tabs"))
       .forEach((key) => localStorage.removeItem(key));
     Object.keys(sessionStorage)
-      .filter((key) => key.startsWith("celeris-list-scroll:") || key.startsWith("celeris-open-query") || key.startsWith("celeris-continue"))
+      .filter((key) => key.startsWith("celeris-list-scroll:") || key.startsWith("celeris-open-query") || key.startsWith("celeris-continue") || key.startsWith("celeris:perfil-assistencial:"))
       .forEach((key) => sessionStorage.removeItem(key));
   }
 
@@ -91,7 +143,7 @@
         field.removeAttribute("readonly");
         field.removeAttribute("disabled");
       } else if (!canEdit) {
-        if (field.matches("select, input[type='checkbox']")) {
+        if (field.dataset.primaryKey === "true" || field.matches("select, input[type='checkbox']")) {
           field.setAttribute("disabled", "disabled");
         } else {
           field.setAttribute("readonly", "readonly");
@@ -108,9 +160,11 @@
         field.setAttribute("readonly", "readonly");
       }
     });
+    document.dispatchEvent(new CustomEvent("celeris:query-mode-change", { detail: { enabled } }));
   }
 
   function clearFormFields(form) {
+    clearValidationErrors(form);
     form?.querySelectorAll("input, select, textarea").forEach((field) => {
       if (field.type === "hidden") {
         if (field.name !== "csrfmiddlewaretoken") field.value = "";
@@ -139,17 +193,50 @@
       section.open = index === 0;
     });
     form?.dispatchEvent(new CustomEvent("celeris:reset-multiselects", { bubbles: true }));
+    form?.querySelectorAll("[data-same-address]").forEach((checkbox) => {
+      checkbox.checked = false;
+      copyResidentialAddressToCommercial(false);
+    });
     closeFloatingSelect();
     setQueryMode(false);
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = true;
     form?.setAttribute("data-dirty", "false");
     clearCurrentFormState(form);
+    if (form) initialFormSignatures.set(form, formValueSignature(form));
+  }
+
+  function clearValidationErrors(scope = document) {
+    const rootScope = scope || document;
+    rootScope.querySelectorAll(".form-error-summary, .field-error-message, .errorlist").forEach((item) => item.remove());
+    rootScope.querySelectorAll(".field-server-invalid, [aria-invalid='true']").forEach((field) => {
+      field.classList.remove("field-server-invalid");
+      field.removeAttribute("aria-invalid");
+    });
+    rootScope.querySelectorAll(".field-server-error").forEach((label) => label.classList.remove("field-server-error"));
+    document.querySelectorAll("[data-validation-notification]").forEach((item) => item.remove());
+    const remainingNotifications = document.querySelectorAll(".notifications-list [data-notification-item]").length;
+    const badge = document.querySelector(".notification-badge");
+    if (badge) {
+      if (remainingNotifications) {
+        badge.textContent = String(remainingNotifications);
+      } else {
+        badge.remove();
+        const list = document.querySelector(".notifications-list");
+        if (list && !list.querySelector(".notification-empty")) {
+          const empty = document.createElement("div");
+          empty.className = "notification-empty";
+          empty.textContent = "Nenhuma notificação.";
+          list.appendChild(empty);
+        }
+      }
+    }
   }
 
   function clearScreenData() {
     const form = getPrimaryForm();
     if (!form) return;
+    clearValidationErrors(form);
     if (form.method?.toLowerCase() === "get") {
       window.location.href = window.location.pathname;
       return;
@@ -158,6 +245,7 @@
       resetEditableTableRows(form, false);
       form.dataset.dirty = "false";
       window.history.replaceState({}, "", window.location.pathname);
+      clearRecordNavigationState();
     } else {
       clearFormFields(form);
       form.querySelectorAll("[data-query-results]").forEach((result) => result.remove());
@@ -251,16 +339,16 @@
 
   function positionSidebarFlyout(flyout, trigger) {
     const triggerRect = trigger.getBoundingClientRect();
-    const flyoutRect = flyout.getBoundingClientRect();
     const viewportGap = 8;
+    const availableBelow = Math.max(160, window.innerHeight - Math.max(viewportGap, triggerRect.top) - viewportGap);
+    flyout.style.maxHeight = `${availableBelow}px`;
+    const flyoutRect = flyout.getBoundingClientRect();
     const left = Math.min(triggerRect.right + viewportGap, window.innerWidth - flyoutRect.width - viewportGap);
-    const top = Math.min(
-      Math.max(viewportGap, triggerRect.top),
-      window.innerHeight - flyoutRect.height - viewportGap
-    );
+    const top = Math.max(viewportGap, Math.min(triggerRect.top, window.innerHeight - flyoutRect.height - viewportGap));
+    flyout.style.maxHeight = `${Math.max(120, window.innerHeight - top - viewportGap)}px`;
 
     flyout.style.left = `${Math.max(viewportGap, left)}px`;
-    flyout.style.top = `${Math.max(viewportGap, top)}px`;
+    flyout.style.top = `${top}px`;
   }
 
   function openSidebarFlyout(navGroup, trigger) {
@@ -384,7 +472,7 @@
   function formValueSignature(form) {
     if (!form) return "";
     return Array.from(form.elements)
-      .filter((field) => field.name && field.name !== "csrfmiddlewaretoken" && field.type !== "password")
+      .filter((field) => field.name && field.name !== "csrfmiddlewaretoken")
       .map((field) => {
         const value = field instanceof HTMLSelectElement && field.multiple
           ?Array.from(field.selectedOptions).map((option) => option.value).join("\u001f")
@@ -427,6 +515,19 @@
       errors = {};
     }
     const firstErrorName = Object.keys(errors)[0];
+    if (firstErrorName) {
+      const messages = Object.entries(errors)
+        .flatMap(([fieldName, fieldErrors]) => {
+          const field = document.querySelector(`[name="${CSS.escape(fieldName)}"]`);
+          const labelText = field?.closest("label")?.childNodes?.[0]?.textContent?.trim() || fieldName;
+          return (fieldErrors || []).map((item) => `${labelText}: ${item.message || item}`);
+        });
+      if (messages.length) {
+        const notificationMessage = `Revise os campos destacados antes de salvar. ${messages.join(" ")}`;
+        const item = addNotificationToHistory(notificationMessage, "error", false);
+        if (item) item.dataset.validationNotification = "true";
+      }
+    }
     Object.entries(errors).forEach(([fieldName, fieldErrors]) => {
       const field = document.querySelector(`[name="${CSS.escape(fieldName)}"]`);
       if (!field) return;
@@ -434,9 +535,10 @@
       field.setAttribute("aria-invalid", "true");
       const label = field.closest("label");
       label?.classList.add("field-server-error");
-      if (label && !label.querySelector(".field-error-message")) {
+      if (label && !label.querySelector(".field-error-message, .errorlist")) {
         const message = document.createElement("span");
         message.className = "field-error-message";
+        message.setAttribute("role", "tooltip");
         message.textContent = (fieldErrors || []).map((item) => item.message || item).join(" ");
         label.appendChild(message);
       }
@@ -476,7 +578,7 @@
     return notification;
   }
 
-  function addNotificationToHistory(message, type = "info") {
+  function addNotificationToHistory(message, type = "info", persist = true) {
     const list = document.querySelector(".notifications-list");
     if (!list) return;
     list.querySelector(".notification-empty")?.remove();
@@ -500,7 +602,8 @@
       newBadge.textContent = "1";
       toggle?.appendChild(newBadge);
     }
-    persistNotification(message, type);
+    if (persist) persistNotification(message, type);
+    return item;
   }
 
   function getPersistedNotifications() {
@@ -547,6 +650,7 @@
       title = "Notificação",
       message = "",
       confirmText = "OK",
+      neutralText = "",
       cancelText = "",
       extraElement = null,
       onConfirm = null,
@@ -561,6 +665,14 @@
     const extra = notification.querySelector("[data-blocking-extra]");
     const confirmButton = notification.querySelector("[data-blocking-confirm]");
     const cancelButton = notification.querySelector("[data-blocking-cancel]");
+    let neutralButton = notification.querySelector("[data-blocking-neutral]");
+    if (!neutralButton) {
+      neutralButton = document.createElement("button");
+      neutralButton.className = "toolbar-button";
+      neutralButton.dataset.blockingNeutral = "true";
+      neutralButton.type = "button";
+      confirmButton.parentElement?.insertBefore(neutralButton, confirmButton);
+    }
     const card = notification.querySelector(".blocking-notification-card");
 
     if (store && message) addNotificationToHistory(message, type);
@@ -570,6 +682,8 @@
     extra.innerHTML = "";
     if (extraElement) extra.appendChild(extraElement);
     confirmButton.textContent = confirmText;
+    neutralButton.textContent = neutralText || "Descartar";
+    neutralButton.hidden = !neutralText;
     cancelButton.textContent = cancelText || "Cancelar";
     cancelButton.hidden = !cancelText;
     notification.hidden = false;
@@ -578,6 +692,7 @@
       const finish = (result) => {
         notification.hidden = true;
         confirmButton.removeEventListener("click", confirmHandler);
+        neutralButton.removeEventListener("click", neutralHandler);
         cancelButton.removeEventListener("click", cancelHandler);
         notification.removeEventListener("keydown", keyHandler);
         extra.innerHTML = "";
@@ -595,6 +710,7 @@
         if (onConfirm && onConfirm() === false) return;
         finish(true);
       };
+      const neutralHandler = () => finish(null);
       const cancelHandler = () => finish(false);
       const keyHandler = (event) => {
         if (event.key === "Escape" && !cancelButton.hidden) {
@@ -603,6 +719,7 @@
         }
       };
       confirmButton.addEventListener("click", confirmHandler);
+      neutralButton.addEventListener("click", neutralHandler);
       cancelButton.addEventListener("click", cancelHandler);
       notification.addEventListener("keydown", keyHandler);
       window.requestAnimationFrame(() => {
@@ -611,6 +728,20 @@
         (firstField || preferredButton).focus();
       });
     });
+  }
+
+  async function promptUnsavedAction(message) {
+    const result = await showBlockingNotification({
+      title: "Dados alterados",
+      message,
+      confirmText: "Salvar",
+      neutralText: "Descartar",
+      cancelText: "Cancelar",
+      initialFocus: "cancel",
+    });
+    if (result === true) return "save";
+    if (result === null) return "discard";
+    return "cancel";
   }
 
   async function promptChangeReason(form) {
@@ -655,6 +786,15 @@
   }
 
   async function submitPrimaryForm(form) {
+    if (document.body.dataset.canSave !== "true" || form?.dataset.readonlyLock === "true") {
+      const message = form?.dataset.lockMessage || "Este registro está bloqueado para edição por outro usuário.";
+      addNotificationToHistory(message, "warning", false);
+      return false;
+    }
+    if (!await ensureCurrentRecordLock(form)) return false;
+    form?.querySelectorAll("[data-force-submit][disabled]").forEach((field) => {
+      field.disabled = false;
+    });
     markInvalidFields(form);
     if (!form.reportValidity()) return false;
     if (!await promptChangeReason(form)) return false;
@@ -666,6 +806,10 @@
     return document.querySelector("form[data-editable-table]");
   }
 
+  function getInlineFormsetTable() {
+    return document.querySelector("form[data-primary-form] [data-inline-formset]");
+  }
+
   function getActiveEditableRow() {
     const active = document.activeElement?.closest?.("tr[data-editable-row]");
     return active || document.querySelector("tr[data-editable-row].selected");
@@ -673,6 +817,8 @@
 
   function markFormDirty(form) {
     if (!form) return;
+    if (document.body.classList.contains("screen-query-mode")) return;
+    if (document.body.dataset.canSave !== "true" || form.dataset.readonlyLock === "true") return;
     form.dataset.dirty = "true";
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
@@ -700,6 +846,25 @@
     return true;
   }
 
+  function addInlineFormsetRow(table = getInlineFormsetTable(), markDirty = true) {
+    const wrapper = table?.closest(".inline-formset-wrapper");
+    const template = wrapper?.querySelector("template[data-inline-formset-template]");
+    const form = table?.closest("form");
+    const totalForms = form?.querySelector('input[name$="-TOTAL_FORMS"]');
+    const tbody = table?.querySelector("tbody");
+    if (!table || !template || !form || !totalForms || !tbody) return false;
+    const index = Number.parseInt(totalForms.value || "0", 10);
+    const holder = document.createElement("tbody");
+    holder.innerHTML = template.innerHTML.replaceAll("__prefix__", String(index)).trim();
+    const row = holder.firstElementChild;
+    if (!row) return false;
+    tbody.appendChild(row);
+    totalForms.value = String(index + 1);
+    if (markDirty) markFormDirty(form);
+    row.querySelector("input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])")?.focus();
+    return true;
+  }
+
   function hasLoadedRecord(form = getPrimaryForm()) {
     if (!form || document.body.classList.contains("screen-query-mode")) return false;
     const primaryKey = form.querySelector('[data-primary-key="true"], .pk-label input');
@@ -723,6 +888,7 @@
     if (!form || document.body.classList.contains("screen-query-mode")) return null;
     const row = getActiveEditableRow();
     if (!row || row.hidden || !form.contains(row)) return null;
+    if (!row.querySelector('[data-primary-key="true"]')?.value?.trim()) return null;
     return row.querySelector('select[name^="sn_ativo_"], select[name^="active_"], select[name="new_sn_ativo"], select[name="new_active"]');
   }
 
@@ -808,6 +974,15 @@
   async function handleCloseAction() {
     const form = getPrimaryForm();
     if (formHasActualChanges(form)) {
+      const action = await promptUnsavedAction("Existem dados digitados. Deseja salvar antes de sair?");
+      if (action === "cancel") return;
+      if (action === "save") {
+        await submitPrimaryForm(form);
+        return;
+      }
+    }
+    await releaseCurrentRecordLock();
+    if (false && formHasActualChanges(form)) {
       const shouldSave = await showBlockingNotification({
         title: "Dados alterados",
         message: "Existem dados digitados. Deseja salvar antes de sair?",
@@ -874,6 +1049,8 @@
       if (document.body.dataset.username) {
         localStorage.setItem(`celeris-theme-user:${document.body.dataset.username}`, theme);
       }
+      updateThemeToggleIcon();
+      renderIcons();
       return;
     }
 
@@ -888,12 +1065,25 @@
 
     const queryButton = event.target.closest("[data-query-toggle]");
     if (queryButton) {
+      clearValidationErrors(getPrimaryForm() || document);
       const executing = queryButton.dataset.queryMode === "execute";
       const saveButton = document.querySelector('[data-action="save"]');
       const removeButton = document.querySelector('[data-action="remove"]');
       const form = document.querySelector(".content form");
       if (!executing) {
-        if (form?.dataset.dirty === "true") {
+        if (formHasActualChanges(form)) {
+          const action = await promptUnsavedAction("Existem dados alterados. Deseja salvar antes de abrir consulta?");
+          if (action === "cancel") return;
+          if (action === "save") {
+            sessionStorage.setItem("celeris-open-query-after-save", "true");
+            await submitPrimaryForm(form);
+            return;
+          }
+          await releaseCurrentRecordLock();
+          clearFormFields(form);
+        }
+        await releaseCurrentRecordLock();
+        if (false && form?.dataset.dirty === "true") {
           const shouldSave = await showBlockingNotification({
             title: "Dados alterados",
             message: "Existem dados alterados. Deseja salvar antes de abrir consulta?",
@@ -949,6 +1139,7 @@
         const queryUrl = form?.dataset.queryUrl;
         if (queryUrl) {
           const params = new URLSearchParams();
+          params.set("consultar", "1");
           Array.from(form.elements).forEach((field) => {
             if (!field.name || field.type === "hidden" || field.disabled || !String(field.value || "").trim()) return;
             if (field.matches('input[type="checkbox"], input[type="radio"]')) {
@@ -971,7 +1162,7 @@
         }
         if (form?.matches("[data-editable-table]")) {
           const queryValue = Array.from(form.querySelectorAll("input:not([type='hidden']), textarea, select"))
-            .filter((field) => !field.readOnly && !field.disabled && String(field.value || "").trim())
+            .filter((field) => field.type !== "color" && !field.readOnly && !field.disabled && String(field.value || "").trim())
             .map((field) => {
               if (field instanceof HTMLSelectElement) return field.value.trim();
               return field.value.trim();
@@ -979,7 +1170,7 @@
           clearCurrentFormState(form);
           const params = queryValue ?`q=${encodeURIComponent(queryValue)}` : "consultar=1";
           storeCurrentListPosition();
-          window.location.href = `${window.location.pathname}${params}`;
+          window.location.href = `${window.location.pathname}?${params}`;
           return;
         }
         setQueryMode(false);
@@ -991,6 +1182,7 @@
 
     const cancelQueryButton = event.target.closest("[data-query-cancel]");
     if (cancelQueryButton) {
+      await releaseCurrentRecordLock();
       clearFormFields(getPrimaryForm());
       setupActionButtons();
       renderIcons();
@@ -1017,6 +1209,7 @@
     if (newAction && !newAction.disabled) {
       const tableForm = getEditableTableForm();
       if (tableForm && addEditableTableRow(tableForm)) return;
+      if (addInlineFormsetRow()) return;
       const targetUrl = document.body.dataset.newUrl;
       if (targetUrl) {
         storeCurrentListPosition();
@@ -1114,8 +1307,30 @@
       return;
     }
 
+    const reloadAction = event.target.closest('[data-action="reload"]');
+    if (reloadAction && !reloadAction.disabled) {
+      window.location.href = document.body.dataset.reloadUrl || window.location.href;
+      return;
+    }
+
+    const printAction = event.target.closest('[data-action="print"]');
+    if (printAction && !printAction.disabled && document.body.dataset.printUrl) {
+      window.open(document.body.dataset.printUrl, "_blank", "noopener");
+      return;
+    }
+
     const clearAction = event.target.closest('[data-action="clear"]');
     if (clearAction && !clearAction.disabled) {
+      const form = getPrimaryForm();
+      if (formHasActualChanges(form)) {
+        const action = await promptUnsavedAction("Existem dados alterados. Deseja salvar antes de limpar a tela?");
+        if (action === "cancel") return;
+        if (action === "save") {
+          await submitPrimaryForm(form);
+          return;
+        }
+      }
+      await releaseCurrentRecordLock();
       clearScreenData();
       setupActionButtons();
       renderIcons();
@@ -1152,6 +1367,18 @@
       event.stopPropagation();
       closeTab(tabClose.dataset.tabUrl, tabClose.dataset.tabKey || tabClose.dataset.tabUrl);
       return;
+    }
+
+    const toolbarPrintTarget = event.target.closest("[data-toolbar-print-url]");
+    if (toolbarPrintTarget) {
+      document.body.dataset.printUrl = toolbarPrintTarget.dataset.toolbarPrintUrl || "";
+      document.querySelectorAll("[data-toolbar-print-url].is-selected").forEach((row) => {
+        if (row !== toolbarPrintTarget) row.classList.remove("is-selected");
+      });
+      toolbarPrintTarget.classList.add("is-selected");
+      setupActionButtons();
+      renderIcons();
+      if (event.target.closest("button, a, input, select, textarea, form")) return;
     }
 
     const lookupTrigger = event.target.closest("[data-lookup-trigger]");
@@ -1242,8 +1469,17 @@
     }
   });
 
+  document.addEventListener("contextmenu", function (event) {
+    const allowedContextArea = event.target.closest(
+      "[data-allow-context-menu], .document-studio, [data-profile-context-menu], [data-profile-list], .sidebar, .sidebar-flyout"
+    );
+    if (!allowedContextArea) {
+      event.preventDefault();
+    }
+  });
+
   document.addEventListener("pointerdown", function (event) {
-    const select = event.target.closest(".content select");
+    const select = event.target.closest(".content select, .pep-standalone-main select");
     if (
       !select
       || select.disabled
@@ -1260,7 +1496,7 @@
   });
 
   document.addEventListener("click", function (event) {
-    const select = event.target.closest(".content select");
+    const select = event.target.closest(".content select, .pep-standalone-main select");
     if (!select || select.matches("[data-native-select]") || select.closest("[data-blocking-notification]")) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -1532,7 +1768,8 @@
       </button>
     `;
     }).join("");
-    document.body.appendChild(panel);
+    const panelHost = field.closest("dialog[open]") || document.body;
+    panelHost.appendChild(panel);
     activeFloatingSelect = panel;
     positionFloatingSelect(panel, field);
     const setActiveOption = (button) => {
@@ -1688,7 +1925,7 @@
     if (field.dataset.mask) return;
     if (field.closest(".generated-clinical-form, [data-document-fill-form]")) return;
     const type = field.type || "";
-    if (["password", "email", "url", "number", "date", "time", "datetime-local", "month", "week"].includes(type)) return;
+    if (["password", "email", "url", "number", "date", "time", "datetime-local", "month", "week", "color"].includes(type)) return;
     const start = field.selectionStart;
     const end = field.selectionEnd;
     field.value = normalizeTextValue(field.value);
@@ -1706,7 +1943,7 @@
     return;
   });
 
-  document.addEventListener("input", function (event) {
+  document.addEventListener("input", async function (event) {
     const field = event.target.closest("input, textarea");
     if (!field) return;
     if (!event.isTrusted && field.closest("[data-document-editor-form]")) return;
@@ -1733,7 +1970,9 @@
     }
     if (isRestoringFormState) return;
     const form = field.closest("form");
-    if (form?.method?.toLowerCase() === "get" || field.closest("[data-disable-toolbar-actions='true']")) return;
+    if (document.body.classList.contains("screen-query-mode") || form?.method?.toLowerCase() === "get" || field.closest("[data-disable-toolbar-actions='true']")) return;
+    if (document.body.dataset.canSave !== "true" || form?.dataset.readonlyLock === "true") return;
+    if (!await ensureCurrentRecordLock(form)) return;
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
@@ -1741,7 +1980,7 @@
     persistCurrentFormState(form);
   });
 
-  document.addEventListener("change", function (event) {
+  document.addEventListener("change", async function (event) {
     if (!event.target.closest("input, select, textarea")) return;
     if (!event.isTrusted && event.target.closest("[data-document-editor-form]")) return;
     if (event.target.matches("[data-state-select]")) {
@@ -1813,7 +2052,9 @@
     }
     if (isRestoringFormState) return;
     const form = event.target.closest("form");
-    if (form?.method?.toLowerCase() === "get" || event.target.closest("[data-disable-toolbar-actions='true']")) return;
+    if (document.body.classList.contains("screen-query-mode") || form?.method?.toLowerCase() === "get" || event.target.closest("[data-disable-toolbar-actions='true']")) return;
+    if (document.body.dataset.canSave !== "true" || form?.dataset.readonlyLock === "true") return;
+    if (!await ensureCurrentRecordLock(form)) return;
     const saveButton = document.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = false;
     setActionStatus("EDIÇÃO");
@@ -1946,7 +2187,7 @@
       return;
     }
     field.classList.add("field-duplicate");
-    field.setCustomValidity(payload.message || "Dado j? cadastrado.");
+    field.setCustomValidity(payload.message || "Dado já cadastrado.");
     await showBlockingNotification({
       title: "Registro já cadastrado",
       message: payload.message || "Dado já cadastrado para outro paciente.",
@@ -1996,7 +2237,7 @@
     const openButton = manager.querySelector("[data-specialty-open]");
     const addRow = manager.querySelector("[data-specialty-add-row]");
     const primary = document.querySelector("[data-primary-specialty]");
-    if (!storage || !picker || !chips || !addButton || !openButton || !addRow) return;
+    if (!storage || !picker || !chips || !openButton || !addRow) return;
 
     const options = Array.from(storage.options).map((option) => ({
       value: option.value,
@@ -2027,11 +2268,16 @@
 
       if (primary) {
         const currentPrimary = primary.value;
-        primary.innerHTML = '<option value=""></option>' + options
-          .filter((option) => selected.has(option.value))
+        const primaryOptions = document.body.classList.contains("screen-query-mode")
+          ? options
+          : options.filter((option) => selected.has(option.value));
+        primary.innerHTML = '<option value=""></option>' + primaryOptions
           .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
           .join("");
-        primary.value = selected.has(currentPrimary) ?currentPrimary : (selectedValues()[0] || "");
+        const hasCurrentPrimary = primaryOptions.some((option) => option.value === currentPrimary);
+        primary.value = hasCurrentPrimary ? currentPrimary : (
+          document.body.classList.contains("screen-query-mode") ? "" : (selectedValues()[0] || "")
+        );
       }
     };
 
@@ -2060,7 +2306,7 @@
       addRow.hidden = false;
       picker.focus();
     });
-    addButton.addEventListener("click", addSelected);
+    addButton?.addEventListener("click", addSelected);
     picker.addEventListener("change", addSelected);
     picker.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -2068,6 +2314,7 @@
       addSelected();
     });
     storage.addEventListener("change", render);
+    document.addEventListener("celeris:query-mode-change", render);
     manager.closest("form")?.addEventListener("celeris:reset-multiselects", resetInterface);
     chips.addEventListener("click", (event) => {
       const removeButton = event.target.closest("[data-specialty-remove]");
@@ -2090,7 +2337,10 @@
       const addButton = manager.querySelector("[data-assignment-add]");
       const openButton = manager.querySelector("[data-assignment-open]");
       const addRow = manager.querySelector("[data-assignment-add-row]");
-      if (!storage || !picker || !chips || !addButton || !openButton || !addRow) return;
+      const primaryProviderType = manager.matches("[data-provider-type-assignment]")
+        ? document.querySelector("[data-provider-type]")
+        : null;
+      if (!storage || !picker || !chips || !openButton || !addRow) return;
       const options = Array.from(storage.options)
         .filter((option) => option.value)
         .map((option) => ({ value: option.value, label: option.textContent.trim() }));
@@ -2112,6 +2362,21 @@
           .filter((option) => !selected.has(option.value))
           .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
           .join("");
+        if (primaryProviderType) {
+          const currentPrimary = primaryProviderType.value;
+          const queryMode = document.body.classList.contains("screen-query-mode");
+          const primaryOptions = queryMode ? options : options.filter((option) => selected.has(option.value));
+          primaryProviderType.innerHTML = '<option value=""></option>' + primaryOptions
+            .map((option) => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`)
+            .join("");
+          const nextPrimary = primaryOptions.some((option) => option.value === currentPrimary)
+            ? currentPrimary
+            : (queryMode ? "" : (selectedValues()[0] || ""));
+          primaryProviderType.value = nextPrimary;
+          if (!queryMode && nextPrimary !== currentPrimary) {
+            primaryProviderType.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }
       };
 
       const addSelected = () => {
@@ -2135,7 +2400,7 @@
         addRow.hidden = false;
         picker.focus();
       });
-      addButton.addEventListener("click", addSelected);
+      addButton?.addEventListener("click", addSelected);
       picker.addEventListener("change", addSelected);
       picker.addEventListener("keydown", (event) => {
         if (event.key !== "Enter") return;
@@ -2143,6 +2408,7 @@
         addSelected();
       });
       storage.addEventListener("change", render);
+      document.addEventListener("celeris:query-mode-change", render);
       manager.closest("form")?.addEventListener("celeris:reset-multiselects", resetInterface);
       chips.addEventListener("click", (event) => {
         const removeButton = event.target.closest("[data-assignment-remove]");
@@ -2186,15 +2452,78 @@
   }
 
   function setupFormSectionAccordion() {
-    document.querySelectorAll(".provider-form, .patient-form, .user-form, .role-form").forEach((form) => {
-      form.querySelectorAll(":scope > details.form-section").forEach((section) => {
+    document.querySelectorAll(".provider-form, .patient-form, .user-form, .role-form, .ticket-config-form").forEach((form) => {
+      const sections = Array.from(form.querySelectorAll(":scope > details.form-section"));
+      let activePanelHost = form.querySelector(":scope > .form-section-active-panel");
+      if (!activePanelHost) {
+        activePanelHost = document.createElement("div");
+        activePanelHost.className = "form-section-active-panel";
+        form.appendChild(activePanelHost);
+      }
+      sections.forEach((section) => {
+        let panel = section.querySelector(":scope > .form-section-panel");
+        if (!panel) {
+          panel = document.createElement("div");
+          panel.className = "form-section-panel";
+          Array.from(section.childNodes).forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE && node.matches("summary")) return;
+            panel.appendChild(node);
+          });
+          section.appendChild(panel);
+        }
+        section.celerisSectionPanel = panel;
+      });
+      form.style.setProperty("--form-section-count", String(Math.max(sections.length, 1)));
+      const activateSectionPanel = (section) => {
+        const panel = section.celerisSectionPanel || section.querySelector(":scope > .form-section-panel");
+        if (!panel) return;
+        sections.forEach((item) => {
+          const itemPanel = item.celerisSectionPanel || item.querySelector(":scope > .form-section-panel");
+          if (!itemPanel || item === section || itemPanel.parentElement === item) return;
+          item.appendChild(itemPanel);
+        });
+        activePanelHost.replaceChildren(panel);
+      };
+      const openedSections = sections.filter((section) => section.open);
+      openedSections.slice(1).forEach((section) => {
+        section.open = false;
+      });
+      if (!openedSections.length && sections[0]) {
+        sections[0].open = true;
+      }
+      activateSectionPanel(sections.find((section) => section.open) || sections[0]);
+      sections.forEach((section) => {
         section.addEventListener("toggle", () => {
           if (!section.open) return;
-          form.querySelectorAll(":scope > details.form-section[open]").forEach((otherSection) => {
+          activateSectionPanel(section);
+          sections.forEach((otherSection) => {
             if (otherSection !== section) otherSection.open = false;
           });
         });
       });
+    });
+  }
+
+  function setupCallIconTables() {
+    const updatePreview = (source) => {
+      const row = source.closest("[data-editable-row]") || source.closest(".call-icon-picker");
+      const preview = row?.querySelector("[data-svg-preview], [data-icon-preview]");
+      if (!preview) return;
+      if (source.matches("[data-call-icon-select]")) {
+        preview.innerHTML = source.selectedOptions[0]?.dataset.svg || "";
+        return;
+      }
+      preview.innerHTML = source.value || "";
+    };
+    document.querySelectorAll("[data-svg-source], [data-call-icon-select]").forEach((source) => {
+      source.addEventListener("input", () => updatePreview(source));
+      source.addEventListener("change", () => updatePreview(source));
+    });
+    document.addEventListener("input", (event) => {
+      if (event.target?.matches?.("[data-svg-source]")) updatePreview(event.target);
+    });
+    document.addEventListener("change", (event) => {
+      if (event.target?.matches?.("[data-call-icon-select]")) updatePreview(event.target);
     });
   }
 
@@ -2253,7 +2582,7 @@
         const valueFor = (row) => {
           const cell = row.cells[columnIndex];
           const control = cell?.querySelector("input:not([type='hidden']), select, textarea");
-          const raw = String(control?.value ?? cell?.textContent ?? "").trim();
+          const raw = String(control?.value || cell?.textContent || "").trim();
           const dateMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
           if (dateMatch) {
             return new Date(
@@ -2459,9 +2788,12 @@
     const lastButton = document.querySelector('[data-action="last"]');
     const closeButton = document.querySelector('[data-action="close"]');
     const saveButton = document.querySelector('[data-action="save"]');
+    const reloadButton = document.querySelector('[data-action="reload"]');
+    const printButton = document.querySelector('[data-action="print"]');
     const cancelQueryIcon = document.querySelector('[data-query-cancel] [data-nav-icon]');
     const tableForm = getEditableTableForm();
     const isHome = document.body.dataset.tabUrl === "/";
+    const isQueryMode = document.body.classList.contains("screen-query-mode");
 
     if (document.querySelector("[data-disable-toolbar-actions='true']")) {
       document.querySelectorAll(".toolbar-actions .toolbar-button").forEach((button) => {
@@ -2483,23 +2815,32 @@
       queryButton.hidden = document.body.dataset.canQuery !== "true";
       queryButton.disabled = document.body.dataset.canQuery !== "true";
     }
+    if (isQueryMode) {
+      [saveButton, newButton, continueButton, removeButton].forEach((button) => {
+        if (button) button.disabled = true;
+      });
+    }
     if (saveButton && document.body.dataset.canSave !== "true") {
       saveButton.hidden = true;
       saveButton.disabled = true;
     } else if (saveButton && document.querySelector(".content form[data-has-errors='true']")) {
       saveButton.disabled = false;
     }
+    if (saveButton && isQueryMode) {
+      saveButton.disabled = true;
+    }
     if (newButton) {
-      newButton.hidden = !(document.body.dataset.newUrl || tableForm);
-      newButton.disabled = !(document.body.dataset.newUrl || tableForm);
+      const inlineFormsetTable = getInlineFormsetTable();
+      newButton.hidden = !(document.body.dataset.newUrl || tableForm || inlineFormsetTable);
+      newButton.disabled = isQueryMode || !(document.body.dataset.newUrl || tableForm || inlineFormsetTable);
     }
     if (continueButton) {
       continueButton.hidden = !document.body.dataset.continueUrl;
-      continueButton.disabled = !document.body.dataset.continueUrl;
+      continueButton.disabled = isQueryMode || !document.body.dataset.continueUrl;
     }
-    if (removeButton) removeButton.disabled = tableForm
-      ?!hasSelectedEditableRow(tableForm)
-      : !(document.body.dataset.canRemove === "true" && hasLoadedRecord());
+    if (removeButton) removeButton.disabled = isQueryMode || (tableForm
+      ?!hasSelectedPersistedRow(tableForm)
+      : !(document.body.dataset.canRemove === "true" && hasLoadedRecord()));
     if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm);
     const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
     if (toggleActiveButton) {
@@ -2518,6 +2859,15 @@
     if (changePasswordButton) {
       changePasswordButton.hidden = !document.body.dataset.passwordUrl;
       changePasswordButton.disabled = !document.body.dataset.passwordUrl || !hasLoadedRecord();
+    }
+    if (reloadButton) {
+      reloadButton.hidden = !document.body.dataset.reloadUrl;
+      reloadButton.disabled = !document.body.dataset.reloadUrl;
+    }
+    if (printButton) {
+      const hasSelectablePrintTarget = Boolean(document.querySelector("[data-toolbar-print-url]"));
+      printButton.hidden = !(document.body.dataset.printUrl || hasSelectablePrintTarget);
+      printButton.disabled = !document.body.dataset.printUrl;
     }
     if (previousButton) {
       previousButton.disabled = !document.body.dataset.previousUrl;
@@ -2565,6 +2915,136 @@
       }
     }
     renderPersistedNotifications();
+  }
+
+  function setupReadonlyLockedForms() {
+    document.querySelectorAll("form[data-readonly-lock='true']").forEach((form) => {
+      form.classList.add("form-readonly-lock");
+      form.querySelectorAll("input, select, textarea, button").forEach((field) => {
+        if (field.name === "csrfmiddlewaretoken" || field.type === "hidden") return;
+        if (field.matches("button")) {
+          field.disabled = true;
+          return;
+        }
+        if (field.matches("select, input[type='checkbox'], input[type='radio']")) {
+          field.disabled = true;
+        } else {
+          field.readOnly = true;
+        }
+      });
+    });
+  }
+
+  function setupRecordLockRelease() {
+    const form = document.querySelector("form[data-record-lock-release-url], form[data-table]");
+    if (!form) return;
+    form.dataset.lockReleaseReady = form.dataset.lockReleaseReady || "false";
+  }
+
+  function getRecordLockResource(form) {
+    if (!form || !form.dataset.table || form.method?.toLowerCase() === "get") return null;
+    const activeRow = form.matches("[data-editable-table]") ?getActiveEditableRow() : null;
+    const primaryField = activeRow?.querySelector("[data-primary-key='true']")
+      || form.querySelector("[data-primary-key='true'], .pk-label input");
+    const resourceId = primaryField?.value?.trim()
+      || form.dataset.userId
+      || form.dataset.providerId
+      || `${window.location.pathname}${window.location.search}`;
+    if (!resourceId) return null;
+    return {
+      tipo: form.dataset.table,
+      resourceId,
+      titulo: `${form.dataset.table} ${resourceId}`,
+    };
+  }
+
+  function appendRecordLockPayload(payload, form) {
+    const resource = getRecordLockResource(form);
+    if (!resource) return false;
+    payload.append("tipo", resource.tipo);
+    payload.append("recurso_id", resource.resourceId);
+    payload.append("titulo", resource.titulo);
+    return true;
+  }
+
+  function lockFormForReadonly(form, message) {
+    if (!form) return;
+    form.dataset.readonlyLock = "true";
+    form.dataset.lockMessage = message || form.dataset.lockMessage || "Este registro estÃ¡ bloqueado para ediÃ§Ã£o por outro usuÃ¡rio.";
+    form.classList.add("form-readonly-lock");
+    form.querySelectorAll("input, select, textarea, button").forEach((field) => {
+      if (field.name === "csrfmiddlewaretoken" || field.type === "hidden") return;
+      if (field.matches("button")) {
+        field.disabled = true;
+      } else if (field.matches("select, input[type='checkbox'], input[type='radio']")) {
+        field.disabled = true;
+      } else {
+        field.readOnly = true;
+      }
+    });
+    const saveButton = document.querySelector('[data-action="save"]');
+    if (saveButton) saveButton.disabled = true;
+  }
+
+  async function ensureCurrentRecordLock(form) {
+    if (!form || form.dataset.lockReleaseReady === "true") return true;
+    const acquireUrl = form.dataset.recordLockAcquireUrl || (getRecordLockResource(form) ?"/travas/adquirir/" : "");
+    if (!acquireUrl) return true;
+    if (!formHasActualChanges(form)) return true;
+    if (form.dataset.lockAcquirePending === "true") return false;
+    const csrfToken = form.querySelector("[name='csrfmiddlewaretoken']")?.value || "";
+    form.dataset.lockAcquirePending = "true";
+    try {
+      const lockPayload = new FormData(form);
+      appendRecordLockPayload(lockPayload, form);
+      const response = await fetch(acquireUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        body: lockPayload,
+        headers: csrfToken ? { "X-CSRFToken": csrfToken, "Accept": "application/json" } : { "Accept": "application/json" },
+      });
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch (error) {
+        payload = {};
+      }
+      if (!response.ok || payload.ok === false) {
+        const message = payload.error || "Este registro estÃ¡ bloqueado para ediÃ§Ã£o por outro usuÃ¡rio.";
+        addNotificationToHistory(message, "warning", false);
+        lockFormForReadonly(form, message);
+        return false;
+      }
+      form.dataset.lockReleaseReady = "true";
+      return true;
+    } catch (error) {
+      addNotificationToHistory("NÃ£o foi possÃ­vel validar a trava de ediÃ§Ã£o. Tente novamente.", "error", false);
+      return false;
+    } finally {
+      delete form.dataset.lockAcquirePending;
+    }
+  }
+
+  async function releaseCurrentRecordLock() {
+    const form = document.querySelector("form[data-lock-release-ready='true']");
+    if (!form) return;
+    const releaseUrl = form.dataset.recordLockReleaseUrl || "/travas/liberar/";
+    const csrfToken = form.querySelector("[name='csrfmiddlewaretoken']")?.value || "";
+    if (!releaseUrl) return;
+    form.removeAttribute("data-lock-release-ready");
+    const payload = new FormData();
+    payload.append("csrfmiddlewaretoken", csrfToken);
+    appendRecordLockPayload(payload, form);
+    try {
+      await fetch(releaseUrl, {
+        method: "POST",
+        body: payload,
+        credentials: "same-origin",
+        headers: csrfToken ? { "X-CSRFToken": csrfToken } : {},
+      });
+    } catch (error) {
+      form.dataset.lockReleaseReady = "true";
+    }
   }
 
   function setupSessionMonitor() {
@@ -2659,6 +3139,7 @@
     if (document.body.dataset.startQuery === "true") return;
     const field = document.querySelector('[name="nm_paciente"]:not([disabled]):not([readonly])')
       || document.querySelector(".content form input:not([type='hidden']):not([disabled]):not([readonly]), .content form select:not([disabled]), .content form textarea:not([disabled]):not([readonly])");
+    if (!field) return;
     field.focus();
     field?.select?.();
   }
@@ -2732,7 +3213,10 @@
     if (!form || !form.matches(".content form") || form.hasAttribute("data-disable-state-persistence")) return "";
     const key = document.body.dataset.tabKey || window.location.pathname;
     const userKey = document.body.dataset.username || "anon";
-    return `celeris-form-state:${userKey}:${key}`;
+    const recordKey = form.dataset.providerId !== undefined
+      ?`prestador:${form.dataset.providerId || "novo"}`
+      : "";
+    return `celeris-form-state:${userKey}:${key}${recordKey ? `:${recordKey}` : ""}`;
   }
 
   function getFormStateFields(form) {
@@ -2896,6 +3380,7 @@
   setupRoleModuleVisibility();
   setupStandardCheckboxes();
   setupFormSectionAccordion();
+  setupCallIconTables();
   setupSortableTables();
   setupResizableTables();
   setupCepCityDependencies();
@@ -3006,14 +3491,17 @@
     setQueryMode(true);
     const firstField = document.querySelector(".content input:not([type='hidden']), .content select, .content textarea");
     firstField?.focus();
-  } else if (document.querySelector("[data-query-only='true'], [data-query-only-form]")) {
+  } else {
     setQueryMode(false);
   }
+  updateThemeToggleIcon();
   renderIcons();
   disableBrowserAutocomplete();
   setupUserLoginSuggestion();
   setupServerValidationErrors();
   setupNotifications();
+  setupReadonlyLockedForms();
+  setupRecordLockRelease();
   setupSessionMonitor();
   setupSidebarSearch();
   const printPrompt = document.querySelector("[data-print-after-save]");

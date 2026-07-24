@@ -6,12 +6,12 @@
     <table class="editable-table">
       <thead>
         <tr>
-          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_empresa' %}-{% endif %}cd_empresa">Código</a></th>
-          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_empresa' %}-{% endif %}nm_empresa">Empresa</a></th>
-          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_cnpj' %}-{% endif %}nr_cnpj">CNPJ</a></th>
-          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_cidade' %}-{% endif %}ds_cidade">Cidade</a></th>
-          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sg_estado' %}-{% endif %}sg_estado">UF</a></th>
-          <th><a href="q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_empresa' %}-{% endif %}cd_empresa">Código</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_empresa' %}-{% endif %}nm_empresa">Empresa</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_cnpj' %}-{% endif %}nr_cnpj">CNPJ</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_cidade' %}-{% endif %}ds_cidade">Cidade</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sg_estado' %}-{% endif %}sg_estado">UF</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
         </tr>
       </thead>
       <tbody>

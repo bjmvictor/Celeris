@@ -26,6 +26,9 @@
       <form class="card ticket-option" method="post">
         {% csrf_token %}
         <input type="hidden" name="regra" value="{{ regra.pk }}">
+        {% if regra.cd_classe_senha.cd_icone_chamada %}
+          <span class="ticket-option-icon">{{ regra.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}</span>
+        {% endif %}
         <small>{{ regra.cd_tipo_senha.nm_tipo_senha }}</small>
         <strong>{{ regra.cd_classe_senha.nm_classe_senha }}</strong>
         <span>{{ regra.cd_tipo_senha.sg_tipo_senha }}{{ regra.cd_classe_senha.sg_classe_senha }} · prioridade {{ regra.nr_prioridade }}</span>
@@ -36,6 +39,9 @@
       <form class="card ticket-option" method="post">
         {% csrf_token %}
         <input type="hidden" name="classe" value="{{ classe.pk }}">
+        {% if classe.cd_icone_chamada %}
+          <span class="ticket-option-icon">{{ classe.cd_icone_chamada.ds_svg|safe }}</span>
+        {% endif %}
         <small>{{ classe.cd_tipo_senha.nm_tipo_senha }}</small>
         <strong>{{ classe.nm_classe_senha }}</strong>
         <span>{{ classe.cd_tipo_senha.sg_tipo_senha }}{{ classe.sg_classe_senha }} · prioridade {{ classe.nr_prioridade }}</span>

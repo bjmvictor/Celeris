@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -14,6 +14,7 @@ import logging
 from urllib.parse import urlencode
 
 from apps.atendimento.models import Prestador, RascunhoEditorDocumento
+from apps.core.locks import adquirir_trava_edicao, consultar_trava_ativa, liberar_trava_edicao, nome_usuario_trava, usuario_tem_trava_ou_livre
 from apps.core.table_utils import paginate_table
 
 from .access import screen_access_required
@@ -187,6 +188,8 @@ def _usuario_form(request, pk=None):
         request.current_toggle_active_url = reverse("usuario_alternar_status", args=[usuario.pk])
         request.current_toggle_active_label = "Desativar" if usuario.is_active else "Ativar"
         request.current_password_url = reverse("usuario_alterar_senha", args=[usuario.pk])
+    usuario_bloqueado = False
+    mensagem_trava_usuario = ""
     query_context = request.GET.get("origem") == "consulta"
     result_ids = request.session.get("consulta_usuarios", []) if query_context else []
     if query_context:
@@ -211,6 +214,19 @@ def _usuario_form(request, pk=None):
         empresa=empresa,
         allow_user_type=allow_user_type,
     )
+    if usuario:
+        if request.method == "POST":
+            resultado_trava = usuario_tem_trava_ou_livre(empresa, request.user, "usuario", usuario.pk)
+            if not resultado_trava.permitido:
+                messages.error(request, resultado_trava.mensagem)
+                return redirect("usuario_editar", pk=usuario.pk)
+        else:
+            trava_ativa = consultar_trava_ativa(empresa, "usuario", usuario.pk)
+            if trava_ativa and trava_ativa.cd_usuario_id != request.user.pk:
+                usuario_bloqueado = True
+                mensagem_trava_usuario = f"Este registro estÃ¡ em ediÃ§Ã£o por {nome_usuario_trava(trava_ativa.cd_usuario)}."
+                request.current_can_save = False
+                messages.warning(request, f"{mensagem_trava_usuario} O registro ficarÃ¡ somente para consulta.")
     if request.method == "POST" and form.is_valid():
         if not form.instance.cd_usuario_criacao_id:
             form.instance.cd_usuario_criacao = request.user
@@ -225,6 +241,13 @@ def _usuario_form(request, pk=None):
             edit_url = f"{edit_url}?{urlencode({'return_to': request.current_return_url})}"
         elif query_context:
             edit_url = f"{edit_url}?origem=consulta"
+        liberar_trava_edicao(
+            empresa,
+            request.user,
+            "usuario",
+            saved.pk,
+            motivo="Liberada apÃ³s salvar cadastro de usuÃ¡rio.",
+        )
         return redirect(edit_url)
     return render(
         request,
@@ -232,6 +255,8 @@ def _usuario_form(request, pk=None):
         {
             "form": form,
             "usuario": usuario,
+            "usuario_bloqueado": usuario_bloqueado,
+            "mensagem_trava_usuario": mensagem_trava_usuario,
             "return_to": request.current_return_url,
             "allow_user_type": allow_user_type,
         },
@@ -251,18 +276,80 @@ def usuario_alternar_status(request, pk):
 
 @login_required
 @screen_access_required("usuarios")
-@xframe_options_sameorigin
-def usuario_alterar_senha(request, pk):
+def usuario_adquirir_trava(request, pk):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "MÃ©todo nÃ£o permitido."}, status=405)
+    empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
     usuario = get_object_or_404(User, pk=pk)
-    request.current_tab_title = "Alterar Senha"
-    request.current_tab_root_title = "Alterar Senha"
-    request.current_module_title = "Administração"
-    form = UsuarioPasswordForm(usuario, request.POST or None)
+    resultado = adquirir_trava_edicao(
+        empresa,
+        request.user,
+        "usuario",
+        usuario.pk,
+        f"UsuÃ¡rio {usuario.pk} - {usuario.get_username()}",
+        request.session.session_key or "",
+    )
+    if not resultado.permitido:
+        return JsonResponse({"ok": False, "error": resultado.mensagem}, status=409)
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@screen_access_required("usuarios")
+def usuario_liberar_trava(request, pk):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "MÃ©todo nÃ£o permitido."}, status=405)
+    empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
+    usuario = get_object_or_404(User, pk=pk)
+    liberar_trava_edicao(
+        empresa,
+        request.user,
+        "usuario",
+        usuario.pk,
+        motivo="Liberada ao sair do cadastro de usuÃ¡rio.",
+    )
+    return HttpResponse(status=204)
+
+
+@login_required
+@screen_access_required("usuarios")
+@xframe_options_sameorigin
+def usuario_alterar_senha(request, pk=None):
+    usuario = get_object_or_404(User, pk=pk) if pk else request.user
+    request.current_tab_title = "TI > Gerenciamento de usuários > Alteração de senha"
+    request.current_tab_root_title = "Alteração de senha"
+    request.current_module_title = "TI"
+    request.current_can_query = False
+    request.current_can_save = True
+    request.current_can_remove = False
+    usuario_senha = usuario
+    usuario_nao_encontrado = False
+    if request.method == "POST":
+        login = normalize_identifier(request.POST.get("username", ""))
+        if not login and not pk:
+            usuario_nao_encontrado = True
+        elif login:
+            empresa = Empresa.objects.filter(pk=request.session.get("cd_empresa") or 1).first()
+            usuarios = User.objects.filter(username__iexact=login)
+            if empresa:
+                usuarios = usuarios.filter(empresas=empresa)
+            usuario_senha = usuarios.first()
+            usuario_nao_encontrado = usuario_senha is None
+            usuario_senha = usuario_senha or usuario
+    form = UsuarioPasswordForm(
+        usuario_senha,
+        request.POST or None,
+        initial_username=(usuario.username if pk else ""),
+    )
+    if usuario_nao_encontrado:
+        form.add_error("username", "Usuário não encontrado para a empresa atual.")
     if request.method == "POST" and form.is_valid():
-        form.save()
+        usuario_senha = form.save()
         messages.success(request, "Senha alterada com sucesso.")
-        return redirect(f"{reverse('usuario_alterar_senha', args=[usuario.pk])}?overlay=1")
-    return render(request, "accounts/usuario_password.html", {"form": form, "usuario": usuario})
+        if pk:
+            return redirect(f"{reverse('usuario_alterar_senha', args=[usuario_senha.pk])}?overlay=1")
+        return redirect("ti:alteracao_senha_usuario")
+    return render(request, "accounts/usuario_password.html", {"form": form, "usuario": usuario_senha})
 
 
 @login_required

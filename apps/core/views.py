@@ -1,11 +1,15 @@
 from django.contrib import messages
 from django.apps import apps
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.sessions.models import Session
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from io import BytesIO, StringIO
 from urllib.parse import urlencode
 import csv
@@ -21,6 +25,7 @@ from .form_registry import (
 from .permissions import role_required
 
 from .forms import EmpresaForm, ScreenDefinitionForm, ScreenFieldForm
+from .locks import adquirir_trava_edicao, liberar_trava_edicao
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
@@ -28,6 +33,7 @@ from .models import (
     ScreenField,
     TabelaAuxiliarGlobal,
     TipoPrestadorConselho,
+    TravaEdicao,
     ValorAuxiliarGlobal,
 )
 from .table_utils import paginate_table
@@ -51,6 +57,154 @@ def _auxiliary_code(value):
 @login_required
 def placeholder(request):
     return render(request, "core/placeholder.html")
+
+
+def _empresa_atual(request):
+    return get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
+
+
+def _dados_trava_requisicao(request):
+    tipo = (request.POST.get("tipo") or request.POST.get("table") or "").strip()[:80]
+    recurso_id = (request.POST.get("recurso_id") or request.POST.get("id") or "").strip()[:120]
+    titulo = (request.POST.get("titulo") or "").strip()[:180]
+    if not tipo or not recurso_id:
+        return "", "", ""
+    return tipo, recurso_id, titulo or f"{tipo} {recurso_id}"
+
+
+@login_required
+def adquirir_trava_generica(request):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "MÃ©todo nÃ£o permitido."}, status=405)
+    tipo, recurso_id, titulo = _dados_trava_requisicao(request)
+    if not tipo or not recurso_id:
+        return JsonResponse({"ok": False, "error": "Recurso de trava invÃ¡lido."}, status=400)
+    resultado = adquirir_trava_edicao(
+        _empresa_atual(request),
+        request.user,
+        tipo,
+        recurso_id,
+        titulo,
+        request.session.session_key or "",
+    )
+    if not resultado.permitido:
+        return JsonResponse({"ok": False, "error": resultado.mensagem}, status=409)
+    return JsonResponse({"ok": True})
+
+
+@login_required
+def liberar_trava_generica(request):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "MÃ©todo nÃ£o permitido."}, status=405)
+    tipo, recurso_id, _titulo = _dados_trava_requisicao(request)
+    if not tipo or not recurso_id:
+        return HttpResponse(status=204)
+    liberar_trava_edicao(
+        _empresa_atual(request),
+        request.user,
+        tipo,
+        recurso_id,
+        motivo="Liberada ao sair da tela.",
+    )
+    return HttpResponse(status=204)
+
+
+@login_required
+@role_required("TI")
+def sessoes_travas(request):
+    request.current_tab_title = "TI > Sessões e travas"
+    request.current_tab_root_title = "Sessões e travas"
+    request.current_module_title = "TI"
+    request.current_can_query = False
+    request.current_can_save = False
+    request.current_can_remove = False
+    request.current_reload_url = request.get_full_path()
+    empresa = get_object_or_404(Empresa, cd_empresa=request.session.get("cd_empresa") or 1, sn_ativo=True)
+    if request.method == "POST":
+        trava = get_object_or_404(TravaEdicao, cd_empresa=empresa, pk=request.POST.get("trava"))
+        trava.sn_ativa = False
+        trava.ds_liberacao = f"Liberada manualmente por {request.user.get_username()}."
+        trava.save(update_fields=["sn_ativa", "ds_liberacao", "updated_at"])
+        messages.success(request, "Trava liberada com sucesso.")
+        return redirect(f"{request.path}?aba=travas")
+    agora = timezone.now()
+    aba = request.GET.get("aba") or "sessoes"
+    if aba not in {"sessoes", "travas"}:
+        aba = "sessoes"
+    travas = (
+        TravaEdicao.objects.select_related("cd_usuario")
+        .filter(cd_empresa=empresa, sn_ativa=True)
+        .order_by("-updated_at")
+    )
+    for trava in travas:
+        trava.tempo_trava = agora - trava.created_at
+        trava.expirada = trava.dh_expiracao < agora
+
+    User = get_user_model()
+    sessoes_decodificadas = []
+    user_ids = set()
+    for sessao in Session.objects.filter(expire_date__gte=agora).order_by("-expire_date"):
+        dados = sessao.get_decoded()
+        usuario_id = dados.get("_auth_user_id")
+        if not usuario_id:
+            continue
+        cd_empresa_sessao = dados.get("cd_empresa")
+        if cd_empresa_sessao and str(cd_empresa_sessao) != str(empresa.pk):
+            continue
+        user_ids.add(usuario_id)
+        sessoes_decodificadas.append((sessao, dados, usuario_id))
+    usuarios = User.objects.in_bulk(user_ids)
+    travas_por_usuario = {}
+    for trava in travas:
+        travas_por_usuario.setdefault(str(trava.cd_usuario_id), []).append(trava)
+
+    def data_sessao(valor):
+        if not valor:
+            return None
+        parsed = parse_datetime(str(valor))
+        if parsed and timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+        return parsed
+
+    def formatar_duracao(delta):
+        total_segundos = max(0, int(delta.total_seconds()))
+        horas, resto = divmod(total_segundos, 3600)
+        minutos = resto // 60
+        if horas:
+            return f"{horas}h {minutos:02d}min"
+        return f"{minutos}min"
+
+    sessoes = []
+    for sessao, dados, usuario_id in sessoes_decodificadas:
+        usuario = usuarios.get(usuario_id)
+        if not usuario and str(usuario_id).isdigit():
+            usuario = usuarios.get(int(usuario_id))
+        inicio = data_sessao(dados.get("inicio_sessao_em"))
+        ultimo_acesso = data_sessao(dados.get("ultimo_acesso_em"))
+        travas_usuario = travas_por_usuario.get(str(usuario_id), [])
+        sessoes.append(
+            {
+                "chave": sessao.session_key,
+                "usuario": usuario,
+                "usuario_nome": usuario.get_username() if usuario else f"Usuário {usuario_id}",
+                "empresa": dados.get("empresa_nome") or empresa.nm_empresa,
+                "sistema": dados.get("ultimo_sistema") or "Não rastreado",
+                "ultima_tela": dados.get("ultima_tela") or "Não rastreada",
+                "ultima_rota": dados.get("ultima_rota") or "-",
+                "inicio": inicio,
+                "tempo_acesso": formatar_duracao(agora - inicio) if inicio else "-",
+                "ultimo_acesso": ultimo_acesso,
+                "expira_em": sessao.expire_date,
+                "sessao_atual": sessao.session_key == request.session.session_key,
+                "travas_ativas": travas_usuario,
+                "total_travas": len(travas_usuario),
+            }
+        )
+    return render(
+        request,
+        "core/sessoes_travas.html",
+        {"aba": aba, "sessoes": sessoes, "travas": travas, "agora": agora},
+    )
 
 
 @login_required
@@ -114,7 +268,7 @@ def configurar_formularios(request):
             parametros["formulario"] = codigo_formulario
         if nome_campo:
             parametros["nome_campo"] = nome_campo
-        return redirect(f"{request.path}{urlencode(parametros)}")
+        return redirect(f"{request.path}?{urlencode(parametros)}")
     return render(
         request,
         "core/configurar_formularios.html",
@@ -130,13 +284,19 @@ def configurar_formularios(request):
 
 @login_required
 def dynamic_screen(request, slug):
+    if slug == "ti-alteracao-senha-usuario":
+        return redirect("ti:alteracao_senha_usuario")
     screen = get_object_or_404(
         ScreenDefinition.objects.select_related("module").prefetch_related("fields"),
         slug=slug,
         active=True,
         module__active=True,
     )
-    request.current_tab_title = screen.title
+    screen_path = " > ".join(
+        part for part in (screen.module.title, screen.parent_label, screen.title) if part
+    )
+    request.current_tab_title = screen_path or screen.title
+    request.current_tab_root_title = screen.title
     request.current_module_title = screen.module.title
     request.current_can_query = screen.allow_query
     request.current_can_remove = screen.allow_delete
@@ -396,6 +556,8 @@ def global_auxiliary_values(request, tabela, custom_title=None, custom_module=No
         "tipo_prestador": "Tipos de Prestador",
         "tipo_vinculo": "Tipos de Vínculo",
         "motivo_alteracao": "Motivos de alteração",
+        "cids": "CIDs",
+        "motivos_alta": "Motivos de alta",
     }
     label = custom_title or labels.get(tabela, tabela.replace("_", " ").title())
     request.current_tab_title = (

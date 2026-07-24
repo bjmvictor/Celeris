@@ -74,7 +74,7 @@
     <details class="card form-section">
       <summary>5. Endereço</summary>
       <div class="form-grid">
-        <label class="field-sm">CEP <a class="field-overlay-link" data-screen-overlay-link href="{% url 'core:global_ceps' %}">Gerenciar</a> {{ form.cd_cep }}</label>
+        <label class="field-sm">CEP {{ form.cd_cep }}</label>
         <label class="field-xs">Estado {{ form.sg_estado }}</label>
         <label class="field-lg">Cidade {{ form.ds_cidade }}</label>
         <label class="field-md">Tipo de Logradouro {{ form.tp_logradouro }}</label>

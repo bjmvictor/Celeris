@@ -136,6 +136,50 @@ class ConfiguracaoCampoFormulario(TimeStampedModel):
         return f"{self.cd_formulario}.{self.cd_campo}"
 
 
+class TravaEdicao(TimeStampedModel):
+    cd_trava_edicao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(
+        "accounts.Empresa",
+        related_name="travas_edicao",
+        on_delete=models.CASCADE,
+        db_column="cd_empresa",
+    )
+    cd_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="travas_edicao",
+        on_delete=models.CASCADE,
+        db_column="cd_usuario",
+    )
+    ds_recurso_tipo = models.CharField(max_length=80)
+    ds_recurso_id = models.CharField(max_length=120)
+    ds_recurso_titulo = models.CharField(max_length=180, blank=True)
+    ds_identificador_guia = models.CharField(max_length=120, blank=True)
+    dh_expiracao = models.DateTimeField()
+    nr_tentativas_bloqueadas = models.PositiveIntegerField(default=0)
+    ds_ultimo_usuario_bloqueado = models.CharField(max_length=150, blank=True)
+    dh_ultimo_bloqueio = models.DateTimeField(null=True, blank=True)
+    ds_liberacao = models.CharField(max_length=220, blank=True)
+    sn_ativa = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "trava_edicao"
+        ordering = ("-updated_at",)
+        indexes = [
+            models.Index(fields=("cd_empresa", "ds_recurso_tipo", "ds_recurso_id", "sn_ativa")),
+            models.Index(fields=("dh_expiracao", "sn_ativa")),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "ds_recurso_tipo", "ds_recurso_id"),
+                condition=models.Q(sn_ativa=True),
+                name="uq_trava_edicao_recurso_ativo",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ds_recurso_tipo}:{self.ds_recurso_id}"
+
+
 class ScreenDefinition(TimeStampedModel):
     TYPE_FORM = "formulario"
     TYPE_REPORT = "relatorio"

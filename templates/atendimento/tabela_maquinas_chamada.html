@@ -1,0 +1,72 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="maquina_chamada" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead>
+        <tr>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_maquina_chamada' %}-{% endif %}cd_maquina_chamada">Código</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_maquina' %}-{% endif %}nm_maquina">Máquina</a></th>
+          <th>Setor</th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_sala' %}-{% endif %}nm_sala">Nome da sala</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'tp_sala' %}-{% endif %}tp_sala">Tipo de sala</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_sala' %}-{% endif %}nr_sala">Número</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in registros %}
+          <tr data-editable-row>
+            <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
+            <td><input name="machine_{{ item.pk }}" value="{{ item.nm_maquina }}" required></td>
+            <td>
+              <select name="sector_{{ item.pk }}">
+                <option value=""></option>
+                {% for setor in setores %}
+                  <option value="{{ setor.pk }}" {% if item.cd_setor_id == setor.pk %}selected{% endif %}>{{ setor.nm_setor }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input name="room_name_{{ item.pk }}" value="{{ item.nm_sala }}"></td>
+            <td>
+              <select name="room_type_{{ item.pk }}">
+                {% for valor, rotulo in tipos_sala %}
+                  <option value="{{ valor }}" {% if item.tp_sala == valor %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input name="room_number_{{ item.pk }}" value="{{ item.nr_sala }}"></td>
+            <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="empty-cell">Nenhum dado encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_machine" required></td>
+        <td>
+          <select name="new_sector">
+            <option value=""></option>
+            {% for setor in setores %}
+              <option value="{{ setor.pk }}">{{ setor.nm_setor }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><input name="new_room_name"></td>
+        <td>
+          <select name="new_room_type">
+            {% for valor, rotulo in tipos_sala %}
+              <option value="{{ valor }}">{{ rotulo }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><input name="new_room_number"></td>
+        <td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>
+      </tr>
+    </template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

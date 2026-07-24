@@ -1,6 +1,9 @@
 (() => {
   const form = document.querySelector("[data-document-editor-form]");
-  if (!form || typeof grapesjs === "undefined") return;
+  if (!form) return;
+  if (form.dataset.editorPostback !== "true" && form.dataset.editorDraftUrl) {
+    form.classList.add("is-restoring-editor-draft");
+  }
 
   const readJson = (id, fallback) => {
     const element = document.getElementById(id);
@@ -103,7 +106,7 @@
   };
   const isLayoutOnlyDocument = () => form.dataset.layoutOnly === "true";
 
-  const editors = { impressao: createEditor("impressao") };
+  const editors = {};
   const builder = document.querySelector("[data-document-form-builder]");
   const fieldList = builder?.querySelector("[data-form-field-list]");
   const fieldEmpty = builder?.querySelector("[data-form-field-empty]");
@@ -132,11 +135,13 @@
   const undoStack = [];
   const redoStack = [];
   let historyCurrent = "";
+  let pendingHistorySnapshot = "";
   let restoringHistory = false;
   let historyIndicatorTimer = 0;
   let draftSyncTimer = 0;
   let draftSyncPending = false;
   let draftRestored = false;
+  let draftSyncRunning = false;
   let internalEditorNavigation = false;
   const draftUrl = form.dataset.editorDraftUrl || "";
   const draftGuideKey = form.dataset.editorGuideKey || "editor-documentos";
@@ -228,6 +233,31 @@
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[character]));
+  const auxiliaryTables = readJson("document-auxiliary-tables", []);
+  const auxiliaryTableMap = new Map(
+    (Array.isArray(auxiliaryTables) ?auxiliaryTables : []).map((table) => [table.ds_tabela, table])
+  );
+  const auxiliaryFieldValue = (record, fieldName) => {
+    const aliases = {
+      id: "cd_valor_auxiliar_global",
+      pk: "cd_valor_auxiliar_global",
+      codigo: "cd_valor",
+      descricao: "ds_valor",
+      grupo: "ds_grupo",
+    };
+    return record?.[aliases[fieldName] || fieldName] ?? "";
+  };
+  const buildAuxiliaryOptions = (field) => {
+    const table = auxiliaryTableMap.get(field.sourceTable || "");
+    const values = Array.isArray(table?.valores) ?table.valores : [];
+    const valueField = field.sourceValueField || "cd_valor";
+    const displayField = field.sourceDisplayField || "ds_valor";
+    return values.map((record) => {
+      const value = auxiliaryFieldValue(record, valueField);
+      const label = auxiliaryFieldValue(record, displayField);
+      return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+    }).join("");
+  };
   const insertTextAtCursor = (field, text) => {
     if (!field || !text) return;
     const start = field.selectionStart ?? field.value.length;
@@ -445,8 +475,8 @@
   const printRowsInput = printBuilder?.querySelector("[data-print-grid-rows]");
   const printFontSizeInput = printBuilder?.querySelector("[data-print-grid-font-size]");
   const printFontFamilyInput = printBuilder?.querySelector("[data-print-grid-font-family]");
-  const printDefaultMarginInput = printBuilder.querySelector("[data-print-grid-default-margin]");
-  const printFitOnePageInput = printBuilder.querySelector("[data-print-fit-one-page]");
+  const printDefaultMarginInput = printBuilder?.querySelector("[data-print-grid-default-margin]");
+  const printFitOnePageInput = printBuilder?.querySelector("[data-print-fit-one-page]");
   const printSettingsModal = document.querySelector("[data-print-settings-modal]");
   let activePrintElement = null;
   const DEFAULT_PRINT_ELEMENT_MARGIN = "5px 0 0";
@@ -674,6 +704,24 @@
     customVariableName: customVariableNameInput?.value || "",
     customVariableExpression: customVariableExpressionInput?.value || "",
   });
+  const syncEditorPayloadFields = () => {
+    if (!form.elements.ds_html_tela || !form.elements.ds_projeto_tela) return;
+    if (isLayoutOnlyDocument() && signatureToggle) signatureToggle.checked = false;
+    const customVariableName = form.querySelector("[data-custom-variable-name]")?.value || "";
+    const customVariableExpression = form.querySelector("[data-custom-variable-expression]")?.value || "";
+    form.elements.ds_html_tela.value = isLayoutOnlyDocument() ?"" : buildScreenHtml();
+    form.elements.ds_css_tela.value = isLayoutOnlyDocument() ?"" : screenCss;
+    form.elements.ds_projeto_tela.value = JSON.stringify({
+      grid: gridConfig,
+      formFields: isLayoutOnlyDocument() ?[] : formFields,
+      ...(form.dataset.documentElement === "VARIAVEL"
+        ?{ customVariable: { name: normalizeName(customVariableName), expression: customVariableExpression } }
+        : {}),
+    });
+    form.elements.ds_html_impressao.value = buildPrintLayoutHtml();
+    form.elements.ds_css_impressao.value = "";
+    form.elements.ds_projeto_impressao.value = JSON.stringify({ printLayout });
+  };
   const updateHistoryButtons = () => {
     if (undoButton) undoButton.disabled = undoStack.length === 0;
     if (redoButton) redoButton.disabled = redoStack.length === 0;
@@ -696,13 +744,22 @@
       return;
     }
     if (nextState === historyCurrent) return;
-    const previousState = JSON.parse(historyCurrent);
+    const previousSnapshot = pendingHistorySnapshot && pendingHistorySnapshot !== nextState
+      ? pendingHistorySnapshot
+      : historyCurrent;
+    const previousState = JSON.parse(previousSnapshot);
     previousState.activeTab = activeEditorTab();
     undoStack.push(JSON.stringify(previousState));
     if (undoStack.length > 80) undoStack.shift();
     historyCurrent = nextState;
+    pendingHistorySnapshot = "";
     redoStack.length = 0;
     updateHistoryButtons();
+  };
+  const rememberHistorySnapshot = () => {
+    if (restoringHistory || pendingHistorySnapshot) return;
+    pendingHistorySnapshot = captureEditorState();
+    if (undoButton) undoButton.disabled = false;
   };
   const setEditorDirty = () => {
     form.dataset.dirty = "true";
@@ -725,13 +782,24 @@
     return url.toString();
   };
   const csrfToken = () => form.querySelector("[name='csrfmiddlewaretoken']")?.value || "";
+  const cloneDraftValue = (value) => JSON.parse(JSON.stringify(value));
+  const draftFieldExclusions = new Set([
+    "csrfmiddlewaretoken",
+    "return_to",
+    "ds_html_tela",
+    "ds_css_tela",
+    "ds_projeto_tela",
+    "ds_html_impressao",
+    "ds_css_impressao",
+    "ds_projeto_impressao",
+  ]);
   const captureDraftState = () => ({
     editorState: JSON.parse(captureEditorState()),
-    undoStack: [...undoStack],
-    redoStack: [...redoStack],
-    historyCurrent,
+    undoStack: [],
+    redoStack: [],
+    historyCurrent: "",
     fields: [...form.elements]
-      .filter((field) => field.name && !["csrfmiddlewaretoken", "return_to"].includes(field.name))
+      .filter((field) => field.name && !draftFieldExclusions.has(field.name))
       .map((field) => ({
         name: field.name,
         type: field.type,
@@ -741,40 +809,82 @@
           : field.value,
       })),
   });
-  const syncEditorDraft = ({ keepalive = false } = {}) => {
+  const compressDraftBody = async (body) => {
+    if (!("CompressionStream" in window)) return null;
+    const stream = new Blob([body], { type: "application/json" }).stream().pipeThrough(new CompressionStream("gzip"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  };
+  const buildDraftRequestBody = async () => {
+    const draftState = captureDraftState();
+    let rawBody = JSON.stringify({ state: draftState });
+    const rawHeaders = { "Content-Type": "application/json", "X-CSRFToken": csrfToken() };
+    if (rawBody.length > 1_500_000) {
+      draftState.fields = draftState.fields.filter((field) => String(field.value || "").length <= 200_000);
+      rawBody = JSON.stringify({ state: draftState });
+    }
+    if (rawBody.length <= 700_000) {
+      return { body: rawBody, headers: rawHeaders, size: rawBody.length, compressed: false };
+    }
+    const compressed = await compressDraftBody(rawBody).catch(() => null);
+    if (compressed && compressed.byteLength < rawBody.length) {
+      return {
+        body: compressed,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-CSRFToken": csrfToken(),
+          "X-Celeris-Draft-Encoding": "gzip",
+        },
+        size: compressed.byteLength,
+        compressed: true,
+      };
+    }
+    return { body: rawBody, headers: rawHeaders, size: rawBody.length, compressed: false };
+  };
+  const syncEditorDraft = async ({ keepalive = false } = {}) => {
     const endpoint = draftEndpoint();
-    if (!endpoint || restoringHistory) return Promise.resolve(false);
+    if (!endpoint || restoringHistory || draftSyncRunning) return Promise.resolve(false);
     window.clearTimeout(draftSyncTimer);
+    draftSyncRunning = true;
     draftSyncPending = true;
-    const body = JSON.stringify({ state: captureDraftState() });
-    if (body.length > 2_900_000) {
-      draftSyncPending = false;
-      showHistoryIndicator("Rascunho local muito grande; salve a versão definitiva");
+    syncEditorPayloadFields();
+    let draftRequest;
+    try {
+      draftRequest = await buildDraftRequestBody();
+    } catch {
+      draftSyncRunning = false;
+      draftSyncPending = true;
       return Promise.resolve(false);
     }
+    const maxDraftUploadSize = draftRequest.compressed ?15_000_000 : 2_400_000;
+    if (draftRequest.size > maxDraftUploadSize) {
+      draftSyncRunning = false;
+      draftSyncPending = false;
+      showHistoryIndicator("Rascunho muito grande para autosave; salve a vers?o definitiva");
+      return Promise.resolve(false);
+    }
+    const canKeepalive = keepalive && draftRequest.size <= 60_000;
     return fetch(endpoint, {
       method: "POST",
       credentials: "same-origin",
-      keepalive,
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrfToken(),
-      },
-      body,
+      keepalive: canKeepalive,
+      headers: draftRequest.headers,
+      body: draftRequest.body,
     }).then((response) => {
       if (!response.ok) throw new Error("Falha ao salvar rascunho");
+      draftSyncRunning = false;
       draftSyncPending = false;
       return true;
     }).catch(() => {
+      draftSyncRunning = false;
       draftSyncPending = true;
       return false;
     });
   };
-  const scheduleDraftSync = () => {
+  const scheduleDraftSync = (delay = 80) => {
     if (!draftUrl || restoringHistory) return;
     draftSyncPending = true;
     window.clearTimeout(draftSyncTimer);
-    draftSyncTimer = window.setTimeout(() => syncEditorDraft(), 650);
+    draftSyncTimer = window.setTimeout(() => syncEditorDraft(), delay);
   };
   const deleteEditorDraft = () => {
     const endpoint = draftEndpoint();
@@ -809,29 +919,36 @@
   };
   const restoreEditorDraft = async () => {
     const endpoint = draftEndpoint();
-    if (!endpoint) return;
+    if (!endpoint) return false;
     try {
       const response = await fetch(endpoint, { credentials: "same-origin" });
       const payload = response.ok ?await response.json() : null;
       const draft = payload?.state;
-      if (!draft?.editorState) return;
+      if (!draft?.editorState) return false;
       restoringHistory = true;
       const state = draft.editorState;
       gridConfig.columns = state.gridConfig?.columns || gridConfig.columns;
       gridConfig.rows = state.gridConfig?.rows || gridConfig.rows;
       gridConfig.fontSize = state.gridConfig?.fontSize || gridConfig.fontSize;
       gridConfig.fontFamily = state.gridConfig?.fontFamily || gridConfig.fontFamily;
-      formFields = Array.isArray(state.formFields) ?state.formFields : formFields;
-      printLayout = state.printLayout || printLayout;
+      formFields = Array.isArray(state.formFields) ?cloneDraftValue(state.formFields) : formFields;
+      printLayout = state.printLayout ?cloneDraftValue(state.printLayout) : printLayout;
       if (customVariableNameInput) customVariableNameInput.value = state.customVariableName || "";
       if (customVariableExpressionInput) customVariableExpressionInput.value = state.customVariableExpression || "";
       restoreFormFieldsFromDraft(draft.fields);
       undoStack.splice(0, undoStack.length, ...(draft.undoStack || []));
       redoStack.splice(0, redoStack.length, ...(draft.redoStack || []));
       activateEditorTab(state.activeTab || "tela");
-      updateGridInputs();
-      renderFieldBuilder();
-      renderPrintBuilder();
+      const renderRestoredDraft = () => {
+        updateGridInputs();
+        renderFieldBuilder();
+        renderPrintBuilder();
+        syncEditorPayloadFields();
+      };
+      renderRestoredDraft();
+      window.requestAnimationFrame(renderRestoredDraft);
+      window.setTimeout(renderRestoredDraft, 80);
+      window.setTimeout(renderRestoredDraft, 250);
       historyCurrent = draft.historyCurrent || captureEditorState();
       form.dataset.dirty = "true";
       restoringHistory = false;
@@ -839,8 +956,10 @@
       draftRestored = true;
       updateHistoryButtons();
       showHistoryIndicator("Rascunho restaurado");
+      return true;
     } catch {
       restoringHistory = false;
+      return false;
     }
   };
   const firstFreePosition = () => {
@@ -911,6 +1030,7 @@
       paciente: "Paciente",
       atendimento: "Atendimento",
       agendamento: "Agendamento",
+      chamado: "Chamado",
       documento: "Documento",
       prestador: "Prestador",
       empresa: "Empresa",
@@ -1420,6 +1540,7 @@
     if (!elementId || !moveElementArea(scope, elementId, row - rowOffset, col - colOffset)) return false;
     markEditorDirty();
     renderGridScope(scope);
+    syncEditorDraft();
     return true;
   };
   const gridPositionFromPointer = (container, event, fallbackRow, fallbackCol) => {
@@ -1434,6 +1555,129 @@
       row: Number(cell?.dataset.gridRow || fallbackRow),
       col: Number(cell?.dataset.gridCol || fallbackCol),
     };
+  };
+  const clearDragPlacementPreview = (scope = null) => {
+    const selector = scope
+      ?`${scope === "print" ?"[data-print-element-list]" : "[data-form-field-list]"} .document-drag-placement-preview`
+      : ".document-drag-placement-preview";
+    document.querySelectorAll(selector).forEach((item) => item.remove());
+  };
+  const canPreviewElementMove = (scope, element, row, col) => {
+    const { grid, elements } = gridState(scope);
+    if (
+      row < 1
+      || col < 1
+      || row + element.rowSpan - 1 > grid.rows
+      || col + element.colSpan - 1 > grid.columns
+    ) return false;
+    const candidate = { ...element, row, col };
+    return !elements.some((other) => other.id !== element.id && fieldsOverlap(candidate, other));
+  };
+  const updateDragPlacementPreview = (event, scope, fallbackRow, fallbackCol) => {
+    const { elements } = gridState(scope);
+    const container = scope === "print" ?printElementList : fieldList;
+    const mime = scope === "print" ?"text/print-element" : "text/document-field";
+    const elementId = event.dataTransfer?.getData(mime);
+    if (!container || !elementId) {
+      clearDragPlacementPreview(scope);
+      return;
+    }
+    const element = elements.find((item) => item.id === elementId);
+    if (!element) return;
+    const position = gridPositionFromPointer(container, event, fallbackRow, fallbackCol);
+    const rowOffset = Math.max(0, Number(event.dataTransfer.getData("text/document-drag-row-offset") || 0));
+    const colOffset = Math.max(0, Number(event.dataTransfer.getData("text/document-drag-col-offset") || 0));
+    const row = position.row - rowOffset;
+    const col = position.col - colOffset;
+    const valid = canPreviewElementMove(scope, element, row, col);
+    clearDragPlacementPreview(scope);
+    const preview = document.createElement("div");
+    preview.className = `document-drag-placement-preview${valid ?" is-valid" : " is-invalid"}`;
+    preview.style.gridColumn = `${Math.max(1, col)} / span ${element.colSpan}`;
+    preview.style.gridRow = `${Math.max(1, row)} / span ${element.rowSpan}`;
+    container.appendChild(preview);
+  };
+  const resizeCandidateFromPointer = (scope, element, direction, event) => {
+    const { grid } = gridState(scope);
+    const container = scope === "print" ?printElementList : fieldList;
+    const position = gridPositionFromPointer(container, event, element.row, element.col);
+    const candidate = { ...element };
+    const currentRight = element.col + element.colSpan - 1;
+    const currentBottom = element.row + element.rowSpan - 1;
+    if (direction === "right") {
+      const nextRight = Math.max(element.col, Math.min(grid.columns, position.col));
+      candidate.colSpan = nextRight - element.col + 1;
+    } else if (direction === "left") {
+      const nextLeft = Math.max(1, Math.min(currentRight, position.col));
+      candidate.col = nextLeft;
+      candidate.colSpan = currentRight - nextLeft + 1;
+    } else if (direction === "bottom") {
+      const nextBottom = Math.max(element.row, Math.min(grid.rows, position.row));
+      candidate.rowSpan = nextBottom - element.row + 1;
+    } else if (direction === "top") {
+      const nextTop = Math.max(1, Math.min(currentBottom, position.row));
+      candidate.row = nextTop;
+      candidate.rowSpan = currentBottom - nextTop + 1;
+    }
+    return candidate;
+  };
+  const startElementEdgeResize = (event, scope, element, direction) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const { elements } = gridState(scope);
+    const source = elements.find((item) => item.id === element.id);
+    if (!source) return;
+    const original = { ...source };
+    const card = event.currentTarget.closest?.(".document-form-field-card");
+    let lastCandidate = { ...source };
+    const applyLiveResize = (candidate) => {
+      if (!card) return;
+      card.style.gridColumn = `${candidate.col} / span ${candidate.colSpan}`;
+      card.style.gridRow = `${candidate.row} / span ${candidate.rowSpan}`;
+    };
+    document.body.classList.add("document-edge-resizing");
+    card?.classList.add("is-edge-resizing");
+    const onPointerMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      const candidate = resizeCandidateFromPointer(scope, original, direction, moveEvent);
+      const changed = (
+        candidate.row !== original.row
+        || candidate.col !== original.col
+        || candidate.rowSpan !== original.rowSpan
+        || candidate.colSpan !== original.colSpan
+      );
+      if (!changed) {
+        lastCandidate = { ...original };
+        applyLiveResize(lastCandidate);
+        return;
+      }
+      const overlaps = elements.some((other) => other.id !== source.id && fieldsOverlap(candidate, other));
+      if (!overlaps) {
+        lastCandidate = candidate;
+        applyLiveResize(candidate);
+      }
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      document.body.classList.remove("document-edge-resizing");
+      card?.classList.remove("is-edge-resizing");
+      const changed = (
+        lastCandidate.row !== source.row
+        || lastCandidate.col !== source.col
+        || lastCandidate.rowSpan !== source.rowSpan
+        || lastCandidate.colSpan !== source.colSpan
+      );
+      if (!changed) return;
+      Object.assign(source, lastCandidate);
+      markEditorDirty();
+      renderGridScope(scope);
+      syncEditorDraft();
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
   };
   const expandedFieldCandidate = (field, direction) => {
     const candidate = { ...field };
@@ -1785,8 +2029,9 @@
 
   const renderFieldBuilder = () => {
     document.querySelectorAll('[data-cell-menu-portal="form"]').forEach((menu) => menu.remove());
+    if (!fieldList) return;
     fieldList.innerHTML = "";
-    fieldList.style.gridTemplateColumns = `repeat(${gridConfig.columns}, minmax(110px, 1fr))`;
+    fieldList.style.gridTemplateColumns = `repeat(${gridConfig.columns}, minmax(0, 1fr))`;
     fieldList.style.gridTemplateRows = `repeat(${gridConfig.rows}, minmax(92px, auto))`;
     for (let row = 1; row <= gridConfig.rows; row += 1) {
       for (let col = 1; col <= gridConfig.columns; col += 1) {
@@ -1881,12 +2126,14 @@
         cell.addEventListener("dragover", (event) => {
           event.preventDefault();
           cell.classList.add("drag-over");
+          updateDragPlacementPreview(event, "form", row, col);
         });
         cell.addEventListener("dragleave", () => cell.classList.remove("drag-over"));
         cell.addEventListener("contextmenu", (event) => openGridContextMenu(event, row, col));
         cell.addEventListener("drop", (event) => {
           event.preventDefault();
           cell.classList.remove("drag-over");
+          clearDragPlacementPreview("form");
           handleGridDrop(event, "form", row, col);
         });
         cell.addEventListener("click", (event) => {
@@ -1917,13 +2164,11 @@
       card.style.gridRow = `${field.row} / span ${Math.min(field.rowSpan, gridConfig.rows - field.row + 1)}`;
       card.dataset.fieldIndex = String(index);
       card.innerHTML = `
-        <div class="document-field-expand-actions">
-          ${canExpandField(field, "top") ?'<button class="field-expand-top" type="button" data-field-expand="top" title="Expandir campo para cima">⌃</button>' : ""}
-          ${canExpandField(field, "bottom") ?'<button class="field-expand-bottom" type="button" data-field-expand="bottom" title="Expandir campo para baixo">⌄</button>' : ""}
-          ${canExpandField(field, "left") ?'<button class="field-expand-left" type="button" data-field-expand="left" title="Expandir campo para a esquerda">‹</button>' : ""}
-          ${canExpandField(field, "right") ?'<button class="field-expand-right" type="button" data-field-expand="right" title="Expandir campo para a direita">›</button>' : ""}
-          ${field.rowSpan > 1 ?'<button class="field-shrink-top" type="button" data-field-shrink="top" title="Diminuir pela parte superior">⌄</button><button class="field-shrink-bottom" type="button" data-field-shrink="bottom" title="Diminuir pela parte inferior">⌃</button>' : ""}
-          ${field.colSpan > 1 ?'<button class="field-shrink-left" type="button" data-field-shrink="left" title="Diminuir pela esquerda">›</button><button class="field-shrink-right" type="button" data-field-shrink="right" title="Diminuir pela direita">‹</button>' : ""}
+        <div class="document-edge-resize-actions" aria-hidden="true">
+          <span class="document-edge-resize document-edge-resize-top" data-edge-resize="top"></span>
+          <span class="document-edge-resize document-edge-resize-right" data-edge-resize="right"></span>
+          <span class="document-edge-resize document-edge-resize-bottom" data-edge-resize="bottom"></span>
+          <span class="document-edge-resize document-edge-resize-left" data-edge-resize="left"></span>
         </div>
         <div class="document-field-card-heading">
           <span class="document-field-kind-icon" aria-hidden="true">${field.type === "image" ?"□" : (field.type === "line" ?"_" : (field.type === "static-variable" ?"V" : "T"))}</span>
@@ -1937,6 +2182,10 @@
         </div>
       `;
       card.addEventListener("dragstart", (event) => {
+        if (event.target.closest?.("[data-edge-resize]")) {
+          event.preventDefault();
+          return;
+        }
         event.dataTransfer.setData("text/document-field", field.id);
         const rect = card.getBoundingClientRect();
         event.dataTransfer.setData("text/document-drag-col-offset", String(Math.min(
@@ -1950,25 +2199,28 @@
         event.dataTransfer.effectAllowed = "move";
         card.classList.add("dragging");
       });
-      card.addEventListener("dragend", () => card.classList.remove("dragging"));
+      card.addEventListener("dragend", () => {
+        card.classList.remove("dragging");
+        clearDragPlacementPreview("form");
+      });
       card.addEventListener("dragover", (event) => {
         event.preventDefault();
         card.classList.add("drag-over");
+        const position = gridPositionFromPointer(fieldList, event, field.row, field.col);
+        updateDragPlacementPreview(event, "form", position.row, position.col);
       });
       card.addEventListener("dragleave", () => card.classList.remove("drag-over"));
       card.addEventListener("drop", (event) => {
         event.preventDefault();
         event.stopPropagation();
         card.classList.remove("drag-over");
+        clearDragPlacementPreview("form");
         const position = gridPositionFromPointer(fieldList, event, field.row, field.col);
         handleGridDrop(event, "form", position.row, position.col);
       });
       card.addEventListener("contextmenu", (event) => openGridContextMenu(event, field.row, field.col, "form", field.id));
-      card.querySelectorAll("[data-field-expand]").forEach((button) => {
-        button.addEventListener("click", () => expandField(field, button.dataset.fieldExpand));
-      });
-      card.querySelectorAll("[data-field-shrink]").forEach((button) => {
-        button.addEventListener("click", () => shrinkField(field, button.dataset.fieldShrink));
+      card.querySelectorAll("[data-edge-resize]").forEach((handle) => {
+        handle.addEventListener("pointerdown", (event) => startElementEdgeResize(event, "form", field, handle.dataset.edgeResize));
       });
       card.querySelector("[data-field-settings]").addEventListener("click", () => openFieldSettings(field));
       card.querySelector("[data-field-remove]").addEventListener("click", () => {
@@ -2026,7 +2278,7 @@
       }
       if (field.type === "auxiliary") {
         const source = `data-option-source="auxiliary" data-source-table="${escapeHtml(field.sourceTable)}" data-source-value-field="${escapeHtml(field.sourceValueField || "cd_valor")}" data-source-display-field="${escapeHtml(field.sourceDisplayField || "ds_valor")}"`;
-        return `<label ${position}>${escapeHtml(field.label)}<select data-document-field="true" name="campo_${name}" ${source}${required}${readonly}><option value=""></option></select></label>`;
+        return `<label ${position}>${escapeHtml(field.label)}<select data-document-field="true" name="campo_${name}" ${source}${required}${readonly}><option value=""></option>${buildAuxiliaryOptions(field)}</select></label>`;
       }
       if (field.type === "exclusive-checkboxes") {
         const choices = splitStructuredOptions(field.options)
@@ -2039,9 +2291,10 @@
             const detailName = parsed.name && option.includes("[") ?parsed.name : "";
             const detailPlaceholder = parsed.placeholder || "";
             const detail = detailName
-              ?`<input class="generated-exclusive-detail" data-document-field="true" data-exclusive-detail="${escapeHtml(label)}" name="campo_${escapeHtml(detailName)}" type="text" disabled tabindex="-1" placeholder="${escapeHtml(detailPlaceholder)}">`
+              ?`<input class="generated-exclusive-detail" data-auto-size-input="true" data-document-field="true" data-exclusive-detail="${escapeHtml(label)}" name="campo_${escapeHtml(detailName)}" type="text" disabled tabindex="-1" placeholder="${escapeHtml(detailPlaceholder)}">`
               : "";
-            return `<label class="generated-exclusive-option"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="${escapeHtml(label)}"${readonly}><span>${escapeHtml(label)}</span>${detail}</label>`;
+            const optionClass = detailName ? "generated-exclusive-option generated-exclusive-option-with-detail" : "generated-exclusive-option";
+            return `<label class="${optionClass}"><input data-document-field="true" data-exclusive-choice="campo_${escapeHtml(name)}" name="campo_${escapeHtml(name)}" type="checkbox" value="${escapeHtml(label)}"${readonly}><span>${escapeHtml(label)}</span>${detail}</label>`;
           }).join("");
         return `<fieldset class="generated-exclusive-checkboxes" style="${fieldStyle}" data-exclusive-group="campo_${escapeHtml(name)}" data-exclusive-required="${field.required ?"true" : "false"}" data-exclusive-readonly="${field.readonly ?"true" : "false"}"><legend>${field.label ?escapeHtml(field.label) : "&nbsp;"}</legend><div>${choices}</div></fieldset>`;
       }
@@ -2124,7 +2377,7 @@
         : `;align-self:${verticalAlignment}`;
       const positionStyle = `${position}${boxSpacing}${typography}${compactVerticalStyle}`;
       if (element.type === "image") {
-        return `<div style="${positionStyle};position:relative;width:${element.imageWidth}px;max-width:100%;height:${element.imageHeight}px;overflow:visible"><img src="${escapeHtml(element.imageUrl)}" alt="${escapeHtml(element.label)}" style="display:block;width:${element.imageWidth}px;height:${element.imageHeight}px;max-width:100%;object-fit:contain"></div>`;
+        return `<div class="pdf-layout-image-box" style="${positionStyle};position:relative;width:${element.imageWidth}px;max-width:100%;height:${element.imageHeight}px;overflow:visible;line-height:0"><img src="${escapeHtml(element.imageUrl)}" alt="${escapeHtml(element.label)}" style="display:block;width:${element.imageWidth}px;height:${element.imageHeight}px;max-width:100%;object-fit:contain"></div>`;
       }
       if (element.type === "line") {
         const lineWidth = Math.max(element.lineStyle === "double" ?3 : 1, Number(element.lineWidth || 1));
@@ -2180,9 +2433,7 @@
         : "";
       return `<div style="${positionStyle};width:100%;max-width:100%;min-width:0;min-height:${minimumHeight}px${fieldBorder};overflow-wrap:anywhere;word-break:break-word;white-space:normal">${label}${content}</div>`;
     };
-    const useIndependentColumns = !printLayout.elements.some((element) => (
-      ["line", "vline"].includes(element.type)
-    ));
+    const useIndependentColumns = false;
     let fields = "";
     let layoutStyle = "";
     if (useIndependentColumns) {
@@ -2203,8 +2454,10 @@
             junction,
           })),
       );
-      const renderColumnBand = (elements) => {
+      const printRowTrack = "minmax(16px,auto)";
+      const renderColumnBand = (elements, startRow = 1, endRow = printLayout.grid.rows + 1) => {
         if (!elements.length) return "";
+        const rowCount = Math.max(1, endRow - startRow);
         const ordered = [...elements].sort((first, second) => (
           first.col - second.col || first.row - second.row || first.id.localeCompare(second.id)
         ));
@@ -2229,16 +2482,14 @@
           });
         });
         const columns = groups.sort((first, second) => first.start - second.start).map((group) => {
-          const minimumRow = Math.min(...group.elements.map((element) => element.row));
-          const maximumRow = Math.max(...group.elements.map((element) => element.row + element.rowSpan - 1));
           const span = group.end - group.start + 1;
           const content = group.elements.map((element) => {
             const relativeColumn = element.col - group.start + 1;
-            const relativeRow = element.row - minimumRow + 1;
+            const relativeRow = element.row - startRow + 1;
             const position = `grid-column:${relativeColumn} / span ${element.colSpan};grid-row:${relativeRow} / span ${element.rowSpan}`;
             return renderPrintElement(element, position);
           }).join("");
-          return `<div style="grid-column:${group.start} / span ${span};grid-row:1;display:grid;grid-template-columns:repeat(${span},minmax(0,1fr));grid-template-rows:repeat(${maximumRow - minimumRow + 1},minmax(0,auto));column-gap:6px;row-gap:0;min-width:0">${content}</div>`;
+          return `<div style="grid-column:${group.start} / span ${span};grid-row:1;display:grid;grid-template-columns:repeat(${span},minmax(0,1fr));grid-template-rows:repeat(${rowCount},${printRowTrack});column-gap:6px;row-gap:0;min-width:0">${content}</div>`;
         }).join("");
         return `<div style="display:grid;grid-template-columns:${printGridColumns()};align-items:stretch;column-gap:4px;min-width:0">${columns}</div>`;
       };
@@ -2247,7 +2498,7 @@
       structural.forEach((separator) => {
         sections.push(renderColumnBand(regular.filter((element) => (
           element.row >= firstRow && element.row < separator.row
-        ))));
+        )), firstRow, separator.row));
         sections.push(
           `<div style="display:grid;grid-template-columns:${printGridColumns()};grid-template-rows:minmax(0,auto);column-gap:4px;min-width:0">`
           + `<div style="grid-column:${separator.col} / span ${separator.colSpan};min-width:0">`
@@ -2260,7 +2511,7 @@
         );
         firstRow = separator.row + separator.rowSpan;
       });
-      sections.push(renderColumnBand(regular.filter((element) => element.row >= firstRow)));
+      sections.push(renderColumnBand(regular.filter((element) => element.row >= firstRow), firstRow, printLayout.grid.rows + 1));
       fields = sections.join("");
       layoutStyle = "display:block";
     } else {
@@ -2286,7 +2537,7 @@
         const junctionContent = pageJunctions.map((junction) => (
           lineJunctionHtml({ ...junction, row: junction.row - startRow + 1 }, true)
         )).join("");
-        return `<div style="display:grid;grid-template-columns:${printGridColumns()};grid-template-rows:repeat(${rowCount},minmax(0,auto));align-content:start;column-gap:4px;row-gap:0">${content}${junctionContent}</div>`;
+        return `<div style="display:grid;grid-template-columns:${printGridColumns()};grid-template-rows:repeat(${rowCount},minmax(16px,auto));align-content:start;column-gap:4px;row-gap:0">${content}${junctionContent}</div>`;
       };
       const sections = [];
       let startRow = 1;
@@ -2305,14 +2556,14 @@
       DIREITA: "right",
     }[form.elements.tp_alinhamento_assinatura?.value] || "center";
     const signatureBlockMargin = {
-      left: "16px auto 0 0",
-      right: "16px 0 0 auto",
-      center: "16px auto 0",
+      left: "6px auto 0 0",
+      right: "6px 0 0 auto",
+      center: "6px auto 0",
     }[signatureAlignment];
     const signatureCouncil = form.elements.sn_exibe_conselho_assinatura?.checked
       ?" - {{ prestador.conselho }} {{ prestador.numero_conselho }} {{ prestador.uf_conselho }}"
       : "";
-    const signature = `<section data-celeris-signature="true" style="display:grid;width:max-content;min-width:92mm;max-width:100%;margin:${signatureBlockMargin};break-inside:avoid;text-align:${signatureAlignment}"><div style="width:100%;height:34px;border-bottom:1px solid #111;margin:0 0 6px"></div><strong>{{ prestador.nome }}${signatureCouncil}</strong></section>`;
+    const signature = `<section data-celeris-signature="true" style="display:block;width:92mm;min-width:72mm;max-width:100%;margin:${signatureBlockMargin};break-before:avoid;page-break-before:avoid;break-inside:avoid;text-align:${signatureAlignment}"><div style="width:100%;height:18px;border-bottom:1px solid #111;margin:0 0 3px"></div><strong style="white-space:nowrap">{{ prestador.nome }}${signatureCouncil}</strong></section>`;
     const signatureHtml = form.dataset.documentElement === "DOCUMENTO" && signatureEnabled ?signature : "";
     const floatingImageHeight = printLayout.elements
       .filter((element) => element.type === "image" && element.rowSpan > 1)
@@ -2386,6 +2637,28 @@
     ["agendamento.plano", "Plano do agendamento"],
     ["agendamento.observacao", "Observação do agendamento"],
     ["agendamento.usuario", "Usuário que realizou o agendamento"],
+    ["chamado.codigo", "Código do chamado"],
+    ["chamado.titulo", "Título do chamado"],
+    ["chamado.descricao", "Descrição do chamado"],
+    ["chamado.modulo", "Módulo do chamado"],
+    ["chamado.status", "Status do chamado"],
+    ["chamado.setor", "Setor do chamado"],
+    ["chamado.prioridade", "Prioridade do chamado"],
+    ["chamado.motivo", "Motivo do chamado"],
+    ["chamado.oficina", "Oficina do chamado"],
+    ["chamado.solicitante", "Solicitante"],
+    ["chamado.usuario_solicitante", "Usuário solicitante"],
+    ["chamado.responsavel", "Responsável"],
+    ["chamado.usuario_responsavel", "Usuário responsável"],
+    ["chamado.data_hora_solicitacao", "Data/hora da solicitação"],
+    ["chamado.data_hora_recebimento", "Data/hora do recebimento"],
+    ["chamado.data_hora_realizacao", "Data/hora da realização"],
+    ["chamado.data_hora_conclusao", "Data/hora da conclusão"],
+    ["chamado.motivo_conclusao", "Motivo da conclusão"],
+    ["chamado.conclusao", "Conclusão do chamado"],
+    ["chamado.executores", "Usuários executores"],
+    ["chamado.usuario_emissao", "Usuário de emissão"],
+    ["chamado.data_hora_emissao", "Data/hora de emissão"],
     ["prestador.nome", "Prestador responsável"],
     ["prestador.conselho", "Conselho do prestador"],
     ["prestador.numero_conselho", "Número do conselho"],
@@ -2421,6 +2694,7 @@
     if (value.startsWith("paciente.")) return "paciente";
     if (value.startsWith("atendimento.")) return "atendimento";
     if (value.startsWith("agendamento.")) return "agendamento";
+    if (value.startsWith("chamado.")) return "chamado";
     if (value.startsWith("documento.")) return "documento";
     if (value.startsWith("campo.")) return "campos";
     return "outras";
@@ -2736,7 +3010,7 @@
     if (!printElementList) return;
     document.querySelectorAll('[data-cell-menu-portal="print"]').forEach((menu) => menu.remove());
     printElementList.innerHTML = "";
-    printElementList.style.gridTemplateColumns = `repeat(${printLayout.grid.columns}, minmax(110px, 1fr))`;
+    printElementList.style.gridTemplateColumns = `repeat(${printLayout.grid.columns}, minmax(0, 1fr))`;
     printElementList.style.gridTemplateRows = `repeat(${printLayout.grid.rows}, minmax(82px, auto))`;
     const junctionPositions = new Set(printLineJunctions().map((junction) => `${junction.row}:${junction.col}`));
     for (let row = 1; row <= printLayout.grid.rows; row += 1) {
@@ -2820,7 +3094,10 @@
             event.dataTransfer.effectAllowed = "move";
           });
         });
-        cell.addEventListener("dragover", (event) => event.preventDefault());
+        cell.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          updateDragPlacementPreview(event, "print", row, col);
+        });
         cell.addEventListener("contextmenu", (event) => {
           if (isJunction) {
             event.preventDefault();
@@ -2832,6 +3109,7 @@
         cell.addEventListener("drop", (event) => {
           event.preventDefault();
           if (isJunction) return;
+          clearDragPlacementPreview("print");
           handleGridDrop(event, "print", row, col);
         });
         cell.addEventListener("click", (event) => {
@@ -2867,13 +3145,11 @@
       card.style.gridColumn = `${element.col} / span ${element.colSpan}`;
       card.style.gridRow = `${element.row} / span ${element.rowSpan}`;
       card.innerHTML = `
-        <div class="document-field-expand-actions">
-          ${canExpandPrintElement(element, "top") ?'<button class="field-expand-top" type="button" data-print-resize="top" title="Expandir para cima">⌃</button>' : ""}
-          ${canExpandPrintElement(element, "bottom") ?'<button class="field-expand-bottom" type="button" data-print-resize="bottom" title="Expandir para baixo">⌄</button>' : ""}
-          ${canExpandPrintElement(element, "left") ?'<button class="field-expand-left" type="button" data-print-resize="left" title="Expandir para a esquerda">‹</button>' : ""}
-          ${canExpandPrintElement(element, "right") ?'<button class="field-expand-right" type="button" data-print-resize="right" title="Expandir para a direita">›</button>' : ""}
-          ${element.rowSpan > 1 ?'<button class="field-shrink-top" type="button" data-print-shrink="top">⌄</button><button class="field-shrink-bottom" type="button" data-print-shrink="bottom">⌃</button>' : ""}
-          ${element.colSpan > 1 ?'<button class="field-shrink-left" type="button" data-print-shrink="left">›</button><button class="field-shrink-right" type="button" data-print-shrink="right">‹</button>' : ""}
+        <div class="document-edge-resize-actions" aria-hidden="true">
+          <span class="document-edge-resize document-edge-resize-top" data-edge-resize="top"></span>
+          <span class="document-edge-resize document-edge-resize-right" data-edge-resize="right"></span>
+          <span class="document-edge-resize document-edge-resize-bottom" data-edge-resize="bottom"></span>
+          <span class="document-edge-resize document-edge-resize-left" data-edge-resize="left"></span>
         </div>
         <div class="document-field-card-heading">
           <span class="document-field-kind-icon" aria-hidden="true">${element.type === "image" ?"□" : (element.type === "line" ?"_" : (element.type === "vline" ?"|" : (element.type === "pagebreak" ?"┄" : (element.type === "variable" ?"V" : "T"))))}</span>
@@ -2885,6 +3161,10 @@
           <button type="button" data-print-remove title="Remover">×</button>
         </div>`;
       card.addEventListener("dragstart", (event) => {
+        if (event.target.closest?.("[data-edge-resize]")) {
+          event.preventDefault();
+          return;
+        }
         event.dataTransfer.setData("text/print-element", element.id);
         const rect = card.getBoundingClientRect();
         event.dataTransfer.setData("text/document-drag-col-offset", String(Math.min(
@@ -2898,26 +3178,29 @@
         event.dataTransfer.effectAllowed = "move";
         card.classList.add("dragging");
       });
-      card.addEventListener("dragend", () => card.classList.remove("dragging"));
+      card.addEventListener("dragend", () => {
+        card.classList.remove("dragging");
+        clearDragPlacementPreview("print");
+      });
       card.addEventListener("dragover", (event) => {
         event.preventDefault();
         card.classList.add("drag-over");
+        const position = gridPositionFromPointer(printElementList, event, element.row, element.col);
+        updateDragPlacementPreview(event, "print", position.row, position.col);
       });
       card.addEventListener("dragleave", () => card.classList.remove("drag-over"));
       card.addEventListener("drop", (event) => {
         event.preventDefault();
         event.stopPropagation();
         card.classList.remove("drag-over");
+        clearDragPlacementPreview("print");
         const position = gridPositionFromPointer(printElementList, event, element.row, element.col);
         handleGridDrop(event, "print", position.row, position.col);
       });
       card.addEventListener("contextmenu", (event) => openGridContextMenu(event, element.row, element.col, "print", element.id));
       card.querySelector("[data-print-settings]").addEventListener("click", () => openPrintSettings(element));
-      card.querySelectorAll("[data-print-resize]").forEach((button) => {
-        button.addEventListener("click", () => resizePrintElement(element, button.dataset.printResize));
-      });
-      card.querySelectorAll("[data-print-shrink]").forEach((button) => {
-        button.addEventListener("click", () => resizePrintElement(element, button.dataset.printShrink, true));
+      card.querySelectorAll("[data-edge-resize]").forEach((handle) => {
+        handle.addEventListener("pointerdown", (event) => startElementEdgeResize(event, "print", element, handle.dataset.edgeResize));
       });
       card.querySelector("[data-print-remove]").addEventListener("click", () => {
         printLayout.elements.splice(index, 1);
@@ -3096,9 +3379,9 @@
     renderPrintBuilder();
   });
   renderPrintBuilder();
-  const screenCss = ".generated-clinical-form{display:grid;column-gap:18px;row-gap:14px;color:var(--text,#111)}.generated-clinical-form label{display:grid;align-self:end;gap:5px;font-weight:700;min-width:0}.generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form textarea{width:100%;min-width:100%;max-width:100%;min-height:96px;max-height:144px;resize:vertical}.generated-clinical-form input:not([type=checkbox]),.generated-clinical-form select{height:38px;min-height:38px}.generated-clinical-form select:hover{border-color:var(--primary,#2563eb);background:var(--primary-soft,#eff6ff)}.generated-clinical-form select:focus{border-color:var(--primary,#2563eb);outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#2563eb),transparent 76%)}.generated-clinical-form select option,.generated-clinical-form select optgroup{background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form select option:checked{background:var(--primary,#2563eb);color:#fff}.dark .generated-clinical-form select{color-scheme:dark}.light .generated-clinical-form select{color-scheme:light}.generated-clinical-form :disabled{cursor:not-allowed;background:var(--panel-soft,#e9eef5);color:var(--muted,#475569);opacity:1}.generated-clinical-form .provider-checkbox{display:flex;align-self:end;align-items:center;box-sizing:border-box;width:100%;height:38px;min-height:38px;padding:0 8px;border:1px solid var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form .provider-checkbox input{appearance:none;display:grid;place-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;border:1px solid var(--line,#cbd5e1);border-radius:5px;background:var(--field-bg,#fff)}.generated-clinical-form .provider-checkbox input:checked{border-color:var(--primary,#2563eb);background-color:var(--primary,#2563eb);background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='m5 12 4 4L19 6'/%3E%3C/svg%3E\");background-position:center;background-repeat:no-repeat;background-size:20px}.generated-field-affix{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px}.generated-field-affix>input{flex:1 1 auto;width:auto;min-width:0;max-width:none}.generated-field-affix>span{flex:0 0 auto;white-space:nowrap}.generated-image-field img{display:block;max-width:100%;max-height:100%;object-fit:contain}.generated-screen-title{margin:0;align-self:center;font-size:20px;line-height:1.2}.generated-screen-description,.generated-screen-text,.generated-screen-variable{align-self:center;color:var(--text,#111)}.generated-screen-help{align-self:stretch;padding:8px 10px;border-left:3px solid var(--primary,#2563eb);border-radius:5px;background:var(--primary-soft,#eff6ff);color:var(--text,#111)}.generated-screen-line{align-self:center;width:100%}.provider-select-popup{position:fixed;z-index:1000;display:grid;gap:3px;max-height:240px;padding:5px;overflow:auto;border:1px solid var(--line,#cbd5e1);border-radius:8px;background:var(--panel,#fff);box-shadow:0 12px 28px rgba(15,23,42,.24)}.provider-select-popup button{width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--text,#111);text-align:left;cursor:pointer}.provider-select-popup button:hover,.provider-select-popup button[aria-selected=true]{background:var(--primary-soft,#eff6ff);color:var(--primary-dark,#1d4ed8)}";
-  const exclusiveCheckboxCss = ".generated-exclusive-checkboxes{display:flex;align-items:end;align-self:end;flex-wrap:wrap;gap:7px 9px;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0 0 4px;padding:0;border:0}.generated-exclusive-checkboxes legend{flex:0 0 auto;min-height:18px;margin:0;padding:0;font-weight:700;color:inherit}.generated-exclusive-checkboxes>div{display:flex;align-items:center;flex:1 1 240px;flex-wrap:wrap;gap:7px;min-width:0}.generated-exclusive-checkboxes .generated-exclusive-option{display:flex;align-items:center;flex:1 1 140px;gap:7px;box-sizing:border-box;max-width:100%;min-height:38px;min-width:0;padding:3px 7px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);font-weight:600}.generated-exclusive-checkboxes .generated-exclusive-option>span{flex:0 1 auto;min-width:0;overflow-wrap:anywhere}.generated-exclusive-checkboxes .generated-exclusive-literal{align-self:center;flex:0 0 auto;margin:0 4px;white-space:nowrap;font-weight:700;color:var(--text,#111)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{appearance:none;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:0;border-radius:5px}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]:checked{border-color:var(--primary,#2563eb);background:var(--primary,#2563eb)}.generated-exclusive-checkboxes .generated-exclusive-detail{flex:1 1 80px;width:auto;min-width:70px;max-width:100%;height:30px;min-height:30px}.generated-exclusive-checkboxes .generated-exclusive-detail:disabled{border-color:transparent;background:transparent;color:var(--muted,#475569)}.generated-exclusive-checkboxes input[data-exclusive-choice]:checked~.generated-exclusive-detail:not(:disabled){border-color:var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}";
-  const multipleFieldsCss = ".generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{font-size:var(--field-font-size,14px);font-family:inherit}.generated-clinical-form .provider-checkbox>span{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes legend,.generated-multiple-fields legend,.generated-boolean-field legend{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-exclusive-checkboxes .generated-exclusive-option{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{flex-basis:32px;width:32px;height:32px;min-height:32px}.generated-multiple-fields,.generated-boolean-field{box-sizing:border-box;min-width:0;margin:0;padding:0;border:0}.generated-multiple-fields>div{display:flex;align-items:end;flex-wrap:wrap;gap:8px;min-width:0}.generated-multiple-item{flex:1 1 120px;min-width:90px}.generated-multiple-item>span{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-multiple-literal{align-self:center;padding:0 2px;font-size:var(--field-font-size,14px)}.generated-boolean-field .provider-checkbox{margin-top:5px}";
+  const screenCss = ".generated-clinical-form{display:grid;column-gap:18px;row-gap:14px;color:var(--text,#111)}.generated-clinical-form label{display:grid;align-self:end;gap:5px;font-weight:700;min-width:0}.generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form textarea{width:100%;min-width:100%;max-width:100%;min-height:96px;max-height:192px;resize:vertical}.generated-clinical-form input:not([type=checkbox]),.generated-clinical-form select{height:40px;min-height:40px}.generated-clinical-form select:hover{border-color:var(--primary,#2563eb);background:var(--primary-soft,#eff6ff)}.generated-clinical-form select:focus{border-color:var(--primary,#2563eb);outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#2563eb),transparent 76%)}.generated-clinical-form select option,.generated-clinical-form select optgroup{background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form select option:checked{background:var(--primary,#2563eb);color:#fff}.dark .generated-clinical-form select{color-scheme:dark}.light .generated-clinical-form select{color-scheme:light}.generated-clinical-form :disabled{cursor:not-allowed;background:var(--panel-soft,#e9eef5);color:var(--muted,#475569);opacity:1}.generated-clinical-form .provider-checkbox{display:flex;align-self:end;align-items:center;box-sizing:border-box;width:100%;height:40px;min-height:40px;padding:0 8px;border:1px solid var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}.generated-clinical-form .provider-checkbox input{appearance:none;display:grid;place-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;border:1px solid var(--line,#cbd5e1);border-radius:5px;background:var(--field-bg,#fff)}.generated-clinical-form .provider-checkbox input:checked{border-color:var(--primary,#2563eb);background-color:var(--primary,#2563eb);background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='m5 12 4 4L19 6'/%3E%3C/svg%3E\");background-position:center;background-repeat:no-repeat;background-size:20px}.generated-field-affix{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:40px}.generated-field-affix>input{flex:1 1 auto;width:auto;min-width:0;max-width:none}.generated-field-affix>span{flex:0 0 auto;white-space:nowrap}.generated-image-field img{display:block;max-width:100%;max-height:100%;object-fit:contain}.generated-screen-title{margin:0;align-self:center;font-size:20px;line-height:1.2}.generated-screen-description,.generated-screen-text,.generated-screen-variable{align-self:center;color:var(--text,#111)}.generated-screen-help{align-self:stretch;padding:8px 10px;border-left:3px solid var(--primary,#2563eb);border-radius:5px;background:var(--primary-soft,#eff6ff);color:var(--text,#111)}.generated-screen-line{align-self:center;width:100%}.provider-select-popup{position:fixed;z-index:1000;display:grid;gap:3px;max-height:240px;padding:5px;overflow:auto;border:1px solid var(--line,#cbd5e1);border-radius:8px;background:var(--panel,#fff);box-shadow:0 12px 28px rgba(15,23,42,.24)}.provider-select-popup button{width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--text,#111);text-align:left;cursor:pointer}.provider-select-popup button:hover,.provider-select-popup button[aria-selected=true]{background:var(--primary-soft,#eff6ff);color:var(--primary-dark,#1d4ed8)}";
+  const exclusiveCheckboxCss = ".generated-exclusive-checkboxes{display:flex;align-items:end;align-self:end;flex-wrap:wrap;gap:7px 9px;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0 0 4px;padding:0;border:0}.generated-exclusive-checkboxes legend{flex:0 0 auto;min-height:18px;margin:0;padding:0;font-weight:700;color:inherit}.generated-exclusive-checkboxes>div{display:flex;flex-wrap:wrap;align-items:stretch;flex:1 1 240px;gap:7px;width:100%;min-width:0}.generated-boolean-field .generated-exclusive-option{flex-basis:96px}.generated-exclusive-checkboxes .generated-exclusive-option{display:flex;align-items:center;flex:1 1 88px;gap:7px;box-sizing:border-box;width:100%;max-width:min(180px,100%);min-height:40px;min-width:0;overflow:visible;padding:3px 7px;border:1px solid var(--line,#cbd5e1);border-radius:7px;background:var(--field-bg,#fff);font-weight:600}.generated-exclusive-checkboxes .generated-exclusive-option-with-detail,.generated-exclusive-checkboxes .generated-exclusive-option:has(.generated-exclusive-detail){grid-column:auto;display:grid;grid-template-columns:auto minmax(0,max-content) minmax(54px,1fr);align-items:center;flex:2 1 260px;min-width:min(220px,100%);width:100%;max-width:min(520px,100%)}.generated-exclusive-checkboxes .generated-exclusive-option>span{flex:0 1 auto;min-width:0;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:normal;word-break:normal}.generated-exclusive-checkboxes .generated-exclusive-literal{align-self:center;flex:0 0 auto;margin:0 4px;white-space:nowrap;font-weight:700;color:var(--text,#111)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{appearance:none;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:0;border-radius:5px}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]:checked{border-color:var(--primary,#2563eb);background:var(--primary,#2563eb)}.generated-exclusive-checkboxes .generated-exclusive-detail{display:block;justify-self:stretch;flex:0 1 auto;width:auto!important;min-width:54px;max-width:100%;height:30px;min-height:30px;box-sizing:border-box;padding:4px 6px;border:1px solid var(--line,#cbd5e1);border-radius:6px;background:var(--field-bg,#fff);color:var(--text,#111);transition:width .12s ease}.generated-exclusive-checkboxes .generated-exclusive-detail:disabled{border-color:var(--line,#cbd5e1);background:color-mix(in srgb,var(--field-bg,#fff) 78%,var(--panel-soft,#e9eef5) 22%);color:var(--muted,#475569);opacity:1}.generated-exclusive-checkboxes .generated-exclusive-detail::placeholder{color:var(--muted,#475569);opacity:.9}.generated-exclusive-checkboxes input[data-exclusive-choice]:checked~.generated-exclusive-detail:not(:disabled){border-color:var(--line,#cbd5e1);background:var(--field-bg,#fff);color:var(--text,#111)}";
+  const multipleFieldsCss = ".generated-clinical-form input,.generated-clinical-form select,.generated-clinical-form textarea{font-size:var(--field-font-size,14px);font-family:inherit}.generated-clinical-form label,.generated-exclusive-checkboxes legend,.generated-multiple-fields legend,.generated-boolean-field legend{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-clinical-form .provider-checkbox>span{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes .generated-exclusive-option{font-size:var(--field-font-size,14px)}.generated-exclusive-checkboxes .generated-exclusive-option>input[type=checkbox]{flex-basis:32px;width:32px;height:32px;min-height:32px}.generated-multiple-fields,.generated-boolean-field{box-sizing:border-box;min-width:0;margin:0;padding:0;border:0}.generated-multiple-fields>div{display:flex;align-items:end;flex-wrap:wrap;gap:8px;min-width:0}.generated-multiple-item{flex:0 1 140px;min-width:90px;max-width:min(220px,100%)}.generated-multiple-item>span{font-size:calc(var(--field-font-size,14px) + 1px);font-weight:700}.generated-multiple-literal{align-self:center;padding:0 2px;font-size:var(--field-font-size,14px)}.generated-boolean-field .provider-checkbox{margin-top:5px}";
   const providerSelectScript = `<script>
     (() => {
       let popup = null;
@@ -3139,6 +3422,21 @@
       });
       addEventListener("resize", close);
       addEventListener("scroll", close, true);
+      const fitAutoSizeInput = (input) => {
+        if (!input?.matches("[data-auto-size-input]")) return;
+        const length = Math.max(3, String(input.value || input.placeholder || "").length);
+        const option = input.closest(".generated-exclusive-option");
+        const fieldset = input.closest(".generated-exclusive-checkboxes");
+        const reserved = [...(option?.children || [])]
+          .filter((child) => child !== input)
+          .reduce((total, child) => total + child.getBoundingClientRect().width, 0) + 38;
+        const containerWidth = option?.clientWidth || fieldset?.clientWidth || 260;
+        const available = Math.max(54, containerWidth - reserved);
+        const maxWidth = Math.max(54, Math.min(420, available));
+        input.style.width = Math.min(maxWidth, Math.max(54, length * 8 + 24)) + "px";
+      };
+      document.querySelectorAll("[data-auto-size-input]").forEach(fitAutoSizeInput);
+      document.addEventListener("input", (event) => fitAutoSizeInput(event.target));
       const syncExclusive = (fieldset, selected = null) => {
         const readonly = fieldset.dataset.exclusiveReadonly === "true";
         fieldset.querySelectorAll("[data-exclusive-choice]").forEach((choice) => {
@@ -3146,7 +3444,9 @@
           const detail = choice.closest("label")?.querySelector("[data-exclusive-detail]");
           if (!detail) return;
           detail.disabled = readonly || !choice.checked;
+          detail.setAttribute("aria-disabled", detail.disabled ?"true" : "false");
           detail.tabIndex = detail.disabled ?-1 : 0;
+          fitAutoSizeInput(detail);
         });
       };
       document.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => syncExclusive(fieldset));
@@ -3298,6 +3598,10 @@
   const previewTitle = previewModal?.querySelector("[data-document-preview-title]");
   const previewPrint = previewModal?.querySelector("[data-document-preview-print]");
   const previewBrowserPrint = previewModal?.querySelector("[data-document-preview-browser-print]");
+  const previewDownload = previewModal?.querySelector("[data-document-preview-download]");
+  const previewZoomOut = previewModal?.querySelector("[data-document-preview-zoom-out]");
+  const previewZoomIn = previewModal?.querySelector("[data-document-preview-zoom-in]");
+  const previewLoading = previewModal?.querySelector("[data-document-preview-loading]");
   const previewPager = previewModal.querySelector("[data-document-preview-pager]");
   const previewPrev = previewModal.querySelector("[data-document-preview-prev]");
   const previewNext = previewModal.querySelector("[data-document-preview-next]");
@@ -3306,7 +3610,33 @@
   let previewTotalPages = 1;
   let previewPageHeight = 1122;
   let previewKind = "impressao";
+  let previewPdfObjectUrl = "";
+  let previewPdfZoom = 100;
+  const setPreviewLoading = (loading) => {
+    if (previewLoading) previewLoading.hidden = !loading;
+    if (previewFrame) previewFrame.toggleAttribute("aria-busy", Boolean(loading));
+  };
+  const pdfPreviewSrc = () => (
+    previewPdfObjectUrl
+      ? `${previewPdfObjectUrl}#toolbar=0&navpanes=0&scrollbar=1&page=${previewCurrentPage}&zoom=${previewPdfZoom}`
+      : ""
+  );
+  const updatePdfPreviewControls = () => {
+    if (previewPager) previewPager.hidden = false;
+    if (previewPageStatus) previewPageStatus.textContent = `Página ${previewCurrentPage} de ${previewTotalPages}`;
+    if (previewPrev) previewPrev.disabled = previewCurrentPage <= 1;
+    if (previewNext) previewNext.disabled = previewCurrentPage >= previewTotalPages;
+    if (previewZoomOut) previewZoomOut.disabled = previewPdfZoom <= 50;
+    if (previewZoomIn) previewZoomIn.disabled = previewPdfZoom >= 200;
+    if (previewDownload) previewDownload.hidden = !previewPdfObjectUrl;
+    if (previewZoomOut) previewZoomOut.hidden = !previewPdfObjectUrl;
+    if (previewZoomIn) previewZoomIn.hidden = !previewPdfObjectUrl;
+  };
   const updatePreviewPager = () => {
+    if (previewPdfObjectUrl) {
+      updatePdfPreviewControls();
+      return;
+    }
     if (!previewFrame.contentDocument || !previewPager) return;
     if (previewKind !== "impressao") {
       previewTotalPages = 1;
@@ -3341,6 +3671,12 @@
     if (previewNext) previewNext.disabled = previewCurrentPage >= previewTotalPages;
   };
   const goToPreviewPage = (pageNumber) => {
+    if (previewPdfObjectUrl) {
+      previewCurrentPage = Math.max(1, Math.min(previewTotalPages, pageNumber));
+      previewFrame.src = pdfPreviewSrc();
+      updatePdfPreviewControls();
+      return;
+    }
     if (!previewFrame.contentWindow) return;
     previewCurrentPage = Math.max(1, Math.min(previewTotalPages, pageNumber));
     previewFrame.contentWindow.scrollTo({ top: (previewCurrentPage - 1) * previewPageHeight, behavior: "smooth" });
@@ -3448,7 +3784,12 @@
     let result = html;
     Object.entries(selectedTestContext().variables || {}).forEach(([name, value]) => {
       const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const compactName = name.replace(/[_\-\s]+/g, "");
+      const escapedCompactName = compactName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       result = result.replace(new RegExp(`{{\\s*${escapedName}\\s*}}`, "g"), escapeHtml(value));
+      if (compactName && compactName !== name) {
+        result = result.replace(new RegExp(`{{\\s*${escapedCompactName}\\s*}}`, "g"), escapeHtml(value));
+      }
     });
     return result;
   };
@@ -3498,8 +3839,211 @@
     }
     return "";
   };
+  const replacePrintVariables = (html, values = {}) => {
+    let result = html || "";
+    result = result.replace(/{{\s*documento\.pagina\s*}}/g, '<span class="document-page-variable"></span>');
+    result = result.replace(/{{\s*documento\.total_paginas\s*}}/g, '<span class="document-total-pages"></span>');
+    result = applyTestContext(result);
+    Object.entries(values).forEach(([name, value]) => {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      result = result.replace(new RegExp(`{{\\s*campo\\.${escapedName}\\s*}}`, "g"), String(value ?? ""));
+      result = result.replace(new RegExp(`{{\\s*${escapedName}\\s*}}`, "g"), String(value ?? ""));
+    });
+    return result.replace(/{{\s*campo\.([^}\s]+)\s*}}/g, (_match, name) => defaultPrintValueForField(name));
+  };
+  const parseGridPlacement = (element, property) => {
+    const style = element.getAttribute("style") || "";
+    const match = style.match(new RegExp(`${property}\\s*:\\s*(\\d+)\\s*\\/\\s*span\\s*(\\d+)`, "i"));
+    return {
+      start: Math.max(1, Number.parseInt(match?.[1] || "1", 10) || 1),
+      span: Math.max(1, Number.parseInt(match?.[2] || "1", 10) || 1),
+    };
+  };
+  const cleanGridStyle = (style) => (
+    (style || "")
+      .replace(/grid-column\s*:[^;]+;?/gi, "")
+      .replace(/grid-row\s*:[^;]+;?/gi, "")
+      .replace(/grid-template-columns\s*:[^;]+;?/gi, "")
+      .replace(/grid-template-rows\s*:[^;]+;?/gi, "")
+      .replace(/display\s*:\s*grid\s*;?/gi, "")
+      .replace(/gap\s*:[^;]+;?/gi, "")
+      .trim()
+  );
+  const parseGridColumnCount = (section, elements) => {
+    const repeat = (section.getAttribute("style") || "").match(/grid-template-columns\s*:\s*repeat\(\s*(\d+)/i);
+    if (repeat) return Math.max(1, Number.parseInt(repeat[1], 10) || 1);
+    return Math.max(1, ...elements.map((element) => {
+      const column = parseGridPlacement(element, "grid-column");
+      return column.start + column.span - 1;
+    }));
+  };
+  const parseGridRowCount = (section, elements) => {
+    const repeat = (section.getAttribute("style") || "").match(/grid-template-rows\s*:\s*repeat\(\s*(\d+)/i);
+    if (repeat) return Math.max(1, Number.parseInt(repeat[1], 10) || 1);
+    return Math.max(1, ...elements.map((element) => {
+      const row = parseGridPlacement(element, "grid-row");
+      return row.start + row.span - 1;
+    }));
+  };
+  const verticalAlignForGridItem = (element) => {
+    const style = element.getAttribute("style") || "";
+    if (/align-self\s*:\s*(end|flex-end)\b/i.test(style)) return "bottom";
+    if (/align-self\s*:\s*center\b/i.test(style)) return "middle";
+    return "top";
+  };
+  const normalizeGridHtmlForPdf = (html) => {
+    if (!html || !/display\s*:\s*grid/i.test(html)) return html || "";
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    const convertGridContainer = (container) => {
+      const containerStyle = container.getAttribute("style") || "";
+      if (!/display\s*:\s*grid/i.test(containerStyle) || !/grid-template-columns\s*:/i.test(containerStyle)) return;
+      const elements = [...container.children].filter((child) => (
+        child.nodeType === Node.ELEMENT_NODE
+        && /grid-column\s*:/i.test(child.getAttribute("style") || "")
+        && /grid-row\s*:/i.test(child.getAttribute("style") || "")
+      ));
+      if (!elements.length) return;
+      const columnCount = parseGridColumnCount(container, elements);
+      const placements = elements.map((element) => {
+        const column = parseGridPlacement(element, "grid-column");
+        const row = parseGridPlacement(element, "grid-row");
+        return {
+          element,
+          columnStart: Math.min(column.start, columnCount),
+          columnSpan: Math.min(column.span, Math.max(1, columnCount - column.start + 1)),
+          rowStart: row.start,
+          rowSpan: row.span,
+        };
+      }).sort((left, right) => (left.rowStart - right.rowStart) || (left.columnStart - right.columnStart));
+      const rowCount = parseGridRowCount(container, elements);
+      const byStart = new Map();
+      placements.forEach((item) => byStart.set(`${item.rowStart}:${item.columnStart}`, item));
+      const table = document.createElement("table");
+      table.className = "pdf-grid-table";
+      table.setAttribute("role", "presentation");
+      table.setAttribute("style", `width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed;${cleanGridStyle(containerStyle)}`);
+      const colgroup = document.createElement("colgroup");
+      for (let column = 1; column <= columnCount; column += 1) {
+        const col = document.createElement("col");
+        col.setAttribute("style", `width:${100 / columnCount}%`);
+        colgroup.appendChild(col);
+      }
+      table.appendChild(colgroup);
+      const occupied = new Set();
+      for (let row = 1; row <= rowCount; row += 1) {
+        const tr = document.createElement("tr");
+        tr.setAttribute("style", "height:16px;min-height:16px");
+        for (let column = 1; column <= columnCount; column += 1) {
+          if (occupied.has(`${row}:${column}`)) continue;
+          const item = byStart.get(`${row}:${column}`);
+          const td = document.createElement("td");
+          if (item) {
+            td.setAttribute("style", `vertical-align:${verticalAlignForGridItem(item.element)};padding:0;border:0;min-width:0;overflow-wrap:anywhere;word-break:break-word`);
+            if (item.columnSpan > 1) td.colSpan = item.columnSpan;
+            if (item.rowSpan > 1) td.rowSpan = item.rowSpan;
+            for (let rowOffset = 0; rowOffset < item.rowSpan; rowOffset += 1) {
+              for (let columnOffset = 0; columnOffset < item.columnSpan; columnOffset += 1) {
+                if (rowOffset || columnOffset) occupied.add(`${row + rowOffset}:${column + columnOffset}`);
+              }
+            }
+            const clone = item.element.cloneNode(true);
+            clone.setAttribute("style", cleanGridStyle(clone.getAttribute("style") || ""));
+            td.appendChild(clone);
+          } else {
+            td.setAttribute("style", "vertical-align:top;padding:0;border:0;min-width:0;height:16px;overflow-wrap:anywhere;word-break:break-word");
+            td.innerHTML = "&nbsp;";
+          }
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+      container.replaceWith(table);
+    };
+    [...template.content.querySelectorAll("[style]")]
+      .filter((element) => /display\s*:\s*grid/i.test(element.getAttribute("style") || ""))
+      .reverse()
+      .forEach(convertGridContainer);
+    return template.innerHTML;
+  };
+  const prepareHtmlForPdf = (html, values = {}) => replacePrintVariables(html, values);
+  const loadPdfPreview = async ({ headerHtml, footerHtml, bodyHtml, css, values, headerProject, footerProject }) => {
+    const url = form.dataset.editorPreviewPdfUrl;
+    if (!url) return false;
+    previewTitle.textContent = "Relatório / impressão em rascunho";
+    previewPrint.hidden = true;
+    previewBrowserPrint.hidden = false;
+    if (previewDownload) previewDownload.hidden = true;
+    if (previewZoomOut) previewZoomOut.hidden = true;
+    if (previewZoomIn) previewZoomIn.hidden = true;
+    if (previewPager) previewPager.hidden = false;
+    previewModal.hidden = false;
+    setPreviewLoading(true);
+    previewFrame.removeAttribute("srcdoc");
+    previewFrame.src = "about:blank";
+    if (previewPdfObjectUrl) URL.revokeObjectURL(previewPdfObjectUrl);
+    previewPdfObjectUrl = "";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken(),
+      },
+      body: JSON.stringify({
+        titulo: form.querySelector("[name='nm_modelo']")?.value || "Pré-visualização",
+        codigo: form.dataset.documentModelId || "preview",
+        status: "RASCUNHO",
+        elemento: form.dataset.documentElement || "DOCUMENTO",
+        cabecalho: prepareHtmlForPdf(headerHtml, values),
+        conteudo: prepareHtmlForPdf(bodyHtml, values),
+        rodape: prepareHtmlForPdf(footerHtml, values),
+        css: css || "",
+        cabecalho_projeto: headerProject || {},
+        rodape_projeto: footerProject || {},
+        limitar_uma_pagina: Boolean(printLayout.grid.fitOnePage),
+        projeto_impressao: {
+          printLayout: {
+            grid: printLayout.grid,
+            elements: printLayout.elements,
+          },
+        },
+        valores_campos: values,
+        variaveis_teste: selectedTestContext().variables || {},
+        assinatura: {
+          exibe: signatureToggle?.checked !== false,
+          alinhamento: form.elements.tp_alinhamento_assinatura?.value || "CENTRO",
+          conselho: Boolean(form.elements.sn_exibe_conselho_assinatura?.checked),
+        },
+      }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      setPreviewLoading(false);
+      previewFrame.srcdoc = `<pre style="white-space:pre-wrap;font:14px Arial;padding:16px;color:#991b1b">${escapeHtml(errorText || "Falha ao gerar PDF.")}</pre>`;
+      return true;
+    }
+    const blob = await response.blob();
+    previewPdfObjectUrl = URL.createObjectURL(blob);
+    previewCurrentPage = 1;
+    previewTotalPages = Math.max(1, Number.parseInt(response.headers.get("X-Celeris-Pdf-Pages") || "1", 10) || 1);
+    previewPdfZoom = 100;
+    previewFrame.onload = () => setPreviewLoading(false);
+    previewFrame.src = pdfPreviewSrc();
+    updatePdfPreviewControls();
+    window.setTimeout(() => setPreviewLoading(false), 4000);
+    return true;
+  };
   const renderPreview = (kind, values = {}) => {
     previewKind = kind;
+    if (kind !== "impressao" && previewPdfObjectUrl) {
+      URL.revokeObjectURL(previewPdfObjectUrl);
+      previewPdfObjectUrl = "";
+    }
+    if (kind !== "impressao") {
+      if (previewDownload) previewDownload.hidden = true;
+      if (previewZoomOut) previewZoomOut.hidden = true;
+      if (previewZoomIn) previewZoomIn.hidden = true;
+    }
     let html = kind === "tela" ?buildScreenHtml() : buildPrintLayoutHtml();
     let extraCss = "";
     if (kind === "impressao") {
@@ -3509,20 +4053,22 @@
       const footer = printElements.find((item) => String(item.cd_modelo_documento) === String(footerId));
       const headerHtml = header?.ds_html_impressao || "";
       const footerHtml = footer?.ds_html_impressao || "";
-      const fitClass = printLayout.grid.fitOnePage ?" fit-one-page" : "";
-      html = `<table class="preview-print-table${fitClass}"><thead><tr><td>${headerHtml}</td></tr></thead><tbody><tr><td class="preview-print-body">${html}</td></tr></tbody><tfoot><tr><td><div class="preview-print-footer">${footerHtml}</div></td></tr></tfoot></table>`;
       extraCss = `${header?.ds_css_impressao || ""}\n${footer?.ds_css_impressao || ""}`;
+      loadPdfPreview({
+        headerHtml,
+        footerHtml,
+        bodyHtml: html,
+        css: extraCss,
+        values,
+        headerProject: header?.ds_projeto_impressao || {},
+        footerProject: footer?.ds_projeto_impressao || {},
+      }).catch((error) => {
+        setPreviewLoading(false);
+        previewFrame.srcdoc = `<pre style="white-space:pre-wrap;font:14px Arial;padding:16px;color:#991b1b">${escapeHtml(error?.message || "Falha ao gerar PDF.")}</pre>`;
+      });
+      return;
     }
     html = applyTestContext(html);
-    if (kind === "impressao") {
-      html = html.replace(/{{\s*documento\.pagina\s*}}/g, '<span class="document-page-variable"></span>');
-      Object.entries(values).forEach(([name, value]) => {
-        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        html = html.replace(new RegExp(`{{\\s*campo\\.${escapedName}\\s*}}`, "g"), String(value ?? ""));
-        html = html.replace(new RegExp(`{{\\s*${escapedName}\\s*}}`, "g"), String(value ?? ""));
-      });
-      html = html.replace(/{{\s*campo\.([^}\s]+)\s*}}/g, (_match, name) => defaultPrintValueForField(name));
-    }
     const css = kind === "tela" ?`${screenCss}${exclusiveCheckboxCss}${multipleFieldsCss}` : extraCss;
     const watermark = kind === "impressao" ?`<img class="preview-watermark" alt="Rascunho" draggable="false" src="${draftWatermarkDataUri()}">` : "";
     const themeSource = getComputedStyle(document.documentElement);
@@ -3536,6 +4082,7 @@
       ?`<div class="preview-sheet">${watermark}<div class="preview-print-area">${html}</div></div>`
       : html;
     const darkTheme = document.documentElement.classList.contains("dark") || document.body.classList.contains("dark");
+    setPreviewLoading(false);
     previewFrame.srcdoc = `<!doctype html><html class="${darkTheme ?"dark" : "light"}"><head><style>
       :root{${themeVariables};color-scheme:${darkTheme ?"dark" : "light"}}
       body{margin:0;padding:18px;${previewBodyStyle};font:14px Arial}
@@ -3599,6 +4146,27 @@
     previewFrame.contentWindow?.focus();
     previewFrame.contentWindow?.print();
   });
+  previewDownload?.addEventListener("click", () => {
+    if (!previewPdfObjectUrl) return;
+    const link = document.createElement("a");
+    link.href = previewPdfObjectUrl;
+    link.download = `${(form.querySelector("[name='nm_modelo']")?.value || "documento").trim() || "documento"}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  });
+  previewZoomOut?.addEventListener("click", () => {
+    if (!previewPdfObjectUrl) return;
+    previewPdfZoom = Math.max(50, previewPdfZoom - 10);
+    previewFrame.src = pdfPreviewSrc();
+    updatePdfPreviewControls();
+  });
+  previewZoomIn?.addEventListener("click", () => {
+    if (!previewPdfObjectUrl) return;
+    previewPdfZoom = Math.min(200, previewPdfZoom + 10);
+    previewFrame.src = pdfPreviewSrc();
+    updatePdfPreviewControls();
+  });
   document.addEventListener("keydown", (event) => {
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "p" || previewModal?.hidden) return;
     event.preventDefault();
@@ -3620,20 +4188,37 @@
     updateGridInputs();
     renderFieldBuilder();
     renderPrintBuilder();
+    syncEditorPayloadFields();
     historyCurrent = captureEditorState();
+    pendingHistorySnapshot = "";
     restoringHistory = false;
     setEditorDirty();
     updateHistoryButtons();
     showHistoryIndicator(message);
   };
+  const ensurePendingHistoryRegistered = () => {
+    if (!pendingHistorySnapshot) return;
+    const currentState = captureEditorState();
+    if (currentState !== pendingHistorySnapshot && currentState !== historyCurrent) {
+      const previousState = JSON.parse(pendingHistorySnapshot);
+      previousState.activeTab = activeEditorTab();
+      undoStack.push(JSON.stringify(previousState));
+      if (undoStack.length > 80) undoStack.shift();
+      historyCurrent = currentState;
+      redoStack.length = 0;
+    }
+    pendingHistorySnapshot = "";
+    updateHistoryButtons();
+  };
   const undoEditorAction = () => {
+    ensurePendingHistoryRegistered();
     if (!undoStack.length) return;
-    redoStack.push(historyCurrent);
+    redoStack.push(captureEditorState());
     restoreEditorState(undoStack.pop(), "Ação desfeita");
   };
   const redoEditorAction = () => {
     if (!redoStack.length) return;
-    undoStack.push(historyCurrent);
+    undoStack.push(captureEditorState());
     restoreEditorState(redoStack.pop(), "Ação refeita");
   };
   const clearDocumentEditor = async () => {
@@ -3674,6 +4259,7 @@
       renderFieldBuilder();
     }
     renderPrintBuilder();
+    syncEditorPayloadFields();
     if (customVariableTestResult) customVariableTestResult.hidden = true;
     registerHistoryState();
     form.dataset.dirty = "false";
@@ -3717,12 +4303,30 @@
     documentClearModal.hidden = true;
     form.requestSubmit();
   });
+  const editorHistoryTargetSelector = [
+    "[data-form-field-list]",
+    "[data-print-element-list]",
+    "[data-field-settings-modal]",
+    "[data-print-settings-modal]",
+    "[data-custom-variable-name]",
+    "[data-custom-variable-expression]",
+  ].join(",");
+  document.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(editorHistoryTargetSelector)) rememberHistorySnapshot();
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase())) return;
+    if (event.target.closest(editorHistoryTargetSelector)) rememberHistorySnapshot();
+  }, true);
   undoButton?.addEventListener("click", undoEditorAction);
   redoButton?.addEventListener("click", redoEditorAction);
   document.addEventListener("keydown", (event) => {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-    const targetIsCustomVariableEditor = event.target.matches?.("[data-custom-variable-name], [data-custom-variable-expression]");
-    if (!targetIsCustomVariableEditor && event.target.closest("input, textarea, [contenteditable='true']")) return;
+    const targetInsideDocumentEditor = Boolean(
+      event.target.closest(editorHistoryTargetSelector)
+      || event.target.closest("[data-document-editor-form]")
+    );
+    if (!targetInsideDocumentEditor && event.target.closest("input, textarea, [contenteditable='true']")) return;
     const key = event.key.toLowerCase();
     if (key === "z" && !event.shiftKey) {
       event.preventDefault();
@@ -3753,21 +4357,7 @@
 
   form.addEventListener("submit", () => {
     form.dataset.submitting = "true";
-    if (isLayoutOnlyDocument() && signatureToggle) signatureToggle.checked = false;
-    form.elements.ds_html_tela.value = isLayoutOnlyDocument() ?"" : buildScreenHtml();
-    form.elements.ds_css_tela.value = isLayoutOnlyDocument() ?"" : screenCss;
-    const customVariableName = form.querySelector("[data-custom-variable-name]")?.value || "";
-    const customVariableExpression = form.querySelector("[data-custom-variable-expression]")?.value || "";
-    form.elements.ds_projeto_tela.value = JSON.stringify({
-      grid: gridConfig,
-      formFields: isLayoutOnlyDocument() ?[] : formFields,
-      ...(form.dataset.documentElement === "VARIAVEL"
-        ?{ customVariable: { name: normalizeName(customVariableName), expression: customVariableExpression } }
-        : {}),
-    });
-    form.elements.ds_html_impressao.value = buildPrintLayoutHtml();
-    form.elements.ds_css_impressao.value = "";
-    form.elements.ds_projeto_impressao.value = JSON.stringify({ printLayout });
+    syncEditorPayloadFields();
   });
 
   const newMenu = document.querySelector("[data-document-new-menu]");
@@ -3781,6 +4371,27 @@
   const libraryFolderForm = studio?.querySelector("[data-document-folder-form]");
   const librarySearch = studio?.querySelector("[data-document-library-search]");
   const fullscreenButton = studio?.querySelector("[data-document-fullscreen]");
+  const zoomControls = studio?.querySelector("[data-document-zoom-controls]");
+  const zoomInButton = studio?.querySelector("[data-document-zoom-in]");
+  const zoomOutButton = studio?.querySelector("[data-document-zoom-out]");
+  const zoomLabel = studio?.querySelector("[data-document-zoom-label]");
+  let editorZoom = 1;
+  const applyEditorZoom = () => {
+    if (!studio) return;
+    studio.style.setProperty("--document-editor-zoom", editorZoom.toFixed(2));
+    if (zoomLabel) zoomLabel.textContent = `${Math.round(editorZoom * 100)}%`;
+    if (zoomOutButton) zoomOutButton.disabled = editorZoom <= 0.75;
+    if (zoomInButton) zoomInButton.disabled = editorZoom >= 1.75;
+  };
+  zoomInButton?.addEventListener("click", () => {
+    editorZoom = Math.min(1.75, Number((editorZoom + 0.1).toFixed(2)));
+    applyEditorZoom();
+  });
+  zoomOutButton?.addEventListener("click", () => {
+    editorZoom = Math.max(0.75, Number((editorZoom - 0.1).toFixed(2)));
+    applyEditorZoom();
+  });
+  applyEditorZoom();
   librarySearch?.addEventListener("input", () => {
     const query = librarySearch.value.trim().toLowerCase();
     const items = [...(libraryScroll?.querySelectorAll("[data-library-item], .document-file") || [])];
@@ -3808,6 +4419,9 @@
   fullscreenButton?.addEventListener("click", () => {
     const active = !studio.classList.contains("is-fullscreen");
     studio.classList.toggle("is-fullscreen", active);
+    editorZoom = 1;
+    applyEditorZoom();
+    if (zoomControls) zoomControls.hidden = !active;
     fullscreenButton.title = active ? "Sair da tela inteira" : "Maximizar editor";
     const label = fullscreenButton.querySelector("[data-document-fullscreen-label]");
     if (label) label.textContent = active ? "Sair da tela inteira" : "Maximizar";
@@ -4000,6 +4614,10 @@
     event.preventDefault();
     event.returnValue = "";
   });
+  window.addEventListener("pagehide", () => {
+    if (!draftSyncPending || internalEditorNavigation || form.dataset.submitting === "true") return;
+    syncEditorDraft({ keepalive: true });
+  });
   document.addEventListener("click", (event) => {
     const internalNavigation = event.target.closest("a[href]");
     if (!internalNavigation || internalNavigation.target === "_blank" || internalNavigation.hasAttribute("download")) return;
@@ -4037,7 +4655,25 @@
   if (printSettingsModal?.parentElement !== document.body) document.body.appendChild(printSettingsModal);
   if (undoButton) undoButton.hidden = false;
   if (redoButton) redoButton.hidden = false;
+  const renderEditorStateNow = () => {
+    updateGridInputs();
+    renderFieldBuilder();
+    renderPrintBuilder();
+    syncEditorPayloadFields();
+  };
+  renderEditorStateNow();
   historyCurrent = captureEditorState();
   updateHistoryButtons();
-  if (form.dataset.editorPostback !== "true") restoreEditorDraft();
+  if (form.dataset.editorPostback !== "true") {
+    restoreEditorDraft().finally(() => {
+      renderEditorStateNow();
+      window.requestAnimationFrame(renderEditorStateNow);
+      window.setTimeout(renderEditorStateNow, 120);
+      form.classList.remove("is-restoring-editor-draft");
+    });
+  } else {
+    window.requestAnimationFrame(renderEditorStateNow);
+    window.setTimeout(renderEditorStateNow, 120);
+    form.classList.remove("is-restoring-editor-draft");
+  }
 })();

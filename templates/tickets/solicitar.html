@@ -1,0 +1,55 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<form method="post" class="provider-form" data-primary-form data-query-url="{{ request.path }}" data-table="{{ form_table }}" autocomplete="off">
+  {% csrf_token %}
+  <details class="card form-section" open>
+    <summary>{{ title }}</summary>
+    <div class="form-grid">
+      <label class="field-xs">Código
+        <input name="codigo" value="{% if instance %}{{ instance.pk }}{% else %}{{ request.GET.codigo }}{% endif %}" inputmode="numeric" data-consultable="true" placeholder="Código">
+      </label>
+      {% for field in form %}
+        <label class="field-md">{{ field.label }} {{ field }} {{ field.errors }}</label>
+      {% endfor %}
+    </div>
+  </details>
+</form>
+{{ motivos_por_oficina|json_script:"support-motives-by-office" }}
+<script>
+  (() => {
+    const resizeDescription = (field) => {
+      field.style.height = "34px";
+      field.style.height = `${Math.min(field.scrollHeight, 68)}px`;
+    };
+    document.querySelectorAll(".support-description-field").forEach((field) => {
+      resizeDescription(field);
+      field.addEventListener("input", () => resizeDescription(field));
+    });
+    const office = document.querySelector("[data-support-office]");
+    const motive = document.querySelector("[data-support-motive]");
+    const rawMap = document.getElementById("support-motives-by-office");
+    const motivesByOffice = rawMap ? JSON.parse(rawMap.textContent || "{}") : {};
+    const allValues = Array.from(motive?.options || []).map((option) => option.value).filter(Boolean);
+    const applyFilter = () => {
+      if (!office || !motive) return;
+      const officeId = office.value || "";
+      const allowed = new Set(officeId ? [...(motivesByOffice[officeId] || []), ...(motivesByOffice[""] || [])] : allValues);
+      Array.from(motive.options).forEach((option) => {
+        if (!option.value) {
+          option.hidden = false;
+          option.disabled = false;
+          return;
+        }
+        const visible = allowed.has(option.value);
+        option.hidden = !visible;
+        option.disabled = !visible;
+      });
+      if (motive.value && motive.selectedOptions[0]?.disabled) {
+        motive.value = "";
+      }
+    };
+    office?.addEventListener("change", applyFilter);
+    applyFilter();
+  })();
+</script>
+{% endblock %}

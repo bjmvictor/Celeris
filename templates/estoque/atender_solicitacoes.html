@@ -1,0 +1,35 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<section class="card">
+  <h2>{{ title }}</h2>
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead><tr><th>Solicitação</th><th>Tipo</th><th>Status</th><th>Produtos</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for solicitacao in registros %}
+          <tr>
+            <td>#{{ solicitacao.pk }}<br><small>{{ solicitacao.created_at|date:"d/m/Y H:i" }}</small></td>
+            <td>{{ solicitacao.get_tp_solicitacao_display }}</td>
+            <td>{{ solicitacao.get_ds_status_display }}</td>
+            <td>
+              {% for item in solicitacao.itens.all %}
+                <span class="{% if item.sn_alerta_estoque %}text-danger{% endif %}">{{ item.cd_produto }} · {{ item.qt_solicitada }}</span>{% if not forloop.last %}<br>{% endif %}
+              {% empty %}-{% endfor %}
+            </td>
+            <td>
+              <form method="post" class="inline-form">{% csrf_token %}
+                <input type="hidden" name="solicitacao" value="{{ solicitacao.pk }}">
+                <button class="button button-secondary" name="action" value="receber">Receber</button>
+                <button class="button button-primary" name="action" value="atender">Atender</button>
+                <button class="button button-danger" name="action" value="cancelar">Cancelar</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">Nenhuma solicitação encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

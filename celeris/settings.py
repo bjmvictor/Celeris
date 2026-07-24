@@ -14,6 +14,25 @@ except ModuleNotFoundError:
 if load_dotenv:
     load_dotenv(BASE_DIR / ".env")
 
+WEASYPRINT_DLL_DIRECTORIES = [
+    item
+    for item in [
+        os.getenv("WEASYPRINT_DLL_DIRECTORIES"),
+        str(BASE_DIR / "runtime" / "weasyprint" / "bin"),
+        r"C:\msys64\mingw64\bin",
+        r"C:\msys64\ucrt64\bin",
+    ]
+    if item and Path(item).exists()
+]
+if WEASYPRINT_DLL_DIRECTORIES:
+    os.environ["WEASYPRINT_DLL_DIRECTORIES"] = os.pathsep.join(WEASYPRINT_DLL_DIRECTORIES)
+    if hasattr(os, "add_dll_directory"):
+        for directory in WEASYPRINT_DLL_DIRECTORIES:
+            try:
+                os.add_dll_directory(directory)
+            except OSError:
+                pass
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "celeris-dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = [item.strip() for item in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if item.strip()]
@@ -28,6 +47,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.core",
     "apps.atendimento",
+    "apps.estoque",
     "apps.reports",
     "apps.tickets",
     "apps.social",
@@ -42,6 +62,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.accounts.middleware.ScreenAccessMiddleware",
+    "apps.core.middleware.SessionActivityMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -104,6 +125,7 @@ LOGIN_REDIRECT_URL = "core:home"
 LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_AGE = 600
 SESSION_SAVE_EVERY_REQUEST = True
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("CELERIS_DATA_UPLOAD_MAX_MEMORY_SIZE", "25000000"))
 
 LOGGING = {
     "version": 1,

@@ -1,5 +1,8 @@
 from datetime import datetime, time, timedelta
+import gzip
 import json
+import sys
+import types
 
 from django.contrib.auth.models import Group
 from django.conf import settings
@@ -1293,10 +1296,32 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.assertContains(impressao, "Dor abdominal")
         self.assertContains(impressao, "document-header")
+        class DummyHTML:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def write_pdf(self):
+                return b"%PDF-1.4\n% Celeris test\n"
+
+        weasyprint_original = sys.modules.get("weasyprint")
+        sys.modules["weasyprint"] = types.SimpleNamespace(HTML=DummyHTML)
+        try:
+            pdf = self.client.get(
+                reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+                {"modo": "impressao", "pdf": "1"},
+            )
+        finally:
+            if weasyprint_original is None:
+                sys.modules.pop("weasyprint", None)
+            else:
+                sys.modules["weasyprint"] = weasyprint_original
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
         tela = self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]))
         self.assertContains(tela, "campo_queixa")
-        self.assertNotContains(tela, "document-header")
-        self.assertNotContains(tela, "document-footer")
+        self.assertNotContains(tela, '<header class="document-header"')
+        self.assertNotContains(tela, '<footer class="document-footer"')
 
     def test_documento_carrega_dropdown_dinamico_e_campo_nao_editavel(self):
         convenio = Convenio.objects.create(cd_empresa=self.empresa, nm_convenio="CONVÊNIO DINÂMICO")
@@ -2014,6 +2039,45 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(response.status_code, 200)
         restored = self.client.get(query).json()
         self.assertEqual(restored["state"]["editorState"]["activeTab"], "impressao")
+        compressed_payload = gzip.compress(json.dumps({
+            "state": {
+                "editorState": {"activeTab": "tela", "large": "X" * 5000},
+                "undoStack": ["b"],
+            },
+        }).encode("utf-8"))
+        response = self.client.post(
+            query,
+            data=compressed_payload,
+            content_type="application/octet-stream",
+            HTTP_X_CELERIS_DRAFT_ENCODING="gzip",
+        )
+        self.assertEqual(response.status_code, 200)
+        restored = self.client.get(query).json()
+        self.assertEqual(restored["state"]["editorState"]["activeTab"], "tela")
+        self.assertEqual(restored["state"]["undoStack"], ["b"])
+        large_content = "X" * 3_200_000
+        compressed_large_payload = gzip.compress(json.dumps({
+            "state": {
+                "editorState": {
+                    "activeTab": "impressao",
+                    "printLayout": {"elements": [{"id": "e1", "content": large_content}]},
+                },
+                "fields": [],
+            },
+        }).encode("utf-8"))
+        self.assertLess(len(compressed_large_payload), 3_000_000)
+        response = self.client.post(
+            query,
+            data=compressed_large_payload,
+            content_type="application/octet-stream",
+            HTTP_X_CELERIS_DRAFT_ENCODING="gzip",
+        )
+        self.assertEqual(response.status_code, 200)
+        restored = self.client.get(query).json()
+        self.assertEqual(
+            restored["state"]["editorState"]["printLayout"]["elements"][0]["content"],
+            large_content,
+        )
         self.assertTrue(
             RascunhoEditorDocumento.objects.filter(
                 cd_empresa=self.empresa,
@@ -2135,11 +2199,11 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(resultado.ds_classificacao, "Alto")
         self.assertEqual(resultado.cd_documento_clinico.ds_status, "FECHADO")
 
-    def test_editor_registra_aba_no_historico_e_compila_colunas_independentes(self):
+    def test_editor_registra_aba_no_historico_e_compila_grade_sincronizada(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "document-editor.js").read_text(encoding="utf-8")
         self.assertIn("activeTab: activeEditorTab()", javascript)
         self.assertIn('activateEditorTab(state.activeTab || "tela")', javascript)
-        self.assertIn('["line", "vline"].includes(element.type)', javascript)
+        self.assertIn("const useIndependentColumns = false", javascript)
         self.assertIn('data-cell-create-display="static-text"', javascript)
         self.assertIn("insertColumnDirection", javascript)
         self.assertIn("freeFormColumnSpan(row, col)", javascript)
@@ -2160,7 +2224,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertIn("if (!field.fontSizeCustom)", javascript)
         self.assertIn("if (!element.fontSizeCustom)", javascript)
         self.assertIn(
-            "grid-template-rows:repeat(${maximumRow - minimumRow + 1},minmax(0,auto));column-gap:6px;row-gap:0",
+            "grid-template-rows:repeat(${rowCount},minmax(16px,auto));align-content:start",
             javascript,
         )
         self.assertIn("window.location.assign(indexUrl)", javascript)

@@ -1,4 +1,4 @@
-{% extends "base/layout.html" %}
+﻿{% extends "base/layout.html" %}
 {% block content %}
   <div class="profile-config-layout">
     <aside class="card profile-config-list">
@@ -25,16 +25,14 @@
     </aside>
 
     <main class="profile-config-main">
-      <form class="card profile-main-form" method="post" data-primary-form data-query-url="{% url 'atendimento:perfis-assistenciais' %}" data-table="perfil_assistencial">
+      <form class="card profile-main-form" method="post" data-primary-form data-preserve-input data-query-url="{% url 'atendimento:perfis-assistenciais' %}" data-table="perfil_assistencial" data-profile-user="{{ request.user.pk }}">
         {% csrf_token %}
         <input type="hidden" name="acao" value="salvar_perfil">
         <input type="hidden" name="perfil" value="{{ perfil.pk|default:'' }}">
         <header class="section-heading">
           <div>
             <h2>Configuração do perfil</h2>
-            {% if versao_atual %}
-              <small>Versão {{ versao_atual.nr_versao }} · {{ versao_atual.get_ds_status_display }}</small>
-            {% endif %}
+            <small>As alterações salvas passam a valer imediatamente no PEP.</small>
           </div>
         </header>
         <div class="form-grid">
@@ -43,10 +41,6 @@
           </label>
           <label class="field-xl">Descrição
             <input name="ds_descricao" value="{{ perfil.ds_descricao|default:'' }}" data-consultable="true" data-editable="true">
-          </label>
-          <label class="field-fluid">Descrição obrigatória da versão
-            <input name="ds_descricao_versao" value="" required data-consultable="true" data-editable="true" placeholder="Descreva as alterações que serão salvas nesta versão">
-            {% if versao_atual.ds_descricao_versao %}<small>Versão anterior: {{ versao_atual.ds_descricao_versao }}</small>{% endif %}
           </label>
           <div class="field-fluid specialty-manager" data-assignment-manager data-assignment-empty="Nenhum tipo de prestador vinculado.">
             <strong>Tipos de prestador</strong>
@@ -73,7 +67,7 @@
             <span>Perfil sigiloso</span>
           </label>
           <label class="provider-checkbox">
-            <input name="sn_ativo" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if not perfil or perfil.sn_ativo %}checked{% endif %}>
+            <input name="sn_ativo" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if perfil %}{% if perfil.sn_ativo %}checked{% endif %}{% else %}checked{% endif %}>
             <span>Ativo</span>
           </label>
         </div>
@@ -84,7 +78,7 @@
           <header class="section-heading">
             <div class="profile-tree-title" data-profile-tree-toggle>
               <h2>Estrutura do PEP</h2>
-              <small>Menus e telas da versão em edição.</small>
+              <small>Menus e telas ativos para este perfil.</small>
             </div>
             <div class="profile-tree-heading-actions">
               <button class="icon-button" type="button" data-profile-tree-toggle title="Exibir ou ocultar estrutura">
@@ -97,7 +91,7 @@
           </header>
           <div class="profile-tree" data-profile-tree data-profile-tree-url="{% url 'atendimento:perfil-assistencial-itens-api' perfil.pk %}">
             {% for item in itens_versao %}
-              <article class="profile-tree-item" style="--profile-depth:{{ item.nivel_arvore|default:0 }}" draggable="true" data-profile-item="{{ item.pk }}" data-parent="{{ item.cd_item_pai_id|default:'' }}">
+              <article id="profile-item-{{ item.pk }}" class="profile-tree-item" style="--profile-depth:{{ item.nivel_arvore|default:0 }}" draggable="true" data-profile-item="{{ item.pk }}" data-parent="{{ item.cd_item_pai_id|default:'' }}" data-profile-depth="{{ item.nivel_arvore|default:0 }}">
                 <span class="profile-tree-handle">⋮⋮</span>
                 <span class="svg-icon" data-nav-icon="{{ item.ds_icone|default:'file-text' }}"></span>
                 <div>
@@ -117,24 +111,24 @@
                 <button class="icon-button" type="button" data-profile-item-settings title="Configurar item">
                   <span class="svg-icon" data-nav-icon="wrench"></span>
                 </button>
-                <form method="post">
+                <form method="post" data-profile-remove-form data-profile-remove-name="{{ item.nm_item }}">
                   {% csrf_token %}
                   <input type="hidden" name="acao" value="remover_item">
                   <input type="hidden" name="perfil" value="{{ perfil.pk }}">
                   <input type="hidden" name="item" value="{{ item.pk }}">
-                  <button class="icon-button" type="submit" title="Remover do rascunho">
+                  <button class="icon-button" type="submit" title="Remover item">
                     <span class="svg-icon" data-nav-icon="trash"></span>
                   </button>
                 </form>
               </article>
             {% empty %}
-              <p class="empty-state">Nenhum item configurado nesta versão.</p>
+              <p class="empty-state">Nenhum item configurado neste perfil.</p>
             {% endfor %}
           </div>
         </section>
 
         <section class="card profile-item-inline" data-profile-item-modal hidden>
-        <form class="profile-item-form" method="post" data-profile-item-builder>
+        <form class="profile-item-form" method="post" data-preserve-input data-profile-item-builder>
           {% csrf_token %}
           <input type="hidden" name="acao" value="adicionar_item">
           <input type="hidden" name="perfil" value="{{ perfil.pk }}">
@@ -155,9 +149,9 @@
                 <option value="TELA">Tela</option>
               </select>
             </label>
-            <label class="field-lg">Nome <input name="nm_item" required></label>
+            <label class="field-lg">Nome de exibição <input name="nm_item" required placeholder="Ex.: Admissão / Anamnese"></label>
             <label class="field-md">Chave técnica <input name="cd_item_tecnico" placeholder="ATENDER_ADMISSAO"></label>
-            <label class="field-sm">Ordem <input name="nr_ordem" type="number" value="0"></label>
+            <input name="nr_ordem" type="hidden" value="0">
             <label class="field-md">Ícone
               <input type="hidden" name="ds_icone" value="file-text" data-profile-icon-select>
               <button class="button button-secondary profile-icon-trigger" type="button" data-profile-icon-toggle title="Selecionar ícone">
@@ -213,7 +207,7 @@
               <input type="hidden" name="ds_perguntas_escala" data-scale-questions-json>
               <input type="hidden" name="ds_faixas_escala" data-scale-ranges-json>
               <header class="section-heading">
-                <div><strong>Nova escala clínica</strong><small>Use uma escala existente acima ou configure uma nova versão.</small></div>
+                <div><strong>Nova escala clínica</strong><small>Use uma escala existente acima ou configure uma nova configuração.</small></div>
               </header>
               <div class="form-grid">
                 <label class="field-lg">Nome da escala <input name="nm_nova_escala" placeholder="Escala de Braden"></label>
@@ -253,16 +247,6 @@
           </div>
         </form>
         </section>
-
-        {% if versao_atual.ds_status == "RASCUNHO" %}
-          <form class="card profile-publish-form" method="post">
-            {% csrf_token %}
-            <input type="hidden" name="acao" value="publicar_perfil">
-            <input type="hidden" name="perfil" value="{{ perfil.pk }}">
-            <input type="hidden" name="ds_descricao_versao" value="{{ versao_atual.ds_descricao_versao }}">
-            <button class="button button-primary" type="submit">Publicar versão {{ versao_atual.nr_versao }}</button>
-          </form>
-        {% endif %}
       {% endif %}
 
       <details class="card form-section">
@@ -292,6 +276,22 @@
       <input type="hidden" name="perfil" data-profile-context-id>
       <button type="submit"><span class="svg-icon" data-nav-icon="file-text"></span> Copiar perfil</button>
     </form>
+  </div>
+  <div class="modal-backdrop-lite" data-profile-remove-modal hidden>
+    <div class="card confirmation-card" role="dialog" aria-modal="true" aria-labelledby="profile-remove-title">
+      <header class="section-heading">
+        <div>
+          <h2 id="profile-remove-title">Remover item da estrutura</h2>
+          <small data-profile-remove-message>Confirme a remoção do item selecionado.</small>
+        </div>
+      </header>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-profile-remove-cancel>Cancelar</button>
+        <button class="button button-danger" type="button" data-profile-remove-confirm>
+          <span class="svg-icon" data-nav-icon="trash"></span> Remover
+        </button>
+      </div>
+    </div>
   </div>
 {% endblock %}
 {% block extra_scripts %}
@@ -325,6 +325,155 @@
         const slug = (value) => String(value || "")
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
           .replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
+        const technicalSlug = (value) => slug(value).toUpperCase();
+        const mainForm = document.querySelector(".profile-main-form");
+        const undoButton = document.querySelector('[data-action="undo"]');
+        const redoButton = document.querySelector('[data-action="redo"]');
+        const historyIndicator = document.querySelector("[data-editor-history-indicator]");
+        const nameInput = builder.elements.nm_item;
+        const keyInput = builder.elements.cd_item_tecnico;
+        const builderDrafts = new Map();
+        const undoStack = [];
+        const redoStack = [];
+        let currentBuilderKey = "";
+        let restoringHistory = false;
+        let lastHistoryState = null;
+        let autoTechnicalKey = true;
+        let lastAutoTechnicalKey = "";
+        const draftKey = `celeris:perfil-assistencial:${mainForm?.dataset.profileUser || "anon"}:${mainForm?.elements.perfil?.value || "novo"}`;
+        const serializeForm = (form) => {
+          const state = {};
+          if (!form) return state;
+          [...form.elements].forEach((field) => {
+            if (!field.name || field.type === "submit" || field.type === "button" || field.type === "hidden" && field.name === "csrfmiddlewaretoken") return;
+            if (field.type === "checkbox") state[field.name] = field.checked;
+            else if (field.multiple) state[field.name] = [...field.selectedOptions].map((option) => option.value);
+            else state[field.name] = field.value;
+          });
+          return state;
+        };
+        const restoreFormValues = (form, state = {}) => {
+          if (!form) return;
+          [...form.elements].forEach((field) => {
+            if (!field.name || !(field.name in state)) return;
+            if (field.type === "checkbox") field.checked = Boolean(state[field.name]);
+            else if (field.multiple && Array.isArray(state[field.name])) {
+              [...field.options].forEach((option) => { option.selected = state[field.name].includes(option.value); });
+            } else {
+              field.value = state[field.name] ?? "";
+            }
+          });
+        };
+        const clearProfileDraft = () => {
+          try { sessionStorage.removeItem(draftKey); } catch (error) {}
+        };
+        const persistProfileDraft = (mode = "full") => {
+          const drafts = {};
+          builderDrafts.forEach((value, key) => { drafts[key] = value; });
+          const payload = { main: serializeForm(mainForm), builderDrafts: drafts };
+          if (mode === "full") {
+            payload.builder = serializeForm(builder);
+            payload.builderHidden = modal.hidden;
+            payload.builderKey = currentBuilderKey;
+            payload.builderItem = editItem.value || "";
+            payload.builderParent = builder.elements.cd_item_pai?.value || "";
+          }
+          try {
+            sessionStorage.setItem(draftKey, JSON.stringify(payload));
+          } catch (error) {
+            console.warn("Não foi possível persistir o rascunho do perfil.", error);
+          }
+        };
+        const makeBuilderKey = (itemId = "", parentId = "") => itemId ? `item:${itemId}` : `new:${parentId || "root"}`;
+        const captureProfileState = () => ({
+          main: serializeForm(mainForm),
+          builder: serializeForm(builder),
+          builderHidden: modal.hidden,
+          builderKey: currentBuilderKey,
+          builderItem: editItem.value || "",
+          builderParent: builder.elements.cd_item_pai?.value || "",
+        });
+        const updateUndoRedoButtons = () => {
+          if (undoButton) {
+            undoButton.hidden = false;
+            undoButton.disabled = undoStack.length === 0;
+          }
+          if (redoButton) {
+            redoButton.hidden = false;
+            redoButton.disabled = redoStack.length === 0;
+          }
+        };
+        const markHistory = (message) => {
+          if (!historyIndicator) return;
+          historyIndicator.textContent = message;
+          historyIndicator.hidden = false;
+          clearTimeout(markHistory.timer);
+          markHistory.timer = setTimeout(() => { historyIndicator.hidden = true; }, 1600);
+        };
+        const rememberHistory = () => {
+          if (restoringHistory) return;
+          const current = captureProfileState();
+          const currentText = JSON.stringify(current);
+          if (!lastHistoryState) {
+            lastHistoryState = current;
+            updateUndoRedoButtons();
+            return;
+          }
+          if (currentText === JSON.stringify(lastHistoryState)) return;
+          undoStack.push(lastHistoryState);
+          if (undoStack.length > 80) undoStack.shift();
+          redoStack.length = 0;
+          lastHistoryState = current;
+          updateUndoRedoButtons();
+        };
+        const storeBuilderDraft = () => {
+          if (!currentBuilderKey) return;
+          builderDrafts.set(currentBuilderKey, serializeForm(builder));
+          persistProfileDraft();
+        };
+        const restoreProfileState = (state) => {
+          if (!state) return;
+          restoringHistory = true;
+          restoreFormValues(mainForm, state.main);
+          restoreFormValues(builder, state.builder);
+          currentBuilderKey = state.builderKey || makeBuilderKey(state.builderItem, state.builderParent);
+          if (state.builderHidden) {
+            modal.hidden = true;
+          } else {
+            placeBuilderInline(state.builderItem, state.builderParent);
+            modal.hidden = false;
+          }
+          syncBuilder();
+          updateIconPreview();
+          restoringHistory = false;
+          lastHistoryState = captureProfileState();
+          updateUndoRedoButtons();
+        };
+        const undoProfileAction = () => {
+          if (!undoStack.length) return;
+          const current = captureProfileState();
+          const previous = undoStack.pop();
+          redoStack.push(current);
+          restoreProfileState(previous);
+          markHistory("Desfeito");
+        };
+        const redoProfileAction = () => {
+          if (!redoStack.length) return;
+          const current = captureProfileState();
+          const next = redoStack.pop();
+          undoStack.push(current);
+          restoreProfileState(next);
+          markHistory("Refeito");
+        };
+        const syncTechnicalKey = (force = false) => {
+          if (!nameInput || !keyInput) return;
+          const generated = technicalSlug(nameInput.value);
+          if (force || autoTechnicalKey || !keyInput.value || keyInput.value === lastAutoTechnicalKey) {
+            keyInput.value = generated;
+            autoTechnicalKey = true;
+          }
+          lastAutoTechnicalKey = generated;
+        };
         const setSectionVisible = (section, visible) => {
           if (!section) return;
           section.hidden = !visible;
@@ -346,8 +495,8 @@
             button.draggable = true;
             button.textContent = token;
             button.addEventListener("click", () => {
-              const start = expression.selectionStart  expression.value.length;
-              expression.setRangeText(token, start, expression.selectionEnd  start, "end");
+              const start = expression.selectionStart ?? expression.value.length;
+              expression.setRangeText(token, start, expression.selectionEnd ?? start, "end");
               expression.focus();
             });
             button.addEventListener("dragstart", (event) => {
@@ -365,7 +514,7 @@
           option.innerHTML = `
             <input data-option-value placeholder="Valor" value="${data.valor || ""}">
             <input data-option-description placeholder="Descrição exibida" value="${data.descricao || ""}">
-            <input data-option-points type="number" step="0.01" placeholder="Pontos" value="${data.pontos  ""}">
+            <input data-option-points type="number" step="0.01" placeholder="Pontos" value="${data.pontos ?? ""}">
             <button class="icon-button" type="button" data-remove-option title="Remover opção">×</button>`;
           list.appendChild(option);
         };
@@ -386,7 +535,7 @@
             <div class="scale-option-list" data-question-options></div>
             <button class="button button-secondary" type="button" data-add-option><span class="svg-icon" data-nav-icon="plus"></span> Opção</button>`;
           questionsList.appendChild(question);
-          (data.opcoes.length  data.opcoes : [{}]).forEach((option) => addOption(question, option));
+          ((data.opcoes && data.opcoes.length) ? data.opcoes : [{}]).forEach((option) => addOption(question, option));
           updateTokens();
         };
         const addRange = (data = {}) => {
@@ -399,11 +548,11 @@
               <option value=">">Maior</option><option value="<=">Menor ou igual</option>
               <option value="<">Menor</option><option value="=">Igual</option>
             </select>
-            <input data-range-value type="number" step="0.01" placeholder="Valor inicial" value="${data.valor  data.min  ""}">
-            <input data-range-final type="number" step="0.01" placeholder="Valor final" value="${data.valor_final  data.max  ""}">
+            <input data-range-value type="number" step="0.01" placeholder="Valor inicial" value="${data.valor ?? data.min ?? ""}">
+            <input data-range-final type="number" step="0.01" placeholder="Valor final" value="${data.valor_final ?? data.max ?? ""}">
             <input data-range-description placeholder="Texto exibido" value="${data.descricao || ""}">
             <span class="color-hex-control"><input data-range-color type="color" value="${data.cor || "#22c55e"}"><input data-range-color-hex value="${data.cor || "#22c55e"}" maxlength="7"></span>
-            <label class="provider-checkbox"><input data-range-bold type="checkbox" ${data.negrito  "checked" : ""}><span>Negrito</span></label>
+            <label class="provider-checkbox"><input data-range-bold type="checkbox" ${data.negrito ? "checked" : ""}><span>Negrito</span></label>
             <button class="icon-button" type="button" data-remove-range title="Remover faixa">×</button>`;
           range.querySelector("[data-range-operator]").value = data.operador || "INTERVALO";
           rangesList.appendChild(range);
@@ -424,7 +573,7 @@
           setSectionVisible(parentField, nodeKind.value !== "MENU");
           setSectionVisible(screenTypeField, isScreen);
           setSectionVisible(screenOptions, isScreen);
-          itemType.value = isScreen  screenType.value : "GRUPO";
+          itemType.value = isScreen ? screenType.value : "GRUPO";
           builder.querySelectorAll("[data-profile-type]").forEach((section) => {
             setSectionVisible(section, isScreen && section.dataset.profileType === itemType.value);
           });
@@ -441,21 +590,47 @@
         const updateIconPreview = () => {
           if (!iconPreview || !iconSelect) return;
           iconPreview.setAttribute("data-nav-icon", iconSelect.value || "file-text");
-          window.CelerisRenderIcons.();
+          window.CelerisRenderIcons?.();
+        };
+        const placeBuilderInline = (itemId = "", parentId = "") => {
+          const tree = document.querySelector("[data-profile-tree]");
+          if (!tree || !modal) return;
+          const byId = (value) => [...tree.querySelectorAll("[data-profile-item]")].find((node) => String(node.dataset.profileItem) === String(value));
+          const itemNode = itemId ? byId(itemId) : null;
+          const parentNode = parentId ? byId(parentId) : null;
+          const anchor = itemNode || parentNode;
+          const baseDepth = Number(anchor?.dataset.profileDepth || anchor?.style.getPropertyValue("--profile-depth") || 0) || 0;
+          modal.style.setProperty("--profile-depth", String(parentId && !itemId ? baseDepth + 1 : baseDepth));
+          if (anchor) {
+            anchor.insertAdjacentElement("afterend", modal);
+          } else {
+            tree.appendChild(modal);
+          }
         };
         const setField = (name, value) => {
           const field = builder.elements[name];
           if (!field) return;
           if (field.type === "checkbox") field.checked = Boolean(value);
-          else field.value = value  "";
+          else field.value = value ?? "";
         };
         openProfileItemModal = async (itemId = "", parentId = "") => {
+          const nextBuilderKey = makeBuilderKey(itemId, parentId);
+          if (!modal.hidden && currentBuilderKey === nextBuilderKey) {
+            storeBuilderDraft();
+            modal.hidden = true;
+            rememberHistory();
+            return;
+          }
+          storeBuilderDraft();
+          currentBuilderKey = nextBuilderKey;
           builder.reset();
           editItem.value = itemId;
-          nodeKind.value = parentId  "SUBMENU" : "MENU";
+          nodeKind.value = parentId ? "SUBMENU" : "MENU";
           screenType.selectedIndex = 0;
           resetScaleBuilder();
-          modalTitle.textContent = itemId  "Configurar item da estrutura" : "Adicionar à estrutura do PEP";
+          autoTechnicalKey = true;
+          lastAutoTechnicalKey = "";
+          modalTitle.textContent = itemId ? "Configurar item da estrutura" : "Adicionar item na estrutura do PEP";
           if (parentId) setField("cd_item_pai", parentId);
           if (itemId) {
             const response = await fetch(document.querySelector("[data-profile-tree]").dataset.profileTreeUrl, {
@@ -465,8 +640,8 @@
             const data = await response.json();
             const item = data.items.find((value) => String(value.id) === String(itemId));
             if (!item) return;
-            nodeKind.value = item.type === "GRUPO"  (item.parent_id  "SUBMENU" : "MENU") : "TELA";
-            screenType.value = item.type === "GRUPO"  screenType.options[0].value : item.type;
+            nodeKind.value = item.type === "GRUPO" ? (item.parent_id ? "SUBMENU" : "MENU") : "TELA";
+            screenType.value = item.type === "GRUPO" ? screenType.options[0].value : item.type;
             setField("nm_item", item.name);
             setField("cd_item_tecnico", item.technical_key);
             setField("nr_ordem", item.order);
@@ -482,15 +657,70 @@
             setField("sn_permite_abandonar", item.can_abandon);
             setField("sn_permite_cancelar", item.can_cancel);
             setField("sn_somente_historico", item.history_only);
+            lastAutoTechnicalKey = technicalSlug(item.name);
+            autoTechnicalKey = !item.technical_key || item.technical_key === lastAutoTechnicalKey;
           }
+          const draft = builderDrafts.get(currentBuilderKey);
+          if (draft) {
+            restoreFormValues(builder, draft);
+            lastAutoTechnicalKey = technicalSlug(nameInput?.value || "");
+            autoTechnicalKey = !keyInput?.value || keyInput.value === lastAutoTechnicalKey;
+          }
+          syncTechnicalKey();
           syncBuilder();
           updateIconPreview();
+          placeBuilderInline(itemId, parentId);
           modal.hidden = false;
           modal.scrollIntoView({ block: "nearest", behavior: "smooth" });
           builder.querySelector('[name="nm_item"]').focus();
+          lastHistoryState = captureProfileState();
+          updateUndoRedoButtons();
         };
         nodeKind.addEventListener("change", syncBuilder);
         screenType.addEventListener("change", syncBuilder);
+        if (nameInput) {
+          nameInput.addEventListener("input", () => {
+            syncTechnicalKey();
+            storeBuilderDraft();
+          });
+        }
+        if (keyInput) {
+          keyInput.addEventListener("input", () => {
+            const normalized = technicalSlug(keyInput.value);
+            const selection = keyInput.selectionStart;
+            keyInput.value = normalized;
+            if (selection !== null) keyInput.setSelectionRange(keyInput.value.length, keyInput.value.length);
+            autoTechnicalKey = !normalized || normalized === technicalSlug(nameInput?.value || "");
+            lastAutoTechnicalKey = technicalSlug(nameInput?.value || "");
+            storeBuilderDraft();
+          });
+        }
+        [mainForm, builder].filter(Boolean).forEach((form) => {
+          form.addEventListener("input", () => {
+            storeBuilderDraft();
+            rememberHistory();
+            persistProfileDraft();
+          });
+          form.addEventListener("change", () => {
+            storeBuilderDraft();
+            rememberHistory();
+            persistProfileDraft();
+          });
+        });
+        mainForm?.addEventListener("submit", clearProfileDraft);
+        undoButton?.addEventListener("click", undoProfileAction);
+        redoButton?.addEventListener("click", redoProfileAction);
+        document.addEventListener("keydown", (event) => {
+          if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+          const key = event.key.toLowerCase();
+          if (key === "z" && !event.shiftKey) {
+            event.preventDefault();
+            undoProfileAction();
+          } else if (key === "y" || (key === "z" && event.shiftKey)) {
+            event.preventDefault();
+            redoProfileAction();
+          }
+        });
         iconToggle.addEventListener("click", () => {
           iconDropdown.hidden = !iconDropdown.hidden;
         });
@@ -527,10 +757,11 @@
         expression.addEventListener("drop", (event) => {
           event.preventDefault();
           const token = event.dataTransfer.getData("text/plain");
-          const start = expression.selectionStart  expression.value.length;
-          expression.setRangeText(token, start, expression.selectionEnd  start, "end");
+          const start = expression.selectionStart ?? expression.value.length;
+          expression.setRangeText(token, start, expression.selectionEnd ?? start, "end");
         });
         builder.addEventListener("submit", () => {
+          persistProfileDraft("main");
           questionsJson.value = JSON.stringify([...questionsList.querySelectorAll("[data-scale-question]")].map((question, index) => ({
             chave: slug(question.querySelector("[data-question-key]").value) || `pergunta_${index + 1}`,
             texto: question.querySelector("[data-question-text]").value.trim(),
@@ -550,17 +781,64 @@
           })));
         });
         builder.querySelector("[data-profile-item-close]").addEventListener("click", () => {
+          storeBuilderDraft();
           modal.hidden = true;
+          rememberHistory();
         });
         document.querySelector("[data-profile-item-open]").addEventListener("click", () => openProfileItemModal());
         resetScaleBuilder();
         syncBuilder();
         updateIconPreview();
+        try {
+          const stored = JSON.parse(sessionStorage.getItem(draftKey) || "null");
+          if (stored) {
+            restoreFormValues(mainForm, stored.main || {});
+            Object.entries(stored.builderDrafts || {}).forEach(([key, value]) => builderDrafts.set(key, value));
+            if (stored.builder && stored.builderKey && stored.builderHidden === false) {
+              restoreProfileState(stored);
+            }
+          }
+        } catch (error) {
+          clearProfileDraft();
+        }
+        lastHistoryState = captureProfileState();
+        updateUndoRedoButtons();
       }
       const tree = document.querySelector("[data-profile-tree]");
       const profileContextMenu = document.querySelector("[data-profile-context-menu]");
       const profileContextId = profileContextMenu.querySelector("[data-profile-context-id]");
+      const profileMainForm = document.querySelector(".profile-main-form");
+      const serializeProfileMainForm = () => {
+        if (!profileMainForm) return "";
+        return JSON.stringify([...profileMainForm.elements].map((field) => {
+          if (!field.name || field.type === "hidden" || field.type === "submit" || field.type === "button") return null;
+          if (field.type === "checkbox") return [field.name, field.checked];
+          if (field.multiple) return [field.name, [...field.selectedOptions].map((option) => option.value)];
+          return [field.name, field.value];
+        }).filter(Boolean));
+      };
+      const initialProfileMainSnapshot = serializeProfileMainForm();
+      const discardProfileDrafts = () => {
+        const user = profileMainForm?.dataset.profileUser || "anon";
+        const prefix = `celeris:perfil-assistencial:${user}:`;
+        try {
+          Object.keys(sessionStorage)
+            .filter((key) => key.startsWith(prefix))
+            .forEach((key) => sessionStorage.removeItem(key));
+        } catch (error) {}
+      };
       document.querySelectorAll("[data-profile-list-item]").forEach((profileLink) => {
+        profileLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (serializeProfileMainForm() !== initialProfileMainSnapshot) {
+            const sair = confirm("Existem alterações não salvas neste perfil. Deseja descartá-las e abrir outro perfil?");
+            if (!sair) return;
+          }
+          discardProfileDrafts();
+          const url = new URL(profileLink.href, window.location.href);
+          url.searchParams.set("_reload", Date.now().toString());
+          window.location.assign(url.toString());
+        });
         profileLink.addEventListener("contextmenu", (event) => {
           event.preventDefault();
           profileContextId.value = profileLink.dataset.profileId;
@@ -589,12 +867,38 @@
           openProfileItemModal("", button.closest("[data-profile-item]").dataset.profileItem);
         });
       });
+      const removeModal = document.querySelector("[data-profile-remove-modal]");
+      const removeMessage = document.querySelector("[data-profile-remove-message]");
+      const removeCancel = document.querySelector("[data-profile-remove-cancel]");
+      const removeConfirm = document.querySelector("[data-profile-remove-confirm]");
+      let pendingRemoveForm = null;
+      tree.addEventListener("submit", (event) => {
+        const form = event.target.closest("[data-profile-remove-form]");
+        if (!form) return;
+        event.preventDefault();
+        pendingRemoveForm = form;
+        if (removeMessage) {
+          removeMessage.textContent = `Deseja remover "${form.dataset.profileRemoveName || "este item"}" da estrutura do perfil?`;
+        }
+        removeModal.hidden = false;
+      });
+      removeCancel?.addEventListener("click", () => {
+        pendingRemoveForm = null;
+        removeModal.hidden = true;
+      });
+      removeConfirm?.addEventListener("click", () => {
+        if (!pendingRemoveForm) return;
+        const form = pendingRemoveForm;
+        pendingRemoveForm = null;
+        removeModal.hidden = true;
+        HTMLFormElement.prototype.submit.call(form);
+      });
       let dragged = null;
       const csrf = document.querySelector("[name='csrfmiddlewaretoken']").value || "";
       const persist = () => {
         const items = [...tree.querySelectorAll("[data-profile-item]")].map((item, index) => ({
           id: Number(item.dataset.profileItem),
-          parent_id: item.dataset.parent  Number(item.dataset.parent) : null,
+          parent_id: item.dataset.parent ? Number(item.dataset.parent) : null,
           order: index,
         }));
         fetch(tree.dataset.profileTreeUrl, {
@@ -620,7 +924,7 @@
         ) return;
         event.preventDefault();
         const rect = target.getBoundingClientRect();
-        tree.insertBefore(dragged, event.clientY < rect.top + rect.height / 2  target : target.nextSibling);
+        tree.insertBefore(dragged, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
       });
       tree.addEventListener("dragend", () => {
         dragged.classList.remove("dragging");

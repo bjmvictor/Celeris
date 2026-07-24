@@ -7,10 +7,10 @@
 {% block content %}
   {% if not embed %}<section class="print-toolbar">
     {% if modo_impressao %}
-      {% if pode_imprimir %}<button class="toolbar-button" type="button" onclick="window.print()" title="Imprimir" aria-label="Imprimir"><span class="svg-icon" data-nav-icon="printer"></span></button>{% endif %}
+      {% if pode_imprimir %}<a class="toolbar-button" href="?modo=impressao&pdf=1" title="Abrir PDF" aria-label="Abrir PDF"><span class="svg-icon" data-nav-icon="printer"></span></a>{% endif %}
       <a class="button button-secondary" href="">Versão em tela</a>
     {% else %}
-      {% if pode_imprimir %}<a class="button button-primary" href="?modo=impressao">Visualizar impressão</a>{% endif %}
+      {% if pode_imprimir %}<a class="button button-primary" href="?modo=impressao&pdf=1">Visualizar PDF</a>{% endif %}
     {% endif %}
     <a class="button button-secondary" href="{% url 'atendimento:copiar-documento-clinico' documento.pk %}">Copiar como rascunho</a>
     {% if pode_assumir %}
@@ -247,13 +247,26 @@
       document.querySelector("[data-document-abandon-open]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = false; });
       document.querySelector("[data-document-abandon-cancel]")?.addEventListener("click", () => { if (abandonModal) abandonModal.hidden = true; });
       if (!form) return;
+      const fitAutoSizeInput = (input) => {
+        if (!input?.matches("[data-auto-size-input]")) return;
+        const length = Math.max(3, String(input.value || input.placeholder || "").length);
+        const option = input.closest(".generated-exclusive-option");
+        const fieldset = input.closest(".generated-exclusive-checkboxes");
+        const reserved = [...(option?.children || [])]
+          .filter((child) => child !== input)
+          .reduce((total, child) => total + child.getBoundingClientRect().width, 0) + 34;
+        const maxWidth = Math.max(42, Math.min(360, (fieldset?.clientWidth || 220) - reserved));
+        input.style.width = `${Math.min(maxWidth, Math.max(42, length * 8 + 22))}px`;
+      };
+      form.querySelectorAll("[data-auto-size-input]").forEach(fitAutoSizeInput);
+      form.addEventListener("input", (event) => fitAutoSizeInput(event.target));
       let saved = {};
       try { saved = JSON.parse(document.getElementById("document-form-data").textContent); } catch {}
       Object.entries(saved).forEach(([name, value]) => {
         form.querySelectorAll(`[name="campo_${CSS.escape(name)}"]`).forEach((field) => {
           if (field.matches("[data-exclusive-choice]")) field.checked = String(field.value) === String(value);
           else if (field.type === "checkbox") field.checked = Boolean(value);
-          else field.value = value ?? "";
+          else field.value = value ? "";
         });
       });
       const syncExclusive = (fieldset, selected = null) => {
@@ -264,6 +277,7 @@
           if (!detail) return;
           detail.disabled = readonly || !choice.checked;
           detail.tabIndex = detail.disabled ? -1 : 0;
+          fitAutoSizeInput(detail);
         });
       };
       form.querySelectorAll("[data-exclusive-group]").forEach((fieldset) => syncExclusive(fieldset));

@@ -1,21 +1,49 @@
 {% extends alta_base_template|default:"base/layout.html" %}
 {% block content %}
   {% if pendencias %}
-    <section class="card validation-summary">
-      <h2>Pendências que bloqueiam a alta</h2>
-      <ul>{% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}</ul>
+    <section class="card validation-summary discharge-pendencies">
+      <h3><span class="svg-icon" data-nav-icon="ban"></span> Pendências que bloqueiam a alta</h3>
+      <ul class="discharge-pendency-list">
+        {% for pendencia in pendencias_detalhadas %}
+          <li>
+            <strong>{{ pendencia.texto }}</strong>
+            {% if pendencia.detalhe %}<span>{{ pendencia.detalhe }}</span>{% endif %}
+            {% if pendencia.responsavel %}<small>Responsável: {{ pendencia.responsavel }}</small>{% endif %}
+            {% if pendencia.url %}
+              <a class="button button-secondary" href="{{ pendencia.url }}" {% if embed %}target="_top"{% endif %}>Ir para documento</a>
+            {% endif %}
+          </li>
+        {% empty %}
+          {% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}
+        {% endfor %}
+      </ul>
     </section>
   {% endif %}
-  <section class="flow-banner">EM ATENDIMENTO → ALTA → FINALIZADO</section>
-  <form class="card" method="post">{% csrf_token %}
+  <form class="card discharge-form" method="post">{% csrf_token %}
     <strong>{{ atendimento.cd_paciente.nm_paciente }}</strong>
     <div class="form-grid">
-      <label class="field-sm">CID <input name="ds_cid" value="{{ atendimento.ds_cid }}"></label>
-      <label class="field-xl">Diagnóstico <input name="ds_diagnostico" value="{{ atendimento.ds_diagnostico }}" required></label>
-      <label class="field-xl">Conduta <textarea name="ds_conduta" required>{{ atendimento.ds_conduta }}</textarea></label>
-      <label class="field-xl">Motivo da alta <textarea name="ds_motivo_alta" required>{{ atendimento.ds_motivo_alta }}</textarea></label>
-      <label class="field-md">Destino do paciente <input name="ds_destino" value="{{ atendimento.ds_destino }}" required></label>
+      <label class="field-md">Data e hora da alta
+        <input type="datetime-local" name="dh_alta_medica" value="{{ dh_alta_medica_input }}" required>
+      </label>
+      <label class="field-xl">Motivo da alta
+        <select name="ds_motivo_alta" required>
+          <option value=""></option>
+          {% for motivo in opcoes_motivo_alta %}
+            <option value="{{ motivo.ds_valor }}" {% if atendimento.ds_motivo_alta == motivo.ds_valor %}selected{% endif %}>{{ motivo.ds_valor }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field-sm">CID da alta
+        <select name="ds_cid">
+          <option value=""></option>
+          {% for cid in opcoes_cid %}
+            <option value="{{ cid.cd_valor }}" {% if atendimento.ds_cid == cid.cd_valor %}selected{% endif %}>{{ cid.cd_valor }} - {{ cid.ds_valor }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field-xl">Diagnóstico da alta <input name="ds_diagnostico" value="{{ atendimento.ds_diagnostico }}" required></label>
+      <label class="field-xl">Observações <textarea name="ds_observacao_alta">{{ atendimento.ds_conduta }}</textarea></label>
     </div>
-    <div class="table-actions"><button class="button button-primary" type="submit"><span class="svg-icon" data-nav-icon="file-text"></span> Registrar alta médica</button></div>
+    <div class="table-actions"><button class="button button-primary discharge-submit-button" type="submit"><span class="svg-icon" data-nav-icon="check"></span><span>Registrar alta médica</span></button></div>
   </form>
 {% endblock %}

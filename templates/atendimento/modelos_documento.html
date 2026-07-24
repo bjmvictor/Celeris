@@ -107,7 +107,7 @@
           <span>Selecione um item da biblioteca ou use Novo para começar.</span>
         </div>
       {% endif %}
-      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-layout-only="{% if layout_apenas %}true{% else %}false{% endif %}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-editor-postback="{% if request.method == 'POST' %}true{% else %}false{% endif %}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
+      <form method="post" data-document-editor-form data-primary-form data-preserve-input data-disable-state-persistence data-document-element="{{ elemento_editor }}" data-layout-only="{% if layout_apenas %}true{% else %}false{% endif %}" data-document-model-id="{{ modelo.pk|default:'' }}" data-editor-draft-url="{% url 'atendimento:rascunho-editor-documento' %}" data-editor-preview-pdf-url="{% url 'atendimento:preview-pdf-modelo-documento' %}" data-editor-index-url="{% url 'atendimento:modelos-documento' %}" data-editor-guide-key="{{ request.current_tab_key|default:'editor-documentos' }}" data-editor-postback="{% if request.method == 'POST' %}true{% else %}false{% endif %}" data-system-protected="{% if modelo and modelo.sn_sistema or modelo and not modelo.sn_editavel %}true{% else %}false{% endif %}" data-can-overwrite-system="{% if request.user.is_superuser %}true{% else %}false{% endif %}" autocomplete="off" {% if not modelo and not modo_criacao %}hidden{% endif %}>
         {% csrf_token %}
         <input type="hidden" name="pasta_selecionada" value="{{ pasta_selecionada.pk|default:'' }}">
         <input type="hidden" name="return_to" value="">
@@ -180,16 +180,21 @@
         {% if elemento_editor != "VARIAVEL" %}
         <nav class="document-view-tabs" role="tablist">
           {% if not layout_apenas and elemento_editor == "DOCUMENTO" or elemento_editor == "CAMPO" or elemento_editor == "BLOCO" %}
-            <button class="button button-primary active" type="button" data-editor-tab="tela"><span class="svg-icon" data-nav-icon="edit"></span> Formulário</button>
+            <button class="button button-primary active" type="button" data-editor-tab="tela"><span class="svg-icon" data-nav-icon="form"></span> Formulário</button>
           {% endif %}
           {% if elemento_editor != "CAMPO" %}
-            <button class="button {% if layout_apenas or elemento_editor != 'DOCUMENTO' and elemento_editor != 'BLOCO' %}button-primary active{% else %}button-secondary{% endif %}" type="button" data-editor-tab="impressao"><span class="svg-icon" data-nav-icon="printer"></span> Impressão</button>
+            <button class="button {% if layout_apenas or elemento_editor != 'DOCUMENTO' and elemento_editor != 'BLOCO' %}button-primary active{% else %}button-secondary{% endif %}" type="button" data-editor-tab="impressao"><span class="svg-icon" data-nav-icon="layout"></span> Layout impresso</button>
           {% endif %}
           <span class="document-view-tabs-spacer"></span>
           <button class="button button-secondary" type="button" data-document-preview-active><span class="svg-icon" data-nav-icon="monitor"></span> Pré-visualizar</button>
           {% if not layout_apenas and elemento_editor == "DOCUMENTO" %}
-            <button class="button button-secondary" type="button" data-generate-print-model title="Atualizar a impressão conforme a grade"><span class="svg-icon" data-nav-icon="file-text"></span> Gerar impressão</button>
+            <button class="button button-secondary" type="button" data-generate-print-model title="Atualizar a impressão conforme a grade"><span class="svg-icon" data-nav-icon="grid-plus"></span> Gerar layout</button>
           {% endif %}
+          <span class="document-zoom-controls" data-document-zoom-controls aria-label="Zoom do editor">
+            <button class="button button-secondary" type="button" data-document-zoom-out title="Diminuir zoom">−</button>
+            <span data-document-zoom-label>100%</span>
+            <button class="button button-secondary" type="button" data-document-zoom-in title="Aumentar zoom">+</button>
+          </span>
           <button class="button button-secondary" type="button" data-document-fullscreen title="Maximizar editor"><span class="svg-icon" data-nav-icon="maximize"></span> <span data-document-fullscreen-label>Maximizar</span></button>
         </nav>
         <p class="document-editor-help">
@@ -383,7 +388,14 @@
         <div><strong data-document-preview-title>Pré-visualização</strong><small>Os valores abaixo são apenas para teste e não serão gravados no prontuário.</small></div>
         <button class="icon-button" type="button" data-document-preview-close>×</button>
       </header>
-      <iframe title="Pré-visualização do documento" data-document-preview-frame></iframe>
+      <div class="document-preview-frame-wrap">
+        <div class="document-preview-loading" data-document-preview-loading hidden>
+          <span class="document-preview-spinner" aria-hidden="true"></span>
+          <strong>Gerando visualização...</strong>
+          <small>Montando o PDF do documento.</small>
+        </div>
+        <iframe title="Pré-visualização do documento" data-document-preview-frame></iframe>
+      </div>
       <footer>
         <div class="document-preview-pager" data-document-preview-pager hidden>
           <button class="toolbar-button" type="button" data-document-preview-prev title="Página anterior">
@@ -394,6 +406,11 @@
             <span class="svg-icon" data-nav-icon="arrow-right"></span>
           </button>
         </div>
+        <button class="toolbar-button" type="button" data-document-preview-zoom-out title="Diminuir zoom" aria-label="Diminuir zoom">−</button>
+        <button class="toolbar-button" type="button" data-document-preview-zoom-in title="Aumentar zoom" aria-label="Aumentar zoom">+</button>
+        <button class="button button-secondary" type="button" data-document-preview-download>
+          <span class="svg-icon" data-nav-icon="save"></span> Baixar
+        </button>
         <button class="button button-secondary" type="button" data-document-preview-close>Fechar</button>
         <button class="button button-secondary" type="button" data-document-preview-browser-print><span class="svg-icon" data-nav-icon="printer"></span> Imprimir layout</button>
         <button class="button button-primary" type="button" data-document-preview-print hidden>Salvar teste e visualizar impressão</button>
@@ -555,6 +572,7 @@
             <option value="paciente">Paciente</option>
             <option value="atendimento">Atendimento</option>
             <option value="agendamento">Agendamento</option>
+            <option value="chamado">Chamado</option>
             <option value="documento">Documento</option>
             <option value="outras">Outras variáveis</option>
             <option value="campos">Campos do formulário</option>
