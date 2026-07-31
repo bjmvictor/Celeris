@@ -4,49 +4,56 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="12">
-  <title>Painel de chamada</title>
+  {% if painel and not show_config %}<meta http-equiv="refresh" content="8">{% endif %}
+  <title>Celeris Painel</title>
   <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
 </head>
-<body class="public-panel {{ painel.ds_cor|default:'azul' }}">
-  {% if not painel or request.GET.configurar %}
+<body class="public-panel layout-{{ painel.ds_layout|default:'classico' }} size-{{ painel.ds_tamanho|default:'medio' }} color-{{ painel.ds_cor|default:'azul' }}">
+  {% if not maquina and not painel %}
+    <main class="public-panel-config card">
+      <img src="{% static 'img/logo.svg' %}" alt="Celeris">
+      <h1>Máquina não cadastrada</h1>
+      <p>Cadastre esta máquina como <strong>Painel</strong> em Painéis de Chamada &gt; Tabelas &gt; Máquinas.</p>
+      <p class="muted">A identificação pode ser enviada pelo cabeçalho <code>X-Celeris-Machine</code> ou uma única vez por <code>?maquina=NOME</code>.</p>
+    </main>
+  {% elif show_config %}
     <main class="public-panel-config card">
       <img src="{% static 'img/logo.svg' %}" alt="Celeris">
       <h1>Configurar painel</h1>
-      <form method="get" autocomplete="off">
-        <label>Painel
-          <select name="painel" required>
-            <option value=""></option>
-            {% for item in paineis %}
-              <option value="{{ item.pk }}" {% if painel.pk == item.pk %}selected{% endif %}>{{ item.nm_painel }} — {{ item.nm_maquina }}</option>
-            {% endfor %}
+      <p>{{ maquina.nm_maquina }}{% if maquina.nm_sala %} · {{ maquina.nm_sala }}{% endif %}</p>
+      <form method="post" autocomplete="off">
+        {% csrf_token %}
+        <label>Layout
+          <select name="layout">
+            {% for value, label in layout_choices %}<option value="{{ value }}" {% if painel.ds_layout == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>
         </label>
-        <label>Layout <input name="layout" value="{{ painel.ds_layout|default:'padrao' }}"></label>
-        <label>Tamanho <input name="tamanho" value="{{ painel.ds_tamanho|default:'medio' }}"></label>
-        <label>Cor <input name="cor" value="{{ painel.ds_cor|default:'azul' }}"></label>
-        <button class="button" type="submit">Abrir painel</button>
+        <label>Tamanho
+          <select name="tamanho">
+            {% for value, label in size_choices %}<option value="{{ value }}" {% if painel.ds_tamanho == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Cor
+          <select name="cor">
+            {% for value, label in color_choices %}<option value="{{ value }}" {% if painel.ds_cor == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <button class="button button-primary" type="submit">Salvar</button>
       </form>
     </main>
   {% else %}
-<a class="public-panel-gear" href="?painel={{ painel.pk }}&configurar=1" title="Configurar">⚙</a>
+    <a class="public-panel-gear" href="?configurar=1" title="Configurar" aria-label="Configurar painel">⚙</a>
     <main class="public-panel-screen">
       <section class="public-panel-calls">
         <h1>{{ painel.nm_painel }}</h1>
         {% for chamada in chamadas %}
           <article class="public-panel-call">
-            <strong>{% if chamada.cd_senha_atendimento %}{{ chamada.cd_senha_atendimento.ds_senha }}{% else %}{{ chamada.cd_atendimento.cd_paciente.nm_paciente }}{% endif %}</strong>
+            <strong>{% if chamada.cd_senha_atendimento %}{{ chamada.cd_senha_atendimento.ds_senha }}{% else %}{{ chamada.cd_atendimento.cd_paciente.nm_social|default:chamada.cd_atendimento.cd_paciente.nm_paciente }}{% endif %}</strong>
             <span>{{ chamada.cd_setor.nm_setor }}{% if chamada.ds_local %} — {{ chamada.ds_local }}{% endif %}</span>
             <small>{{ chamada.dh_chamada|date:"H:i" }}</small>
           </article>
         {% empty %}
-          <article class="public-panel-idle">
-            {% if painel.ds_midia_url %}
-              <div class="public-panel-media">{{ painel.ds_midia_url }}</div>
-            {% else %}
-              <strong>Aguardando chamada</strong>
-            {% endif %}
-          </article>
+          <article class="public-panel-idle"><strong>Aguardando chamada</strong></article>
         {% endfor %}
       </section>
     </main>

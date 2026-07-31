@@ -582,7 +582,47 @@ class EscalaForm(forms.ModelForm):
             self.fields["cd_setor_atendimento"].queryset = Setor.objects.none()
             self.fields["convenios"].queryset = Convenio.objects.none()
         self.fields["tp_escala"].widget = forms.Select(choices=self._choices("tipo_escala", [("AMBULATORIAL", "Ambulatorial")]))
-        self.fields["ds_especialidade"].widget = forms.Select(choices=self._choices("especialidade"))
+        all_specialty_choices = self._choices("especialidade")
+        specialty_labels = dict(all_specialty_choices)
+        provider_specialties = {}
+        available_providers = self.fields["cd_prestador"].queryset
+        for provider in available_providers:
+            specialty_codes = list(
+                dict.fromkeys(
+                    code
+                    for code in [*(provider.ds_especialidades or []), provider.ds_especialidade]
+                    if code
+                )
+            )
+            provider_specialties[str(provider.pk)] = [
+                {
+                    "value": code,
+                    "label": specialty_labels.get(code) or str(code).replace("_", " ").title(),
+                }
+                for code in specialty_codes
+            ]
+        selected_provider_id = ""
+        if self.is_bound:
+            selected_provider_id = str(self.data.get("cd_prestador") or "")
+        elif self.instance and self.instance.cd_prestador_id:
+            selected_provider_id = str(self.instance.cd_prestador_id)
+        selected_specialties = provider_specialties.get(selected_provider_id, [])
+        self.fields["ds_especialidade"].widget = forms.Select(
+            choices=[("", "")] + [(item["value"], item["label"]) for item in selected_specialties]
+        )
+        self.fields["cd_prestador"].widget.attrs["data-provider-specialties"] = json.dumps(
+            provider_specialties,
+            ensure_ascii=False,
+        )
+        self.fields["ds_especialidade"].widget.attrs.update(
+            {
+                "data-provider-specialty-target": "true",
+                "data-all-specialties": json.dumps(
+                    [{"value": value, "label": label} for value, label in all_specialty_choices if value],
+                    ensure_ascii=False,
+                ),
+            }
+        )
         self.fields["ds_tipo_agendamento"].widget = forms.Select(
             choices=self._choices(
                 "tipo_atendimento",
@@ -630,6 +670,19 @@ class EscalaForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        provider = cleaned_data.get("cd_prestador")
+        specialty = cleaned_data.get("ds_especialidade")
+        if provider and specialty:
+            allowed_specialties = {
+                code
+                for code in [*(provider.ds_especialidades or []), provider.ds_especialidade]
+                if code
+            }
+            if specialty not in allowed_specialties:
+                self.add_error(
+                    "ds_especialidade",
+                    "A especialidade selecionada não está cadastrada para o prestador.",
+                )
         inicio = cleaned_data.get("hr_inicio")
         fim = cleaned_data.get("hr_fim")
         duracao = cleaned_data.get("nr_tempo_atendimento") or 0

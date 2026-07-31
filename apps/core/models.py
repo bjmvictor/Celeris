@@ -13,10 +13,13 @@ class TimeStampedModel(models.Model):
 class Module(TimeStampedModel):
     code = models.CharField(max_length=50, unique=True)
     title = models.CharField(max_length=120)
+    icon = models.CharField(max_length=50, default="grid", blank=True)
+    order = models.PositiveIntegerField(default=0)
     active = models.BooleanField(default=True)
 
     class Meta:
         db_table = "modulo"
+        ordering = ("order", "title")
 
     def __str__(self) -> str:
         return self.title
@@ -181,6 +184,7 @@ class TravaEdicao(TimeStampedModel):
 
 
 class ScreenDefinition(TimeStampedModel):
+    TYPE_GROUP = "grupo"
     TYPE_FORM = "formulario"
     TYPE_REPORT = "relatorio"
     TYPE_DASHBOARD = "dashboard"
@@ -191,6 +195,7 @@ class ScreenDefinition(TimeStampedModel):
     TYPE_CONFIG = "configuracao"
 
     SCREEN_TYPES = [
+        (TYPE_GROUP, "Grupo"),
         (TYPE_FORM, "Formulário"),
         (TYPE_REPORT, "Relatório"),
         (TYPE_DASHBOARD, "Dashboard"),
@@ -202,9 +207,19 @@ class ScreenDefinition(TimeStampedModel):
     ]
 
     module = models.ForeignKey(Module, related_name="screens", on_delete=models.CASCADE)
+    parent = models.ForeignKey(
+        "self",
+        related_name="children",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=140)
     slug = models.SlugField(max_length=160, unique=True)
     access_key = models.CharField(max_length=220, null=True, blank=True, unique=True, db_index=True)
+    navigation_url = models.CharField(max_length=300, blank=True)
+    icon = models.CharField(max_length=50, blank=True)
+    roles = models.JSONField(default=list, blank=True)
     screen_type = models.CharField(max_length=30, choices=SCREEN_TYPES, default=TYPE_FORM)
     parent_label = models.CharField(max_length=120, blank=True)
     table_name = models.CharField(max_length=80, blank=True)
@@ -218,7 +233,7 @@ class ScreenDefinition(TimeStampedModel):
 
     class Meta:
         db_table = "definicao_tela"
-        ordering = ("module__title", "parent_label", "order", "title")
+        ordering = ("module__order", "module__title", "parent__order", "parent_label", "order", "title")
 
     def __str__(self) -> str:
         return self.title

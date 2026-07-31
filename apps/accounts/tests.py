@@ -1,11 +1,15 @@
 from django.contrib.auth.models import Group, Permission
-from django.test import Client, TestCase
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from apps.atendimento.models import AgendaProfissional, Prestador
 from apps.core.models import Module, ScreenDefinition
 from apps.core.navigation import MODULES
+from .middleware import ScreenAccessMiddleware
 
 from .forms import UsuarioForm, UsuarioPasswordForm
 from .models import (
@@ -533,6 +537,26 @@ class PapelAcessoTests(TestCase):
         self.agendamento.active = False
         self.agendamento.save(update_fields=["active"])
         self.assertEqual(self.client.get(reverse("atendimento:agendar")).status_code, 403)
+
+    def test_middleware_bloqueia_rota_desconhecida_sem_politica_explicita(self):
+        request = RequestFactory().get("/rota-nao-registrada/")
+        request.user = self.admin
+        request.resolver_match = SimpleNamespace(namespace="", url_name="rota-nao-registrada")
+        middleware = ScreenAccessMiddleware(lambda current_request: None)
+        with self.assertRaises(PermissionDenied):
+            middleware.process_view(request, lambda current_request: None, (), {})
+
+    def test_middleware_aceita_rota_autenticada_explicita_sem_tela_de_menu(self):
+        request = RequestFactory().get("/acao-interna/")
+        request.user = self.admin
+        request.resolver_match = SimpleNamespace(namespace="", url_name="acao-interna")
+        middleware = ScreenAccessMiddleware(lambda current_request: None)
+
+        @login_required
+        def internal_action(current_request):
+            return None
+
+        self.assertIsNone(middleware.process_view(request, internal_action, (), {}))
         self.agendamento.active = True
         self.agendamento.save(update_fields=["active"])
         self.module.active = False
@@ -556,7 +580,7 @@ class ConsultaCadastroNavigationTests(TestCase):
         Papel.objects.create(grupo=active_group, sn_ativo=True)
         inactive_group = Group.objects.create(name="PAPEL INATIVO CONSULTA")
         Papel.objects.create(grupo=inactive_group, sn_ativo=False)
-        response = self.client.get(reverse("perfis"))
+        response = self.client.get(reverse("perfis"), {"consultar": "1"})
         self.assertContains(response, active_group.name)
         self.assertNotContains(response, inactive_group.name)
         self.assertContains(response, "encontrado(s)")
@@ -571,6 +595,7 @@ class ConsultaCadastroNavigationTests(TestCase):
             {"q": "RECEPÇÃO", "status": "todos"},
         ):
             with self.subTest(params=params):
+                params["consultar"] = "1"
                 response = self.client.get(reverse("perfis"), params)
                 self.assertContains(response, group.name)
 
@@ -578,13 +603,13 @@ class ConsultaCadastroNavigationTests(TestCase):
         group = Group.objects.create(name="PAPEL RETORNO")
         Papel.objects.create(grupo=group)
         list_url = f"{reverse('perfis')}?q=RETORNO&pagina=2"
-        response = self.client.get(reverse("perfis"), {"q": "RETORNO", "pagina": 2})
+        response = self.client.get(reverse("perfis"), {"consultar": "1", "q": "RETORNO", "pagina": 2})
         self.assertContains(response, "Editar")
         self.assertContains(response, "return_to=")
         edit_response = self.client.get(reverse("perfil_editar", args=[group.pk]), {"return_to": list_url})
         self.assertNotContains(edit_response, 'data-action="return"')
         self.assertContains(edit_response, 'data-close-mode="back"')
-        self.assertContains(edit_response, 'data-close-url="/accounts/perfis/q=RETORNO&amp;pagina=2"')
+        self.assertContains(edit_response, 'data-close-url="/accounts/perfis/?q=RETORNO&amp;pagina=2"')
         self.assertEqual(edit_response.context["current_return_url"], list_url)
 
     def test_tela_aberta_diretamente_mantem_fechar_e_contextual_usa_voltar(self):
@@ -595,11 +620,11 @@ class ConsultaCadastroNavigationTests(TestCase):
             {"return_to": f"{reverse('usuarios')}?q=TESTE"},
         )
         self.assertContains(contextual_response, 'data-close-mode="back"')
-        self.assertContains(contextual_response, 'data-close-url="/accounts/usuarios/q=TESTE"')
+        self.assertContains(contextual_response, 'data-close-url="/accounts/usuarios/?q=TESTE"')
 
     def test_erro_de_consulta_exibe_mensagem_obrigatoria(self):
         with patch("apps.accounts.views.paginate_table", side_effect=RuntimeError("falha")):
-            response = self.client.get(reverse("perfis"))
+            response = self.client.get(reverse("perfis"), {"consultar": "1"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Erro ao executar consulta.")
 

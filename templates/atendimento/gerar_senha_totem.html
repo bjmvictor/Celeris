@@ -1,78 +1,70 @@
-{% extends "base/layout.html" %}
-{% block content %}
-  <section class="card ticket-kiosk-header">
-    <div><small>Instituição</small><h2>{{ empresa.nm_empresa }}</h2></div>
-    <div class="ticket-print-mode">
-      <small>Impressão</small>
-      <strong>Impressora padrão do navegador</strong>
-      <span>O envio direto, sem diálogo, funciona quando o navegador é iniciado em modo quiosque de impressão.</span>
-    </div>
-    <details class="ticket-history">
-      <summary class="button button-secondary" title="Últimas senhas"><span class="svg-icon" data-nav-icon="history"></span></summary>
-      <div class="ticket-history-menu">
-        {% for senha in historico %}
-          <div>
-            <strong>{{ senha.ds_senha }}</strong>
-            <span>{{ senha.cd_classe_senha.nm_classe_senha }} · {{ senha.dh_criacao|date:"H:i" }}</span>
-            <a class="button button-secondary" href="{% url 'atendimento:imprimir-senha-totem' senha.pk %}" target="_blank">Reimprimir</a>
-          </div>
-        {% empty %}<span>Nenhuma senha gerada hoje.</span>{% endfor %}
-      </div>
-    </details>
-  </section>
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Celeris Totem</title>
+  <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
+</head>
+<body class="public-totem">
+  <main class="public-totem-main">
+    <header class="card ticket-kiosk-header">
+      <div><small>Instituição</small><h2>{{ empresa.nm_empresa }}</h2></div>
+      <details class="ticket-history">
+        <summary class="button button-secondary" title="Últimas senhas">Histórico</summary>
+        <div class="ticket-history-menu">
+          {% for senha in historico %}
+            <div>
+              <strong>{{ senha.ds_senha }}</strong>
+              <span>{{ senha.cd_classe_senha.nm_classe_senha }} · {{ senha.dh_criacao|date:"H:i" }}</span>
+              <a class="button button-secondary" href="{% url 'atendimento:imprimir-senha-totem' senha.pk %}">Reimprimir</a>
+            </div>
+          {% empty %}<span>Nenhuma senha gerada hoje.</span>{% endfor %}
+        </div>
+      </details>
+    </header>
 
-  <section class="ticket-options">
-    {% for regra in regras %}
-      <form class="card ticket-option" method="post">
-        {% csrf_token %}
-        <input type="hidden" name="regra" value="{{ regra.pk }}">
-        {% if regra.cd_classe_senha.cd_icone_chamada %}
-          <span class="ticket-option-icon">{{ regra.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}</span>
-        {% endif %}
-        <small>{{ regra.cd_tipo_senha.nm_tipo_senha }}</small>
-        <strong>{{ regra.cd_classe_senha.nm_classe_senha }}</strong>
-        <span>{{ regra.cd_tipo_senha.sg_tipo_senha }}{{ regra.cd_classe_senha.sg_classe_senha }} · prioridade {{ regra.nr_prioridade }}</span>
-        <button class="button button-primary" type="submit">Gerar senha</button>
-      </form>
-    {% endfor %}
-    {% for classe in classes %}
-      <form class="card ticket-option" method="post">
-        {% csrf_token %}
-        <input type="hidden" name="classe" value="{{ classe.pk }}">
-        {% if classe.cd_icone_chamada %}
-          <span class="ticket-option-icon">{{ classe.cd_icone_chamada.ds_svg|safe }}</span>
-        {% endif %}
-        <small>{{ classe.cd_tipo_senha.nm_tipo_senha }}</small>
-        <strong>{{ classe.nm_classe_senha }}</strong>
-        <span>{{ classe.cd_tipo_senha.sg_tipo_senha }}{{ classe.sg_classe_senha }} · prioridade {{ classe.nr_prioridade }}</span>
-        <button class="button button-primary" type="submit">Gerar senha</button>
-      </form>
-    {% empty %}{% if not regras %}
-      <div class="card empty-state">Configure os tipos e classes de senha antes de utilizar o totem.</div>
-    {% endif %}
-    {% endfor %}
-  </section>
+    <section class="ticket-options">
+      {% for regra in regras %}
+        <form class="card ticket-option" method="post">
+          {% csrf_token %}<input type="hidden" name="regra" value="{{ regra.pk }}">
+          {% if regra.cd_classe_senha.cd_icone_chamada %}<span class="ticket-option-icon">{{ regra.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}</span>{% endif %}
+          <small>{{ regra.cd_tipo_senha.nm_tipo_senha }}</small>
+          <strong>{{ regra.cd_classe_senha.nm_classe_senha }}</strong>
+          <span>{{ regra.cd_tipo_senha.sg_tipo_senha }}{{ regra.cd_classe_senha.sg_classe_senha }} · prioridade {{ regra.nr_prioridade }}</span>
+          <button class="button button-primary" type="submit">Gerar senha</button>
+        </form>
+      {% endfor %}
+      {% for classe in classes %}
+        <form class="card ticket-option" method="post">
+          {% csrf_token %}<input type="hidden" name="classe" value="{{ classe.pk }}">
+          {% if classe.cd_icone_chamada %}<span class="ticket-option-icon">{{ classe.cd_icone_chamada.ds_svg|safe }}</span>{% endif %}
+          <small>{{ classe.cd_tipo_senha.nm_tipo_senha }}</small>
+          <strong>{{ classe.nm_classe_senha }}</strong>
+          <span>{{ classe.cd_tipo_senha.sg_tipo_senha }}{{ classe.sg_classe_senha }} · prioridade {{ classe.nr_prioridade }}</span>
+          <button class="button button-primary" type="submit">Gerar senha</button>
+        </form>
+      {% empty %}{% if not regras %}<div class="card empty-state">Nenhuma senha configurada.</div>{% endif %}{% endfor %}
+    </section>
+  </main>
 
   {% if senha_gerada %}
     <section class="ticket-generated-modal" data-ticket-modal data-print-url="{% url 'atendimento:imprimir-senha-totem' senha_gerada.pk %}">
-      <div class="ticket-generated-card">
-        <small>Sua senha</small>
-        <strong>{{ senha_gerada.ds_senha }}</strong>
-        <span>{{ senha_gerada.cd_tipo_senha.nm_tipo_senha }} · {{ senha_gerada.cd_classe_senha.nm_classe_senha }}</span>
-      </div>
+      <div class="ticket-generated-card"><small>Sua senha</small><strong>{{ senha_gerada.ds_senha }}</strong><span>{{ senha_gerada.cd_tipo_senha.nm_tipo_senha }}</span></div>
     </section>
+    <script>
+      (() => {
+        const modal = document.querySelector("[data-ticket-modal]");
+        if (!modal) return;
+        const frame = document.createElement("iframe");
+        frame.hidden = true;
+        frame.src = modal.dataset.printUrl;
+        frame.addEventListener("load", () => frame.contentWindow?.print());
+        document.body.appendChild(frame);
+        window.setTimeout(() => modal.remove(), 4500);
+      })();
+    </script>
   {% endif %}
-{% endblock %}
-{% block extra_scripts %}
-  <script>
-    (() => {
-      const modal = document.querySelector("[data-ticket-modal]");
-      if (!modal) return;
-      const printWindow = window.open(modal.dataset.printUrl, "_blank", "noopener");
-      window.setTimeout(() => {
-        modal.remove();
-        printWindow.focus();
-      }, 4500);
-    })();
-  </script>
-{% endblock %}
+</body>
+</html>

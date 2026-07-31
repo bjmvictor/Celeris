@@ -739,6 +739,10 @@ class IconeChamada(AuditoriaModel):
 
 
 class MaquinaChamada(AuditoriaModel):
+    TIPOS_MAQUINA = [
+        ("ESTACAO", "Estação"),
+        ("PAINEL", "Painel"),
+    ]
     TIPOS_SALA = [
         ("CONSULTORIO", "Consultório"),
         ("SALA", "Sala"),
@@ -749,6 +753,7 @@ class MaquinaChamada(AuditoriaModel):
     cd_maquina_chamada = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
     nm_maquina = models.CharField(max_length=120)
+    tp_maquina = models.CharField(max_length=20, choices=TIPOS_MAQUINA, default="ESTACAO")
     cd_setor = models.ForeignKey(Setor, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_setor")
     nm_sala = models.CharField(max_length=120, blank=True)
     tp_sala = models.CharField(max_length=20, choices=TIPOS_SALA, default="CONSULTORIO")

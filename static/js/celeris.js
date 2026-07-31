@@ -165,6 +165,8 @@
 
   function clearFormFields(form) {
     clearValidationErrors(form);
+    const restoringBeforeClear = isRestoringFormState;
+    isRestoringFormState = true;
     form?.querySelectorAll("input, select, textarea").forEach((field) => {
       if (field.type === "hidden") {
         if (field.name !== "csrfmiddlewaretoken") field.value = "";
@@ -189,6 +191,7 @@
       field.classList.remove("field-invalid", "field-duplicate");
       field.setCustomValidity?.("");
     });
+    isRestoringFormState = restoringBeforeClear;
     form?.querySelectorAll("details").forEach((section, index) => {
       section.open = index === 0;
     });
@@ -472,7 +475,13 @@
   function formValueSignature(form) {
     if (!form) return "";
     return Array.from(form.elements)
-      .filter((field) => field.name && field.name !== "csrfmiddlewaretoken")
+      .filter((field) => (
+        field.name
+        && field.name !== "csrfmiddlewaretoken"
+        && field.type !== "hidden"
+        && !field.disabled
+        && field.dataset.ignoreDirty !== "true"
+      ))
       .map((field) => {
         const value = field instanceof HTMLSelectElement && field.multiple
           ?Array.from(field.selectedOptions).map((option) => option.value).join("\u001f")
@@ -982,25 +991,6 @@
       }
     }
     await releaseCurrentRecordLock();
-    if (false && formHasActualChanges(form)) {
-      const shouldSave = await showBlockingNotification({
-        title: "Dados alterados",
-        message: "Existem dados digitados. Deseja salvar antes de sair?",
-        confirmText: "Salvar",
-        cancelText: "Cancelar",
-      });
-      if (shouldSave) {
-        await submitPrimaryForm(form);
-        return;
-      }
-      const shouldDiscard = await showBlockingNotification({
-        title: "Descartar alterações",
-        message: "Descartar alterações e sair da tela?",
-        confirmText: "Confirmar",
-        cancelText: "Cancelar",
-      });
-      if (!shouldDiscard) return;
-    }
     if (document.body.dataset.closeMode === "back") {
       window.location.href = document.body.dataset.closeUrl || document.body.dataset.tabKey || "/";
       return;
@@ -1245,6 +1235,23 @@
 
     const removeAction = event.target.closest('[data-action="remove"]');
     if (removeAction && !removeAction.disabled) {
+      const contextualTarget = document.querySelector("[data-toolbar-remove-target].selected");
+      if (contextualTarget) {
+        const removeFormId = contextualTarget.dataset.removeForm;
+        const removeForm = removeFormId ? document.getElementById(removeFormId) : null;
+        const confirmed = await showBlockingNotification({
+          title: contextualTarget.dataset.removeTitle || "Excluir registro",
+          message: contextualTarget.dataset.removeMessage || "Confirma a exclusão do registro selecionado?",
+          confirmText: "Excluir",
+          cancelText: "Cancelar",
+          type: "warning",
+        });
+        if (!confirmed || !removeForm) return;
+        const resourceField = removeForm.querySelector("[data-remove-resource]");
+        if (resourceField) resourceField.value = contextualTarget.dataset.removeResource || "";
+        HTMLFormElement.prototype.submit.call(removeForm);
+        return;
+      }
       const tableForm = getEditableTableForm();
       if (tableForm && removeEditableTableRow(tableForm)) return;
       const form = getPrimaryForm();
@@ -1460,6 +1467,18 @@
     if (editableCell) {
       editableCell.closest("tbody")?.querySelectorAll("tr.selected").forEach((row) => row.classList.remove("selected"));
       editableCell.closest("tr[data-editable-row]")?.classList.add("selected");
+      setupActionButtons();
+    }
+
+    const contextualRemoveTarget = event.target.closest("[data-toolbar-remove-target]");
+    if (contextualRemoveTarget) {
+      document.querySelectorAll("[data-toolbar-remove-target].selected").forEach((target) => {
+        if (target !== contextualRemoveTarget) target.classList.remove("selected");
+      });
+      contextualRemoveTarget.classList.toggle("selected");
+      setupActionButtons();
+    } else if (!event.target.closest('[data-action="remove"]')) {
+      document.querySelectorAll("[data-toolbar-remove-target].selected").forEach((target) => target.classList.remove("selected"));
       setupActionButtons();
     }
 
@@ -1867,8 +1886,11 @@
     closeSidebarFlyout();
     closeFloatingSelect();
   });
-  window.addEventListener("scroll", () => {
-    closeSidebarFlyout();
+  window.addEventListener("scroll", (event) => {
+    const scrollTarget = event.target;
+    if (!(scrollTarget instanceof Element) || !scrollTarget.closest(".sidebar-flyout")) {
+      closeSidebarFlyout();
+    }
     if (activeFloatingSelect) {
       const fieldId = activeFloatingSelect.dataset.fieldId;
       const field = fieldId ?document.getElementById(fieldId) : null;
@@ -1922,7 +1944,7 @@
 
   function normalizeInputValue(field) {
     if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
-    if (field.dataset.mask) return;
+    if (field.dataset.mask || field.matches("[data-svg-source], [data-preserve-characters]")) return;
     if (field.closest(".generated-clinical-form, [data-document-fill-form]")) return;
     const type = field.type || "";
     if (["password", "email", "url", "number", "date", "time", "datetime-local", "month", "week", "color"].includes(type)) return;
@@ -2454,6 +2476,7 @@
   function setupFormSectionAccordion() {
     document.querySelectorAll(".provider-form, .patient-form, .user-form, .role-form, .ticket-config-form").forEach((form) => {
       const sections = Array.from(form.querySelectorAll(":scope > details.form-section"));
+      if (!sections.length) return;
       let activePanelHost = form.querySelector(":scope > .form-section-active-panel");
       if (!activePanelHost) {
         activePanelHost = document.createElement("div");
@@ -2501,19 +2524,156 @@
           });
         });
       });
+
+      const editableFields = (section) => Array.from(
+        section.celerisSectionPanel?.querySelectorAll(
+          "input:not([type='hidden']):not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled]):not([readonly])"
+        ) || []
+      ).filter((field) => field.offsetParent !== null);
+      const focusSection = (section, fromEnd = false) => {
+        if (!section) return;
+        section.open = true;
+        activateSectionPanel(section);
+        sections.forEach((otherSection) => {
+          if (otherSection !== section) otherSection.open = false;
+        });
+        const fields = editableFields(section);
+        const target = fromEnd ? fields.at(-1) : fields[0];
+        window.requestAnimationFrame(() => target?.focus());
+      };
+      form.addEventListener("keydown", (event) => {
+        const activeSection = sections.find((section) => section.open);
+        if (!activeSection || !event.target.matches("input, select, textarea")) return;
+        const fields = editableFields(activeSection);
+        if (!fields.length) return;
+        const fieldIndex = fields.indexOf(event.target);
+        const sectionIndex = sections.indexOf(activeSection);
+        const isForward = (event.key === "Tab" && !event.shiftKey && !event.ctrlKey)
+          || (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.target.matches("textarea"));
+        const isBackward = event.key === "Tab" && (event.shiftKey || event.ctrlKey);
+        if (isForward && fieldIndex === fields.length - 1 && sectionIndex < sections.length - 1) {
+          event.preventDefault();
+          focusSection(sections[sectionIndex + 1]);
+        } else if (isBackward && fieldIndex === 0 && sectionIndex > 0) {
+          event.preventDefault();
+          focusSection(sections[sectionIndex - 1], true);
+        }
+      });
+    });
+  }
+
+  function setupScaleProviderSpecialties() {
+    document.querySelectorAll(".scale-form").forEach((form) => {
+      const provider = form.querySelector("[data-provider-specialties]");
+      const specialty = form.querySelector("[data-provider-specialty-target]");
+      if (!provider || !specialty) return;
+      let byProvider = {};
+      let allSpecialties = [];
+      try {
+        byProvider = JSON.parse(provider.dataset.providerSpecialties || "{}");
+        allSpecialties = JSON.parse(specialty.dataset.allSpecialties || "[]");
+      } catch (error) {
+        byProvider = {};
+        allSpecialties = [];
+      }
+      const synchronize = () => {
+        const currentValue = specialty.value;
+        const queryMode = document.body.classList.contains("screen-query-mode");
+        const available = queryMode ? allSpecialties : (byProvider[provider.value] || []);
+        specialty.replaceChildren(new Option("", ""));
+        available.forEach((item) => specialty.add(new Option(item.label, item.value)));
+        specialty.value = available.some((item) => String(item.value) === currentValue) ? currentValue : "";
+      };
+      provider.addEventListener("change", synchronize);
+      document.addEventListener("celeris:query-mode-change", synchronize);
+      synchronize();
+    });
+  }
+
+  function setupNavigationBuilder() {
+    const builder = document.querySelector(".navigation-builder");
+    const form = document.querySelector("[data-navigation-reorder-form]");
+    if (!builder || !form) return;
+    let draggedItem = null;
+
+    builder.addEventListener("dragstart", (event) => {
+      const handle = event.target.closest("[data-navigation-node]");
+      if (!handle || event.target.closest("a, button")) return;
+      draggedItem = handle.closest("[data-navigation-item]");
+      if (!draggedItem) return;
+      draggedItem.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", draggedItem.dataset.navigationItem || "");
+    });
+
+    builder.addEventListener("dragover", (event) => {
+      if (!draggedItem) return;
+      const targetItem = event.target.closest("[data-navigation-item]");
+      const sourceContainer = draggedItem.parentElement;
+      if (!targetItem || targetItem === draggedItem || targetItem.parentElement !== sourceContainer) return;
+      event.preventDefault();
+      const targetRect = targetItem.getBoundingClientRect();
+      sourceContainer.insertBefore(draggedItem, event.clientY < targetRect.top + targetRect.height / 2 ? targetItem : targetItem.nextSibling);
+    });
+
+    builder.addEventListener("drop", async (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      const container = draggedItem.parentElement;
+      const payload = new FormData(form);
+      payload.append("node", draggedItem.dataset.navigationItem || "");
+      payload.append("parent", container?.dataset.navigationParent || "");
+      container?.querySelectorAll(":scope > [data-navigation-item]").forEach((item) => payload.append("order", item.dataset.navigationItem || ""));
+      try {
+        const response = await fetch(form.action, {method: "POST", credentials: "same-origin", body: payload});
+        if (!response.ok) throw new Error("Não foi possível salvar a ordem.");
+        addNotificationToHistory("Ordem do menu atualizada.", "success", false);
+      } catch (error) {
+        addNotificationToHistory(error.message || "Não foi possível salvar a ordem.", "error", false);
+        window.location.reload();
+      }
+    });
+
+    builder.addEventListener("dragend", () => {
+      draggedItem?.classList.remove("is-dragging");
+      draggedItem = null;
     });
   }
 
   function setupCallIconTables() {
+    const sanitizeSvg = (value) => {
+      const parsed = new DOMParser().parseFromString(value || "", "image/svg+xml");
+      const svg = parsed.documentElement;
+      if (!svg || svg.nodeName.toLowerCase() !== "svg" || parsed.querySelector("parsererror")) return "";
+      const allowedTags = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "title", "desc"]);
+      const allowedAttributes = new Set([
+        "xmlns", "viewbox", "width", "height", "fill", "stroke", "role", "aria-hidden", "focusable",
+        "d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points",
+        "stroke-width", "stroke-linecap", "stroke-linejoin", "opacity", "transform",
+      ]);
+      Array.from(svg.querySelectorAll("*")).forEach((element) => {
+        if (!allowedTags.has(element.nodeName.toLowerCase())) {
+          element.remove();
+          return;
+        }
+        Array.from(element.attributes).forEach((attribute) => {
+          if (!allowedAttributes.has(attribute.name.toLowerCase())) element.removeAttribute(attribute.name);
+        });
+      });
+      Array.from(svg.attributes).forEach((attribute) => {
+        if (!allowedAttributes.has(attribute.name.toLowerCase())) svg.removeAttribute(attribute.name);
+      });
+      return new XMLSerializer().serializeToString(svg);
+    };
     const updatePreview = (source) => {
       const row = source.closest("[data-editable-row]") || source.closest(".call-icon-picker");
       const preview = row?.querySelector("[data-svg-preview], [data-icon-preview]");
       if (!preview) return;
       if (source.matches("[data-call-icon-select]")) {
-        preview.innerHTML = source.selectedOptions[0]?.dataset.svg || "";
+        preview.innerHTML = sanitizeSvg(source.selectedOptions[0]?.dataset.svg || "");
         return;
       }
-      preview.innerHTML = source.value || "";
+      preview.innerHTML = sanitizeSvg(source.value || "");
     };
     document.querySelectorAll("[data-svg-source], [data-call-icon-select]").forEach((source) => {
       source.addEventListener("input", () => updatePreview(source));
@@ -2792,6 +2952,8 @@
     const printButton = document.querySelector('[data-action="print"]');
     const cancelQueryIcon = document.querySelector('[data-query-cancel] [data-nav-icon]');
     const tableForm = getEditableTableForm();
+    const contextualRemoveTarget = document.querySelector("[data-toolbar-remove-target].selected");
+    const hasContextualRemoveTargets = Boolean(document.querySelector("[data-toolbar-remove-target]"));
     const isHome = document.body.dataset.tabUrl === "/";
     const isQueryMode = document.body.classList.contains("screen-query-mode");
 
@@ -2838,10 +3000,12 @@
       continueButton.hidden = !document.body.dataset.continueUrl;
       continueButton.disabled = isQueryMode || !document.body.dataset.continueUrl;
     }
-    if (removeButton) removeButton.disabled = isQueryMode || (tableForm
-      ?!hasSelectedPersistedRow(tableForm)
-      : !(document.body.dataset.canRemove === "true" && hasLoadedRecord()));
-    if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm);
+    if (removeButton) removeButton.disabled = isQueryMode || (hasContextualRemoveTargets
+      ? !contextualRemoveTarget
+      : tableForm
+        ? !hasSelectedPersistedRow(tableForm)
+        : !(document.body.dataset.canRemove === "true" && hasLoadedRecord()));
+    if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm || hasContextualRemoveTargets);
     const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
     if (toggleActiveButton) {
       const rowActiveField = getSelectedRowActiveField(tableForm);
@@ -2943,10 +3107,10 @@
 
   function getRecordLockResource(form) {
     if (!form || !form.dataset.table || form.method?.toLowerCase() === "get") return null;
-    const activeRow = form.matches("[data-editable-table]") ?getActiveEditableRow() : null;
+    const activeRow = form.matches("[data-editable-table]") ? getActiveEditableRow() : null;
     const primaryField = activeRow?.querySelector("[data-primary-key='true']")
       || form.querySelector("[data-primary-key='true'], .pk-label input");
-    const resourceId = primaryField?.value?.trim()
+    const resourceId = String(primaryField?.value || "").trim()
       || form.dataset.userId
       || form.dataset.providerId
       || `${window.location.pathname}${window.location.search}`;
@@ -3376,16 +3540,23 @@
   renderTabs();
   setupListContextPreservation();
   setupSpecialtyManager();
+  setupScaleProviderSpecialties();
   setupAssignmentManagers();
   setupRoleModuleVisibility();
   setupStandardCheckboxes();
   setupFormSectionAccordion();
+  setupNavigationBuilder();
   setupCallIconTables();
   setupSortableTables();
   setupResizableTables();
   setupCepCityDependencies();
   setupInitialEditableRows();
   updateTablePagerVisibility();
+  if (document.body.dataset.formErrors === "{}") {
+    document.querySelectorAll(".content form").forEach((form) => {
+      initialFormSignatures.set(form, formValueSignature(form));
+    });
+  }
   if (document.body.dataset.startQuery !== "true" && !sessionStorage.getItem("celeris-open-query-after-save")) {
     restoreCurrentFormState();
   }

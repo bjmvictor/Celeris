@@ -1,3 +1,6 @@
+import importlib
+
+from django.apps import apps as django_apps
 from django.contrib.auth.models import Group
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,6 +13,8 @@ from apps.atendimento.forms import PacienteForm
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
+    Module,
+    ScreenDefinition,
     TabelaAuxiliarGlobal,
     TipoPrestadorConselho,
     ValorAuxiliarGlobal,
@@ -63,6 +68,40 @@ class GlobalIntegrationTests(TestCase):
         formulario = PacienteForm(empresa=self.empresa)
         self.assertTrue(formulario.fields["nr_cpf"].required)
         self.assertTrue(formulario.fields["nm_paciente"].required)
+
+    def test_arvore_de_navegacao_reordena_itens_do_mesmo_grupo(self):
+        module = Module.objects.create(code="TESTE_MENU", title="Teste menu", order=990)
+        group = ScreenDefinition.objects.create(
+            module=module,
+            title="Grupo",
+            slug="teste-menu-grupo",
+            screen_type=ScreenDefinition.TYPE_GROUP,
+        )
+        first = ScreenDefinition.objects.create(
+            module=module,
+            parent=group,
+            title="Primeiro",
+            slug="teste-menu-primeiro",
+            access_key="teste-menu-primeiro",
+            order=10,
+        )
+        second = ScreenDefinition.objects.create(
+            module=module,
+            parent=group,
+            title="Segundo",
+            slug="teste-menu-segundo",
+            access_key="teste-menu-segundo",
+            order=20,
+        )
+        response = self.client.post(
+            reverse("core:system_navigation_reorder"),
+            {"node": second.pk, "parent": group.pk, "order": [second.pk, first.pk]},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            list(group.children.order_by("order").values_list("pk", flat=True)),
+            [second.pk, first.pk],
+        )
 
     def test_configuracao_usa_rotulos_visiveis_do_cadastro_de_prestador(self):
         response = self.client.get(
@@ -229,7 +268,11 @@ class FrontendInteractionContractTests(SimpleTestCase):
     def test_dropdown_possui_um_unico_handler_de_abertura_por_mouse(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         self.assertEqual(javascript.count('document.addEventListener("pointerdown", function (event) {'), 1)
-        click_handler = javascript.split('document.addEventListener("click", function (event) {\n    const select = event.target.closest(".content select")', 1)[1].split("});", 1)[0]
+        click_handler = javascript.split(
+            'document.addEventListener("click", function (event) {\n'
+            '    const select = event.target.closest(".content select, .pep-standalone-main select")',
+            1,
+        )[1].split('document.addEventListener("submit"', 1)[0]
         self.assertNotIn("openFloatingSelect(select)", click_handler)
 
     def test_dropdown_mantem_contratos_de_teclado(self):
@@ -286,8 +329,8 @@ class FrontendInteractionContractTests(SimpleTestCase):
 
     def test_barra_de_status_exibe_label_de_negocio(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
-        self.assertIn('owner.tagName === "FORM"', javascript)
-        self.assertIn('owner.method.toLowerCase() !== "get"', javascript)
+        self.assertIn('owner?.tagName === "FORM"', javascript)
+        self.assertIn('owner.method?.toLowerCase() !== "get"', javascript)
         self.assertIn('replace(/^new_/, "").replace(/_\\d+$/, "")', javascript)
         self.assertIn("`${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`", javascript)
         self.assertIn("businessLabel.trim()", javascript)
@@ -329,7 +372,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
     def test_limpar_formulario_get_recarrega_tela_sem_resultados(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         clear_screen = javascript.split("function clearScreenData()", 1)[1].split("const savedTheme", 1)[0]
-        self.assertIn('form.method.toLowerCase() === "get"', clear_screen)
+        self.assertIn('form.method?.toLowerCase() === "get"', clear_screen)
         self.assertIn("window.location.href = window.location.pathname", clear_screen)
 
     def test_novo_pela_barra_de_acoes_envia_retorno_da_tela_atual(self):
@@ -351,7 +394,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
         self.assertIn("hasSelectedPersistedRow", javascript)
         self.assertIn("rowActiveField", javascript)
         self.assertIn("changePasswordButton.disabled = !document.body.dataset.passwordUrl || !hasLoadedRecord()", javascript)
-        self.assertIn('toggleActiveButton.title === "Ativar"  "check" : "ban"', javascript)
+        self.assertIn('toggleActiveButton.title === "Ativar" ?"check" : "ban"', javascript)
 
     def test_secoes_recolhidas_usam_layout_horizontal_exclusivo(self):
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
@@ -367,7 +410,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
         self.assertIn("setupSortableTables", javascript)
-        self.assertIn('currentOrdering.startsWith("-")  "▼" : "▲"', javascript)
+        self.assertIn('currentOrdering.startsWith("-") ?"▼" : "▲"', javascript)
         self.assertIn(".sort-indicator", stylesheet)
 
     def test_edicao_inline_nao_adiciona_botao_editar_e_enter_navega(self):
@@ -418,9 +461,10 @@ class FrontendInteractionContractTests(SimpleTestCase):
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         self.assertIn("data-table-pager", pager_template)
-        self.assertIn("→", pager_template)
+        self.assertIn('data-nav-icon="arrow-left"', pager_template)
+        self.assertIn('data-nav-icon="arrow-right"', pager_template)
         self.assertIn("table-pager-actions", pager_template)
-        self.assertIn("min-height: 26px", stylesheet)
+        self.assertIn("min-height: var(--actionbar-height, 44px)", stylesheet)
         self.assertIn("updateTablePagerVisibility", javascript)
         self.assertIn(".content:has(form.table-card[data-editable-table])", stylesheet)
 
@@ -438,7 +482,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
         self.assertIn("data-notifications-clear", layout)
         self.assertIn("current_user_short_name", layout)
         self.assertIn("celeris-theme-user", login)
-        self.assertIn("SESSION_COOKIE_AGE = 600", settings_file)
+        self.assertIn("SESSION_COOKIE_AGE = 900", settings_file)
 
     def test_guias_usam_nome_curto_e_toolbar_mantem_caminho(self):
         context_processor = (settings.BASE_DIR / "apps" / "core" / "context_processors.py").read_text(encoding="utf-8")
@@ -459,4 +503,184 @@ class FrontendInteractionContractTests(SimpleTestCase):
 
     def test_menu_lateral_ordena_telas_antes_de_submenus(self):
         context_processor = (settings.BASE_DIR / "apps" / "core" / "context_processors.py").read_text(encoding="utf-8")
-        self.assertIn('bool(item[1].get("children"))', context_processor)
+        self.assertIn('.order_by("module__order", "module__title", "order", "title")', context_processor)
+        self.assertNotIn('bool(item[1].get("children"))', context_processor)
+
+class CatalogosIniciaisMigrationTests(TestCase):
+    def test_remove_dados_artificiais_e_preserva_catalogos_essenciais(self):
+        tabela, _ = TabelaAuxiliarGlobal.objects.get_or_create(
+            ds_tabela="sexo",
+            defaults={"ds_descricao": "Cadastro de teste", "sn_ativo": True},
+        )
+        valor_teste = ValorAuxiliarGlobal.objects.create(
+            cd_tabela_auxiliar_global=tabela,
+            cd_valor="TESTE_999",
+            ds_valor="SEXO TESTE 999",
+            sn_ativo=True,
+        )
+        cep_teste = Cep.objects.create(
+            nr_cep="01999999",
+            sg_estado="SP",
+            cd_cidade="SAO_PAULO",
+            ds_cidade="SÃO PAULO",
+            tp_logradouro="RUA",
+            ds_logradouro="RUA TESTE 999",
+            ds_bairro="BAIRRO TESTE 999",
+            sn_ativo=True,
+        )
+
+        migration = importlib.import_module("apps.core.migrations.0036_normalizar_catalogos_iniciais")
+        migration.normalizar_catalogos(django_apps, None)
+
+        self.assertFalse(ValorAuxiliarGlobal.objects.filter(pk=valor_teste.pk).exists())
+        self.assertFalse(Cep.objects.filter(pk=cep_teste.pk).exists())
+        tabela.refresh_from_db()
+        self.assertEqual(tabela.ds_descricao, "Sexos")
+        self.assertEqual(tabela.valores.get(cd_valor="N").ds_valor, "Não informado")
+        self.assertFalse(User.objects.filter(username__in=["RECEPCAO", "ENFERMAGEM", "MEDICO"]).exists())
+
+    def test_mescla_grupos_legados_sem_perder_filhos(self):
+        module = Module.objects.create(code="TESTE_DUPLICIDADE", title="Teste", order=999)
+        canonical = ScreenDefinition.objects.create(
+            module=module,
+            title="Tabelas",
+            slug="teste-duplicidade-tabelas",
+            screen_type=ScreenDefinition.TYPE_GROUP,
+            order=10,
+        )
+        duplicate = ScreenDefinition.objects.create(
+            module=module,
+            title="TABELAS",
+            slug="teste-duplicidade-tabelas-duplicada",
+            screen_type=ScreenDefinition.TYPE_GROUP,
+            order=20,
+        )
+        child = ScreenDefinition.objects.create(
+            module=module,
+            parent=duplicate,
+            parent_label=duplicate.title,
+            title="Item atual",
+            slug="teste-duplicidade-item-atual",
+            access_key="teste-duplicidade-item-atual",
+        )
+        legacy = ScreenDefinition.objects.create(
+            module=module,
+            parent_label="tAbElAs",
+            title="Item legado",
+            slug="teste-duplicidade-item-legado",
+            access_key="teste-duplicidade-item-legado",
+        )
+
+        migration = importlib.import_module("apps.core.migrations.0037_mesclar_grupos_navegacao_duplicados")
+        migration.mesclar_grupos_navegacao(django_apps, None)
+
+        duplicate.refresh_from_db()
+        child.refresh_from_db()
+        legacy.refresh_from_db()
+        self.assertFalse(duplicate.active)
+        self.assertEqual(child.parent_id, canonical.pk)
+        self.assertEqual(legacy.parent_id, canonical.pk)
+
+
+class NavigationIntegrationTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=198, nm_empresa="Navegação", sn_ativo=True)
+        self.user = User.objects.create_user(username="TINAVEGACAO", password="123456", is_active=True)
+        self.user.groups.add(Group.objects.get_or_create(name="TI")[0])
+        UsuarioEmpresa.objects.create(usuario=self.user, empresa=self.empresa, sn_padrao=True, sn_ativo=True)
+        self.client = Client(HTTP_HOST="localhost")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.cd_empresa
+        session.save()
+
+    def test_configuracao_de_modulos_e_telas_carrega(self):
+        response = self.client.get(reverse("core:system_screens"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Módulos e Telas")
+        self.assertContains(response, 'data-start-query="true"')
+        self.assertContains(response, "1. Módulo")
+        self.assertContains(response, "2. Itens")
+        self.assertFalse(response.context["current_can_remove"])
+
+    def test_configuracao_de_modulos_consulta_cria_e_desativa(self):
+        module = Module.objects.create(
+            code="MODULO_TESTE_CONFIG",
+            title="Módulo de teste configurável",
+            icon="grid",
+            order=910,
+            active=True,
+        )
+        query_response = self.client.get(
+            reverse("core:system_screens"),
+            {"consultar": "1", "title": "teste configurável"},
+        )
+        self.assertRedirects(
+            query_response,
+            f"{reverse('core:system_screens')}?module={module.pk}&origem=consulta",
+            fetch_redirect_response=False,
+        )
+        loaded = self.client.get(query_response.url)
+        self.assertContains(loaded, 'value="Módulo de teste configurável"')
+        self.assertContains(loaded, "Item 1 de 1")
+
+        create_response = self.client.post(
+            reverse("core:system_screens"),
+            {
+                "code": "NOVO_MODULO_CONFIG",
+                "title": "Novo módulo",
+                "icon": "boxes",
+                "order": 920,
+                "active": "True",
+            },
+        )
+        created = Module.objects.get(code="NOVO_MODULO_CONFIG")
+        self.assertRedirects(
+            create_response,
+            f"{reverse('core:system_screens')}?module={created.pk}",
+            fetch_redirect_response=False,
+        )
+
+        toggle_response = self.client.post(reverse("core:system_module_toggle_active", args=[created.pk]))
+        self.assertRedirects(
+            toggle_response,
+            f"{reverse('core:system_screens')}?module={created.pk}",
+            fetch_redirect_response=False,
+        )
+        created.refresh_from_db()
+        self.assertFalse(created.active)
+
+    def test_arvore_usa_marcadores_para_itens_sem_icone(self):
+        module = Module.objects.create(code="MODULO_MARCADORES", title="Marcadores", order=930)
+        group = ScreenDefinition.objects.create(
+            module=module,
+            title="Grupo sem ícone",
+            slug="grupo-sem-icone-teste",
+            screen_type=ScreenDefinition.TYPE_GROUP,
+        )
+        ScreenDefinition.objects.create(
+            module=module,
+            parent=group,
+            title="Tela sem ícone",
+            slug="tela-sem-icone-teste",
+        )
+        response = self.client.get(reverse("core:system_screens"), {"module": module.pk})
+        self.assertContains(response, "navigation-tree-marker is-group")
+        self.assertContains(response, "navigation-tree-marker is-screen")
+
+    def test_menu_lateral_nao_repete_grupos_equivalentes(self):
+        response = self.client.get(reverse("core:home"))
+        modules = response.context["modules_menu"]
+        cadastros = next(module for module in modules if module["code"] == "CADASTROS")
+        ti = next(module for module in modules if module["code"] == "TI")
+        self.assertEqual(
+            sum(item["label"].casefold() == "tabelas" for item in cadastros["items"]),
+            1,
+        )
+        self.assertFalse(
+            any(item["label"].casefold().startswith("gerenciamento de usu") for item in ti["items"])
+        )
+        self.assertEqual(
+            sum(item["label"].casefold() == "usuários e acessos" for item in ti["items"]),
+            1,
+        )

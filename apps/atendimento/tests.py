@@ -14,9 +14,121 @@ from django.utils import timezone
 from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
 from apps.core.models import Cep, TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 
-from .forms import PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HorarioAgenda, ItemMenuAssistencial, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
+from .forms import EscalaForm, PrestadorForm
+from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HorarioAgenda, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
+
+
+class PainelChamadaStandaloneTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=701, nm_empresa="Empresa Painel", sn_ativo=True)
+        self.setor = Setor.objects.create(
+            cd_empresa=self.empresa,
+            nm_setor="Consultório 1",
+            tp_setor=Setor.TipoSetor.ATENDIMENTO,
+        )
+        self.maquina = MaquinaChamada.objects.create(
+            cd_empresa=self.empresa,
+            nm_maquina="PAINEL01",
+            tp_maquina="PAINEL",
+            cd_setor=self.setor,
+            nm_sala="Recepção",
+        )
+
+    def test_primeiro_acesso_configura_painel_da_maquina(self):
+        response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configurar painel")
+
+        response = self.client.post(
+            f"/painel/?maquina={self.maquina.nm_maquina}",
+            {"layout": "compacto", "tamanho": "grande", "cor": "verde"},
+        )
+        self.assertEqual(response.status_code, 302)
+        painel = PainelChamada.objects.get(cd_empresa=self.empresa, nm_maquina=self.maquina.nm_maquina)
+        self.assertEqual((painel.ds_layout, painel.ds_tamanho, painel.ds_cor), ("compacto", "grande", "verde"))
+        self.assertEqual(list(painel.setores.values_list("pk", flat=True)), [self.setor.pk])
+
+        response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Configurar painel</h1>")
+        self.assertContains(response, "Aguardando chamada")
+
+    def test_estacao_nao_pode_ser_aberta_como_painel(self):
+        self.maquina.tp_maquina = "ESTACAO"
+        self.maquina.save(update_fields=["tp_maquina"])
+        response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Máquina não cadastrada")
+
+
+class EscalaEspecialidadesTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=702, nm_empresa="Empresa Escalas", sn_ativo=True)
+        tabela, _created = TabelaAuxiliarGlobal.objects.get_or_create(
+            ds_tabela="especialidade",
+            defaults={"ds_descricao": "Especialidades", "sn_ativo": True},
+        )
+        for code, label in (
+            ("CARDIOLOGIA", "Cardiologia"),
+            ("CLINICA_GERAL", "Clínica Geral"),
+            ("PEDIATRIA", "Pediatria"),
+        ):
+            ValorAuxiliarGlobal.objects.update_or_create(
+                cd_tabela_auxiliar_global=tabela,
+                cd_valor=code,
+                defaults={"ds_valor": label, "sn_ativo": True},
+            )
+        self.prestador = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Médico da escala",
+            nm_guerra="Médico",
+            tp_prestador="MEDICO",
+            ds_especialidade="CARDIOLOGIA",
+            ds_especialidades=["CARDIOLOGIA", "CLINICA_GERAL"],
+            sn_permite_agenda=True,
+            sn_ativo=True,
+        )
+        Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Pediatra",
+            nm_guerra="Pediatra",
+            tp_prestador="MEDICO",
+            ds_especialidade="PEDIATRIA",
+            ds_especialidades=["PEDIATRIA"],
+            sn_permite_agenda=True,
+            sn_ativo=True,
+        )
+
+    def test_especialidades_sao_limitadas_ao_prestador_selecionado(self):
+        form = EscalaForm(data={"cd_prestador": self.prestador.pk}, empresa=self.empresa)
+        choices = dict(form.fields["ds_especialidade"].widget.choices)
+        self.assertEqual(
+            choices,
+            {"": "", "CARDIOLOGIA": "Cardiologia", "CLINICA_GERAL": "Clínica Geral"},
+        )
+        self.assertNotIn("PEDIATRIA", choices)
+
+    def test_formulario_publica_mapa_para_atualizacao_sem_recarregar(self):
+        form = EscalaForm(empresa=self.empresa)
+        provider_map = json.loads(form.fields["cd_prestador"].widget.attrs["data-provider-specialties"])
+        self.assertEqual(
+            [item["value"] for item in provider_map[str(self.prestador.pk)]],
+            ["CARDIOLOGIA", "CLINICA_GERAL"],
+        )
+        self.assertEqual(list(form.fields["ds_especialidade"].widget.choices), [("", "")])
+
+    def test_servidor_rejeita_especialidade_de_outro_prestador(self):
+        form = EscalaForm(
+            data={
+                "cd_prestador": self.prestador.pk,
+                "ds_especialidade": "PEDIATRIA",
+            },
+            empresa=self.empresa,
+        )
+        form.is_valid()
+        self.assertIn("ds_especialidade", form.errors)
+        self.assertIn("não está cadastrada", form.errors["ds_especialidade"][0])
 
 
 class FluxoHomologacaoTests(TestCase):
@@ -394,12 +506,12 @@ class FluxoHomologacaoTests(TestCase):
         agendamento = Agendamento.objects.latest("pk")
         expected = (
             f"{reverse('atendimento:selecionar-agenda', args=[self.paciente.pk])}"
-            f"comprovante={agendamento.pk}"
+            f"?comprovante={agendamento.pk}"
         )
         self.assertRedirects(first, expected)
         modal = self.client.get(first.url)
         self.assertContains(modal, "data-appointment-receipt-modal")
-        self.assertContains(modal, "embed=1")
+        self.assertContains(modal, "pdf=1")
         second = self.client.post(confirmation_url, {"ds_tipo_atendimento": "CONSULTA"})
         self.assertRedirects(second, reverse("atendimento:selecionar-agenda", args=[self.paciente.pk]))
         self.assertEqual(Agendamento.objects.filter(cd_horario_agenda=horario["horario"]).count(), 1)
@@ -580,7 +692,7 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.assertRedirects(
             delete_response,
-            f"{reverse('atendimento:escalas')}exclusao_concluida=1",
+            f"{reverse('atendimento:escalas')}?exclusao_concluida=1",
         )
         self.assertFalse(AgendaProfissional.objects.filter(pk=escala.pk).exists())
 

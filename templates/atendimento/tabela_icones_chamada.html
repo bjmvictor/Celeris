@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <form class="card table-card" data-editable-table data-table="icone_chamada" method="post">
+  <form class="card table-card call-icons-table-card" data-editable-table data-table="icone_chamada" data-preserve-input method="post">
     {% csrf_token %}
     <table class="editable-table call-icons-table">
       <thead>
@@ -18,7 +18,7 @@
             <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
             <td><input name="name_{{ item.pk }}" value="{{ item.nm_icone }}" required></td>
             <td class="td-icon"><span class="call-icon-preview call-icon-preview-lg" data-svg-preview>{{ item.ds_svg|safe }}</span></td>
-            <td><textarea name="svg_{{ item.pk }}" rows="2" data-svg-source>{{ item.ds_svg }}</textarea></td>
+            <td><textarea name="svg_{{ item.pk }}" rows="1" data-svg-source data-preserve-characters>{{ item.ds_svg }}</textarea></td>
             <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
           </tr>
         {% empty %}
@@ -31,7 +31,7 @@
         <td><input readonly data-primary-key="true" placeholder="Automático"></td>
         <td><input name="new_name" required></td>
         <td><span class="call-icon-preview call-icon-preview-lg" data-svg-preview></span></td>
-        <td><textarea name="new_svg" rows="2" data-svg-source></textarea></td>
+        <td><textarea name="new_svg" rows="1" data-svg-source data-preserve-characters></textarea></td>
         <td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>
       </tr>
     </template>

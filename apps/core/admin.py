@@ -5,7 +5,7 @@ from .models import Module, ScreenDefinition, ScreenField, UserModule
 
 @admin.register(Module)
 class ModuleAdmin(admin.ModelAdmin):
-    list_display = ("code", "title", "active")
+    list_display = ("code", "title", "icon", "order", "active")
     search_fields = ("code", "title")
 
 
@@ -34,11 +34,11 @@ class ScreenFieldInline(admin.TabularInline):
 
 @admin.register(ScreenDefinition)
 class ScreenDefinitionAdmin(admin.ModelAdmin):
-    list_display = ("title", "module", "parent_label", "screen_type", "allow_query", "allow_insert", "allow_update", "allow_delete", "active", "order")
+    list_display = ("title", "module", "parent", "screen_type", "access_key", "allow_query", "allow_insert", "allow_update", "allow_delete", "active", "order")
     list_filter = ("module", "screen_type", "active")
     search_fields = ("title", "slug", "parent_label", "table_name")
     prepopulated_fields = {"slug": ("title",)}
-    autocomplete_fields = ("module",)
+    autocomplete_fields = ("module", "parent")
     inlines = (ScreenFieldInline,)
 
 

@@ -1,6 +1,7 @@
 from django.db import OperationalError, ProgrammingError
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from urllib.parse import urlencode
+import unicodedata
 
 from apps.accounts.models import Empresa
 from apps.accounts.access import user_access_keys
@@ -184,6 +185,9 @@ def _organize_runtime_modules(modules):
 
 
 def _merge_configured_menu():
+    database_menu = _database_navigation_menu()
+    if database_menu:
+        return database_menu
     configured = _configured_screen_items()
     merged = []
     known_codes = set()
@@ -217,6 +221,114 @@ def _merge_configured_menu():
     return _organize_runtime_modules(merged)
 
 
+def _database_navigation_menu():
+    try:
+        if not ScreenDefinition.objects.filter(
+            active=True,
+            screen_type=ScreenDefinition.TYPE_GROUP,
+        ).exists():
+            return []
+        modules = list(
+            Module.objects.filter(active=True)
+            .exclude(code__in=HIDDEN_UNIMPLEMENTED_MODULE_CODES)
+            .order_by("order", "title")
+        )
+        screens = list(
+            ScreenDefinition.objects.filter(active=True, module__in=modules)
+            .select_related("module", "parent")
+            .order_by("module__order", "module__title", "order", "title")
+        )
+    except (OperationalError, ProgrammingError):
+        return []
+
+    children_by_parent = {}
+    roots_by_module = {}
+    legacy_by_module = {}
+    for screen in screens:
+        if screen.parent_id:
+            children_by_parent.setdefault(screen.parent_id, []).append(screen)
+        elif screen.parent_label:
+            legacy_by_module.setdefault(screen.module_id, {}).setdefault(screen.parent_label, []).append(screen)
+        else:
+            roots_by_module.setdefault(screen.module_id, []).append(screen)
+
+    def screen_destination(screen):
+        if screen.navigation_url:
+            return "", screen.navigation_url
+        access_key = screen.access_key or ""
+        if access_key.startswith("/"):
+            return "", access_key
+        if access_key:
+            try:
+                reverse(access_key)
+                return access_key, ""
+            except NoReverseMatch:
+                pass
+        if screen.screen_type != ScreenDefinition.TYPE_GROUP:
+            return "", reverse("core:dynamic_screen", kwargs={"slug": screen.slug})
+        return "", ""
+
+    def build_item(screen):
+        children = [build_item(child) for child in children_by_parent.get(screen.pk, [])]
+        route_name, url = screen_destination(screen)
+        navigation_item = item(
+            screen.title,
+            route_name=route_name or None,
+            url=url or None,
+            children=children,
+            roles=screen.roles or [],
+            access_key=screen.access_key,
+            icon=screen.icon,
+        )
+        navigation_item["is_group"] = screen.screen_type == ScreenDefinition.TYPE_GROUP
+        return navigation_item
+
+    def label_key(value):
+        normalized = unicodedata.normalize("NFKD", value or "")
+        return "".join(
+            character for character in normalized if not unicodedata.combining(character)
+        ).casefold().strip()
+
+    def merge_items(menu_items):
+        merged = []
+        items_by_label = {}
+        for menu_item in menu_items:
+            normalized_item = {
+                **menu_item,
+                "children": merge_items(menu_item.get("children", [])),
+            }
+            key = label_key(normalized_item.get("label"))
+            existing = items_by_label.get(key)
+            if existing is None:
+                items_by_label[key] = normalized_item
+                merged.append(normalized_item)
+                continue
+            existing["children"] = merge_items(
+                [*existing.get("children", []), *normalized_item.get("children", [])]
+            )
+            for attribute in ("route_name", "url", "access_key", "icon"):
+                if not existing.get(attribute) and normalized_item.get(attribute):
+                    existing[attribute] = normalized_item[attribute]
+        return merged
+
+    result = []
+    for module in modules:
+        module_items = [build_item(screen) for screen in roots_by_module.get(module.pk, [])]
+        for label, legacy_screens in legacy_by_module.get(module.pk, {}).items():
+            module_items.append(item(label, children=[build_item(screen) for screen in legacy_screens]))
+        module_items = merge_items(module_items)
+        if module_items:
+            result.append(
+                {
+                    "code": module.code,
+                    "title": module.title,
+                    "icon": module.icon or "grid",
+                    "items": module_items,
+                }
+            )
+    return result
+
+
 def _filter_menu_for_user(menu, user):
     allowed_keys = user_access_keys(user) if user.is_authenticated and not user.is_superuser else set()
 
@@ -224,13 +336,15 @@ def _filter_menu_for_user(menu, user):
         visible = []
         for index, nav_item in enumerate(items):
             children = filter_items(nav_item.get("children", []))
+            if nav_item.get("is_group") and not children:
+                continue
             if nav_item.get("children"):
                 if not children:
                     continue
             elif not user.is_superuser and nav_item.get("access_key") not in allowed_keys:
                 continue
             visible.append((index, {**nav_item, "children": children}))
-        return [nav_item for _, nav_item in sorted(visible, key=lambda item: (bool(item[1].get("children")), item[0]))]
+        return [nav_item for _, nav_item in visible]
 
     return [
         {**module, "items": filter_items(module["items"])}
@@ -307,7 +421,8 @@ def navigation(request):
         current_empresa = None
     current_new_url = getattr(request, "current_new_url", new_url_by_route.get(route_name, ""))
     if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
-        current_new_url = f"{current_new_url}{urlencode({'return_to': request.get_full_path()})}"
+        separator = "&" if "?" in current_new_url else "?"
+        current_new_url = f"{current_new_url}{separator}{urlencode({'return_to': request.get_full_path()})}"
     return {
         "modules_menu": _filter_menu_for_user(_merge_configured_menu(), request.user),
         "current_tab_title": current_tab_title,

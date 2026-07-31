@@ -20,14 +20,41 @@ ROUTE_ACCESS_ALIASES = {
 }
 
 
-def request_access_keys(request) -> set[str]:
+def request_access_key_candidates(request) -> tuple[str, ...]:
     match = getattr(request, "resolver_match", None)
     route_name = ""
     if match:
         route_name = f"{match.namespace}:{match.url_name}" if match.namespace else match.url_name
-    keys = {key for key in (route_name, request.path) if key}
-    keys.update(ROUTE_ACCESS_ALIASES.get(route_name, set()))
-    return keys
+    aliases = sorted(ROUTE_ACCESS_ALIASES.get(route_name, set()))
+    ordered = [*aliases, route_name, request.path] if aliases else [route_name, request.path]
+    return tuple(dict.fromkeys(key for key in ordered if key))
+
+
+def request_access_keys(request) -> set[str]:
+    return set(request_access_key_candidates(request))
+
+
+def resolve_request_access_key(request) -> str:
+    access_key, _registered = resolve_request_access(request)
+    return access_key
+
+
+def resolve_request_access(request) -> tuple[str, bool]:
+    """Return the canonical active key and whether the route is registered."""
+    from apps.core.models import ScreenDefinition
+
+    candidates = request_access_key_candidates(request)
+    if not candidates:
+        return "", False
+    registered = {
+        screen.access_key: screen
+        for screen in ScreenDefinition.objects.select_related("module").filter(access_key__in=candidates)
+    }
+    for candidate in candidates:
+        screen = registered.get(candidate)
+        if screen:
+            return (candidate, True) if screen.active and screen.module.active else ("", True)
+    return "", False
 
 
 def user_access_keys(user) -> set[str]:
@@ -67,6 +94,8 @@ def screen_access_required(access_key: str):
             ensure_screen_access(request, access_key)
             return view(request, *args, **kwargs)
 
+        wrapped._celeris_access_policy = "screen"
+        wrapped._celeris_access_key = access_key
         return wrapped
 
     return decorator

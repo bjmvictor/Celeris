@@ -1,4 +1,4 @@
-def item(label, route_name=None, children=None, url=None, roles=None, access_key=None):
+def item(label, route_name=None, children=None, url=None, roles=None, access_key=None, icon=None):
     return {
         "label": label,
         "route_name": route_name,
@@ -6,6 +6,7 @@ def item(label, route_name=None, children=None, url=None, roles=None, access_key
         "children": children or [],
         "roles": roles or [],
         "access_key": access_key or route_name or url,
+        "icon": icon or "",
     }
 
 
@@ -188,6 +189,7 @@ MODULES = [
             item(
                 "Tabelas Auxiliares",
                 children=[
+                    item("Sexos", "core:global_sexo", roles=["TI"]),
                     item("Estados", url="/global/tabelas/auxiliares/estado/", roles=["TI"]),
                     item("Cidades", url="/global/tabelas/auxiliares/cidade/", roles=["TI"]),
                     item("Tipos de Logradouro", url="/global/tabelas/auxiliares/tipo_logradouro/", roles=["TI"]),
@@ -215,6 +217,13 @@ MODULES = [
                 "Formulários",
                 children=[
                     item("Configurar formulários", "core:configurar_formularios", roles=["TI"]),
+                ],
+                roles=["TI"],
+            ),
+            item(
+                "Configuração do Sistema",
+                children=[
+                    item("Módulos e Telas", "core:system_screens", roles=["TI"]),
                 ],
                 roles=["TI"],
             ),
@@ -247,7 +256,7 @@ MODULES = [
                 "Usuários e acessos",
                 children=[
                     item("Usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
-                    item("Alteração de senha", "ti:alteracao_senha_usuario", roles=["TI"], access_key="usuarios"),
+                    item("Alteração de senha", "ti:alteracao_senha_usuario", roles=["TI"]),
                     item("Cópia de usuário", "copia_usuario", roles=["TI"]),
                     item("Papéis", "perfis", roles=["TI"]),
                     item("Permissões", "permissoes", roles=["TI"]),

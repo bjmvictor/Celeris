@@ -40,7 +40,7 @@
       </thead>
       <tbody>
         {% for agenda in agendas_geradas %}
-          <tr class="agenda-generated-row" data-agenda-row-toggle="{{ agenda.pk }}" tabindex="0" aria-expanded="false">
+          <tr class="agenda-generated-row" data-agenda-row-toggle="{{ agenda.pk }}" data-toolbar-remove-target data-remove-form="agenda-delete-form" data-remove-resource="{{ agenda.pk }}" data-remove-title="Excluir agenda" data-remove-message="Confirma a exclusão da agenda selecionada?" tabindex="0" aria-expanded="false">
             <td>{{ agenda.pk }}</td>
             <td>{{ agenda.cd_escala.cd_prestador.nm_prestador }}</td>
             <td>{{ agenda.cd_escala.ds_agenda }}</td>
@@ -58,12 +58,6 @@
                   <button class="button button-secondary" type="submit">Cancelar horários</button>
                 </form>
               {% endif %}
-              <form method="post" data-confirm-message="Deseja realmente excluir esta agenda Esta ação não poderá ser desfeita.">
-                {% csrf_token %}
-                <input type="hidden" name="acao" value="excluir">
-                <input type="hidden" name="agenda_gerada" value="{{ agenda.pk }}">
-                <button class="button button-ghost" type="submit">Excluir</button>
-              </form>
             </td>
           </tr>
           <tr class="agenda-slot-details" data-agenda-row-details="{{ agenda.pk }}" hidden>
@@ -99,6 +93,11 @@
       </tbody>
     </table>
   </section>
+  <form id="agenda-delete-form" method="post" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="acao" value="excluir">
+    <input type="hidden" name="agenda_gerada" data-remove-resource value="">
+  </form>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -115,7 +114,7 @@
         const startDate = new Date(`${start.value}T00:00:00`);
         const endDate = new Date(`${end.value}T00:00:00`);
         const days = Math.floor((endDate - startDate) / 86400000) + 1;
-        output.textContent = days > 0  `${days} dia(s)` : "Período inválido";
+        output.textContent = days > 0 ? `${days} dia(s)` : "Período inválido";
       };
       start.addEventListener("change", update);
       end.addEventListener("change", update);

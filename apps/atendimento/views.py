@@ -28,8 +28,12 @@ import re
 from types import SimpleNamespace
 import unicodedata
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-import bleach
-from bleach.css_sanitizer import CSSSanitizer
+try:
+    import bleach
+    from bleach.css_sanitizer import CSSSanitizer
+except ImportError:
+    bleach = None
+    CSSSanitizer = None
 from django.utils.html import conditional_escape
 from django.utils.safestring import mark_safe
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -4211,6 +4215,10 @@ def _sanitizador_css_documento():
 
 
 def _conteudo_documento_seguro(conteudo):
+    if bleach is None:
+        raise RuntimeError(
+            "A dependência bleach não está instalada. Execute o sistema pelo ambiente virtual ou instale requirements.txt."
+        )
     css = _sanitizador_css_documento()
     return bleach.clean(
         conteudo or "",
@@ -6223,7 +6231,7 @@ def cadastro_escala(request, cd_escala=None):
         if removido:
             messages.success(request, "Escala excluída e alteração salva com sucesso.")
             parametros = "origem=consulta&exclusao_concluida=1" if query_context else "exclusao_concluida=1"
-            return redirect(f"{reverse('atendimento:escalas')}{parametros}")
+            return redirect(f"{reverse('atendimento:escalas')}?{parametros}")
         destino = reverse("atendimento:cadastro-escala", args=[escala.pk])
         return redirect(f"{destino}?origem=consulta" if query_context else destino)
     if request.method == "POST" and form.is_valid():
@@ -6879,10 +6887,12 @@ def pep_prontuario_paciente_standalone(request, cd_paciente):
 
 @login_required
 @role_required("TI", "Médico", "Enfermeiro")
+@transaction.atomic
 def pep_chamar(request, cd_atendimento):
+    if request.method != "POST":
+        raise PermissionDenied
     empresa = _empresa_logada(request)
     atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
-    setor = get_object_or_404(Setor, cd_empresa=empresa, pk=request.POST.get("setor"))
     maquina_nome = (
         request.POST.get("maquina")
         or request.COOKIES.get("celeris_maquina_chamada")
@@ -6891,13 +6901,21 @@ def pep_chamar(request, cd_atendimento):
     ).strip()
     maquina = (
         MaquinaChamada.objects.select_related("cd_setor")
-        .filter(cd_empresa=empresa, nm_maquina__iexact=maquina_nome, sn_ativo=True)
+        .filter(
+            cd_empresa=empresa,
+            nm_maquina__iexact=maquina_nome,
+            tp_maquina="ESTACAO",
+            sn_ativo=True,
+        )
         .first()
         if maquina_nome
         else None
     )
-    if maquina and maquina.cd_setor_id:
-        setor = maquina.cd_setor
+    setor = maquina.cd_setor if maquina and maquina.cd_setor_id else get_object_or_404(
+        Setor,
+        cd_empresa=empresa,
+        pk=request.POST.get("setor"),
+    )
     destino = ""
     if maquina:
         tipo = maquina.get_tp_sala_display()
@@ -6996,25 +7014,6 @@ def alternar_status_painel_chamada(request, cd_painel):
     return redirect("atendimento:cadastro-painel-chamada", cd_painel=painel.pk)
 
 
-def painel_chamada_publico(request):
-    painel = None
-    painel_id = request.GET.get("painel") or request.COOKIES.get("celeris_painel_chamada")
-    if painel_id:
-        painel = PainelChamada.objects.prefetch_related("setores").filter(pk=painel_id, sn_ativo=True).first()
-    paineis = PainelChamada.objects.filter(sn_ativo=True).order_by("nm_painel")
-    chamadas = ChamadaPainel.objects.none()
-    if painel:
-        chamadas = (
-            ChamadaPainel.objects.select_related("cd_atendimento__cd_paciente", "cd_senha_atendimento", "cd_setor")
-            .filter(cd_setor__in=painel.setores.all(), ds_status="CHAMADO")
-            .order_by("-dh_chamada")[:8]
-        )
-    response = render(request, "atendimento/painel_chamada_publico.html", {"painel": painel, "paineis": paineis, "chamadas": chamadas})
-    if painel:
-        response.set_cookie("celeris_painel_chamada", str(painel.pk), max_age=60 * 60 * 24 * 365)
-    return response
-
-
 @login_required
 @role_required("TI")
 def configurar_senhas(request, cd_tipo=None):
@@ -7024,7 +7023,7 @@ def configurar_senhas(request, cd_tipo=None):
         if cd_tipo
         else None
     )
-    request.current_tab_title = "Painéis de Chamada > Configurar"
+    request.current_tab_title = "Painéis de Chamada > Configurar senhas"
     request.current_tab_root_title = "Configurar senhas"
     request.current_module_title = "Painéis de Chamada"
     request.current_can_query = True
@@ -7286,6 +7285,22 @@ def protocolos_senha(request):
     )
 
 
+def _sanitize_call_icon_svg(value):
+    if bleach is None:
+        return ""
+    cleaned = bleach.clean(
+        (value or "").strip(),
+        tags={"svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "title", "desc"},
+        attributes={
+            "svg": {"xmlns", "viewBox", "viewbox", "width", "height", "fill", "stroke", "role", "aria-hidden", "focusable"},
+            "*": {"d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "opacity", "transform"},
+        },
+        protocols=set(),
+        strip=True,
+    )
+    return cleaned if cleaned.lstrip().lower().startswith("<svg") else ""
+
+
 @login_required
 @role_required("TI")
 def icones_chamada(request):
@@ -7305,7 +7320,7 @@ def icones_chamada(request):
                 if f"name_{item.pk}" not in request.POST:
                     continue
                 item.nm_icone = request.POST.get(f"name_{item.pk}", "").strip()
-                item.ds_svg = request.POST.get(f"svg_{item.pk}", "").strip()
+                item.ds_svg = _sanitize_call_icon_svg(request.POST.get(f"svg_{item.pk}", ""))
                 item.sn_ativo = request.POST.get(f"active_{item.pk}") == "true"
                 _apply_audit(item, request.user)
                 item.save()
@@ -7318,7 +7333,7 @@ def icones_chamada(request):
                 item = IconeChamada(
                     cd_empresa=empresa,
                     nm_icone=name.strip(),
-                    ds_svg=(new_svgs[index] if index < len(new_svgs) else "").strip(),
+                    ds_svg=_sanitize_call_icon_svg(new_svgs[index] if index < len(new_svgs) else ""),
                     sn_ativo=index >= len(new_active) or new_active[index] == "true",
                 )
                 _apply_audit(item, request.user)
@@ -7358,6 +7373,7 @@ def maquinas_chamada(request):
                     continue
                 setor_id = request.POST.get(f"sector_{item.pk}", "").strip()
                 item.nm_maquina = request.POST.get(f"machine_{item.pk}", "").strip().upper()
+                item.tp_maquina = request.POST.get(f"machine_type_{item.pk}", "ESTACAO")
                 item.cd_setor_id = int(setor_id) if setor_id.isdigit() else None
                 item.nm_sala = request.POST.get(f"room_name_{item.pk}", "").strip()
                 item.tp_sala = request.POST.get(f"room_type_{item.pk}", "CONSULTORIO")
@@ -7366,6 +7382,7 @@ def maquinas_chamada(request):
                 _apply_audit(item, request.user)
                 item.save()
             new_machines = request.POST.getlist("new_machine")
+            new_machine_types = request.POST.getlist("new_machine_type")
             new_sectors = request.POST.getlist("new_sector")
             new_room_names = request.POST.getlist("new_room_name")
             new_room_types = request.POST.getlist("new_room_type")
@@ -7378,6 +7395,7 @@ def maquinas_chamada(request):
                 item = MaquinaChamada(
                     cd_empresa=empresa,
                     nm_maquina=machine.strip().upper(),
+                    tp_maquina=(new_machine_types[index] if index < len(new_machine_types) else "ESTACAO") or "ESTACAO",
                     cd_setor_id=int(setor_id) if setor_id.isdigit() else None,
                     nm_sala=(new_room_names[index] if index < len(new_room_names) else "").strip(),
                     tp_sala=(new_room_types[index] if index < len(new_room_types) else "CONSULTORIO") or "CONSULTORIO",
@@ -7400,14 +7418,19 @@ def maquinas_chamada(request):
     registros = paginate_table(
         request,
         registros,
-        {"cd_maquina_chamada", "nm_maquina", "nm_sala", "tp_sala", "nr_sala", "sn_ativo"},
+        {"cd_maquina_chamada", "nm_maquina", "tp_maquina", "nm_sala", "tp_sala", "nr_sala", "sn_ativo"},
         "cd_maquina_chamada",
     )
     setores = Setor.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_setor")
     return render(
         request,
         "atendimento/tabela_maquinas_chamada.html",
-        {"registros": registros, "setores": setores, "tipos_sala": MaquinaChamada.TIPOS_SALA},
+        {
+            "registros": registros,
+            "setores": setores,
+            "tipos_sala": MaquinaChamada.TIPOS_SALA,
+            "tipos_maquina": MaquinaChamada.TIPOS_MAQUINA,
+        },
     )
 
 
@@ -7580,6 +7603,7 @@ def abrir_consulta(request, cd_atendimento):
 
 @login_required
 @role_required("TI", "Recepcionista")
+@transaction.atomic
 def gerar_agenda(request):
     request.current_tab_title = "Atendimento > Agendamento > Geração de agendas"
     request.current_tab_root_title = "Geração de agendas"
@@ -7873,14 +7897,14 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
         if recepcao_direta:
             continue_url = reverse("atendimento:novo-atendimento-direto", args=[paciente.pk])
             request.current_continue_url = (
-                f"{continue_url}{urlencode({'senha': senha_recepcao_id})}"
+                f"{continue_url}?{urlencode({'senha': senha_recepcao_id})}"
                 if senha_recepcao_id.isdigit()
                 else continue_url
             )
         elif agendamento_recepcao:
             continue_url = reverse("atendimento:novo-atendimento-agendado", args=[agendamento_recepcao.pk])
             query = urlencode({"return_to": request.current_return_url}) if request.current_return_url else ""
-            request.current_continue_url = f"{continue_url}{query}" if query else continue_url
+            request.current_continue_url = f"{continue_url}?{query}" if query else continue_url
         else:
             request.current_continue_url = reverse("atendimento:selecionar-agenda", kwargs={"cd_paciente": paciente.cd_paciente})
     form = PacienteForm(request.POST or None, instance=paciente, empresa=empresa)
@@ -7925,12 +7949,12 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
                 query = {"recepcionar": agendamento_recepcao.pk}
                 if request.current_return_url:
                     query["return_to"] = request.current_return_url
-                response = redirect(f"{target}{urlencode(query)}")
+                response = redirect(f"{target}?{urlencode(query)}")
             elif recepcao_direta:
                 messages.success(request, "Dados do paciente confirmados. Continue para cadastrar o atendimento.")
                 target = reverse("atendimento:novo-atendimento-direto", args=[saved.pk])
                 response = redirect(
-                    f"{target}{urlencode({'senha': senha_recepcao_id})}"
+                    f"{target}?{urlencode({'senha': senha_recepcao_id})}"
                     if senha_recepcao_id.isdigit()
                     else target
                 )
@@ -8124,7 +8148,7 @@ def confirmar_horario_agenda(request, cd_paciente, cd_horario):
             _apply_audit(slot, request.user)
             slot.save(update_fields=["ds_status", "dh_atualizacao", "cd_usuario_atualizacao"])
         messages.success(request, "Agendamento confirmado.")
-        separador = "&" if "" in return_to else ""
+        separador = "&" if "?" in return_to else "?"
         return redirect(f"{return_to}{separador}{urlencode({'comprovante': agendamento.pk})}")
     return render(
         request,

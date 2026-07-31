@@ -7,6 +7,7 @@
         <tr>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_maquina_chamada' %}-{% endif %}cd_maquina_chamada">Código</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_maquina' %}-{% endif %}nm_maquina">Máquina</a></th>
+          <th>Uso</th>
           <th>Setor</th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_sala' %}-{% endif %}nm_sala">Nome da sala</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'tp_sala' %}-{% endif %}tp_sala">Tipo de sala</a></th>
@@ -19,6 +20,7 @@
           <tr data-editable-row>
             <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
             <td><input name="machine_{{ item.pk }}" value="{{ item.nm_maquina }}" required></td>
+            <td><select name="machine_type_{{ item.pk }}">{% for valor, rotulo in tipos_maquina %}<option value="{{ valor }}" {% if item.tp_maquina == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></td>
             <td>
               <select name="sector_{{ item.pk }}">
                 <option value=""></option>
@@ -39,7 +41,7 @@
             <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty-cell">Nenhum dado encontrado.</td></tr>
+          <tr><td colspan="8" class="empty-cell">Nenhum dado encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -47,6 +49,7 @@
       <tr data-editable-row>
         <td><input readonly data-primary-key="true" placeholder="Automático"></td>
         <td><input name="new_machine" required></td>
+        <td><select name="new_machine_type">{% for valor, rotulo in tipos_maquina %}<option value="{{ valor }}">{{ rotulo }}</option>{% endfor %}</select></td>
         <td>
           <select name="new_sector">
             <option value=""></option>

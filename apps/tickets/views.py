@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -206,6 +207,7 @@ def ticket_list(request):
 
 @login_required
 @role_required("Suporte")
+@transaction.atomic
 def prioridades(request):
     empresa = _empresa_logada(request)
     _toolbar_context(request, "Prioridades", "Suporte > Tabelas > Prioridades")
@@ -247,6 +249,7 @@ def prioridades(request):
     return render(request, "tickets/tabela_prioridades.html", {"registros": registros})
 
 
+@transaction.atomic
 def _tabela_motivos_suporte(request, *, model, title, path, table_name, pk_sort):
     empresa = _empresa_logada(request)
     _toolbar_context(request, title, path)
@@ -320,6 +323,7 @@ def motivos_conclusao(request):
 
 @login_required
 @role_required("Suporte")
+@transaction.atomic
 def oficinas(request):
     empresa = _empresa_logada(request)
     _toolbar_context(request, "Oficinas", "Suporte > Tabelas > Oficinas")
@@ -361,6 +365,7 @@ def oficinas(request):
 
 @login_required
 @role_required("Suporte")
+@transaction.atomic
 def solicitar(request):
     empresa = _empresa_logada(request)
     _toolbar_context(request, "Solicitar suporte", "Suporte > Solicitação > Solicitar")
@@ -474,6 +479,7 @@ def imprimir_chamado(request, cd_ticket):
 
 @login_required
 @role_required("Suporte")
+@transaction.atomic
 def atender(request):
     empresa = _empresa_logada(request)
     _toolbar_context(request, "Atender suporte", "Suporte > Solicitação > Atender")
@@ -656,6 +662,7 @@ def atender(request):
 
 @login_required
 @role_required("TI")
+@transaction.atomic
 def usuario_oficina(request):
     empresa = _empresa_logada(request)
     _toolbar_context(request, "Usuário x oficina", "TI > Usuários e acessos > Acessos > Usuário x oficina")

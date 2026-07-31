@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
     {% block extra_head %}{% endblock %}
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}" defer></script>
-    <script src="{% static 'js/celeris.js' %}" defer></script>
+    <script src="{% static 'js/celeris.js' %}?v=20260730" defer></script>
   </head>
   <body class="pep-standalone-shell{% block body_class_extra %}{% endblock %}" data-can-query="false" data-can-save="false" data-can-remove="false" data-username="{{ request.user.username|default:'' }}">
     <header class="topbar pep-standalone-topbar">

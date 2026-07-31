@@ -3,11 +3,12 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.sessions.models import Session
-from django.db import transaction
+from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from io import BytesIO, StringIO
@@ -24,11 +25,12 @@ from .form_registry import (
 )
 from .permissions import role_required
 
-from .forms import EmpresaForm, ScreenDefinitionForm, ScreenFieldForm
+from .forms import EmpresaForm, ModuleForm, ScreenDefinitionForm, ScreenFieldForm
 from .locks import adquirir_trava_edicao, liberar_trava_edicao
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
+    Module,
     ScreenDefinition,
     ScreenField,
     TabelaAuxiliarGlobal,
@@ -42,6 +44,14 @@ from .table_utils import paginate_table
 @login_required
 def home(request):
     return render(request, "core/home.html")
+
+
+def health(request):
+    try:
+        Empresa.objects.only("pk").first()
+    except (OperationalError, ProgrammingError):
+        return JsonResponse({"status": "unhealthy", "database": "error"}, status=503)
+    return JsonResponse({"status": "ok", "database": "ok"})
 
 
 def _query_text(request):
@@ -381,20 +391,161 @@ def lookup_options(request):
 
 
 @login_required
+@role_required("TI")
 def system_screens(request):
-    screens = ScreenDefinition.objects.select_related("module").all()
-    return render(request, "core/system_screens.html", {"screens": screens})
+    request.current_tab_title = "Global > Configuração do Sistema > Módulos e Telas"
+    request.current_tab_root_title = "Módulos e Telas"
+    request.current_module_title = "Global"
+    request.current_can_query = True
+    request.current_can_remove = False
+    request.current_new_url = f"{reverse('core:system_screens')}?novo=1"
+
+    if request.GET.get("consultar") == "1":
+        modules = Module.objects.all()
+        code = request.GET.get("code", "").strip().replace("%", "")
+        title = request.GET.get("title", "").strip().replace("%", "")
+        icon = request.GET.get("icon", "").strip()
+        order = request.GET.get("order", "").strip()
+        active = request.GET.get("active", "").strip().lower()
+        if code:
+            modules = modules.filter(code__icontains=code)
+        if title:
+            modules = modules.filter(title__icontains=title)
+        if icon:
+            modules = modules.filter(icon=icon)
+        if order.isdigit():
+            modules = modules.filter(order=int(order))
+        if active in {"true", "false"}:
+            modules = modules.filter(active=active == "true")
+        result_ids = list(modules.order_by("code", "pk").values_list("pk", flat=True)[:500])
+        request.session["consulta_modulos_sistema"] = result_ids
+        if not result_ids:
+            messages.warning(request, "Nenhum módulo encontrado para os filtros informados.")
+            return redirect(f"{reverse('core:system_screens')}?sem_resultados=1")
+        return redirect(
+            f"{reverse('core:system_screens')}?module={result_ids[0]}&origem=consulta"
+        )
+
+    module_id = request.POST.get("module_id") or request.GET.get("module")
+    module = get_object_or_404(Module, pk=module_id) if str(module_id or "").isdigit() else None
+    query_context = request.GET.get("origem") == "consulta"
+    result_ids = request.session.get("consulta_modulos_sistema", []) if query_context else []
+    query_mode = bool(request.GET.get("sem_resultados") == "1" or (not module and request.GET.get("novo") != "1"))
+    form = ModuleForm(request.POST or None, instance=module, query_mode=query_mode)
+
+    if request.method == "POST" and form.is_valid():
+        saved_module = form.save()
+        messages.success(request, "Módulo salvo com sucesso.")
+        return redirect(f"{reverse('core:system_screens')}?module={saved_module.pk}")
+
+    if module:
+        request.current_toggle_active_url = reverse("core:system_module_toggle_active", args=[module.pk])
+        request.current_toggle_active_label = "Desativar" if module.active else "Ativar"
+    request.current_start_query = query_mode
+
+    if query_context and module and module.pk in result_ids:
+        current_index = result_ids.index(module.pk)
+        request.current_record_status = f"Item {current_index + 1} de {len(result_ids)}"
+        if current_index > 0:
+            request.current_first_url = f"{reverse('core:system_screens')}?module={result_ids[0]}&origem=consulta"
+            request.current_previous_url = f"{reverse('core:system_screens')}?module={result_ids[current_index - 1]}&origem=consulta"
+        if current_index < len(result_ids) - 1:
+            request.current_next_url = f"{reverse('core:system_screens')}?module={result_ids[current_index + 1]}&origem=consulta"
+            request.current_last_url = f"{reverse('core:system_screens')}?module={result_ids[-1]}&origem=consulta"
+
+    root_items = (
+        module.screens.filter(parent__isnull=True)
+        .prefetch_related("children__children__children")
+        .order_by("order", "title")
+        if module
+        else ScreenDefinition.objects.none()
+    )
+    return render(
+        request,
+        "core/system_screens.html",
+        {"form": form, "module": module, "root_items": root_items},
+    )
 
 
 @login_required
+@role_required("TI")
+def system_module_toggle_active(request, pk):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
+    module = get_object_or_404(Module, pk=pk)
+    module.active = not module.active
+    module.save(update_fields=["active", "updated_at"])
+    messages.success(request, "Módulo ativado com sucesso." if module.active else "Módulo desativado com sucesso.")
+    return redirect(f"{reverse('core:system_screens')}?module={module.pk}")
+
+
+@login_required
+@role_required("TI")
 def system_screen_edit(request, pk=None):
     screen = get_object_or_404(ScreenDefinition, pk=pk) if pk else None
-    form = ScreenDefinitionForm(request.POST or None, instance=screen)
+    initial = {}
+    if not screen:
+        if request.GET.get("module", "").isdigit():
+            initial["module"] = request.GET["module"]
+        if request.GET.get("parent", "").isdigit():
+            initial["parent"] = request.GET["parent"]
+    form = ScreenDefinitionForm(request.POST or None, instance=screen, initial=initial)
     if request.method == "POST" and form.is_valid():
         saved_screen = form.save()
         messages.success(request, "Tela salva com sucesso.")
         return redirect("core:system_screen_edit", pk=saved_screen.pk)
     return render(request, "core/system_screen_form.html", {"form": form, "screen": screen})
+
+
+@login_required
+@role_required("TI")
+@transaction.atomic
+def system_navigation_reorder(request):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
+    node_id = str(request.POST.get("node") or "").strip()
+    parent_id = str(request.POST.get("parent") or "").strip()
+    ordered_ids = [value for value in request.POST.getlist("order") if str(value).isdigit()]
+    if not node_id.isdigit():
+        return JsonResponse({"ok": False, "error": "Item inválido."}, status=400)
+    node = get_object_or_404(ScreenDefinition.objects.select_related("module"), pk=node_id)
+    parent = None
+    if parent_id:
+        if not parent_id.isdigit():
+            return JsonResponse({"ok": False, "error": "Grupo inválido."}, status=400)
+        parent = get_object_or_404(
+            ScreenDefinition,
+            pk=parent_id,
+            module=node.module,
+            screen_type=ScreenDefinition.TYPE_GROUP,
+        )
+        if parent.pk == node.pk:
+            return JsonResponse({"ok": False, "error": "Um item não pode conter a si mesmo."}, status=400)
+    node.parent = parent
+    node.parent_label = parent.title if parent else ""
+    node.save(update_fields=["parent", "parent_label", "updated_at"])
+    siblings = ScreenDefinition.objects.filter(module=node.module, parent=parent)
+    valid_ids = set(siblings.values_list("pk", flat=True))
+    normalized_ids = [int(value) for value in ordered_ids if int(value) in valid_ids]
+    normalized_ids.extend(sibling_id for sibling_id in valid_ids if sibling_id not in normalized_ids)
+    for position, sibling_id in enumerate(normalized_ids, start=1):
+        ScreenDefinition.objects.filter(pk=sibling_id).update(order=position * 10)
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@role_required("TI")
+def system_module_edit(request, pk=None):
+    module = get_object_or_404(Module, pk=pk) if pk else None
+    form = ModuleForm(request.POST or None, instance=module)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Módulo salvo com sucesso.")
+        return redirect("core:system_screens")
+    request.current_tab_title = "Global > Configuração do Sistema > Módulos e Telas"
+    request.current_tab_root_title = "Módulos e Telas"
+    request.current_module_title = "Global"
+    return render(request, "core/system_module_form.html", {"form": form, "module": module})
 
 
 @login_required

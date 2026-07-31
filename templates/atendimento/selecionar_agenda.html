@@ -140,7 +140,7 @@
       const update = () => {
         const selected = items.filter((item) => item.checked).length;
         all.checked = selected === items.length && items.length > 0;
-        summary.textContent = all.checked  "Todas" : `${selected} selecionada(s)`;
+        summary.textContent = all.checked ? "Todas" : `${selected} selecionada(s)`;
       };
       toggle.addEventListener("click", () => {
         menu.hidden = !menu.hidden;
@@ -186,8 +186,9 @@
     })();
     (() => {
       const header = document.querySelector("[data-schedule-patient-header]");
+      if (!header) return;
       const toggle = header.querySelector("[data-schedule-patient-toggle]");
-      if (!header || !toggle) return;
+      if (!toggle) return;
       const updateStickyOffset = () => {
         document.documentElement.style.setProperty("--schedule-patient-sticky-height", `${header.offsetHeight + 8}px`);
       };

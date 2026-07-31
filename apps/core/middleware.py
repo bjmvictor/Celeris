@@ -32,3 +32,31 @@ class SessionActivityMiddleware:
         if empresa:
             request.session["empresa_nome"] = empresa.nm_empresa
         return response
+
+
+class SecurityHeadersMiddleware:
+    """Apply a conservative CSP that still supports the existing inline UI."""
+
+    policy = "; ".join(
+        (
+            "default-src 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'self'",
+            "frame-src 'self' blob:",
+            "img-src 'self' data: blob:",
+            "font-src 'self' data:",
+            "connect-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "script-src 'self' 'unsafe-inline'",
+        )
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        response.setdefault("Content-Security-Policy", self.policy)
+        response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        return response

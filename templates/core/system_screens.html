@@ -1,23 +1,46 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-  <section class="card table-card">
-    <table>
-      <thead><tr><th>Tela</th><th>Módulo</th><th>Tipo</th><th>Submódulo</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        {% for screen in screens %}
-          <tr>
-            <td>{{ screen.title }}</td>
-            <td>{{ screen.module.title }}</td>
-            <td>{{ screen.get_screen_type_display }}</td>
-            <td>{{ screen.parent_label|default:"-" }}</td>
-            <td>{% if screen.active %}Ativa{% else %}Inativa{% endif %}</td>
-            <td><a class="button button-secondary" href="{% url 'core:system_screen_edit' screen.pk %}">Editar</a></td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="6" class="empty-cell">Nenhuma tela configurada.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+  <form class="navigation-config-form ticket-config-form" data-table="core_module" data-primary-form data-query-url="{% url 'core:system_screens' %}" data-has-errors="{{ form.errors|yesno:'true,false' }}" method="post" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="module_id" value="{{ module.pk|default:'' }}" data-primary-key="true">
+    {{ form.non_field_errors }}
+
+    <details class="card form-section" open>
+      <summary>1. Módulo</summary>
+      <div class="form-grid navigation-module-form">
+        <label class="field-md">{{ form.code.label }} {{ form.code }} {{ form.code.errors }}</label>
+        <label class="field-xl">{{ form.title.label }} {{ form.title }} {{ form.title.errors }}</label>
+        <label class="field-md">{{ form.icon.label }} {{ form.icon }} {{ form.icon.errors }}</label>
+        <label class="field-xs">{{ form.order.label }} {{ form.order }} {{ form.order.errors }}</label>
+        <label class="field-sm">{{ form.active.label }} {{ form.active }} {{ form.active.errors }}</label>
+      </div>
+    </details>
+
+    <details class="card form-section">
+      <summary>2. Itens</summary>
+      <div class="navigation-builder">
+        {% if module %}
+          <section class="card navigation-module{% if not module.active %} is-inactive{% endif %}" data-navigation-module="{{ module.pk }}">
+            <header>
+              <span class="svg-icon" data-nav-icon="{{ module.icon|default:'grid' }}"></span>
+              <strong>{{ module.title }}</strong>
+              <small>{{ module.code }}</small>
+              <a class="icon-button" href="{% url 'core:system_screen_new' %}?module={{ module.pk }}" title="Adicionar item">+</a>
+            </header>
+            <div class="navigation-tree" data-navigation-parent="">
+              {% for root in root_items %}
+                {% include "core/partials/navigation_tree_item.html" with node=root level=0 only %}
+              {% empty %}
+                <span class="empty-state">Nenhum item configurado para este módulo.</span>
+              {% endfor %}
+            </div>
+          </section>
+        {% else %}
+          <section class="card empty-state">Consulte ou salve um módulo para configurar seus itens.</section>
+        {% endif %}
+      </div>
+    </details>
+  </form>
+  <form hidden data-navigation-reorder-form action="{% url 'core:system_navigation_reorder' %}" method="post">{% csrf_token %}</form>
 {% endblock %}

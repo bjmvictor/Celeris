@@ -139,7 +139,7 @@
       };
       const updateDays = () => {
         const selected = days.filter((day) => day.checked).map((day) => day.nextElementSibling.textContent.trim());
-        summary.textContent = selected.length === 7  "Todos os dias" : (selected.join(", ") || "Selecione...");
+        summary.textContent = selected.length === 7 ? "Todos os dias" : (selected.join(", ") || "Selecione...");
       };
       toggle.addEventListener("click", () => {
         if (menu.parentElement !== document.body) document.body.appendChild(menu);
@@ -171,8 +171,8 @@
         const end = minutes(form.elements.hr_fim.value);
         const interval = Number(form.elements.nr_intervalo.value || 0);
         const quantity = Number(form.elements.qt_horarios_dia.value || 0);
-        const available = start === null || end === null  0 : end - start - interval * Math.max(quantity - 1, 0);
-        const duration = quantity > 0  Math.floor(available / quantity) : 0;
+        const available = start === null || end === null ? 0 : end - start - interval * Math.max(quantity - 1, 0);
+        const duration = quantity > 0 ? Math.floor(available / quantity) : 0;
         if (start === null || end === null || end <= start || quantity <= 0 || interval < 0 || duration < 1) {
           previewDescription.textContent = "Não foi possível ajustar. Revise início, fim, intervalo e quantidade.";
           previewPanel.hidden = false;
@@ -203,7 +203,7 @@
           generated.push(current);
           current += duration + interval;
         }
-        const occupiedUntil = generated.length  generated[generated.length - 1] + duration : start;
+        const occupiedUntil = generated.length ? generated[generated.length - 1] + duration : start;
         previewDescription.textContent = `${generated.length} horário(s) em ${selectedDays.join(", ")}. Folga final: ${Math.max(end - occupiedUntil, 0)} minuto(s).`;
         generated.forEach((slot) => {
           const element = document.createElement("div");

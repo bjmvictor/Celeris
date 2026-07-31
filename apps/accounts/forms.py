@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.models import Group
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.atendimento.models import Prestador
 from apps.core.models import Module, ScreenDefinition, ValorAuxiliarGlobal
@@ -37,6 +38,10 @@ class EmpresaAuthenticationForm(AuthenticationForm):
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
+        if user.is_blocked:
+            raise forms.ValidationError("Usuário bloqueado. Procure a administração do sistema.", code="blocked")
+        if user.password_expires_at and user.password_expires_at <= timezone.now():
+            raise forms.ValidationError("Senha expirada. Solicite a alteração da senha.", code="password_expired")
         empresa = self.cleaned_data.get("empresa")
         if empresa and not UsuarioEmpresa.objects.filter(usuario=user, empresa=empresa, sn_ativo=True).exists():
             raise forms.ValidationError("Usuário não vinculado à empresa selecionada.", code="invalid_company")

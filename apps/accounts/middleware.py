@@ -1,14 +1,40 @@
+import inspect
+
 from django.core.exceptions import PermissionDenied
 from django.db import OperationalError, ProgrammingError
 from django.http import JsonResponse
 
-from apps.core.models import ScreenDefinition
+from .access import has_screen_access, resolve_request_access
 
-from .access import has_screen_access, request_access_keys
+
+def _is_login_required_view(view_func) -> bool:
+    """Recognize Django 5.0's login_required wrapper without trusting any wrapper."""
+    if hasattr(view_func, "login_url"):
+        return True
+    try:
+        closure = inspect.getclosurevars(view_func).nonlocals
+    except (TypeError, ValueError):
+        return False
+    test_func = closure.get("test_func")
+    return bool(
+        callable(test_func)
+        and "login_required.<locals>.<lambda>" in getattr(test_func, "__qualname__", "")
+        and callable(closure.get("view_func"))
+    )
 
 
 class ScreenAccessMiddleware:
-    public_routes = {"login", "logout", "session_status", "user_companies", "core:home", "home", "atendimento:painel-chamada-publico"}
+    public_routes = {
+        "login",
+        "logout",
+        "session_status",
+        "user_companies",
+        "core:home",
+        "home",
+        "core:health",
+        "atendimento:painel-chamada-publico",
+        "painel_chamada_standalone",
+    }
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -29,17 +55,19 @@ class ScreenAccessMiddleware:
         if not request.user.is_authenticated or route_name in self.public_routes:
             return None
         try:
-            matching_screens = ScreenDefinition.objects.filter(access_key__in=request_access_keys(request))
-            if not matching_screens.exists():
-                return None
-            registered_keys = set(
-                matching_screens.filter(
-                    active=True,
-                    module__active=True,
-                ).values_list("access_key", flat=True)
-            )
-        except (OperationalError, ProgrammingError):
-            registered_keys = set()
-        if not registered_keys or not any(has_screen_access(request.user, key) for key in registered_keys):
+            registered_key, registered_route = resolve_request_access(request)
+        except (OperationalError, ProgrammingError) as error:
+            raise PermissionDenied("Não foi possível validar a permissão desta rota.") from error
+        if registered_key:
+            if not has_screen_access(request.user, registered_key):
+                raise PermissionDenied
+            return None
+        if registered_route:
+            raise PermissionDenied
+        access_policy = getattr(view_func, "_celeris_access_policy", "")
+        explicitly_authenticated = _is_login_required_view(view_func)
+        if access_policy or explicitly_authenticated:
+            return None
+        if route_name:
             raise PermissionDenied
         return None

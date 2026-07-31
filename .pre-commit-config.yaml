@@ -1,0 +1,26 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: django-check
+        name: Django system check
+        entry: python manage.py check
+        language: system
+        pass_filenames: false
+      - id: migration-check
+        name: Django migration check
+        entry: python manage.py makemigrations --check --dry-run
+        language: system
+        pass_filenames: false
+      - id: javascript-check
+        name: JavaScript syntax check
+        entry: node --check static/js/celeris.js
+        language: system
+        pass_filenames: false

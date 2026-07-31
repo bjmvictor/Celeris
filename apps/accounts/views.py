@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
 from django.conf import settings
+from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,6 +12,7 @@ from django.urls import reverse_lazy
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.utils.http import url_has_allowed_host_and_scheme
 import logging
+import hashlib
 from urllib.parse import urlencode
 
 from apps.atendimento.models import Prestador, RascunhoEditorDocumento
@@ -39,12 +41,31 @@ class EmpresaLoginView(auth_views.LoginView):
     def get_success_url(self):
         return reverse("core:home")
 
+    def _rate_limit_key(self):
+        remote_address = self.request.META.get("REMOTE_ADDR", "")
+        username = normalize_identifier(self.request.POST.get("username", ""))
+        digest = hashlib.sha256(f"{remote_address}:{username}".encode("utf-8")).hexdigest()
+        return f"celeris:login:{digest}"
+
+    def post(self, request, *args, **kwargs):
+        if cache.get(self._rate_limit_key(), 0) >= 5:
+            form = self.get_form()
+            form.add_error(None, "Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.")
+            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
+
     def form_valid(self, form):
+        cache.delete(self._rate_limit_key())
         response = super().form_valid(form)
         empresa = form.cleaned_data["empresa"]
         self.request.session["cd_empresa"] = empresa.cd_empresa
         self.request.session["nm_empresa"] = empresa.nm_empresa
         return response
+
+    def form_invalid(self, form):
+        key = self._rate_limit_key()
+        cache.set(key, cache.get(key, 0) + 1, timeout=300)
+        return super().form_invalid(form)
 
 
 class EmpresaLogoutView(auth_views.LogoutView):

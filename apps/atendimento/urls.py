@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from .views_painel import painel_chamada_publico
 
 
 app_name = "atendimento"
@@ -33,7 +34,7 @@ urlpatterns = [
     path("paineis-chamada/", views.paineis_chamada, name="paineis-chamada"),
     path("paineis-chamada/<int:cd_painel>/", views.paineis_chamada, name="cadastro-painel-chamada"),
     path("paineis-chamada/<int:cd_painel>/alternar-status/", views.alternar_status_painel_chamada, name="alternar-status-painel-chamada"),
-    path("painel-chamada/", views.painel_chamada_publico, name="painel-chamada-publico"),
+    path("painel-chamada/", painel_chamada_publico, name="painel-chamada-publico"),
     path("paineis-chamada/configurar/", views.configurar_senhas, name="configurar-senhas"),
     path("paineis-chamada/configurar/<int:cd_tipo>/", views.configurar_senhas, name="editar-configuracao-senha"),
     path("paineis-chamada/configurar/<int:cd_tipo>/alternar-status/", views.alternar_status_configuracao_senha, name="alternar-status-configuracao-senha"),
