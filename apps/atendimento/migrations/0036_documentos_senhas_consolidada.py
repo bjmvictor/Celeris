@@ -6,7 +6,7 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0037 = import_module("apps.atendimento.migrations.0037_totem_senhas")
+migracao_0037 = import_module("apps.atendimento.operacoes_migracao.operacao_0037")
 
 class Migration(migrations.Migration):
 

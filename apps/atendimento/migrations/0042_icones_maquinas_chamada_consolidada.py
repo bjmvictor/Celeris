@@ -6,8 +6,8 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0043 = import_module("apps.atendimento.migrations.0043_seed_paineis_chamada")
-migracao_0044 = import_module("apps.atendimento.migrations.0044_maquina_chamada_tipo")
+migracao_0043 = import_module("apps.atendimento.operacoes_migracao.operacao_0043")
+migracao_0044 = import_module("apps.atendimento.operacoes_migracao.operacao_0044")
 
 class Migration(migrations.Migration):
 

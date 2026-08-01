@@ -5,7 +5,7 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0007 = import_module("apps.tickets.migrations.0007_motivoconclusaosuporte_and_more")
+migracao_0007 = import_module("apps.tickets.operacoes_migracao.operacao_0007")
 
 class Migration(migrations.Migration):
 

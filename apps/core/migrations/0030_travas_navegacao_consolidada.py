@@ -5,9 +5,9 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0031 = import_module("apps.core.migrations.0031_desativar_modulos_nao_implementados")
-migracao_0032 = import_module("apps.core.migrations.0032_corrigir_tela_alteracao_senha")
-migracao_0033 = import_module("apps.core.migrations.0033_navigation_tree")
+migracao_0031 = import_module("apps.core.operacoes_migracao.operacao_0031")
+migracao_0032 = import_module("apps.core.operacoes_migracao.operacao_0032")
+migracao_0033 = import_module("apps.core.operacoes_migracao.operacao_0033")
 
 class Migration(migrations.Migration):
 

@@ -9,7 +9,7 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0033 = import_module("apps.atendimento.migrations.0033_editor_pep_assistencial")
+migracao_0033 = import_module("apps.atendimento.operacoes_migracao.operacao_0033")
 
 class Migration(migrations.Migration):
 

@@ -3,10 +3,10 @@ from importlib import import_module
 
 from django.db import migrations
 
-migracao_0034 = import_module("apps.core.migrations.0034_sync_navigation_roles")
-migracao_0035 = import_module("apps.core.migrations.0035_normalize_navigation_catalog")
-migracao_0036 = import_module("apps.core.migrations.0036_normalizar_catalogos_iniciais")
-migracao_0037 = import_module("apps.core.migrations.0037_mesclar_grupos_navegacao_duplicados")
+migracao_0034 = import_module("apps.core.operacoes_migracao.operacao_0034")
+migracao_0035 = import_module("apps.core.operacoes_migracao.operacao_0035")
+migracao_0036 = import_module("apps.core.operacoes_migracao.operacao_0036")
+migracao_0037 = import_module("apps.core.operacoes_migracao.operacao_0037")
 
 class Migration(migrations.Migration):
 

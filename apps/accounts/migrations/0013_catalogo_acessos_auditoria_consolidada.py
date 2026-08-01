@@ -5,7 +5,7 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0013 = import_module("apps.accounts.migrations.0013_sync_recent_role_screens")
+migracao_0013 = import_module("apps.accounts.operacoes_migracao.operacao_0013")
 
 class Migration(migrations.Migration):
 

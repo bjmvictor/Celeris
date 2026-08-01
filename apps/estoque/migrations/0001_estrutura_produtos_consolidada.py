@@ -6,7 +6,7 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0002 = import_module("apps.estoque.migrations.0002_seed_tabelas_produto")
+migracao_0002 = import_module("apps.estoque.operacoes_migracao.operacao_0002")
 
 class Migration(migrations.Migration):
 

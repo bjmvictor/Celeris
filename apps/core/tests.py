@@ -529,7 +529,7 @@ class CatalogosIniciaisMigrationTests(TestCase):
             sn_ativo=True,
         )
 
-        migration = importlib.import_module("apps.core.migrations.0036_normalizar_catalogos_iniciais")
+        migration = importlib.import_module("apps.core.operacoes_migracao.operacao_0036")
         migration.normalizar_catalogos(django_apps, None)
 
         self.assertFalse(ValorAuxiliarGlobal.objects.filter(pk=valor_teste.pk).exists())
@@ -571,7 +571,7 @@ class CatalogosIniciaisMigrationTests(TestCase):
             access_key="teste-duplicidade-item-legado",
         )
 
-        migration = importlib.import_module("apps.core.migrations.0037_mesclar_grupos_navegacao_duplicados")
+        migration = importlib.import_module("apps.core.operacoes_migracao.operacao_0037")
         migration.mesclar_grupos_navegacao(django_apps, None)
 
         duplicate.refresh_from_db()

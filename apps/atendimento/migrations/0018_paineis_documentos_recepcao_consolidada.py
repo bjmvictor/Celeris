@@ -7,12 +7,12 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0022 = import_module("apps.atendimento.migrations.0022_alter_modelodocumento_unique_together_and_more")
-migracao_0024 = import_module("apps.atendimento.migrations.0024_seed_agendamento_screens")
-migracao_0027 = import_module("apps.atendimento.migrations.0027_cadastro_recepcao_atendimento")
-migracao_0029 = import_module("apps.atendimento.migrations.0029_seed_documentos_clinicos_demonstrativos")
-migracao_0030 = import_module("apps.atendimento.migrations.0030_padronizar_documentos_clinicos")
-migracao_0031 = import_module("apps.atendimento.migrations.0031_ajustar_cabecalho_clinico")
+migracao_0022 = import_module("apps.atendimento.operacoes_migracao.operacao_0022")
+migracao_0024 = import_module("apps.atendimento.operacoes_migracao.operacao_0024")
+migracao_0027 = import_module("apps.atendimento.operacoes_migracao.operacao_0027")
+migracao_0029 = import_module("apps.atendimento.operacoes_migracao.operacao_0029")
+migracao_0030 = import_module("apps.atendimento.operacoes_migracao.operacao_0030")
+migracao_0031 = import_module("apps.atendimento.operacoes_migracao.operacao_0031")
 
 class Migration(migrations.Migration):
 

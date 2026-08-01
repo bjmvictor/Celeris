@@ -3,7 +3,7 @@ from importlib import import_module
 from django.db import migrations
 
 
-migracao_0015 = import_module("apps.accounts.migrations.0015_sync_navigation_role_catalog")
+migracao_0015 = import_module("apps.accounts.operacoes_migracao.operacao_0015")
 
 
 class Migration(migrations.Migration):

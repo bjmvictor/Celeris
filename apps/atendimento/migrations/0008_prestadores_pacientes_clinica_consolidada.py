@@ -6,13 +6,13 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0009 = import_module("apps.atendimento.migrations.0009_seed_perfis_clinicos")
-migracao_0011 = import_module("apps.atendimento.migrations.0011_seed_homologacao")
-migracao_0012 = import_module("apps.atendimento.migrations.0012_cleanup_perfis_homologacao")
-migracao_0014 = import_module("apps.atendimento.migrations.0014_migrate_provider_specialties")
-migracao_0015 = import_module("apps.atendimento.migrations.0015_prestador_ds_chave_pix_and_more")
-migracao_0016 = import_module("apps.atendimento.migrations.0016_prestador_nm_guerra")
-migracao_0017 = import_module("apps.atendimento.migrations.0017_patient_provider_review")
+migracao_0009 = import_module("apps.atendimento.operacoes_migracao.operacao_0009")
+migracao_0011 = import_module("apps.atendimento.operacoes_migracao.operacao_0011")
+migracao_0012 = import_module("apps.atendimento.operacoes_migracao.operacao_0012")
+migracao_0014 = import_module("apps.atendimento.operacoes_migracao.operacao_0014")
+migracao_0015 = import_module("apps.atendimento.operacoes_migracao.operacao_0015")
+migracao_0016 = import_module("apps.atendimento.operacoes_migracao.operacao_0016")
+migracao_0017 = import_module("apps.atendimento.operacoes_migracao.operacao_0017")
 
 class Migration(migrations.Migration):
 

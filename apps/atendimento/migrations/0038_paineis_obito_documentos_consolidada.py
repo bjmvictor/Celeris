@@ -6,7 +6,7 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0039 = import_module("apps.atendimento.migrations.0039_classesenhaatendimento_ds_icone_and_more")
+migracao_0039 = import_module("apps.atendimento.operacoes_migracao.operacao_0039")
 
 class Migration(migrations.Migration):
 

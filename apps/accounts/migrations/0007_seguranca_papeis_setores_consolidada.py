@@ -7,9 +7,9 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0009 = import_module("apps.accounts.migrations.0009_seed_role_access")
-migracao_0010 = import_module("apps.accounts.migrations.0010_sync_ti_dynamic_access")
-migracao_0011 = import_module("apps.accounts.migrations.0011_setor_setorusuario")
+migracao_0009 = import_module("apps.accounts.operacoes_migracao.operacao_0009")
+migracao_0010 = import_module("apps.accounts.operacoes_migracao.operacao_0010")
+migracao_0011 = import_module("apps.accounts.operacoes_migracao.operacao_0011")
 
 class Migration(migrations.Migration):
 

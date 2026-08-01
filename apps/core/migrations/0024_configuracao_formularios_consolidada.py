@@ -5,8 +5,8 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0024 = import_module("apps.core.migrations.0024_refresh_minimum_auxiliary_values")
-migracao_0025 = import_module("apps.core.migrations.0025_configuracao_campo_formulario")
+migracao_0024 = import_module("apps.core.operacoes_migracao.operacao_0024")
+migracao_0025 = import_module("apps.core.operacoes_migracao.operacao_0025")
 
 class Migration(migrations.Migration):
 

@@ -4,7 +4,7 @@ from importlib import import_module
 
 from django.db import migrations, models
 
-migracao_0003 = import_module("apps.atendimento.migrations.0003_convenio_prestador_agenda")
+migracao_0003 = import_module("apps.atendimento.operacoes_migracao.operacao_0003")
 
 class Migration(migrations.Migration):
 

@@ -3,10 +3,10 @@ from importlib import import_module
 
 from django.db import migrations
 
-migracao_0026 = import_module("apps.core.migrations.0026_restaurar_obrigatorios_escala")
-migracao_0027 = import_module("apps.core.migrations.0027_desativar_telas_substituidas_pelo_pep")
-migracao_0028 = import_module("apps.core.migrations.0028_desativar_tela_atendimentos_pep")
-migracao_0029 = import_module("apps.core.migrations.0029_seed_cids_motivos_alta")
+migracao_0026 = import_module("apps.core.operacoes_migracao.operacao_0026")
+migracao_0027 = import_module("apps.core.operacoes_migracao.operacao_0027")
+migracao_0028 = import_module("apps.core.operacoes_migracao.operacao_0028")
+migracao_0029 = import_module("apps.core.operacoes_migracao.operacao_0029")
 
 class Migration(migrations.Migration):
 

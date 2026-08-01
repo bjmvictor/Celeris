@@ -9,8 +9,8 @@ from importlib import import_module
 from django.conf import settings
 from django.db import migrations, models
 
-migracao_0002 = import_module("apps.accounts.migrations.0002_empresa_usuarioempresa")
-migracao_0003 = import_module("apps.accounts.migrations.0003_normalize_existing_usernames")
+migracao_0002 = import_module("apps.accounts.operacoes_migracao.operacao_0002")
+migracao_0003 = import_module("apps.accounts.operacoes_migracao.operacao_0003")
 
 class Migration(migrations.Migration):
 
