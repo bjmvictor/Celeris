@@ -9,6 +9,7 @@ from unittest.mock import patch
 from apps.atendimento.models import AgendaProfissional, Prestador
 from apps.core.models import Module, ScreenDefinition
 from apps.core.navigation import MODULES
+from .access import has_screen_access
 from .middleware import ScreenAccessMiddleware
 
 from .forms import UsuarioForm, UsuarioPasswordForm
@@ -33,6 +34,59 @@ class LoginBrandingTests(TestCase):
         favicon = self.client.get("/favicon.ico")
         self.assertEqual(favicon.status_code, 302)
         self.assertEqual(favicon["Location"], "/static/img/logo.png")
+
+
+class SuperusuarioAcessoTotalTests(TestCase):
+    def test_novo_superusuario_recebe_empresa_e_acesso_integral(self):
+        empresa_secundaria = Empresa.objects.create(
+            cd_empresa=987,
+            nm_empresa="Empresa secundária",
+            sn_ativo=True,
+        )
+        modulo = Module.objects.create(code="TESTE_ADMIN", title="Teste administrativo")
+        tela = ScreenDefinition.objects.create(
+            module=modulo,
+            title="Tela administrativa",
+            slug="tela-administrativa-superusuario",
+            access_key="teste:administracao",
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            usuario = User.objects.create_superuser(
+                username="SUPERADMIN",
+                password="senha-segura",
+            )
+        usuario.refresh_from_db()
+
+        self.assertEqual(usuario.tp_usuario, "ADMINISTRADOR")
+        self.assertTrue(usuario.can_configure_system)
+        self.assertTrue(usuario.groups.filter(name="TI").exists())
+        self.assertTrue(has_screen_access(usuario, tela.access_key))
+        self.assertTrue(
+            UsuarioEmpresa.objects.filter(
+                usuario=usuario,
+                empresa_id=1,
+                sn_padrao=True,
+                sn_ativo=True,
+            ).exists()
+        )
+        self.assertTrue(
+            UsuarioEmpresa.objects.filter(
+                usuario=usuario,
+                empresa=empresa_secundaria,
+                sn_ativo=True,
+            ).exists()
+        )
+
+    def test_nova_empresa_e_vinculada_a_superusuarios_existentes(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            usuario = User.objects.create_superuser(username="ADMINEMPRESA", password="senha-segura")
+        with self.captureOnCommitCallbacks(execute=True):
+            empresa = Empresa.objects.create(cd_empresa=988, nm_empresa="Nova empresa", sn_ativo=True)
+
+        self.assertTrue(
+            UsuarioEmpresa.objects.filter(usuario=usuario, empresa=empresa, sn_ativo=True).exists()
+        )
 
 
 class AdministrationScreenTests(TestCase):
