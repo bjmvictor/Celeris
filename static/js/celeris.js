@@ -496,8 +496,9 @@
   });
   function formHasActualChanges(form) {
     if (!form) return false;
+    if (form.dataset.dirty !== "true") return false;
     const initial = initialFormSignatures.get(form);
-    if (initial === undefined) return form.dataset.dirty === "true";
+    if (initial === undefined) return true;
     return formValueSignature(form) !== initial;
   }
 

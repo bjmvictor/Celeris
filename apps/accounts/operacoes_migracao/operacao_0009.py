@@ -33,7 +33,7 @@ SCREENS = [
     ("GLOBAL", "Importação de dados", "acesso-global-integracoes", "core:global_integrations", 120, ["TI"]),
     ("GLOBAL", "CEPs", "acesso-global-ceps", "core:global_ceps", 130, ["TI"]),
     ("GLOBAL", "Tipo de Prestador x Conselho", "acesso-global-prestador-conselho", "core:tipo_prestador_conselho", 140, ["TI"]),
-    ("ADMINISTRACAO", "Usuários", "acesso-administracao-usuarios", "usuarios", 10, ["TI"]),
+    ("ADMINISTRACAO", "Cadastro de usuários", "acesso-administracao-usuarios", "usuarios", 10, ["TI"]),
     ("ADMINISTRACAO", "Papéis", "acesso-administracao-papeis", "perfis", 20, ["TI"]),
     ("ADMINISTRACAO", "Permissões", "acesso-administracao-permissoes", "permissoes", 30, ["TI"]),
 ]

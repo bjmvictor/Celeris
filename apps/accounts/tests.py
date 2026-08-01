@@ -107,6 +107,12 @@ class AdministrationScreenTests(TestCase):
                 self.assertEqual(response.status_code, 200)
         self.assertRedirects(self.client.get(reverse("usuarios")), reverse("usuario_novo"))
 
+    def test_cadastro_de_usuarios_exibe_caminho_do_modulo_ti(self):
+        response = self.client.get(reverse("usuario_novo"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "TI &gt; Usuários e acessos &gt; Cadastro de usuários")
+
     def test_perfil_pode_ser_criado_e_editado(self):
         permission = Permission.objects.first()
         response = self.client.post(

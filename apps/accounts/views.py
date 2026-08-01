@@ -137,9 +137,9 @@ def usuario_editar(request, pk=None):
 
 def _usuario_form(request, pk=None):
     usuario = get_object_or_404(User, pk=pk) if pk else None
-    request.current_tab_title = "Configuração do Sistema > Cadastro de usuário"
-    request.current_tab_root_title = "Usuários"
-    request.current_module_title = "Configuração do Sistema"
+    request.current_tab_title = "TI > Usuários e acessos > Cadastro de usuários"
+    request.current_tab_root_title = "Cadastro de usuários"
+    request.current_module_title = "TI"
     request.current_return_url = _safe_return_url(request)
     empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
     allow_user_type = request.user.is_superuser or request.user.tp_usuario == "ADMINISTRADOR"

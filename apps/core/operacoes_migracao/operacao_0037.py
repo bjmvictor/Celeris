@@ -68,7 +68,7 @@ def mesclar_grupos_navegacao(apps, schema_editor):
         if users_screen:
             users_screen.parent = ti_group
             users_screen.parent_label = ti_group.title
-            users_screen.title = "Usuários"
+            users_screen.title = "Cadastro de usuários"
             users_screen.navigation_url = ""
             users_screen.active = True
             users_screen.save(

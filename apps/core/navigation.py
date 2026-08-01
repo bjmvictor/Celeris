@@ -255,7 +255,7 @@ MODULES = [
             item(
                 "Usuários e acessos",
                 children=[
-                    item("Usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
+                    item("Cadastro de usuários", "usuario_novo", roles=["TI"], access_key="usuarios"),
                     item("Alteração de senha", "ti:alteracao_senha_usuario", roles=["TI"]),
                     item("Cópia de usuário", "copia_usuario", roles=["TI"]),
                     item("Papéis", "perfis", roles=["TI"]),
