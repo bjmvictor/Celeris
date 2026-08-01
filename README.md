@@ -1,218 +1,195 @@
 # Celeris
 
-**Plataforma modular de gestão clínica e hospitalar** com suporte multiempresa, controle de acesso baseado em papéis, PEP (Prontuário Eletrônico do Paciente), senhas e painéis de chamada, ticket de suporte, integração assistencial e estrutura preparada para LGPD.
+Plataforma integrada para gestão clínica e hospitalar, desenvolvida para centralizar processos administrativos, assistenciais e operacionais em um único ambiente.
 
----
+O Celeris oferece suporte multiempresa, controle de acesso por papéis, prontuário eletrônico, classificação de risco, agendamento, atendimento, estoque, suporte interno e relatórios, com arquitetura modular preparada para evolução contínua.
 
-## Funcionalidades por módulo
+## Visão geral
 
-### 🏥 Assistencial (apps.atendimento)
+O projeto foi criado para reduzir a fragmentação de informações, padronizar processos e facilitar a rotina de instituições de saúde.
 
-| Funcionalidade | Status |
-|---|---|
-| Cadastro de pacientes (dados pessoais, documentos, endereço, convênio, responsável, alertas, óbito) | ✅ Implementado |
-| Cadastro de prestadores (dados profissionais, especialidades, conselho, vínculo, CEP, chave PIX, banco) | ✅ Implementado |
-| Cadastro de convênios, planos e procedimentos | ✅ Implementado |
-| Cadastro de escalas de prestadores por unidade, sala, especialidade, dias e horários | ✅ Implementado |
-| Geração de agendas com horários baseados em escalas, feriados e indisponibilidades | ✅ Implementado |
-| Agendamento de consultas por calendário com seleção de especialidade, prestador e horário | ✅ Implementado |
-| Recepção de paciente agendado e demanda espontânea | ✅ Implementado |
-| Pré-atendimento e classificação de risco com prioridades | ✅ Implementado |
-| Atendimento assistencial (médico, enfermagem) com evolução, prescrição, exames | ✅ Implementado |
-| **PEP — Prontuário Eletrônico do Paciente** (ficha, histórico, documentos clínicos, evoluções) | ✅ Implementado |
-| Editor de documentos eletrônicos (GrapesJS) + Modelos de impressão (WeasyPrint) | ✅ Implementado |
-| Perfis assistenciais configuráveis (itens, versões, papéis) | ✅ Implementado |
-| Prescrição médica e solicitação de exames | ✅ Implementado |
-| Anexos clínicos com validação de segurança | ✅ Implementado |
-| Alta médica e administrativa | ✅ Implementado |
-| Painel de chamada público (senhas por prioridade, classes, protocolos, ícones, máquinas) | ✅ Implementado |
-| Totem de autoatendimento (geração de senhas) | ✅ Implementado |
-| Acesso clínico auditado | ✅ Implementado |
+A plataforma acompanha a jornada do paciente desde o agendamento e recepção até a classificação de risco, atendimento clínico, prescrição, solicitação de exames e alta.
 
-### 🛠️ Administrativo (apps.accounts, apps.core)
+Também contempla processos administrativos como gestão de usuários, unidades, setores, prestadores, convênios, materiais, chamados internos e auditoria.
 
-| Funcionalidade | Status |
-|---|---|
-| Cadastro de empresas/unidades (CNES, endereço, contatos, setores) | ✅ Implementado |
-| Cadastro de usuários com login automático por nome | ✅ Implementado |
-| Controle de papéis (perfis de acesso), módulos e telas | ✅ Implementado |
-| Permissões granulares por tela, módulo e ação (consultar, inserir, alterar, excluir) | ✅ Implementado |
-| Setores da empresa e setores de atendimento | ✅ Implementado |
-| Tabelas auxiliares globais (sexo, raça/cor, cidades, estados, CIDs, especialidades, conselhos, bancos, etc.) | ✅ Implementado |
-| CEP com busca e integração | ✅ Implementado |
-| Tipo de prestador × conselho profissional | ✅ Implementado |
-| Configuração de campos obrigatórios por formulário | ✅ Implementado |
-| Trava de edição concorrente (lock por recurso) | ✅ Implementado |
-| Sessões e travas de edição | ✅ Implementado |
-| Importação de dados (CSV) | ✅ Implementado |
+## Público-alvo
 
-### 🎫 Suporte (apps.tickets)
+O Celeris é direcionado a:
 
-| Funcionalidade | Status |
-|---|---|
-| Solicitação de chamados de suporte | ✅ Implementado |
-| Atendimento de chamados com recebimento, conclusão e transferência | ✅ Implementado |
-| Oficinas de suporte | ✅ Implementado |
-| Prioridades, motivos de serviço e motivos de conclusão | ✅ Implementado |
-| Vínculo usuário × oficina (quem solicita, quem atende) | ✅ Implementado |
-| Impressão de comprovante de chamado | ✅ Implementado |
-| Múltiplos executores por chamado | ✅ Implementado |
+* Hospitais públicos e privados
+* Clínicas e policlínicas
+* Unidades de pronto atendimento
+* Centros médicos e ambulatoriais
+* Redes de saúde com múltiplas unidades
+* Instituições que buscam digitalizar processos assistenciais e administrativos
 
-### 📦 Estoque (apps.estoque)
+A estrutura multiempresa permite centralizar a gestão de diferentes unidades, mantendo regras de acesso, configurações e operações específicas para cada instituição.
 
-| Funcionalidade | Status |
-|---|---|
-| Cadastro de produtos, materiais e classificações | ✅ Implementado |
-| Entrada, saída, devolução, transferência e fracionamento | ✅ Implementado |
-| Solicitação de produtos (consumo assistencial, compras) | ✅ Implementado |
-| Atendimento de solicitações | ✅ Implementado |
-| Unidades, cotas, consumo e saldos | ✅ Implementado |
-| Motivos de baixa, devolução e cancelamento | ✅ Implementado |
+## Principais funcionalidades
 
-### 📊 Relatórios (apps.reports)
+### Gestão assistencial
 
-| Funcionalidade | Status |
-|---|---|
-| Consultas personalizadas (SQL) | ✅ Implementado |
-| Exportação de relatórios | ✅ Implementado |
+* Cadastro completo de pacientes e prestadores
+* Agendamento de consultas e gerenciamento de agendas
+* Recepção de pacientes agendados e demanda espontânea
+* Pré-atendimento e classificação de risco
+* Atendimento médico e de enfermagem
+* Prontuário Eletrônico do Paciente
+* Evoluções, prescrições e solicitações de exames
+* Documentos clínicos personalizados
+* Alta médica e administrativa
+* Histórico clínico centralizado
+* Auditoria de acessos ao prontuário
 
-### 👥 Social (apps.social)
+### Gestão operacional
 
-| Funcionalidade | Status |
-|---|---|
-| Acompanhamento social de pacientes | ✅ Implementado |
+* Cadastro de empresas, unidades, setores e salas
+* Gestão de convênios, planos e procedimentos
+* Controle de produtos, materiais e movimentações de estoque
+* Solicitações internas e atendimento de materiais
+* Chamados de suporte e acompanhamento de execução
+* Consultas personalizadas e exportação de relatórios
+* Importação de dados por arquivos CSV
 
-### 🩺 Enfermagem (apps.enfermagem)
+### Atendimento e comunicação
 
-| Funcionalidade | Status |
-|---|---|
-| Configuração de boarding (pré-atendimento) | ✅ Implementado |
-| Tabelas auxiliares de enfermagem | ✅ Implementado |
+* Totem de autoatendimento para emissão de senhas
+* Painel público para chamada de pacientes
+* Priorização de chamadas por classificação e protocolo
+* Configuração de máquinas, painéis e pontos de atendimento
 
-### 💻 TI / Agentes (apps.ti)
+### Segurança e governança
 
-| Funcionalidade | Status |
-|---|---|
-| Agentes de máquina e eventos | ✅ Implementado |
-| Alteração de senha de usuários | ✅ Implementado |
+* Controle de acesso baseado em papéis
+* Permissões por funcionalidade, tela e ação
+* Suporte a múltiplas empresas por usuário
+* Expiração de sessão por inatividade
+* Bloqueio por tentativas de autenticação
+* Alteração obrigatória de senha no primeiro acesso
+* Controle de edição simultânea de registros
+* Auditoria de criação e alteração
+* Registro de acessos clínicos
+* Estrutura preparada para adequação à LGPD
 
----
+## Ecossistema
 
-## Ecossistema Celeris
+O Celeris pode ser utilizado como uma plataforma única ou dividido em produtos especializados:
 
-O sistema é dividido em módulos independentes que compartilham a mesma base de dados e controle de acesso:
+| Produto             | Finalidade                                                    |
+| ------------------- | ------------------------------------------------------------- |
+| **Celeris Central** | Gestão administrativa, operacional e integração dos processos |
+| **Celeris PEP**     | Prontuário eletrônico e atendimento assistencial              |
+| **Celeris Class**   | Pré-atendimento e classificação de risco                      |
+| **Celeris Totem**   | Autoatendimento e geração de senhas                           |
+| **Celeris Painel**  | Chamada pública de pacientes e senhas                         |
+| **Celeris BI**      | Indicadores gerenciais e dashboards                           |
 
-| Produto | Descrição | Status |
-|---|---|---|
-| **Celeris Central** | Gestão administrativa e ERP (cadastros, agendamento, recepção, estoque, relatórios) | ✅ Operacional |
-| **Celeris PEP** | Prontuário Eletrônico do Paciente (evolução, prescrição, exames, documentos clínicos) | ✅ Operacional |
-| **Celeris Class** | Classificação de Risco (Triagem) | ✅ Implementado |
-| **Celeris Totem** | Autoatendimento para geração de senhas | ✅ Implementado |
-| **Celeris Painel** | Painel de chamada de senhas e pacientes (TV/público) | ✅ Implementado |
-| **Celeris BI** | Indicadores e dashboards | 🚧 Futuro |
+## Evolução planejada
 
----
+O Celeris está em desenvolvimento contínuo. As próximas etapas têm como objetivo ampliar a cobertura da plataforma e consolidá-la como uma solução completa de gestão em saúde.
+
+Entre as principais implementações planejadas estão:
+
+* Faturamento hospitalar e ambulatorial
+* Gestão de contas e convênios
+* Controle financeiro e fluxo de caixa
+* Contas a pagar e contas a receber
+* Gestão de compras e fornecedores
+* Integração entre estoque, compras e faturamento
+* Gestão contábil e centros de custo
+* Indicadores assistenciais e administrativos
+* Dashboards gerenciais no Celeris BI
+* Gestão de leitos e internações
+* Ampliação dos recursos de enfermagem
+* Protocolos clínicos configuráveis
+* Assinatura eletrônica de documentos
+* Integração com serviços e sistemas externos
+* Aprimoramento dos recursos de privacidade e LGPD
+* Expansão da cobertura de testes automatizados
+
+O planejamento detalhado está disponível em [docs/roadmap.md](docs/roadmap.md).
 
 ## Tecnologias
 
-| Camada | Tecnologia |
-|---|---|
-| Backend | Python 3.12+, Django 5.x |
-| Frontend | HTML5, CSS3 (CSS custom properties + Bootstrap 5), JavaScript vanilla |
-| Banco | SQLite (desenvolvimento) / PostgreSQL (produção) / MySQL |
-| PDF | WeasyPrint com editor de layouts GrapesJS |
-| Templates | Django Templates (Jinja-like) |
-| Ícones | Lucide (SVG inline, sem dependência externa) |
-
----
-
-## Segurança e conformidade
-
-- ✅ Controle de acesso baseado em papéis (RBAC) por módulo e tela
-- ✅ Permissões acumulativas por grupo de usuário
-- ✅ Bloqueio de acesso a telas inativas ou módulos inativos
-- ✅ Trava de edição concorrente (impede edição simultânea do mesmo registro)
-- ✅ Auditoria de criação e alteração (usuário, data/hora)
-- ✅ Senha com expiração, bloqueio por tentativas e exigência de alteração no primeiro acesso
-- ✅ Logs de acesso clínico auditado (PEP)
-- ✅ Middleware de verificação de rota (ScreenAccessMiddleware)
-- ✅ Sessão expira por inatividade
-- ✅ Estrutura preparada para LGPD (logs de consentimento, auditoria)
-
-## Roadmap de desenvolvimento
-
-O roadmap completo está em [docs/roadmap.md](docs/roadmap.md), organizado por prioridade, risco e dependências em 10 fases (~541h totais).
-
-### Fase atual — Fundação Técnica e Segurança (Prioridade Crítica, ~8h)
-- Forçar SECRET_KEY via ambiente (remover fallback hardcoded)
-- Alterar DEBUG padrão para False
-- Adicionar `transaction.atomic()` em operações de múltiplos saves
-- Corrigir escapeHTML no JavaScript (prevenir XSS)
-- Revisar segurança de sessão (cookies seguros)
-- ✅ Dead code removido do JavaScript
-- ✅ CSS statusbar corrigido
-- ✅ SESSION_COOKIE_AGE mantido em 15min (adequado para dados sensíveis)
-
-### Próximas fases (visão geral)
-| Fase | Foco | Esforço |
-|------|------|---------|
-| **Fase 2** | Qualidade e Manutenibilidade | ~65h |
-| **Fase 3** | Experiência do Usuário | ~54h |
-| **Fase 4** | Performance e Infraestrutura | ~28h |
-| **Fase 5** | Expansão Assistencial | ~100h |
-| **Fase 6** | Faturamento e Convênios | ~88h |
-| **Fase 7** | Financeiro | ~64h |
-| **Fases 8-10** | Contábil, BI, LGPD | ~142h |
----
+| Camada         | Tecnologia                            |
+| -------------- | ------------------------------------- |
+| Backend        | Python 3.12 e Django 5                |
+| Frontend       | HTML5, CSS3, Bootstrap 5 e JavaScript |
+| Banco de dados | SQLite, PostgreSQL ou MySQL           |
+| Templates      | Django Templates                      |
+| Documentos     | GrapesJS + WeasyPrint                 |
 
 ## Desenvolvimento local
 
+Clone o repositório:
+
 ```bash
-# Clone o repositório
 git clone https://github.com/bjmvictor/Celeris.git
 cd Celeris
+```
 
-# Configure ambiente virtual
+Crie o ambiente virtual:
+
+```bash
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
+```
 
-# Instale dependências
+Ative o ambiente:
+
+```powershell
+# Windows
+.\.venv\Scripts\activate
+```
+
+```bash
+# Linux ou macOS
+source .venv/bin/activate
+```
+
+Instale as dependências:
+
+```bash
 pip install -r requirements.txt
+```
 
-# Configure variáveis de ambiente
+Configure o ambiente:
+
+```bash
 cp .env.example .env
-# Edite .env conforme necessário
+```
 
-# Execute as migrações
+Execute as migrações e inicie o servidor:
+
+```bash
 python manage.py migrate
-
-# Crie dados iniciais (opcional)
-python manage.py loaddata initial_data
-
-# Inicie o servidor
+python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Acesse [http://localhost:8000](http://localhost:8000)
+A aplicação estará disponível em:
 
----
+```text
+http://localhost:8000
+```
 
 ## Testes
 
 ```bash
-# Executar suite completa
 python manage.py test
-
-# Verificar integridade do projeto
 python manage.py check
 python manage.py makemigrations --check --dry-run
 ```
 
-Atualmente: **111+ testes** aprovados, **0 falhas** (cobertura: accounts, core, atendimento).
+O projeto possui mais de 111 testes automatizados, com cobertura das principais regras de autenticação, permissões, cadastros e processos assistenciais.
 
----
+## Status do projeto
+
+O Celeris está em desenvolvimento ativo.
+
+As funcionalidades centrais de cadastro, agendamento, atendimento, prontuário eletrônico, classificação de risco, estoque, chamados, relatórios, totem e painel de chamadas já possuem implementação funcional.
+
+Novos recursos estão sendo adicionados de forma progressiva, priorizando segurança, estabilidade, usabilidade e integração entre os processos.
 
 ## Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Este projeto está disponível sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE) para mais informações.
