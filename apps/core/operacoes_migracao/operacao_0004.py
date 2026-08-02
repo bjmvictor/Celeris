@@ -11,7 +11,6 @@ MODULES = [
     ("COMPRAS", "Compras"),
     ("FISCAL", "Fiscal"),
     ("RH", "RH"),
-    ("RELACIONAMENTO", "Relacionamento"),
     ("BI", "Indicadores"),
 ]
 
@@ -19,7 +18,6 @@ MODULES = [
 SCREENS = [
     ("PACIENTES", "Cadastro de Paciente", "pacientes-cadastro", "formulario", "", "paciente", 10),
     ("PACIENTES", "Responsaveis", "pacientes-responsaveis", "formulario", "Cadastros", "responsavel", 20),
-    ("PACIENTES", "Historico do Paciente", "pacientes-historico", "consulta", "Consultas", "paciente", 30),
     ("PACIENTES", "Relatorio de Pacientes", "pacientes-relatorio", "relatorio", "Relatorios", "paciente", 40),
     ("CADASTROS", "Convenios", "cadastros-convenios", "formulario", "Tabelas", "convenio", 10),
     ("CADASTROS", "Planos", "cadastros-planos", "formulario", "Tabelas", "plano", 20),
@@ -43,12 +41,7 @@ SCREENS = [
     ("RH", "Colaboradores", "rh-colaboradores", "formulario", "Cadastros", "colaborador", 10),
     ("RH", "Escalas", "rh-escalas", "formulario", "Movimentacao", "escala", 20),
     ("RH", "Produtividade", "rh-produtividade", "relatorio", "Relatorios", "produtividade", 30),
-    ("RELACIONAMENTO", "Leads", "relacionamento-leads", "formulario", "Comercial", "lead", 10),
-    ("RELACIONAMENTO", "Campanhas", "relacionamento-campanhas", "formulario", "Comercial", "campanha", 20),
-    ("RELACIONAMENTO", "Pesquisa de Satisfacao", "relacionamento-satisfacao", "relatorio", "Relatorios", "pesquisa_satisfacao", 30),
-    ("BI", "Dashboard Geral", "bi-dashboard-geral", "dashboard", "", "indicador", 10),
     ("BI", "Agenda e Atendimento", "bi-agenda-atendimento", "dashboard", "Dashboards", "indicador_atendimento", 20),
-    ("BI", "Financeiro", "bi-financeiro", "dashboard", "Dashboards", "indicador_financeiro", 30),
 ]
 
 

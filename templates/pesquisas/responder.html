@@ -1,0 +1,22 @@
+{% extends "pesquisas/public_layout.html" %}
+{% block title %}{{ pesquisa.nm_pesquisa }} · Celeris{% endblock %}
+{% block content %}
+  <form class="survey-response-form" method="post">
+    {% csrf_token %}
+    <header class="survey-response-intro"><span class="eyebrow">{{ pesquisa.get_tp_pesquisa_display }}</span><h1>{{ pesquisa.nm_pesquisa }}</h1><p>{{ pesquisa.ds_descricao }}</p><div class="survey-privacy-note">{% if pesquisa.sn_anonima %}Suas respostas são anônimas e não serão associadas ao seu usuário.{% else %}Esta pesquisa registra o usuário respondente.{% endif %}</div></header>
+    {% for pergunta in perguntas %}
+      <fieldset class="survey-question {% if errors %}{% endif %}">
+        <legend><span>{{ forloop.counter }}</span>{{ pergunta.ds_pergunta }}{% if pergunta.sn_obrigatoria %}<sup>*</sup>{% endif %}</legend>
+        {% if pergunta.tp_resposta == "UNICA" or pergunta.tp_resposta == "ESCALA" %}
+          <div class="survey-answer-options">{% for opcao in pergunta.opcoes.all %}{% if opcao.sn_ativo %}<label><input type="radio" name="pergunta_{{ pergunta.pk }}" value="{{ opcao.pk }}" {% if opcao.pk|stringformat:'s' in pergunta.valores_postados %}checked{% endif %}><span>{{ opcao.ds_resposta }}</span></label>{% endif %}{% endfor %}</div>
+        {% elif pergunta.tp_resposta == "MULTIPLA" %}
+          <div class="survey-answer-options">{% for opcao in pergunta.opcoes.all %}{% if opcao.sn_ativo %}<label><input type="checkbox" name="pergunta_{{ pergunta.pk }}" value="{{ opcao.pk }}" {% if opcao.pk|stringformat:'s' in pergunta.valores_postados %}checked{% endif %}><span>{{ opcao.ds_resposta }}</span></label>{% endif %}{% endfor %}</div>
+        {% elif pergunta.tp_resposta == "NUMERO" %}
+          <input class="survey-number-answer" type="number" step="any" name="pergunta_{{ pergunta.pk }}" value="{{ pergunta.valor_postado }}" {% if pergunta.nr_minimo != None %}min="{{ pergunta.nr_minimo }}"{% endif %} {% if pergunta.nr_maximo != None %}max="{{ pergunta.nr_maximo }}"{% endif %}>
+        {% else %}<textarea name="pergunta_{{ pergunta.pk }}" rows="4">{{ pergunta.valor_postado }}</textarea>{% endif %}
+        {% if pergunta.form_error %}<p class="errorlist">{{ pergunta.form_error }}</p>{% endif %}
+      </fieldset>
+    {% empty %}<div class="survey-question">Esta pesquisa ainda não possui perguntas.</div>{% endfor %}
+    {% if perguntas %}<button class="button primary survey-submit" type="submit">Enviar respostas</button>{% endif %}
+  </form>
+{% endblock %}

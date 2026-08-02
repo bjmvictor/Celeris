@@ -1,0 +1,12 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card survey-selector" method="get">
+    <label>Pesquisa <select name="pesquisa" onchange="this.form.submit()"><option value="">Todas</option>{% for item in pesquisas %}<option value="{{ item.pk }}" {% if request.GET.pesquisa == item.pk|stringformat:'s' %}selected{% endif %}>{{ item.nm_pesquisa }}</option>{% endfor %}</select></label>
+  </form>
+  <section class="card table-card">
+    <table><thead><tr><th>Código</th><th>Pesquisa</th><th>Data</th><th>Respondente</th><th>Nota</th><th>Interpretação</th></tr></thead><tbody>
+      {% for item in respostas %}<tr><td>{{ item.pk }}</td><td>{{ item.cd_pesquisa.nm_pesquisa }}</td><td>{{ item.dh_resposta|date:"d/m/Y H:i" }}</td><td>{% if item.cd_pesquisa.sn_anonima %}Anônimo{% else %}{{ item.cd_usuario|default:"Não identificado" }}{% endif %}</td><td><strong>{{ item.nr_resultado }}</strong></td><td>{{ item.cd_faixa_resultado.nm_resultado|default:"Sem faixa" }}</td></tr>
+      {% empty %}<tr><td colspan="6">Nenhuma resposta encontrada.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+{% endblock %}

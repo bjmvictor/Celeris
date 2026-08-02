@@ -8,10 +8,10 @@
     <details class="card form-section" open>
       <summary>1. Dados do Papel</summary>
       <div class="form-grid">
-        <label class="pk-label field-xs">Código do Papel <input value="{{ perfil.pk|default:'' }}" readonly data-primary-key="true"></label>
+        <label class="pk-label field-xs">Código do Papel <input value="{{ perfil.pk|default:'' }}" readonly data-primary-key="true" data-field-table="auth_group" data-field-name="id"></label>
         <label class="field-lg">Nome do Papel * {{ form.name }} {{ form.name.errors }}</label>
         <label class="field-xl">Descrição {{ form.ds_descricao }} {{ form.ds_descricao.errors }}</label>
-        <label class="field-sm">Status <input value="{% if perfil.papel.sn_ativo %}Ativo{% elif perfil %}Inativo{% else %}Ativo{% endif %}" readonly></label>
+        <label class="field-sm">Status <input value="{% if perfil.papel.sn_ativo %}Ativo{% elif perfil %}Inativo{% else %}Ativo{% endif %}" readonly data-field-table="papel" data-field-name="sn_ativo"></label>
       </div>
     </details>
 
@@ -20,7 +20,7 @@
       <div class="provider-permissions role-modules">
         {% for module in modules %}
           <label class="provider-checkbox">
-            <input type="checkbox" name="modulos" value="{{ module.pk }}" data-role-module="{{ module.pk }}"
+            <input type="checkbox" name="modulos" value="{{ module.pk }}" data-role-module="{{ module.pk }}" data-field-table="papel_modulo" data-field-name="modulo_id"
               {% if module.pk in selected_modules %}checked{% endif %}>
             <span>{{ module.title }}</span>
           </label>
@@ -42,7 +42,7 @@
               {% for screen in module.screens.all %}
                 {% if screen.active and screen.access_key %}
                   <label class="provider-checkbox">
-                    <input type="checkbox" name="telas" value="{{ screen.pk }}"
+                    <input type="checkbox" name="telas" value="{{ screen.pk }}" data-field-table="papel_tela" data-field-name="tela_id"
                       {% if screen.pk in selected_screens %}checked{% endif %}>
                     <span>{{ screen.title }}</span>
                   </label>

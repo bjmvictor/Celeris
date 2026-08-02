@@ -3,9 +3,6 @@ from django.db import migrations
 
 IMPLEMENTED_ACCESS_KEYS = {
     "atendimento:atendimentos",
-    "atendimento:fila-medica",
-    "atendimento:pep",
-    "atendimento:demanda-espontanea",
 }
 
 

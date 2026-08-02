@@ -19,6 +19,30 @@ from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, 
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
 
 
+class ConsultaAtendimentosTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=7000, nm_empresa="Empresa Consulta", sn_ativo=True)
+        self.user = User.objects.create_superuser("consulta-atendimentos", "consulta@example.com", "senha-forte")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
+        self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="MARIA TESTE")
+        self.atendimento = Atendimento.objects.create(cd_empresa=self.empresa, cd_paciente=self.paciente)
+
+    def test_consulta_por_atendimento_prontuario_e_nome(self):
+        url = reverse("atendimento:atendimentos")
+        response = self.client.get(url, {
+            "consultar": "1",
+            "nr_atendimento": self.atendimento.pk,
+            "nr_prontuario": self.paciente.pk,
+            "nm_paciente": "Maria",
+        })
+        self.assertContains(response, "Consulta de atendimentos")
+        self.assertContains(response, "MARIA TESTE")
+        self.assertContains(response, str(self.atendimento.pk))
+
+
 class PainelChamadaStandaloneTests(TestCase):
     def setUp(self):
         self.empresa = Empresa.objects.create(cd_empresa=701, nm_empresa="Empresa Painel", sn_ativo=True)

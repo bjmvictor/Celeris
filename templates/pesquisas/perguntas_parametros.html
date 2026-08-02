@@ -1,0 +1,63 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card survey-selector" method="get">
+    <label>Pesquisa
+      <select name="pesquisa" onchange="this.form.submit()">
+        {% for item in pesquisas %}<option value="{{ item.pk }}" {% if pesquisa.pk == item.pk %}selected{% endif %}>{{ item.nm_pesquisa }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if pesquisa %}<a class="button secondary" href="?pesquisa={{ pesquisa.pk }}">Nova pergunta</a>{% endif %}
+  </form>
+
+  {% if pesquisa %}
+    <section class="survey-split">
+      <div class="card table-card">
+        <div class="section-heading"><div><span class="eyebrow">Roteiro</span><h2>Perguntas</h2></div></div>
+        <table><thead><tr><th>Ordem</th><th>Pergunta</th><th>Tipo</th><th>Peso</th><th>Status</th></tr></thead><tbody>
+          {% for item in perguntas %}
+            <tr class="{% if pergunta.pk == item.pk %}selected-row{% endif %}">
+              <td>{{ item.nr_ordem }}</td><td><a href="?pesquisa={{ pesquisa.pk }}&pergunta={{ item.pk }}">{{ item.ds_pergunta }}</a></td>
+              <td>{{ item.get_tp_resposta_display }}</td><td>{{ item.nr_peso }}</td><td>{{ item.sn_ativo|yesno:"Ativa,Inativa" }}</td>
+            </tr>
+          {% empty %}<tr><td colspan="5">Adicione a primeira pergunta.</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+
+      <form class="card" method="post">
+        {% csrf_token %}<input type="hidden" name="action" value="save_question"><input type="hidden" name="pesquisa_id" value="{{ pesquisa.pk }}"><input type="hidden" name="pergunta_id" value="{{ pergunta.pk|default:'' }}">
+        <div class="section-heading"><div><span class="eyebrow">Parâmetros</span><h2>{% if pergunta %}Editar pergunta{% else %}Nova pergunta{% endif %}</h2></div></div>
+        {{ question_form.non_field_errors }}
+        <div class="form-grid">
+          <label class="field-xl">Pergunta * {{ question_form.ds_pergunta }} {{ question_form.ds_pergunta.errors }}</label>
+          <label class="field-md">Tipo {{ question_form.tp_resposta }}</label>
+          <label class="field-sm">Peso {{ question_form.nr_peso }}</label>
+          <label class="field-sm">Mínimo {{ question_form.nr_minimo }}</label>
+          <label class="field-sm">Máximo {{ question_form.nr_maximo }}</label>
+          <label class="field-sm">Ordem {{ question_form.nr_ordem }}</label>
+          <label class="standard-checkbox">{{ question_form.sn_obrigatoria }} Obrigatória</label>
+          <label class="standard-checkbox">{{ question_form.sn_ativo }} Ativa</label>
+        </div>
+        <div class="form-actions"><button class="button primary" type="submit">Salvar pergunta</button></div>
+      </form>
+    </section>
+
+    {% if pergunta %}
+      <section class="card table-card">
+        <div class="section-heading"><div><span class="eyebrow">Alternativas</span><h2>Respostas possíveis</h2><p>O valor numérico participa do cálculo da nota final.</p></div><a class="button secondary" href="?pesquisa={{ pesquisa.pk }}&pergunta={{ pergunta.pk }}">Nova resposta</a></div>
+        {% if pergunta.tp_resposta == "TEXTO" or pergunta.tp_resposta == "NUMERO" %}<p class="inline-notice">Este tipo aceita a resposta digitada; alternativas são opcionais.</p>{% endif %}
+        <table><thead><tr><th>Ordem</th><th>Resposta</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>
+          {% for item in pergunta.opcoes.all %}<tr><td>{{ item.nr_ordem }}</td><td>{{ item.ds_resposta }}</td><td>{{ item.nr_valor }}</td><td>{{ item.sn_ativo|yesno:"Ativa,Inativa" }}</td><td><a class="button secondary compact" href="?pesquisa={{ pesquisa.pk }}&pergunta={{ pergunta.pk }}&opcao={{ item.pk }}">Editar</a></td></tr>
+          {% empty %}<tr><td colspan="5">Nenhuma resposta possível cadastrada.</td></tr>{% endfor %}
+        </tbody></table>
+        <form class="survey-inline-editor" method="post">
+          {% csrf_token %}<input type="hidden" name="action" value="save_option"><input type="hidden" name="pesquisa_id" value="{{ pesquisa.pk }}"><input type="hidden" name="pergunta_id" value="{{ pergunta.pk }}"><input type="hidden" name="opcao_id" value="{{ option.pk|default:'' }}">
+          <label class="field-xl">Resposta * {{ option_form.ds_resposta }} {{ option_form.ds_resposta.errors }}</label>
+          <label class="field-sm">Valor {{ option_form.nr_valor }} {{ option_form.nr_valor.errors }}</label>
+          <label class="field-sm">Ordem {{ option_form.nr_ordem }}</label>
+          <label class="standard-checkbox">{{ option_form.sn_ativo }} Ativa</label>
+          <button class="button primary" type="submit">Salvar resposta</button>
+        </form>
+      </section>
+    {% endif %}
+  {% else %}<section class="card empty-state"><h2>Cadastre uma pesquisa primeiro</h2></section>{% endif %}
+{% endblock %}

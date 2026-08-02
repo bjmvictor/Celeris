@@ -1,0 +1,7 @@
+{% extends "pesquisas/public_layout.html" %}
+{% block content %}
+  <section class="survey-finished">
+    <div class="survey-finished-icon">✓</div><span class="eyebrow">Resposta registrada</span><h1>Obrigado por participar</h1>
+    {% if resposta.cd_faixa_resultado %}<div class="survey-result-card" style="--survey-color:{{ resposta.cd_faixa_resultado.ds_cor }}"><strong>{{ resposta.cd_faixa_resultado.nm_resultado }}</strong><p>{{ resposta.cd_faixa_resultado.ds_mensagem }}</p>{% if not pesquisa.sn_anonima %}<small>Resultado: {{ resposta.nr_resultado }}</small>{% endif %}</div>{% else %}<p>Suas respostas foram enviadas com sucesso.</p>{% endif %}
+  </section>
+{% endblock %}

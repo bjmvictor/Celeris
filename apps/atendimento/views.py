@@ -6425,11 +6425,55 @@ def _fila_atendimento(request):
 @role_required("Recepcionista", "Enfermeiro", "Médico")
 def atendimentos(request):
     empresa = _empresa_logada(request)
-    request.current_tab_title = "Atendimento > Atendimentos"
-    request.current_tab_root_title = "Atendimentos"
+    request.current_tab_title = "Atendimento > Consulta de atendimentos"
+    request.current_tab_root_title = "Consulta de atendimentos"
     request.current_module_title = "Atendimento"
-    registros = Atendimento.objects.select_related("cd_paciente", "cd_prestador").filter(cd_empresa=empresa).order_by("-dh_inicio")[:100]
-    return render(request, "atendimento/atendimentos.html", {"registros": registros})
+    request.current_can_query = True
+    request.current_can_insert = False
+    request.current_can_save = False
+    request.current_can_remove = False
+
+    registros = Atendimento.objects.select_related(
+        "cd_paciente", "cd_prestador", "cd_convenio", "cd_setor_atual"
+    ).filter(cd_empresa=empresa)
+    nr_atendimento = request.GET.get("nr_atendimento", "").strip()
+    nr_prontuario = request.GET.get("nr_prontuario", "").strip()
+    nm_paciente = request.GET.get("nm_paciente", "").strip()
+    ds_status = request.GET.get("ds_status", "").strip()
+    dt_inicio = request.GET.get("dt_inicio", "").strip()
+    dt_fim = request.GET.get("dt_fim", "").strip()
+
+    if nr_atendimento.isdigit():
+        registros = registros.filter(cd_atendimento=int(nr_atendimento))
+    elif nr_atendimento:
+        registros = registros.none()
+    if nr_prontuario.isdigit():
+        registros = registros.filter(cd_paciente_id=int(nr_prontuario))
+    elif nr_prontuario:
+        registros = registros.none()
+    if nm_paciente:
+        registros = registros.filter(
+            Q(cd_paciente__nm_paciente__icontains=nm_paciente)
+            | Q(cd_paciente__nm_social__icontains=nm_paciente)
+        )
+    if ds_status:
+        registros = registros.filter(ds_status=ds_status)
+    if dt_inicio:
+        registros = registros.filter(dh_inicio__date__gte=dt_inicio)
+    if dt_fim:
+        registros = registros.filter(dh_inicio__date__lte=dt_fim)
+
+    registros = paginate_table(
+        request,
+        registros,
+        {"cd_atendimento", "cd_paciente__nm_paciente", "dh_inicio", "ds_status"},
+        "-dh_inicio",
+    )
+    return render(
+        request,
+        "atendimento/atendimentos.html",
+        {"registros": registros, "status_atendimento": Atendimento.STATUS},
+    )
 
 
 @login_required

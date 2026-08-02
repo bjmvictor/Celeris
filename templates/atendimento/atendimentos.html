@@ -1,10 +1,47 @@
 {% extends "base/layout.html" %}
 {% block content %}
+  <form class="card form-grid" method="get" data-query-only-form data-table="atendimento" autocomplete="off">
+    <input type="hidden" name="consultar" value="1">
+    <label class="field-sm">Atendimento
+      <input type="number" name="nr_atendimento" value="{{ request.GET.nr_atendimento }}" min="1" data-field-name="cd_atendimento">
+    </label>
+    <label class="field-sm">Prontuário
+      <input type="number" name="nr_prontuario" value="{{ request.GET.nr_prontuario }}" min="1" data-field-table="paciente" data-field-name="cd_paciente">
+    </label>
+    <label class="field-xl">Nome do paciente
+      <input name="nm_paciente" value="{{ request.GET.nm_paciente }}" data-field-table="paciente" data-field-name="nm_paciente">
+    </label>
+    <label class="field-md">Status
+      <select name="ds_status" data-field-name="ds_status">
+        <option value="">Todos</option>
+        {% for value, label in status_atendimento %}
+          <option value="{{ value }}" {% if request.GET.ds_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field-md">Data inicial
+      <input type="date" name="dt_inicio" value="{{ request.GET.dt_inicio }}" data-field-name="dh_inicio">
+    </label>
+    <label class="field-md">Data final
+      <input type="date" name="dt_fim" value="{{ request.GET.dt_fim }}" data-field-name="dh_inicio">
+    </label>
+  </form>
+
   <section class="card table-card">
-    <table><thead><tr><th>Atendimento</th><th>Paciente</th><th>Abertura</th><th>Prestador</th><th>Status</th></tr></thead><tbody>
+    <table><thead><tr><th>Atendimento</th><th>Prontuário</th><th>Paciente</th><th>Abertura</th><th>Prestador</th><th>Convênio</th><th>Setor</th><th>Origem</th><th>Status</th></tr></thead><tbody>
       {% for item in registros %}
-        <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.cd_paciente.nm_paciente }}</td><td>{{ item.dh_inicio|date:"d/m/Y H:i" }}</td><td>{{ item.cd_prestador|default:"-" }}</td><td><span class="status-badge">{{ item.get_ds_status_display }}</span></td></tr>
-      {% empty %}<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>{% endfor %}
+        <tr>
+          <td>{{ item.cd_atendimento }}</td>
+          <td>{{ item.cd_paciente_id }}</td>
+          <td>{{ item.cd_paciente.nm_social|default:item.cd_paciente.nm_paciente }}</td>
+          <td>{{ item.dh_inicio|date:"d/m/Y H:i" }}</td>
+          <td>{{ item.cd_prestador|default:"-" }}</td>
+          <td>{{ item.cd_convenio|default:"-" }}</td>
+          <td>{{ item.cd_setor_atual|default:item.ds_unidade_setor|default:"-" }}</td>
+          <td>{{ item.get_ds_origem_display }}</td>
+          <td><span class="status-badge">{{ item.get_ds_status_display }}</span></td>
+        </tr>
+      {% empty %}<tr><td colspan="9">Use os filtros e execute a consulta.</td></tr>{% endfor %}
     </tbody></table>
   </section>
 {% endblock %}

@@ -1945,14 +1945,16 @@
     const labelText = field.closest("label")?.childNodes?.[0]?.textContent?.trim() || "";
     const businessLabel = labelText || field.getAttribute("aria-label") || field.placeholder || "Campo";
     const owner = field.closest("form[data-table], section[data-table]");
-    const tableName = owner?.dataset.table;
+    const tableName = field.dataset.fieldTable || owner?.dataset.table;
     const rawFieldName = field.dataset.fieldName || field.name || "";
     const fieldName = rawFieldName.replace(/^new_/, "").replace(/_\d+$/, "");
     const isExactTableField = Boolean(
       tableName
       && fieldName
-      && owner?.tagName === "FORM"
-      && owner.method?.toLowerCase() !== "get"
+      && (field.dataset.fieldTable || (
+        owner?.tagName === "FORM"
+        && owner.method?.toLowerCase() !== "get"
+      ))
       && field.type !== "hidden"
     );
     status.textContent = isExactTableField

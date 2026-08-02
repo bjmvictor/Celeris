@@ -274,9 +274,7 @@ class PerfilForm(forms.ModelForm):
     )
     telas = forms.ModelMultipleChoiceField(
         label="Telas Permitidas",
-        queryset=ScreenDefinition.objects.filter(active=True, module__active=True).exclude(
-            access_key="atendimento:atendimentos",
-        ).order_by(
+        queryset=ScreenDefinition.objects.filter(active=True, module__active=True).order_by(
             "module__title", "order", "title"
         ),
         required=False,
@@ -289,7 +287,16 @@ class PerfilForm(forms.ModelForm):
     def __init__(self, *args, instance=None, **kwargs):
         super().__init__(*args, instance=instance, **kwargs)
         self.fields["name"].label = "Nome do Papel"
-        self.fields["name"].widget.attrs.update({"data-consultable": "true", "required": "required"})
+        self.fields["name"].widget.attrs.update({
+            "data-consultable": "true",
+            "data-field-table": "auth_group",
+            "data-field-name": "name",
+            "required": "required",
+        })
+        self.fields["ds_descricao"].widget.attrs.update({
+            "data-field-table": "papel",
+            "data-field-name": "ds_descricao",
+        })
         if instance and instance.pk:
             papel, _ = Papel.objects.get_or_create(grupo=instance)
             self.fields["ds_descricao"].initial = papel.ds_descricao

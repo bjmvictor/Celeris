@@ -1,0 +1,14 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="survey-catalog">
+    {% for pesquisa in pesquisas %}
+      <article class="card survey-catalog-card">
+        <span class="eyebrow">{{ pesquisa.get_tp_pesquisa_display }}</span>
+        <h2>{{ pesquisa.nm_pesquisa }}</h2>
+        <p>{{ pesquisa.ds_descricao|default:"Pesquisa disponível para preenchimento." }}</p>
+        <div class="survey-card-meta"><span>{{ pesquisa.perguntas.count }} pergunta(s)</span><span>{{ pesquisa.sn_anonima|yesno:"Anônima,Identificada" }}</span></div>
+        <a class="button primary" href="{% url 'pesquisas:responder' pesquisa.cd_token_publico %}">Iniciar pesquisa</a>
+      </article>
+    {% empty %}<article class="card empty-state"><h2>Nenhuma pesquisa disponível agora</h2><p>Consulte novamente mais tarde.</p></article>{% endfor %}
+  </section>
+{% endblock %}

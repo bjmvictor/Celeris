@@ -1,0 +1,41 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form class="card" method="post" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="pesquisa_id" value="{{ pesquisa.pk|default:'' }}">
+    {{ form.non_field_errors }}
+    <div class="section-heading">
+      <div><span class="eyebrow">Configuração</span><h2>{% if pesquisa %}Editar pesquisa{% else %}Nova pesquisa{% endif %}</h2></div>
+      {% if pesquisa %}<a class="button secondary" href="{% url 'pesquisas:configuracao' %}">Nova pesquisa</a>{% endif %}
+    </div>
+    <div class="form-grid survey-form-grid">
+      <label class="field-xl">Nome * {{ form.nm_pesquisa }} {{ form.nm_pesquisa.errors }}</label>
+      <label class="field-md">Tipo {{ form.tp_pesquisa }} {{ form.tp_pesquisa.errors }}</label>
+      <label class="field-xl">Descrição {{ form.ds_descricao }} {{ form.ds_descricao.errors }}</label>
+      <label class="field-md">Disponível a partir de {{ form.dh_inicio }} {{ form.dh_inicio.errors }}</label>
+      <label class="field-md">Disponível até {{ form.dh_fim }} {{ form.dh_fim.errors }}</label>
+      <label class="standard-checkbox">{{ form.sn_anonima }} Pesquisa anônima</label>
+      <label class="standard-checkbox">{{ form.sn_publica }} Link público</label>
+      <label class="standard-checkbox">{{ form.sn_ativo }} Ativa</label>
+    </div>
+    <div class="form-actions"><button class="button primary" type="submit">Salvar pesquisa</button></div>
+  </form>
+
+  <section class="card table-card">
+    <div class="section-heading"><div><span class="eyebrow">Catálogo</span><h2>Pesquisas cadastradas</h2></div></div>
+    <table>
+      <thead><tr><th>Pesquisa</th><th>Tipo</th><th>Perguntas</th><th>Respostas</th><th>Privacidade</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for item in pesquisas %}
+          <tr>
+            <td>{{ item.nm_pesquisa }}</td><td>{{ item.get_tp_pesquisa_display }}</td>
+            <td>{{ item.total_perguntas }}</td><td>{{ item.total_respostas }}</td>
+            <td>{% if item.sn_anonima %}Anônima{% else %}Identificada{% endif %}</td>
+            <td><span class="status-badge">{{ item.sn_ativo|yesno:"Ativa,Inativa" }}</span></td>
+            <td><a class="button secondary compact" href="?pesquisa={{ item.pk }}">Editar</a></td>
+          </tr>
+        {% empty %}<tr><td colspan="7">Nenhuma pesquisa cadastrada.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

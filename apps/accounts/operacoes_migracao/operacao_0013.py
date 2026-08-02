@@ -6,8 +6,6 @@ from django.db import migrations
 SCREENS = [
     ("ATENDIMENTO", "Editor de documentos", "acesso-atendimento-editor-documentos", "atendimento:modelos-documento", "Documentos", 50, ["TI"]),
     ("ATENDIMENTO", "Perfis assistenciais", "acesso-atendimento-perfis-assistenciais", "atendimento:perfis-assistenciais", "Configurações", 60, ["TI"]),
-    ("ATENDIMENTO", "PEP", "acesso-atendimento-pep", "atendimento:pep", "Assistencial", 100, ["TI", "Enfermeiro", "Médico"]),
-    ("ATENDIMENTO", "Demanda espontânea", "acesso-atendimento-demanda-espontanea", "atendimento:demanda-espontanea", "Recepção", 130, ["TI", "Recepcionista"]),
     ("GLOBAL", "Empresas", "acesso-global-empresas", "core:system_companies", "Empresa", 5, ["TI"]),
     ("GLOBAL", "Setores", "acesso-global-setores", "core:setores", "Empresa", 6, ["TI"]),
     ("GLOBAL", "Setores de Atendimento", "acesso-global-setores-atendimento", "core:setores_atendimento", "Empresa", 7, ["TI"]),

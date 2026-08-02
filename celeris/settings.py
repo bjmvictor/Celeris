@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.social",
     "apps.enfermagem",
     "apps.ti",
+    "apps.pesquisas",
 ]
 
 MIDDLEWARE = [

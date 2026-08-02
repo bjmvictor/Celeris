@@ -12,7 +12,7 @@ from apps.core.models import Module, ScreenDefinition
 from .access import has_screen_access
 from .middleware import ScreenAccessMiddleware
 
-from .forms import UsuarioForm, UsuarioPasswordForm
+from .forms import PerfilForm, UsuarioForm, UsuarioPasswordForm
 from .models import (
     Empresa,
     Papel,
@@ -34,6 +34,22 @@ class LoginBrandingTests(TestCase):
         favicon = self.client.get("/favicon.ico")
         self.assertEqual(favicon.status_code, 302)
         self.assertEqual(favicon["Location"], "/static/img/logo.png")
+
+
+class PerfilFieldReferenceTests(TestCase):
+    def test_campos_declaram_tabela_e_coluna_reais(self):
+        form = PerfilForm()
+        self.assertEqual(form.fields["name"].widget.attrs["data-field-table"], "auth_group")
+        self.assertEqual(form.fields["name"].widget.attrs["data-field-name"], "name")
+        self.assertEqual(form.fields["ds_descricao"].widget.attrs["data-field-table"], "papel")
+        self.assertEqual(form.fields["ds_descricao"].widget.attrs["data-field-name"], "ds_descricao")
+
+        user = User.objects.create_superuser("admin-papeis", "papeis@example.com", "senha-forte")
+        self.client.force_login(user)
+        response = self.client.get(reverse("perfil_novo"))
+        self.assertContains(response, 'data-field-table="auth_group" data-field-name="id"')
+        self.assertContains(response, 'data-field-table="papel_modulo" data-field-name="modulo_id"')
+        self.assertContains(response, 'data-field-table="papel_tela" data-field-name="tela_id"')
 
 
 class SuperusuarioAcessoTotalTests(TestCase):

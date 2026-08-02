@@ -13,9 +13,8 @@ MODULES = {
 SCREENS = [
     ("ATENDIMENTO", "Agendamentos", "acesso-atendimento-agendamentos", "atendimento:agendar", 10, ["TI", "Recepcionista"]),
     ("ATENDIMENTO", "Recepção", "acesso-atendimento-recepcao", "atendimento:recepcao", 20, ["TI", "Recepcionista"]),
-    ("ATENDIMENTO", "Atendimentos", "acesso-atendimento-atendimentos", "atendimento:atendimentos", 30, ["TI", "Recepcionista", "Enfermeiro", "Médico"]),
+    ("ATENDIMENTO", "Consulta de atendimentos", "acesso-atendimento-atendimentos", "atendimento:atendimentos", 30, ["TI", "Recepcionista", "Enfermeiro", "Médico"]),
     ("ATENDIMENTO", "Classificação de Risco", "acesso-atendimento-classificacao", "atendimento:fila-classificacao", 40, ["TI", "Enfermeiro"]),
-    ("ATENDIMENTO", "Consultas Médicas", "acesso-atendimento-consultas", "atendimento:fila-medica", 50, ["TI", "Médico"]),
     ("CADASTROS", "Pacientes", "acesso-cadastros-pacientes", "atendimento:cadastro-paciente-novo", 10, ["TI", "Recepcionista"]),
     ("CADASTROS", "Prestadores", "acesso-cadastros-prestadores", "atendimento:cadastro-profissional-novo", 20, ["TI"]),
     ("CADASTROS", "Convênios", "acesso-cadastros-convenios", "atendimento:convenios", 30, ["TI", "Recepcionista"]),

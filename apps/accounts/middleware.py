@@ -34,6 +34,8 @@ class ScreenAccessMiddleware:
         "core:health",
         "atendimento:painel-chamada-publico",
         "painel_chamada_standalone",
+        "pesquisas:responder",
+        "pesquisas:concluida",
     }
 
     def __init__(self, get_response):
