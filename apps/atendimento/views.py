@@ -30,9 +30,11 @@ import unicodedata
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 try:
     import bleach
+    import tinycss2
     from bleach.css_sanitizer import CSSSanitizer
 except ImportError:
     bleach = None
+    tinycss2 = None
     CSSSanitizer = None
 from django.utils.html import conditional_escape
 from django.utils.safestring import mark_safe
@@ -355,10 +357,10 @@ def _configurar_assinatura_prestador(html, modelo):
     if modelo.sn_exibe_conselho_assinatura:
         identificacao += " - {{ prestador.conselho }} {{ prestador.numero_conselho }} {{ prestador.uf_conselho }}"
     assinatura = (
-        f'<section data-celeris-signature="true" style="display:block;width:92mm;min-width:72mm;'
+        f'<section data-celeris-signature="true" style="display:block;width:max-content;min-width:92mm;'
         f'max-width:100%;margin:{margem_bloco};break-before:avoid;page-break-before:avoid;'
         f'break-inside:avoid;text-align:{alinhamento}">'
-        f'<div style="width:100%;height:18px;border-bottom:1px solid #111;margin:0 0 3px"></div>'
+        f'<div style="width:100%;height:34px;border-bottom:1px solid #111;margin:0 0 3px"></div>'
         f"<strong>{identificacao}</strong>"
         "</section>"
     )
@@ -799,7 +801,8 @@ def _gerar_tela_pela_grade(modelo):
 
     return (
         f'<section class="generated-clinical-form" style="grid-template-columns:repeat({colunas},minmax(0,1fr));'
-        f'grid-template-rows:repeat({linhas},minmax(0,auto))">{"".join(elementos)}</section>'
+        f'grid-template-rows:repeat({linhas},minmax(0,auto));column-gap:16px;row-gap:14px">'
+        f'{"".join(elementos)}</section>'
     )
 
 
@@ -807,6 +810,9 @@ def _gerar_impressao_pela_grade(modelo):
     projeto_impressao = modelo.ds_projeto_impressao if isinstance(modelo.ds_projeto_impressao, dict) else {}
     layout = projeto_impressao.get("printLayout") if isinstance(projeto_impressao, dict) else {}
     if not isinstance(layout, dict) or not layout.get("elements"):
+        projeto_tela = modelo.ds_projeto_tela if isinstance(modelo.ds_projeto_tela, dict) else {}
+        if projeto_tela.get("formFields"):
+            return _gerar_tela_pela_grade(modelo)
         return modelo.ds_html_impressao or ""
 
     grade = layout.get("grid") or {}
@@ -1178,13 +1184,12 @@ class ModeloDocumentoForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        documentos_sem_formulario = {
+        documentos_sem_assinatura = {
             "COMPROVANTE_AGENDAMENTO",
             "COMPROVANTE_CHAMADO",
-            "FICHA_ATENDIMENTO",
             "ETIQUETA_ATENDIMENTO",
         }
-        if cleaned_data.get("tp_documento") in documentos_sem_formulario:
+        if cleaned_data.get("tp_documento") in documentos_sem_assinatura:
             cleaned_data["sn_exibe_assinatura"] = False
             cleaned_data["sn_exibe_conselho_assinatura"] = False
             cleaned_data["tp_alinhamento_assinatura"] = "CENTRO"
@@ -1930,6 +1935,15 @@ def recepcao(request):
     request.current_module_title = "Atendimento"
     request.current_start_query = not bool(request.GET)
     senha_selecionada = request.GET.get("senha", "")
+    new_patient_params = {
+        "recepcao_direta": "1",
+        "return_to": request.get_full_path(),
+    }
+    if senha_selecionada.isdigit():
+        new_patient_params["senha"] = senha_selecionada
+    request.current_new_url = (
+        f"{reverse('atendimento:cadastro-paciente-agendamento')}?{urlencode(new_patient_params)}"
+    )
     form = PacienteSearchForm(request.GET or None)
     pacientes = Paciente.objects.none()
     if request.GET and form.is_valid():
@@ -2200,6 +2214,11 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None, cd_p
             saved.cd_empresa = empresa
             saved.cd_paciente = paciente
             saved.cd_agendamento = agendamento
+            saved.dh_inicio = (
+                form.cleaned_data.get("dh_atendimento_exibicao")
+                or getattr(saved, "dh_inicio", None)
+                or timezone.now()
+            )
             saved.cd_setor_atual = (
                 agendamento.cd_agenda_profissional.cd_setor_atendimento
                 if agendamento and agendamento.cd_agenda_profissional else saved.cd_setor_atual
@@ -2633,8 +2652,11 @@ def perfis_assistenciais(request):
     if request.method == "POST" and acao == "salvar_perfil":
         tipos = [tipo for tipo in request.POST.getlist("tipos_prestador") if tipo]
         nome = request.POST.get("nm_perfil", "").strip()
+        descricao_versao = request.POST.get("ds_descricao_versao", "").strip()
         if not nome:
             messages.error(request, "Informe o nome do perfil.")
+        elif not descricao_versao:
+            messages.error(request, "Descreva as alterações desta versão.")
         else:
             conflitos = PerfilAssistencialTipo.objects.filter(
                 cd_empresa=empresa,
@@ -2674,7 +2696,14 @@ def perfis_assistenciais(request):
                             vinculo.sn_ativo = True
                             _apply_audit(vinculo, request.user)
                             vinculo.save()
-                    _obter_versao_edicao_perfil(perfil, empresa, request.user)
+                    versao = _obter_versao_edicao_perfil(perfil, empresa, request.user)
+                    versao.ds_descricao_versao = descricao_versao
+                    _apply_audit(versao, request.user)
+                    versao.save(update_fields=[
+                        "ds_descricao_versao",
+                        "dh_atualizacao",
+                        "cd_usuario_atualizacao",
+                    ])
                 messages.success(request, "Perfil assistencial salvo e aplicado.")
                 return redirect(f"{reverse('atendimento:perfis-assistenciais')}?perfil={perfil.pk}")
     if request.method == "POST" and acao == "adicionar_item" and perfil:
@@ -3306,7 +3335,7 @@ def conceder_alta(request, cd_atendimento):
         atendimento.ds_motivo_alta = request.POST.get("ds_motivo_alta", "").strip()
         dh_alta_texto = request.POST.get("dh_alta_medica", "").strip()
         try:
-            dh_alta_medica = datetime.fromisoformat(dh_alta_texto)
+            dh_alta_medica = datetime.fromisoformat(dh_alta_texto) if dh_alta_texto else timezone.now()
             if timezone.is_naive(dh_alta_medica):
                 dh_alta_medica = timezone.make_aware(dh_alta_medica)
         except (TypeError, ValueError):
@@ -3855,8 +3884,6 @@ def _resposta_modelos_documento(request, empresa, modelo):
             saved.ds_css_impressao += "\n.reusable-document-header{max-height:55mm;overflow:hidden}"
         elif saved.tp_elemento == "RODAPE":
             saved.ds_css_impressao += "\n.reusable-document-footer{max-height:35mm;overflow:hidden}"
-        elif saved.tp_elemento == "DOCUMENTO":
-            saved.ds_html_impressao = _configurar_assinatura_prestador(saved.ds_html_impressao, saved)
         for field_name in ("ds_projeto_tela", "ds_projeto_impressao"):
             try:
                 setattr(saved, field_name, json.loads(request.POST.get(field_name) or "{}"))
@@ -3871,6 +3898,11 @@ def _resposta_modelos_documento(request, empresa, modelo):
             saved.ds_projeto_tela = projeto_tela
         if saved.tp_elemento == "DOCUMENTO" and not _impressao_possui_grade(saved):
             saved.ds_html_impressao = _gerar_impressao_pela_grade(saved)
+        if saved.tp_elemento == "DOCUMENTO":
+            saved.ds_html_impressao = _configurar_assinatura_prestador(
+                saved.ds_html_impressao,
+                saved,
+            )
         if modelo and not salvar_como_empresa and not form.errors:
             campos = (
                 "nm_modelo", "tp_documento", "tp_elemento", "cd_cabecalho_id", "cd_rodape_id",
@@ -4317,11 +4349,70 @@ def _preencher_opcoes_documento(conteudo, documento):
 
 
 def _css_documento_seguro(conteudo):
-    seguro = re.sub(r"@import[^;]*;", "", conteudo or "", flags=re.IGNORECASE)
-    seguro = re.sub(r"expression\s*\([^)]*\)", "", seguro, flags=re.IGNORECASE)
-    seguro = re.sub(r"url\s*\(\s*['\"]\s*javascript:[^)]*\)", "", seguro, flags=re.IGNORECASE)
-    seguro = seguro.replace("</style", "")
-    return mark_safe(seguro)
+    if tinycss2 is None or CSSSanitizer is None:
+        raise RuntimeError(
+            "As dependências bleach[css] e tinycss2 são obrigatórias para renderizar documentos."
+        )
+
+    sanitizer = _sanitizador_css_documento()
+
+    def contains_url(tokens):
+        for token in tokens or []:
+            if token.type in {"url", "bad-url"}:
+                return True
+            if token.type == "function":
+                if token.lower_name == "url" or contains_url(token.arguments):
+                    return True
+            content = getattr(token, "content", None)
+            if content and contains_url(content):
+                return True
+        return False
+
+    def declarations(tokens):
+        parsed = tinycss2.parse_declaration_list(
+            tokens,
+            skip_comments=True,
+            skip_whitespace=True,
+        )
+        allowed = [
+            declaration
+            for declaration in parsed
+            if declaration.type == "declaration" and not contains_url(declaration.value)
+        ]
+        return sanitizer.sanitize_css(tinycss2.serialize(allowed))
+
+    def rules(parsed_rules):
+        safe_rules = []
+        for rule in parsed_rules:
+            if rule.type == "qualified-rule":
+                selector = tinycss2.serialize(rule.prelude).strip()
+                body = declarations(rule.content)
+                if selector and body:
+                    safe_rules.append(f"{selector}{{{body}}}")
+                continue
+            if rule.type != "at-rule" or rule.content is None:
+                continue
+            keyword = rule.lower_at_keyword
+            prelude = tinycss2.serialize(rule.prelude).strip()
+            if keyword == "page":
+                body = declarations(rule.content)
+                if body:
+                    safe_rules.append(f"@page {prelude}{{{body}}}" if prelude else f"@page{{{body}}}")
+            elif keyword == "media" and not contains_url(rule.prelude):
+                nested = rules(
+                    tinycss2.parse_rule_list(
+                        rule.content,
+                        skip_comments=True,
+                        skip_whitespace=True,
+                    )
+                )
+                if prelude and nested:
+                    safe_rules.append(f"@media {prelude}{{{nested}}}")
+        return "".join(safe_rules)
+
+    source = str(conteudo or "").replace("</style", "")
+    parsed = tinycss2.parse_stylesheet(source, skip_comments=True, skip_whitespace=True)
+    return mark_safe(rules(parsed))
 
 
 def _avaliar_expressao_variavel(expressao, contexto, strict=False):
@@ -4866,6 +4957,10 @@ def _renderizar_documento(documento, modo_impressao):
         conteudo_modelo = _gerar_tela_pela_grade(modelo)
     if modo_impressao and _modelo_possui_layout_impressao(modelo):
         conteudo_modelo = _gerar_impressao_pela_grade(modelo)
+    elif modo_impressao and not _impressao_possui_grade(modelo):
+        projeto_tela_modelo = modelo.ds_projeto_tela if isinstance(modelo.ds_projeto_tela, dict) else {}
+        if projeto_tela_modelo.get("formFields"):
+            conteudo_modelo = _gerar_impressao_pela_grade(modelo)
     elif modo_impressao and not getattr(modelo, campo_html, "") and not _impressao_possui_grade(modelo):
         conteudo_modelo = _gerar_impressao_pela_grade(modelo)
     if modo_impressao and modelo.tp_elemento == "DOCUMENTO":
@@ -5041,16 +5136,22 @@ def _resposta_pdf_documento(request, documento, empresa, apresentacao=None, apen
         )
 
     base_url = request.build_absolute_uri("/")
-    documento_pdf = HTML(string=montar_html(False), base_url=base_url).render()
-    if possui_assinatura and len(documento_pdf.pages) > 1:
-        documento_pdf_compacto = HTML(string=montar_html(True), base_url=base_url).render()
-        if len(documento_pdf_compacto.pages) < len(documento_pdf.pages):
-            documento_pdf = documento_pdf_compacto
-    pdf = documento_pdf.write_pdf()
+    html_document = HTML(string=montar_html(False), base_url=base_url)
+    if not hasattr(html_document, "render"):
+        pdf = html_document.write_pdf()
+        page_count = 1
+    else:
+        documento_pdf = html_document.render()
+        if possui_assinatura and len(documento_pdf.pages) > 1:
+            documento_pdf_compacto = HTML(string=montar_html(True), base_url=base_url).render()
+            if len(documento_pdf_compacto.pages) < len(documento_pdf.pages):
+                documento_pdf = documento_pdf_compacto
+        pdf = documento_pdf.write_pdf()
+        page_count = len(documento_pdf.pages)
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{_nome_arquivo_pdf_documento(documento)}"'
     response["X-Frame-Options"] = "SAMEORIGIN"
-    response["X-Celeris-Pdf-Pages"] = str(len(documento_pdf.pages))
+    response["X-Celeris-Pdf-Pages"] = str(page_count)
     return response
 
 
@@ -7292,8 +7393,13 @@ def _sanitize_call_icon_svg(value):
         (value or "").strip(),
         tags={"svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "title", "desc"},
         attributes={
-            "svg": {"xmlns", "viewBox", "viewbox", "width", "height", "fill", "stroke", "role", "aria-hidden", "focusable"},
-            "*": {"d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "opacity", "transform"},
+            "svg": {"xmlns", "viewBox", "viewbox", "preserveAspectRatio", "role", "aria-hidden", "focusable"},
+            "*": {
+                "class", "d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry",
+                "width", "height", "points", "fill", "fill-opacity", "fill-rule", "stroke", "stroke-opacity",
+                "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
+                "stroke-miterlimit", "clip-rule", "opacity", "transform", "vector-effect",
+            },
         },
         protocols=set(),
         strip=True,
@@ -7803,7 +7909,11 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
     recepcao_direta = request.GET.get("recepcao_direta") == "1"
     senha_recepcao_id = request.GET.get("senha", "")
     if recepcao_direta:
-        request.current_tab_title = "Atendimento > Recepção > Validar paciente"
+        request.current_tab_title = (
+            "Atendimento > Recepção > Validar paciente"
+            if cd_paciente
+            else "Atendimento > Recepção > Cadastrar paciente"
+        )
         request.current_module_title = "Atendimento"
         request.current_return_url = _safe_return_url(request) or reverse("atendimento:recepcao")
     agendamento_recepcao = None
@@ -7896,10 +8006,14 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
     if fluxo_agendamento and paciente:
         if recepcao_direta:
             continue_url = reverse("atendimento:novo-atendimento-direto", args=[paciente.pk])
+            continue_params = {}
+            if senha_recepcao_id.isdigit():
+                continue_params["senha"] = senha_recepcao_id
+            if request.current_return_url:
+                continue_params["return_to"] = request.current_return_url
             request.current_continue_url = (
-                f"{continue_url}?{urlencode({'senha': senha_recepcao_id})}"
-                if senha_recepcao_id.isdigit()
-                else continue_url
+                f"{continue_url}?{urlencode(continue_params)}"
+                if continue_params else continue_url
             )
         elif agendamento_recepcao:
             continue_url = reverse("atendimento:novo-atendimento-agendado", args=[agendamento_recepcao.pk])
@@ -7951,13 +8065,14 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
                     query["return_to"] = request.current_return_url
                 response = redirect(f"{target}?{urlencode(query)}")
             elif recepcao_direta:
-                messages.success(request, "Dados do paciente confirmados. Continue para cadastrar o atendimento.")
-                target = reverse("atendimento:novo-atendimento-direto", args=[saved.pk])
-                response = redirect(
-                    f"{target}?{urlencode({'senha': senha_recepcao_id})}"
-                    if senha_recepcao_id.isdigit()
-                    else target
-                )
+                messages.success(request, "Paciente salvo. Clique em Confirmar para cadastrar o atendimento.")
+                target = reverse("atendimento:revisar-paciente-agendamento", args=[saved.pk])
+                query = {"recepcao_direta": "1"}
+                if senha_recepcao_id.isdigit():
+                    query["senha"] = senha_recepcao_id
+                if request.current_return_url:
+                    query["return_to"] = request.current_return_url
+                response = redirect(f"{target}?{urlencode(query)}")
             elif fluxo_agendamento:
                 messages.success(request, "Paciente salvo. Revise os dados e confirme o agendamento.")
                 response = redirect("atendimento:selecionar-agenda", cd_paciente=saved.cd_paciente)

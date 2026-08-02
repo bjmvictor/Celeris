@@ -3,6 +3,7 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.sessions.models import Session
+from django.core.exceptions import PermissionDenied
 from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
@@ -16,6 +17,7 @@ from urllib.parse import urlencode
 import csv
 import re
 import unicodedata
+import bleach
 
 from apps.accounts.models import Empresa, Setor
 from .form_registry import (
@@ -30,6 +32,7 @@ from .locks import adquirir_trava_edicao, liberar_trava_edicao
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
+    IconeSistema,
     Module,
     ScreenDefinition,
     ScreenField,
@@ -433,14 +436,24 @@ def system_screens(request):
     query_mode = bool(request.GET.get("sem_resultados") == "1" or (not module and request.GET.get("novo") != "1"))
     form = ModuleForm(request.POST or None, instance=module, query_mode=query_mode)
 
+    if request.method == "POST" and module and module.is_system:
+        raise PermissionDenied("Módulos estruturais só podem ser alterados por migrações do sistema.")
     if request.method == "POST" and form.is_valid():
         saved_module = form.save()
         messages.success(request, "Módulo salvo com sucesso.")
-        return redirect(f"{reverse('core:system_screens')}?module={saved_module.pk}")
+        redirect_params = {"module": saved_module.pk}
+        if query_context and saved_module.pk in result_ids:
+            redirect_params["origem"] = "consulta"
+        return redirect(
+            f"{reverse('core:system_screens')}?{urlencode(redirect_params)}"
+        )
 
     if module:
-        request.current_toggle_active_url = reverse("core:system_module_toggle_active", args=[module.pk])
-        request.current_toggle_active_label = "Desativar" if module.active else "Ativar"
+        if module.is_system:
+            request.current_can_save = False
+        else:
+            request.current_toggle_active_url = reverse("core:system_module_toggle_active", args=[module.pk])
+            request.current_toggle_active_label = "Desativar" if module.active else "Ativar"
     request.current_start_query = query_mode
 
     if query_context and module and module.pk in result_ids:
@@ -473,6 +486,8 @@ def system_module_toggle_active(request, pk):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
     module = get_object_or_404(Module, pk=pk)
+    if module.is_system:
+        raise PermissionDenied("Módulos estruturais não podem ser desativados.")
     module.active = not module.active
     module.save(update_fields=["active", "updated_at"])
     messages.success(request, "Módulo ativado com sucesso." if module.active else "Módulo desativado com sucesso.")
@@ -482,19 +497,141 @@ def system_module_toggle_active(request, pk):
 @login_required
 @role_required("TI")
 def system_screen_edit(request, pk=None):
-    screen = get_object_or_404(ScreenDefinition, pk=pk) if pk else None
+    screen = get_object_or_404(ScreenDefinition.objects.select_related("module"), pk=pk) if pk else None
     initial = {}
     if not screen:
         if request.GET.get("module", "").isdigit():
             initial["module"] = request.GET["module"]
         if request.GET.get("parent", "").isdigit():
             initial["parent"] = request.GET["parent"]
-    form = ScreenDefinitionForm(request.POST or None, instance=screen, initial=initial)
+    module_id = (
+        screen.module_id if screen
+        else request.POST.get("module") or initial.get("module")
+    )
+    target_module = screen.module if screen else (
+        Module.objects.filter(pk=module_id).first() if str(module_id or "").isdigit() else None
+    )
+    protected = bool(target_module and target_module.is_system)
+    if protected and not screen:
+        raise PermissionDenied("Não é permitido adicionar itens a um módulo estrutural.")
+    if protected and request.method == "POST":
+        raise PermissionDenied("Itens de módulos estruturais só podem ser alterados por migrações.")
+    return_url = reverse("core:system_screens")
+    if str(module_id or "").isdigit():
+        return_url = f"{return_url}?{urlencode({'module': module_id})}"
+    return_url = f"{return_url}#module-items"
+    request.current_tab_title = "Global > Configuração do Sistema > Módulos e Telas > Configurar item"
+    request.current_tab_root_title = "Módulos e Telas"
+    request.current_module_title = "Global"
+    request.current_return_url = return_url
+    request.current_can_query = False
+    request.current_can_remove = False
+    request.current_new_url = ""
+    request.current_can_save = not protected
+    form = ScreenDefinitionForm(
+        request.POST or None,
+        instance=screen,
+        initial=initial,
+        protected=protected,
+    )
     if request.method == "POST" and form.is_valid():
         saved_screen = form.save()
         messages.success(request, "Tela salva com sucesso.")
         return redirect("core:system_screen_edit", pk=saved_screen.pk)
     return render(request, "core/system_screen_form.html", {"form": form, "screen": screen})
+
+
+def _sanitize_system_icon_svg(value):
+    cleaned = bleach.clean(
+        (value or "").strip(),
+        tags={"svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "title", "desc"},
+        attributes={
+            "svg": {"xmlns", "viewBox", "viewbox", "preserveAspectRatio", "role", "aria-hidden", "focusable"},
+            "*": {
+                "class", "d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry",
+                "width", "height", "points", "fill", "fill-opacity", "fill-rule", "stroke", "stroke-opacity",
+                "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
+                "stroke-miterlimit", "clip-rule", "opacity", "transform", "vector-effect",
+            },
+        },
+        protocols=set(),
+        strip=True,
+    )
+    return cleaned if cleaned.lstrip().lower().startswith("<svg") else ""
+
+
+def _new_system_icon_code(name):
+    base = _auxiliary_code(name).lower().replace("_", "-") or "icone"
+    base = base[:50]
+    candidate = base
+    suffix = 2
+    while IconeSistema.objects.filter(cd_icone=candidate).exists():
+        marker = f"-{suffix}"
+        candidate = f"{base[:50 - len(marker)]}{marker}"
+        suffix += 1
+    return candidate
+
+
+@login_required
+@role_required("TI")
+def system_icons(request):
+    request.current_tab_title = "Global > Configuração do Sistema > Módulos e Telas > Ícones"
+    request.current_tab_root_title = "Ícones"
+    request.current_module_title = "Global"
+    request.current_can_query = True
+    request.current_can_remove = True
+    request.current_start_query = request.GET.get("consultar") != "1"
+    if request.method == "POST":
+        protected_icons = set(Module.objects.values_list("icon", flat=True)) | set(
+            ScreenDefinition.objects.values_list("icon", flat=True)
+        )
+        with transaction.atomic():
+            for icon in IconeSistema.objects.all():
+                if request.POST.get(f"delete_{icon.pk}") == "1":
+                    if icon.cd_icone in protected_icons:
+                        icon.sn_ativo = False
+                        icon.save(update_fields=("sn_ativo", "updated_at"))
+                        messages.warning(
+                            request,
+                            f'O ícone "{icon.nm_icone}" está em uso e foi apenas inativado.',
+                        )
+                    else:
+                        icon.delete()
+                    continue
+                if f"name_{icon.pk}" not in request.POST:
+                    continue
+                icon.nm_icone = request.POST.get(f"name_{icon.pk}", "").strip()
+                icon.ds_svg = _sanitize_system_icon_svg(request.POST.get(f"svg_{icon.pk}", ""))
+                icon.sn_ativo = request.POST.get(f"active_{icon.pk}") == "true"
+                icon.save()
+            new_names = request.POST.getlist("new_name")
+            new_svgs = request.POST.getlist("new_svg")
+            new_active = request.POST.getlist("new_active")
+            for index, name in enumerate(new_names):
+                name = name.strip()
+                if not name:
+                    continue
+                IconeSistema.objects.create(
+                    cd_icone=_new_system_icon_code(name),
+                    nm_icone=name,
+                    ds_svg=_sanitize_system_icon_svg(new_svgs[index] if index < len(new_svgs) else ""),
+                    sn_ativo=index >= len(new_active) or new_active[index] == "true",
+                )
+        messages.success(request, "Ícones salvos com sucesso.")
+        return redirect(f"{request.path}?consultar=1")
+    icons = IconeSistema.objects.all()
+    query = request.GET.get("q", "").strip().replace("%", "")
+    if query:
+        icons = icons.filter(
+            Q(cd_icone__icontains=query) | Q(nm_icone__icontains=query) | Q(ds_svg__icontains=query)
+        )
+    icons = paginate_table(
+        request,
+        icons,
+        {"cd_icone", "nm_icone", "sn_ativo"},
+        "cd_icone",
+    )
+    return render(request, "core/system_icons.html", {"registros": icons})
 
 
 @login_required
@@ -509,6 +646,8 @@ def system_navigation_reorder(request):
     if not node_id.isdigit():
         return JsonResponse({"ok": False, "error": "Item inválido."}, status=400)
     node = get_object_or_404(ScreenDefinition.objects.select_related("module"), pk=node_id)
+    if node.module.is_system:
+        raise PermissionDenied("Itens de módulos estruturais não podem ser reordenados.")
     parent = None
     if parent_id:
         if not parent_id.isdigit():
@@ -535,28 +674,17 @@ def system_navigation_reorder(request):
 
 @login_required
 @role_required("TI")
-def system_module_edit(request, pk=None):
-    module = get_object_or_404(Module, pk=pk) if pk else None
-    form = ModuleForm(request.POST or None, instance=module)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Módulo salvo com sucesso.")
-        return redirect("core:system_screens")
-    request.current_tab_title = "Global > Configuração do Sistema > Módulos e Telas"
-    request.current_tab_root_title = "Módulos e Telas"
-    request.current_module_title = "Global"
-    return render(request, "core/system_module_form.html", {"form": form, "module": module})
-
-
-@login_required
 def system_fields(request):
     fields = ScreenDefinition.objects.prefetch_related("fields").select_related("module").all()
     return render(request, "core/system_fields.html", {"screens": fields})
 
 
 @login_required
+@role_required("TI")
 def system_field_edit(request, pk=None):
-    field = get_object_or_404(ScreenField, pk=pk) if pk else None
+    field = get_object_or_404(ScreenField.objects.select_related("screen__module"), pk=pk) if pk else None
+    if field and field.screen.module.is_system:
+        raise PermissionDenied("Campos de módulos estruturais não podem ser alterados.")
     form = ScreenFieldForm(request.POST or None, instance=field)
     if request.method == "POST" and form.is_valid():
         saved_field = form.save()

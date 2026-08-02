@@ -16,6 +16,11 @@ class Module(TimeStampedModel):
     icon = models.CharField(max_length=50, default="grid", blank=True)
     order = models.PositiveIntegerField(default=0)
     active = models.BooleanField(default=True)
+    is_system = models.BooleanField(
+        "módulo estrutural",
+        default=False,
+        help_text="Impede alterações pela interface de configuração.",
+    )
 
     class Meta:
         db_table = "modulo"
@@ -23,6 +28,21 @@ class Module(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.title
+
+
+class IconeSistema(TimeStampedModel):
+    cd_icone_sistema = models.BigAutoField(primary_key=True)
+    cd_icone = models.CharField(max_length=50, unique=True)
+    nm_icone = models.CharField(max_length=80, unique=True)
+    ds_svg = models.TextField(blank=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "icone_sistema"
+        ordering = ("nm_icone",)
+
+    def __str__(self) -> str:
+        return self.nm_icone
 
 
 class UserModule(TimeStampedModel):

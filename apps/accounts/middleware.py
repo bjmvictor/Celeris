@@ -4,7 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import OperationalError, ProgrammingError
 from django.http import JsonResponse
 
-from .access import has_screen_access, resolve_request_access
+from .access import resolve_request_access, user_access_keys
 
 
 def _is_login_required_view(view_func) -> bool:
@@ -59,7 +59,11 @@ class ScreenAccessMiddleware:
         except (OperationalError, ProgrammingError) as error:
             raise PermissionDenied("Não foi possível validar a permissão desta rota.") from error
         if registered_key:
-            if not has_screen_access(request.user, registered_key):
+            if request.user.is_superuser:
+                request._celeris_access_keys = set()
+            else:
+                request._celeris_access_keys = user_access_keys(request.user)
+            if not request.user.is_superuser and registered_key not in request._celeris_access_keys:
                 raise PermissionDenied
             return None
         if registered_route:

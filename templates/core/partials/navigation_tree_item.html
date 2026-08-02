@@ -1,5 +1,5 @@
 <div class="navigation-tree-item" data-navigation-item="{{ node.pk }}">
-  <div class="navigation-tree-node{% if not node.active %} is-inactive{% endif %}" style="--tree-level: {{ level }}" data-navigation-node="{{ node.pk }}" draggable="true">
+  <div class="navigation-tree-node{% if not node.active %} is-inactive{% endif %}" style="--tree-level: {{ level }}" data-navigation-node="{{ node.pk }}"{% if not protected %} draggable="true"{% endif %}>
     <span class="navigation-tree-branch"></span>
     {% if node.icon %}
       <span class="svg-icon" data-nav-icon="{{ node.icon }}"></span>
@@ -10,14 +10,16 @@
     {% endif %}
     <strong>{{ node.title }}</strong>
     <small>{{ node.get_screen_type_display }}</small>
-    {% if node.screen_type == 'grupo' %}
-      <a class="icon-button" href="{% url 'core:system_screen_new' %}?module={{ node.module_id }}&parent={{ node.pk }}" title="Adicionar filho">+</a>
+    {% if not protected %}
+      {% if node.screen_type == 'grupo' %}
+        <a class="icon-button" href="{% url 'core:system_screen_new' %}?module={{ node.module_id }}&parent={{ node.pk }}" title="Adicionar filho">+</a>
+      {% endif %}
+      <a class="icon-button" href="{% url 'core:system_screen_edit' node.pk %}" title="Configurar"><span class="svg-icon" data-nav-icon="settings"></span></a>
     {% endif %}
-    <a class="icon-button" href="{% url 'core:system_screen_edit' node.pk %}" title="Configurar"><span class="svg-icon" data-nav-icon="settings"></span></a>
   </div>
   {% if node.screen_type == 'grupo' %}<div class="navigation-tree-children" data-navigation-parent="{{ node.pk }}">{% endif %}
     {% for child in node.children.all %}
-      {% include "core/partials/navigation_tree_item.html" with node=child level=level|add:'1' only %}
+      {% include "core/partials/navigation_tree_item.html" with node=child level=level|add:'1' protected=protected only %}
     {% endfor %}
   {% if node.screen_type == 'grupo' %}</div>{% endif %}
 </div>

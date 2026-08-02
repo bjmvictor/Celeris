@@ -6,7 +6,8 @@
     data-table="paciente"
     data-patient-id="{{ paciente.cd_paciente|default:'' }}"
     data-query-url="{{ request.path }}"
-    {% if agendamento_recepcao %}data-disable-state-persistence data-confirmation-review="true"{% endif %}
+    {% if agendamento_recepcao or recepcao_direta %}data-disable-state-persistence data-confirmation-review="true"{% endif %}
+    {% if recepcao_direta %}data-subscreen-toolbar="true" data-subscreen-allow-continue="true"{% endif %}
     data-patient-query-template="{% if fluxo_agendamento %}/atendimento/agendamento/pacientes/__ID__/{% else %}/atendimento/pacientes/cadastro/__ID__/{% endif %}"
     data-requires-change-reason="{% if paciente %}true{% else %}false{% endif %}"
     method="post"
@@ -40,6 +41,9 @@
         <label class="field-sm">Data de Expedição {{ form.dt_expedicao }}</label>
         <label class="field-md">Cartão SUS {{ form.nr_cartao_sus }}</label>
         <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
+        <div class="field-auxiliary-actions">
+          <a class="button button-secondary" href="{% url 'atendimento:convenios' %}?overlay=1" data-screen-overlay-link data-overlay-title="Convênios">Gerenciar convênios</a>
+        </div>
         <label class="field-md">Número do Convênio {{ form.nr_convenio }}</label>
       </div>
       {% if not form.cd_convenio.field.queryset.exists %}

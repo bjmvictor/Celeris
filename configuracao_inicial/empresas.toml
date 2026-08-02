@@ -1,0 +1,18 @@
+habilitado = false
+
+[[registros]]
+codigo = 1
+nome = "PREENCHA O NOME DA EMPRESA"
+cnpj = ""
+cnes = ""
+razao_social = ""
+nome_fantasia = ""
+email = ""
+telefone = ""
+endereco = ""
+numero = ""
+bairro = ""
+cidade = ""
+uf = ""
+cep = ""
+ativo = true

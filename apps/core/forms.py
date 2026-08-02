@@ -1,41 +1,39 @@
 from django import forms
+from django.contrib.auth.models import Group
 
 from apps.accounts.models import Empresa
 
-from .models import Module, ScreenDefinition, ScreenField
+from .models import IconeSistema, Module, ScreenDefinition, ScreenField
 
 
-MODULE_ICON_CHOICES = (
-    ("grid", "Grade"),
-    ("activity", "Atendimento"),
-    ("users", "Usuários"),
-    ("user", "Profissional"),
-    ("stethoscope", "Clínico"),
-    ("clipboard-plus", "Prontuário"),
-    ("calendar", "Agenda"),
-    ("boxes", "Caixas"),
-    ("package", "Produto"),
-    ("shopping-cart", "Compras"),
-    ("coins", "Financeiro"),
-    ("headset", "Suporte"),
-    ("wrench", "Ferramentas"),
-    ("monitor", "Tecnologia"),
-    ("globe", "Global"),
-    ("table", "Tabelas"),
-    ("form", "Formulários"),
-    ("ticket", "Senhas"),
-    ("presentation", "Painéis"),
-    ("briefcase", "Maleta"),
-    ("car", "Carro"),
-    ("ambulance", "Ambulância"),
-)
+class SystemIconSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        if value:
+            option["attrs"]["data-icon-key"] = str(value)
+        return option
+
+
+def _system_icon_choices(current_icon="", query_mode=False):
+    icons = list(
+        IconeSistema.objects.filter(sn_ativo=True)
+        .order_by("nm_icone")
+        .values_list("cd_icone", "nm_icone")
+    )
+    known_icons = {value for value, _label in icons}
+    if current_icon and current_icon not in known_icons:
+        stored_name = IconeSistema.objects.filter(cd_icone=current_icon).values_list("nm_icone", flat=True).first()
+        icons.append((current_icon, stored_name or current_icon))
+    empty_label = "Todos" if query_mode else "Sem ícone"
+    return (("", empty_label), *icons)
 
 
 class ModuleForm(forms.ModelForm):
     icon = forms.ChoiceField(
         label="Ícone",
-        choices=(("", "Sem ícone"),) + MODULE_ICON_CHOICES,
+        choices=(),
         required=False,
+        widget=SystemIconSelect(attrs={"data-system-icon-select": "true"}),
     )
     active = forms.TypedChoiceField(
         label="Situação",
@@ -58,18 +56,17 @@ class ModuleForm(forms.ModelForm):
 
     def __init__(self, *args, query_mode=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.is_protected = bool(self.instance.pk and self.instance.is_system)
         self.fields["active"].required = not query_mode
         if query_mode:
             self.fields["active"].choices = (("", "Todos"),) + tuple(self.fields["active"].choices)
-            self.fields["icon"].choices = (("", "Todos"),) + MODULE_ICON_CHOICES
         elif not self.is_bound and not self.instance.pk:
             self.initial["active"] = True
             self.initial["icon"] = "grid"
 
         current_icon = self.instance.icon if self.instance.pk else self.initial.get("icon")
-        known_icons = {value for value, _label in self.fields["icon"].choices}
-        if current_icon and current_icon not in known_icons:
-            self.fields["icon"].choices = tuple(self.fields["icon"].choices) + ((current_icon, current_icon),)
+        self.fields["icon"].choices = _system_icon_choices(current_icon, query_mode=query_mode)
+        self.fields["title"].widget.attrs["data-preserve-characters"] = "true"
 
         for name, field in self.fields.items():
             field.widget.attrs.update(
@@ -79,12 +76,27 @@ class ModuleForm(forms.ModelForm):
                     "data-field": name,
                 }
             )
+            if self.is_protected and not query_mode:
+                field.disabled = True
 
     def clean_code(self):
         return self.cleaned_data["code"].strip().upper().replace(" ", "_")
 
 
 class ScreenDefinitionForm(forms.ModelForm):
+    icon = forms.ChoiceField(
+        label="Ícone",
+        choices=(),
+        required=False,
+        widget=SystemIconSelect(attrs={"data-system-icon-select": "true"}),
+    )
+    roles = forms.MultipleChoiceField(
+        label="Roles",
+        choices=(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
     class Meta:
         model = ScreenDefinition
         fields = (
@@ -107,18 +119,54 @@ class ScreenDefinitionForm(forms.ModelForm):
             "active",
             "order",
         )
+        labels = {
+            "module": "Módulo",
+            "parent": "Item pai",
+            "title": "Nome",
+            "slug": "Identificador da tela",
+            "navigation_url": "URL de navegação",
+            "access_key": "Chave de acesso",
+            "screen_type": "Tipo",
+            "parent_label": "Grupo legado",
+            "table_name": "Tabela",
+            "description": "Descrição",
+            "allow_query": "Permite consultar",
+            "allow_insert": "Permite inserir",
+            "allow_update": "Permite alterar",
+            "allow_delete": "Permite excluir",
+            "active": "Ativo",
+            "order": "Ordem",
+        }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, protected=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.is_protected = protected
         self.fields["parent"].queryset = ScreenDefinition.objects.filter(
             screen_type=ScreenDefinition.TYPE_GROUP,
             active=True,
         ).select_related("module").order_by("module__order", "module__title", "order", "title")
+        current_icon = self.instance.icon if self.instance.pk else self.initial.get("icon", "")
+        self.fields["icon"].choices = _system_icon_choices(current_icon)
+        role_names = list(Group.objects.order_by("name").values_list("name", flat=True))
+        current_roles = list(self.instance.roles or []) if self.instance.pk else list(self.initial.get("roles", []))
+        for role_name in current_roles:
+            if role_name and role_name not in role_names:
+                role_names.append(role_name)
+        self.fields["roles"].choices = tuple((name, name) for name in role_names)
+        if not self.is_bound:
+            self.initial["roles"] = current_roles
+        if self.is_protected:
+            for field in self.fields.values():
+                field.disabled = True
 
     def clean(self):
         cleaned = super().clean()
         module = cleaned.get("module")
         parent = cleaned.get("parent")
+        if module and module.is_system and (
+            not self.instance.pk or self.instance.module_id != module.pk
+        ):
+            self.add_error("module", "Módulos estruturais não aceitam itens criados pela interface.")
         if parent and module and parent.module_id != module.pk:
             self.add_error("parent", "O item pai deve pertencer ao mesmo módulo.")
         if self.instance.pk and parent and parent.pk == self.instance.pk:
@@ -146,6 +194,16 @@ class ScreenFieldForm(forms.ModelForm):
             "choices",
             "order",
         )
+
+    def clean_screen(self):
+        screen = self.cleaned_data["screen"]
+        if screen.module.is_system and (
+            not self.instance.pk or self.instance.screen_id != screen.pk
+        ):
+            raise forms.ValidationError(
+                "Módulos estruturais não aceitam campos criados pela interface."
+            )
+        return screen
 
 
 class EmpresaForm(forms.ModelForm):

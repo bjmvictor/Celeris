@@ -847,8 +847,8 @@ class CadastroAtendimentoForm(forms.ModelForm):
     dh_atendimento_exibicao = forms.DateTimeField(
         label="Data e hora",
         required=False,
-        disabled=True,
         widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
+        input_formats=("%Y-%m-%dT%H:%M",),
     )
 
     class Meta:
@@ -887,10 +887,10 @@ class CadastroAtendimentoForm(forms.ModelForm):
             self.fields[field_name].widget = forms.Select(choices=self._choices(table_name, fallback))
         if self.instance and self.instance.pk:
             self.fields["cd_atendimento"].initial = self.instance.pk
-            self.fields["dh_atendimento_exibicao"].initial = self.instance.dh_inicio
+            self.fields["dh_atendimento_exibicao"].initial = timezone.localtime(self.instance.dh_inicio)
             paciente = self.instance.cd_paciente
-        elif agendamento:
-            self.fields["dh_atendimento_exibicao"].initial = timezone.now()
+        else:
+            self.fields["dh_atendimento_exibicao"].initial = timezone.localtime().replace(second=0, microsecond=0)
         if paciente:
             self.fields["cd_paciente_exibicao"].initial = paciente.pk
             self.fields["nm_paciente_exibicao"].initial = paciente.nm_paciente
@@ -902,7 +902,7 @@ class CadastroAtendimentoForm(forms.ModelForm):
                     "data-primary-key": "true" if name == "cd_atendimento" else "false",
                     "data-consultable": "true",
                     "data-editable": "false" if name in {
-                        "cd_atendimento", "cd_paciente_exibicao", "nm_paciente_exibicao", "dh_atendimento_exibicao",
+                        "cd_atendimento", "cd_paciente_exibicao", "nm_paciente_exibicao",
                     } else "true",
                 }
             )

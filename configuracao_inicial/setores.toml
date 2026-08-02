@@ -1,0 +1,15 @@
+habilitado = false
+
+[[registros]]
+empresa_codigo = 1
+nome = "Recepção"
+tipo = "EMPRESA"
+observacao = ""
+ativo = true
+
+[[registros]]
+empresa_codigo = 1
+nome = "Consultório"
+tipo = "ATENDIMENTO"
+observacao = ""
+ativo = true

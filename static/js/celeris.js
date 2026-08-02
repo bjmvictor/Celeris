@@ -100,11 +100,23 @@
     "ban": '<circle cx="12" cy="12" r="9"/><path d="m7 17 10-10"/>',
   };
 
+  let systemIconSvgs = {};
+  try {
+    systemIconSvgs = JSON.parse(document.getElementById("system-icon-svgs")?.textContent || "{}");
+  } catch (error) {
+    systemIconSvgs = {};
+  }
+
+  function iconMarkup(name) {
+    if (name && systemIconSvgs[name]) return systemIconSvgs[name];
+    const body = icons[name] || icons.table;
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  }
+
   function renderIcons() {
     document.querySelectorAll("[data-nav-icon]").forEach((element) => {
       const name = element.getAttribute("data-nav-icon") || "";
-      const body = icons[name] || icons.table;
-      element.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+      element.innerHTML = iconMarkup(name);
     });
   }
   window.CelerisRenderIcons = renderIcons;
@@ -915,6 +927,9 @@
     if (window.location.search) return;
     document.querySelectorAll("form[data-editable-table]").forEach((form) => {
       if (!form.querySelector("template[data-table-new-row]")) return;
+      const hasLoadedRows = Array.from(form.querySelectorAll("tbody tr[data-editable-row]"))
+        .some((row) => row.querySelector('[data-primary-key="true"]')?.value?.trim());
+      if (hasLoadedRows) return;
       resetEditableTableRows(form, false);
     });
   }
@@ -1782,9 +1797,11 @@
     panel.dataset.fieldId = field.id;
     panel.innerHTML = options.map((option, index) => {
       const isEmpty = !option.value && !(option.text || "").trim();
+      const optionIcon = option.dataset.iconKey;
       return `
-      <button type="button" data-select-index="${index}" ${isEmpty ?'data-empty-option="true"' : ""} class="${option.selected ?"active" : ""}">
-        ${escapeHTML(option.text || option.value || "EM BRANCO")}
+      <button type="button" data-select-index="${index}" ${isEmpty ?'data-empty-option="true"' : ""} class="${option.selected ?"active" : ""}${optionIcon ?" has-icon" : ""}">
+        ${optionIcon ?`<span class="floating-select-icon" aria-hidden="true">${iconMarkup(optionIcon)}</span>` : ""}
+        <span>${escapeHTML(option.text || option.value || "EM BRANCO")}</span>
       </button>
     `;
     }).join("");
@@ -2508,14 +2525,17 @@
         });
         activePanelHost.replaceChildren(panel);
       };
-      const openedSections = sections.filter((section) => section.open);
-      openedSections.slice(1).forEach((section) => {
-        section.open = false;
+      const anchoredSection = window.location.hash
+        ? sections.find((section) => section.id && `#${section.id}` === window.location.hash)
+        : null;
+      const initiallyOpenSection = anchoredSection || sections.find((section) => section.open) || sections[0];
+      sections.forEach((section) => {
+        section.open = section === initiallyOpenSection;
       });
-      if (!openedSections.length && sections[0]) {
-        sections[0].open = true;
+      activateSectionPanel(initiallyOpenSection);
+      if (anchoredSection) {
+        window.requestAnimationFrame(() => anchoredSection.scrollIntoView({ block: "start" }));
       }
-      activateSectionPanel(sections.find((section) => section.open) || sections[0]);
       sections.forEach((section) => {
         section.addEventListener("toggle", () => {
           if (!section.open) return;
@@ -2648,9 +2668,11 @@
       if (!svg || svg.nodeName.toLowerCase() !== "svg" || parsed.querySelector("parsererror")) return "";
       const allowedTags = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "title", "desc"]);
       const allowedAttributes = new Set([
-        "xmlns", "viewbox", "width", "height", "fill", "stroke", "role", "aria-hidden", "focusable",
+        "xmlns", "viewbox", "preserveaspectratio", "role", "aria-hidden", "focusable", "class",
+        "width", "height", "fill", "fill-opacity", "fill-rule", "stroke", "stroke-opacity",
         "d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points",
-        "stroke-width", "stroke-linecap", "stroke-linejoin", "opacity", "transform",
+        "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
+        "stroke-miterlimit", "clip-rule", "opacity", "transform", "vector-effect",
       ]);
       Array.from(svg.querySelectorAll("*")).forEach((element) => {
         if (!allowedTags.has(element.nodeName.toLowerCase())) {
@@ -2685,6 +2707,20 @@
     });
     document.addEventListener("change", (event) => {
       if (event.target?.matches?.("[data-call-icon-select]")) updatePreview(event.target);
+    });
+  }
+
+  function setupSystemIconPickers() {
+    document.querySelectorAll("[data-system-icon-select]").forEach((select) => {
+      const preview = select.closest(".system-icon-picker")?.querySelector("[data-system-icon-preview]");
+      if (!preview) return;
+      const updatePreview = () => {
+        const iconKey = select.selectedOptions[0]?.dataset.iconKey || select.value;
+        preview.innerHTML = iconKey ?iconMarkup(iconKey) : "";
+        preview.classList.toggle("is-empty", !iconKey);
+      };
+      select.addEventListener("change", updatePreview);
+      updatePreview();
     });
   }
 
@@ -2964,6 +3000,26 @@
         button.hidden = !isClose;
         button.disabled = !isClose;
       });
+      return;
+    }
+
+    const subscreenToolbar = document.querySelector("[data-subscreen-toolbar='true']");
+    if (subscreenToolbar) {
+      const allowContinue = subscreenToolbar.dataset.subscreenAllowContinue === "true";
+      document.querySelectorAll(".toolbar-actions .toolbar-button").forEach((button) => {
+        const isAllowed = button.matches('[data-action="save"], [data-action="close"]')
+          || (allowContinue && button.matches('[data-action="continue"]'));
+        button.hidden = !isAllowed;
+        if (!isAllowed) button.disabled = true;
+      });
+      if (saveButton) {
+        saveButton.hidden = document.body.dataset.canSave !== "true";
+      }
+      if (continueButton) {
+        continueButton.hidden = !allowContinue || !document.body.dataset.continueUrl;
+        continueButton.disabled = !allowContinue || !document.body.dataset.continueUrl;
+      }
+      if (closeButton) closeButton.disabled = false;
       return;
     }
 
@@ -3301,7 +3357,7 @@
   }
 
   function focusFirstEditableField() {
-    if (document.body.dataset.startQuery === "true") return;
+    if (shouldStartInQueryMode()) return;
     const field = document.querySelector('[name="nm_paciente"]:not([disabled]):not([readonly])')
       || document.querySelector(".content form input:not([type='hidden']):not([disabled]):not([readonly]), .content form select:not([disabled]), .content form textarea:not([disabled]):not([readonly])");
     if (!field) return;
@@ -3376,7 +3432,9 @@
 
   function getCurrentFormStateKey(form = getPrimaryForm()) {
     if (!form || !form.matches(".content form") || form.hasAttribute("data-disable-state-persistence")) return "";
-    const key = document.body.dataset.tabKey || window.location.pathname;
+    const key = form.matches("[data-editable-table]")
+      ?`${window.location.pathname}${window.location.search}`
+      : document.body.dataset.tabKey || window.location.pathname;
     const userKey = document.body.dataset.username || "anon";
     const recordKey = form.dataset.providerId !== undefined
       ?`prestador:${form.dataset.providerId || "novo"}`
@@ -3424,7 +3482,13 @@
     }
     if (!payload?.fields?.length) return;
     if (form.matches("[data-editable-table]")) {
+      const templateFieldNames = new Set(
+        Array.from(form.querySelector("template[data-table-new-row]")?.content.querySelectorAll("[name]") || [])
+          .map((field) => field.name)
+          .filter(Boolean)
+      );
       const requiredCounts = payload.fields.reduce((counts, field) => {
+        if (!templateFieldNames.has(field.name)) return counts;
         counts[field.name] = Math.max(
           counts[field.name] || 0,
           payload.fields.filter((item) => item.name === field.name).length
@@ -3517,7 +3581,10 @@
   function closeTab(tabUrl, tabKey = tabUrl) {
     const currentKey = document.body.dataset.tabKey || document.body.dataset.tabUrl || "/";
     const userKey = document.body.dataset.username || "anon";
-    localStorage.removeItem(`celeris-form-state:${userKey}:${tabKey}`);
+    const formStatePrefix = `celeris-form-state:${userKey}:${tabKey}`;
+    Object.keys(localStorage)
+      .filter((key) => key === formStatePrefix || key.startsWith(`${formStatePrefix}?`))
+      .forEach((key) => localStorage.removeItem(key));
     const tabs = getStoredTabs().filter((tab) => (tab.key || tab.url) !== tabKey);
     setStoredTabs(tabs);
     if (tabKey === currentKey) {
@@ -3538,6 +3605,13 @@
     closeTab(currentUrl, currentKey);
   }
 
+  function shouldStartInQueryMode() {
+    return (
+      document.body.dataset.startQuery === "true"
+      && !document.querySelector(".content form[data-editable-table]")
+    );
+  }
+
   renderTabs();
   setupListContextPreservation();
   setupSpecialtyManager();
@@ -3548,6 +3622,7 @@
   setupFormSectionAccordion();
   setupNavigationBuilder();
   setupCallIconTables();
+  setupSystemIconPickers();
   setupSortableTables();
   setupResizableTables();
   setupCepCityDependencies();
@@ -3558,7 +3633,7 @@
       initialFormSignatures.set(form, formValueSignature(form));
     });
   }
-  if (document.body.dataset.startQuery !== "true" && !sessionStorage.getItem("celeris-open-query-after-save")) {
+  if (!shouldStartInQueryMode() && !sessionStorage.getItem("celeris-open-query-after-save")) {
     restoreCurrentFormState();
   }
   const warNameField = document.querySelector("[data-war-name]");
@@ -3657,7 +3732,7 @@
       requestAnimationFrame(() => search.focus());
     });
   }
-  if (document.body.dataset.startQuery === "true" || sessionStorage.getItem("celeris-open-query-after-save") === "true") {
+  if (shouldStartInQueryMode() || sessionStorage.getItem("celeris-open-query-after-save") === "true") {
     sessionStorage.removeItem("celeris-open-query-after-save");
     clearFormFields(getPrimaryForm());
     setQueryMode(true);

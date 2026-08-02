@@ -1,24 +1,81 @@
 import importlib
 
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from django.apps import apps as django_apps
 from django.contrib.auth.models import Group
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
-from apps.accounts.models import Empresa, User, UsuarioEmpresa
+from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
+from apps.accounts.access import user_access_keys
 from apps.atendimento.forms import PacienteForm
+from apps.atendimento.models import Convenio
 
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
+    IconeSistema,
     Module,
     ScreenDefinition,
     TabelaAuxiliarGlobal,
     TipoPrestadorConselho,
     ValorAuxiliarGlobal,
 )
+
+
+class InitialConfigurationCommandTests(TestCase):
+    def test_comando_valida_e_aplica_arquivos_toml_de_forma_idempotente(self):
+        with TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "empresas.toml").write_text(
+                'habilitado = true\n[[registros]]\ncodigo = 731\nnome = "Empresa Inicial"\nativo = true\n',
+                encoding="utf-8",
+            )
+            (directory / "setores.toml").write_text(
+                'habilitado = true\n[[registros]]\nempresa_codigo = 731\nnome = "Recepção"\ntipo = "EMPRESA"\nativo = true\n',
+                encoding="utf-8",
+            )
+            (directory / "convenios.toml").write_text(
+                'habilitado = true\n[[registros]]\nempresa_codigo = 731\nnome = "Particular"\nativo = true\n',
+                encoding="utf-8",
+            )
+            catalog_path = directory / "catalogo_tipo_atendimento.toml"
+            catalog_path.write_text(
+                'habilitado = true\ntabela = "tipo_atendimento"\ndescricao = "Tipos de atendimento"\n'
+                '[[registros]]\ncodigo = "CONSULTA_INICIAL"\ndescricao = "Consulta inicial"\nativo = true\n',
+                encoding="utf-8",
+            )
+
+            validation_output = StringIO()
+            call_command(
+                "aplicar_configuracao_inicial",
+                diretorio=str(directory),
+                validar=True,
+                stdout=validation_output,
+            )
+            self.assertIn("Configuração válida", validation_output.getvalue())
+            self.assertFalse(Empresa.objects.filter(pk=731).exists())
+
+            call_command("aplicar_configuracao_inicial", diretorio=str(directory), stdout=StringIO())
+            call_command("aplicar_configuracao_inicial", diretorio=str(directory), stdout=StringIO())
+
+            company = Empresa.objects.get(pk=731)
+            self.assertEqual(company.nm_empresa, "Empresa Inicial")
+            self.assertEqual(Setor.objects.filter(cd_empresa=company, nm_setor="Recepção").count(), 1)
+            self.assertEqual(Convenio.objects.filter(cd_empresa=company, nm_convenio="Particular").count(), 1)
+            self.assertEqual(
+                ValorAuxiliarGlobal.objects.filter(
+                    cd_tabela_auxiliar_global__ds_tabela="tipo_atendimento",
+                    cd_valor="CONSULTA_INICIAL",
+                ).count(),
+                1,
+            )
 
 
 class GlobalIntegrationTests(TestCase):
@@ -226,7 +283,8 @@ class GlobalIntegrationTests(TestCase):
             ({"q": "Cardiologia"}, "Cardiologia"),
         )
         response = self.client.get(route, {"consultar": "1"})
-        self.assertContains(response, "20 exibido(s)")
+        displayed = min(table.valores.count(), 20)
+        self.assertContains(response, f"{displayed} exibido(s)")
         for params, expected in cases:
             with self.subTest(params=params):
                 response = self.client.get(route, params)
@@ -265,6 +323,18 @@ class GlobalIntegrationTests(TestCase):
 
 
 class FrontendInteractionContractTests(SimpleTestCase):
+    def test_arvore_de_itens_exibe_conectores_e_reabre_secao_ancorada(self):
+        stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
+        javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
+        template = (settings.BASE_DIR / "templates" / "core" / "system_screens.html").read_text(encoding="utf-8")
+        self.assertIn(".navigation-tree-children::before", stylesheet)
+        self.assertIn(".navigation-tree-branch", stylesheet)
+        self.assertIn("border-left: 1px solid var(--line)", stylesheet)
+        self.assertIn("border-top: 1px solid var(--line)", stylesheet)
+        self.assertIn('id="module-items"', template)
+        self.assertIn("const anchoredSection = window.location.hash", javascript)
+        self.assertIn('anchoredSection.scrollIntoView({ block: "start" })', javascript)
+
     def test_dropdown_possui_um_unico_handler_de_abertura_por_mouse(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         self.assertEqual(javascript.count('document.addEventListener("pointerdown", function (event) {'), 1)
@@ -348,6 +418,9 @@ class FrontendInteractionContractTests(SimpleTestCase):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         self.assertIn("setupInitialEditableRows", javascript)
         self.assertIn("addEditableTableRow(form, false)", javascript)
+        initial_rows = javascript.split("function setupInitialEditableRows()", 1)[1].split("function removeEditableTableRow", 1)[0]
+        self.assertIn("hasLoadedRows", initial_rows)
+        self.assertIn("if (hasLoadedRows) return", initial_rows)
         self.assertIn("hasSelectedPersistedRow", javascript)
         self.assertIn("hasLoadedRecord", javascript)
         self.assertIn("getSelectedRowActiveField", javascript)
@@ -427,6 +500,71 @@ class FrontendInteractionContractTests(SimpleTestCase):
         self.assertIn("resetEditableTableRows(form, false)", javascript)
         query_open = javascript.split('if (form.matches("[data-editable-table]")) {', 1)[1].split("setQueryMode(true)", 1)[0]
         self.assertIn("resetEditableTableRows(form, false)", query_open)
+
+    def test_tabelas_editaveis_nao_abrem_em_modo_consulta_automaticamente(self):
+        javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
+        start_mode = javascript.split("function shouldStartInQueryMode()", 1)[1].split("renderTabs();", 1)[0]
+        self.assertIn('document.body.dataset.startQuery === "true"', start_mode)
+        self.assertIn('!document.querySelector(".content form[data-editable-table]")', start_mode)
+        startup = javascript.rsplit("if (shouldStartInQueryMode()", 1)[1]
+        self.assertIn("setQueryMode(true)", startup)
+
+    def test_previa_da_nova_linha_de_icones_fica_centralizada(self):
+        template = (settings.BASE_DIR / "templates" / "core" / "system_icons.html").read_text(encoding="utf-8")
+        stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
+        new_row = template.split("<template data-table-new-row>", 1)[1]
+        self.assertIn('<td class="td-icon"><span class="call-icon-preview', new_row)
+        icon_cell = stylesheet.split(".td-icon {", 1)[1].split("}", 1)[0]
+        self.assertIn("text-align: center", icon_cell)
+        self.assertIn("vertical-align: middle", icon_cell)
+
+    def test_estado_de_tabela_e_isolado_por_pagina_sem_criar_linhas_para_outros_ids(self):
+        javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
+        state_key = javascript.split("function getCurrentFormStateKey", 1)[1].split("function getFormStateFields", 1)[0]
+        self.assertIn('form.matches("[data-editable-table]")', state_key)
+        self.assertIn("`${window.location.pathname}${window.location.search}`", state_key)
+        restore = javascript.split("function restoreCurrentFormState", 1)[1].split("function storeCurrentListPosition", 1)[0]
+        self.assertIn("templateFieldNames", restore)
+        self.assertIn("if (!templateFieldNames.has(field.name)) return counts", restore)
+
+    def test_sanitizacao_svg_preserva_geometria_exibida_na_previa(self):
+        from apps.atendimento.views import _sanitize_call_icon_svg
+        from apps.core.views import _sanitize_system_icon_svg
+
+        source = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" '
+            'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+            'stroke-linejoin="round" class="lucide lucide-calendar-days">'
+            '<rect x="3" y="3" width="18" height="18" rx="2"/>'
+            '<path d="M3 9h18"/></svg>'
+        )
+        for sanitize in (_sanitize_system_icon_svg, _sanitize_call_icon_svg):
+            sanitized = sanitize(source)
+            self.assertIn('<rect x="3" y="3" width="18" height="18" rx="2"></rect>', sanitized)
+            self.assertIn('class="lucide lucide-calendar-days"', sanitized)
+
+        javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
+        preview_sanitizer = javascript.split("const allowedAttributes = new Set([", 1)[1].split("]);", 1)[0]
+        self.assertIn('"width", "height"', preview_sanitizer)
+        self.assertIn('"stroke-dasharray"', preview_sanitizer)
+
+    def test_css_clinico_remove_importacoes_urls_e_propriedades_perigosas(self):
+        from apps.atendimento.views import _css_documento_seguro
+
+        sanitized = str(
+            _css_documento_seguro(
+                '@import url("https://exemplo.test/import.css");'
+                '.seguro{color:#123456;background:url("https://exemplo.test/pixel");'
+                'position:fixed;behavior:url(script.htc)}'
+                '@page{margin:10mm}'
+            )
+        )
+        self.assertNotIn("@import", sanitized)
+        self.assertNotIn("url(", sanitized)
+        self.assertNotIn("behavior", sanitized)
+        self.assertIn("color:#123456", sanitized)
+        self.assertIn("position:fixed", sanitized)
+        self.assertIn("@page", sanitized)
 
     def test_scrollbar_tem_cores_do_tema(self):
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
@@ -603,6 +741,62 @@ class NavigationIntegrationTests(TestCase):
         self.assertContains(response, "2. Itens")
         self.assertFalse(response.context["current_can_remove"])
 
+    def test_menu_e_carregado_do_banco_mesmo_sem_grupos(self):
+        from apps.core.context_processors import _database_navigation_menu
+
+        module = Module.objects.create(
+            code="MODULO_SOMENTE_BANCO",
+            title="Módulo somente banco",
+            order=905,
+        )
+        ScreenDefinition.objects.create(
+            module=module,
+            title="Tela raiz",
+            slug="tela-raiz-somente-banco",
+            access_key="teste:tela-raiz-somente-banco",
+        )
+
+        database_menu = _database_navigation_menu()
+        configured_module = next(item for item in database_menu if item["code"] == module.code)
+        self.assertEqual([item["label"] for item in configured_module["items"]], ["Tela raiz"])
+
+    def test_modulos_estruturais_nao_podem_ser_alterados_pela_interface(self):
+        module = Module.objects.get(code="GLOBAL")
+        self.assertTrue(module.is_system)
+
+        save_response = self.client.post(
+            reverse("core:system_screens"),
+            {
+                "module_id": module.pk,
+                "code": module.code,
+                "title": "Global alterado",
+                "icon": module.icon,
+                "order": module.order,
+                "active": "True",
+            },
+        )
+        self.assertEqual(save_response.status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                reverse("core:system_module_toggle_active", args=[module.pk])
+            ).status_code,
+            403,
+        )
+
+        screen = module.screens.filter(active=True).first()
+        self.assertIsNotNone(screen)
+        self.assertEqual(
+            self.client.post(
+                reverse("core:system_navigation_reorder"),
+                {"node": screen.pk, "parent": "", "order": [screen.pk]},
+            ).status_code,
+            403,
+        )
+
+        loaded = self.client.get(reverse("core:system_screens"), {"module": module.pk})
+        self.assertContains(loaded, "Estrutural")
+        self.assertFalse(loaded.context["current_can_save"])
+
     def test_configuracao_de_modulos_consulta_cria_e_desativa(self):
         module = Module.objects.create(
             code="MODULO_TESTE_CONFIG",
@@ -650,6 +844,126 @@ class NavigationIntegrationTests(TestCase):
         created.refresh_from_db()
         self.assertFalse(created.active)
 
+    def test_salvar_modulo_preserva_indices_e_navegacao_da_consulta(self):
+        modules = [
+            Module.objects.create(
+                code=f"MODULO_FLUXO_{index}",
+                title=f"Fluxo persistido {index}",
+                icon="grid",
+                order=930 + index,
+            )
+            for index in range(1, 4)
+        ]
+        query_response = self.client.get(
+            reverse("core:system_screens"),
+            {"consultar": "1", "title": "Fluxo persistido"},
+        )
+        self.assertEqual(query_response.status_code, 302)
+
+        current = modules[1]
+        edit_url = (
+            f"{reverse('core:system_screens')}?module={current.pk}&origem=consulta"
+        )
+        save_response = self.client.post(
+            edit_url,
+            {
+                "module_id": current.pk,
+                "code": current.code,
+                "title": "Fluxo persistido 2 atualizado",
+                "icon": current.icon,
+                "order": current.order,
+                "active": "True",
+            },
+        )
+        self.assertRedirects(
+            save_response,
+            edit_url,
+            fetch_redirect_response=False,
+        )
+
+        loaded = self.client.get(save_response.url)
+        self.assertEqual(loaded.context["current_record_status"], "Item 2 de 3")
+        self.assertTrue(loaded.context["current_first_url"])
+        self.assertTrue(loaded.context["current_previous_url"])
+        self.assertTrue(loaded.context["current_next_url"])
+        self.assertTrue(loaded.context["current_last_url"])
+
+    def test_nome_do_modulo_preserva_caixa_acentos_e_caracteres_especiais(self):
+        response = self.client.post(
+            reverse("core:system_screens"),
+            {
+                "code": "MODULO_NOME_LIVRE",
+                "title": "Módulo Ágil: caixa Mista & especial!",
+                "icon": "grid",
+                "order": 925,
+                "active": "True",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        module = Module.objects.get(code="MODULO_NOME_LIVRE")
+        self.assertEqual(module.title, "Módulo Ágil: caixa Mista & especial!")
+
+    def test_catalogo_de_icones_alimenta_seletor_com_previa_e_nome(self):
+        icon = IconeSistema.objects.create(
+            cd_icone="icone-personalizado",
+            nm_icone="Ícone personalizado",
+            ds_svg='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
+        )
+        table_response = self.client.get(reverse("core:system_icons"), {"consultar": "1"})
+        self.assertEqual(table_response.status_code, 200)
+        self.assertContains(table_response, 'data-table="icone_sistema"')
+        self.assertContains(table_response, icon.nm_icone)
+
+        form_response = self.client.get(reverse("core:system_screens"), {"novo": "1"})
+        self.assertContains(form_response, 'data-system-icon-preview')
+        self.assertContains(form_response, 'data-icon-key="icone-personalizado"')
+        self.assertContains(form_response, "Ícone personalizado")
+
+    def test_configuracao_de_item_abre_subtela_com_roles_multiplos(self):
+        module = Module.objects.create(code="MODULO_SUBTELA", title="Módulo subtela", icon="grid", order=927)
+        Group.objects.get_or_create(name="Recepcionista")
+        response = self.client.get(reverse("core:system_screen_new"), {"module": module.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["current_can_query"])
+        self.assertEqual(response.context["current_close_mode"], "back")
+        self.assertEqual(response.context["current_tab_key"], reverse("core:system_screens"))
+        self.assertEqual(
+            response.context["current_close_url"],
+            f"{reverse('core:system_screens')}?module={module.pk}#module-items",
+        )
+        self.assertContains(response, 'data-nav-icon="corner-up-left"')
+        self.assertContains(response, 'data-subscreen-toolbar="true"')
+        self.assertContains(response, 'type="checkbox" name="roles" value="TI"')
+        self.assertContains(response, 'type="checkbox" name="roles" value="Recepcionista"')
+
+        saved = self.client.post(
+            reverse("core:system_screen_new"),
+            {
+                "module": module.pk,
+                "parent": "",
+                "title": "Tela com roles",
+                "slug": "tela-com-roles-teste",
+                "navigation_url": "",
+                "access_key": "",
+                "icon": "grid",
+                "roles": ["TI", "Recepcionista"],
+                "screen_type": ScreenDefinition.TYPE_FORM,
+                "parent_label": "",
+                "table_name": "",
+                "description": "",
+                "allow_query": "on",
+                "allow_insert": "on",
+                "allow_update": "on",
+                "active": "on",
+                "order": 10,
+            },
+        )
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(
+            ScreenDefinition.objects.get(slug="tela-com-roles-teste").roles,
+            ["TI", "Recepcionista"],
+        )
+
     def test_arvore_usa_marcadores_para_itens_sem_icone(self):
         module = Module.objects.create(code="MODULO_MARCADORES", title="Marcadores", order=930)
         group = ScreenDefinition.objects.create(
@@ -683,4 +997,15 @@ class NavigationIntegrationTests(TestCase):
         self.assertEqual(
             sum(item["label"].casefold() == "usuários e acessos" for item in ti["items"]),
             1,
+        )
+        global_module = next(module for module in modules if module["code"] == "GLOBAL")
+        system_config = next(item for item in global_module["items"] if item["label"] == "Configuração do Sistema")
+        modules_and_screens = next(item for item in system_config["children"] if item["label"] == "Módulos e Telas")
+        icons_screen = ScreenDefinition.objects.get(access_key="core:system_icons")
+        self.assertTrue(icons_screen.papeis.filter(papel__grupo__user=self.user).exists())
+        self.assertIn("core:system_icons", user_access_keys(self.user))
+        self.assertEqual(
+            [item["label"] for item in modules_and_screens["children"]],
+            ["Configurar", "Ícones"],
+            system_config,
         )

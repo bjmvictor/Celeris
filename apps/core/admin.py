@@ -1,11 +1,19 @@
 from django.contrib import admin
 
-from .models import Module, ScreenDefinition, ScreenField, UserModule
+from .models import IconeSistema, Module, ScreenDefinition, ScreenField, UserModule
+
+
+@admin.register(IconeSistema)
+class IconeSistemaAdmin(admin.ModelAdmin):
+    list_display = ("cd_icone", "nm_icone", "sn_ativo")
+    list_filter = ("sn_ativo",)
+    search_fields = ("cd_icone", "nm_icone")
 
 
 @admin.register(Module)
 class ModuleAdmin(admin.ModelAdmin):
-    list_display = ("code", "title", "icon", "order", "active")
+    list_display = ("code", "title", "icon", "order", "active", "is_system")
+    list_filter = ("active", "is_system")
     search_fields = ("code", "title")
 
 

@@ -1,15 +1,47 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-  <form class="card form-grid" data-table="core_screendefinition" data-preserve-input method="post">
+  <form class="card form-grid system-screen-form" data-table="core_screendefinition" data-primary-form data-preserve-input data-disable-state-persistence data-subscreen-toolbar="true" method="post" autocomplete="off">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}
-      <label{% if field.name == "description" %} class="span-2"{% endif %}>
-        {{ field.label }}
-        {{ field }}
-        {{ field.errors }}
-      </label>
-    {% endfor %}
+
+    <label class="field-md">{{ form.module.label }} {{ form.module }} {{ form.module.errors }}</label>
+    <label class="field-lg">{{ form.parent.label }} {{ form.parent }} {{ form.parent.errors }}</label>
+    <label class="field-xl">{{ form.title.label }} {{ form.title }} {{ form.title.errors }}</label>
+    <label class="field-lg">{{ form.slug.label }} {{ form.slug }} {{ form.slug.errors }}</label>
+    <label class="field-xl">{{ form.navigation_url.label }} {{ form.navigation_url }} {{ form.navigation_url.errors }}</label>
+    <label class="field-xl">{{ form.access_key.label }} {{ form.access_key }} {{ form.access_key.errors }}</label>
+    <label class="field-md">{{ form.icon.label }}
+      <span class="system-icon-picker">
+        <span class="system-icon-preview" data-system-icon-preview aria-hidden="true"></span>
+        {{ form.icon }}
+      </span>
+      {{ form.icon.errors }}
+    </label>
+    <label class="field-md">{{ form.screen_type.label }} {{ form.screen_type }} {{ form.screen_type.errors }}</label>
+    <label class="field-lg">{{ form.parent_label.label }} {{ form.parent_label }} {{ form.parent_label.errors }}</label>
+    <label class="field-md">{{ form.table_name.label }} {{ form.table_name }} {{ form.table_name.errors }}</label>
+    <label class="field-fluid">{{ form.description.label }} {{ form.description }} {{ form.description.errors }}</label>
+
+    <fieldset class="system-screen-roles field-fluid">
+      <legend>{{ form.roles.label }}</legend>
+      <div class="provider-permissions">
+        {% for role in form.roles %}
+          <label class="provider-checkbox">{{ role.tag }}<span>{{ role.choice_label }}</span></label>
+        {% empty %}
+          <span class="empty-state">Nenhum papel cadastrado.</span>
+        {% endfor %}
+      </div>
+      {{ form.roles.errors }}
+    </fieldset>
+
+    <div class="system-screen-options field-fluid">
+      <label class="provider-checkbox">{{ form.allow_query }}<span>{{ form.allow_query.label }}</span></label>
+      <label class="provider-checkbox">{{ form.allow_insert }}<span>{{ form.allow_insert.label }}</span></label>
+      <label class="provider-checkbox">{{ form.allow_update }}<span>{{ form.allow_update.label }}</span></label>
+      <label class="provider-checkbox">{{ form.allow_delete }}<span>{{ form.allow_delete.label }}</span></label>
+      <label class="provider-checkbox">{{ form.active }}<span>{{ form.active.label }}</span></label>
+      <label class="field-xs">{{ form.order.label }} {{ form.order }} {{ form.order.errors }}</label>
+    </div>
   </form>
 {% endblock %}

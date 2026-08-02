@@ -150,6 +150,7 @@
   <script>
     (() => {
       const rasterizeWatermarks = () => {
+        {% if modo_impressao and documento.ds_status == 'ABERTO' or modo_impressao and documento.ds_status == 'RASCUNHO' %}
         document.querySelectorAll(".document-draft-watermark").forEach((image) => {
           if (image.dataset.rasterized === "true") return;
           const canvas = document.createElement("canvas");
@@ -172,6 +173,7 @@
           image.src = canvas.toDataURL("image/png");
           image.dataset.rasterized = "true";
         });
+        {% endif %}
       };
       rasterizeWatermarks();
       window.addEventListener("beforeprint", rasterizeWatermarks);

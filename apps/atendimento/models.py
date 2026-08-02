@@ -610,7 +610,7 @@ class Atendimento(AuditoriaModel):
     ds_queixa_principal = models.TextField(blank=True)
     ds_observacao_recepcao = models.TextField(blank=True)
     ds_motivo_cancelamento = models.TextField(blank=True)
-    dh_inicio = models.DateTimeField(auto_now_add=True)
+    dh_inicio = models.DateTimeField(default=timezone.now)
     dh_fim = models.DateTimeField(null=True, blank=True)
     dh_recepcao = models.DateTimeField(null=True, blank=True)
     dh_inicio_classificacao = models.DateTimeField(null=True, blank=True)

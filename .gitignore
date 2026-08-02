@@ -1,9 +1,28 @@
 .env
 .venv/
+
+# Ambiente virtual criado na raiz do workspace.
+/Include/
+/Lib/
+/Scripts/
+/share/
+/pyvenv.cfg
+
 node_modules/
 db.sqlite3
 dbtest.sqlite3
+*.sqlite3
 staticfiles/
 __pycache__/
 *.py[cod]
 logs/
+.tmp/
+
+# Arquivos locais de ferramentas e sistema operacional.
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+Thumbs.db

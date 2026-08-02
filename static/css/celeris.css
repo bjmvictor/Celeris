@@ -1205,6 +1205,26 @@ button, input, select, textarea { font: inherit; }
   .pep-record-layout,
   .pep-clinical-grid { grid-template-columns: 1fr; }
 }
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.field-auxiliary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px;
+}
+.field-auxiliary-actions .button {
+  min-height: var(--control-height);
+}
 .provider-checkbox {
   display: inline-flex;
   flex: 0 1 auto;
@@ -1669,6 +1689,17 @@ form input[type="checkbox"]:focus-visible {
 }
 .navigation-tree-children {
   display: grid;
+  position: relative;
+  margin-left: 18px;
+  padding: 1px 0 4px 12px;
+}
+.navigation-tree-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 10px;
+  left: 0;
+  border-left: 1px solid var(--line);
 }
 .navigation-builder-header,
 .navigation-module > header,
@@ -1707,9 +1738,21 @@ form input[type="checkbox"]:focus-visible {
   padding: 4px;
 }
 .navigation-tree-node {
+  position: relative;
   min-height: 36px;
-  padding: 4px 6px 4px calc(8px + var(--tree-level) * 22px);
+  padding: 4px 6px;
   border-radius: 5px;
+}
+.navigation-tree-branch {
+  display: none;
+}
+.navigation-tree-children > .navigation-tree-item > .navigation-tree-node > .navigation-tree-branch {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  width: 12px;
+  border-top: 1px solid var(--line);
 }
 .navigation-tree-marker {
   display: inline-block;
@@ -1730,6 +1773,77 @@ form input[type="checkbox"]:focus-visible {
 }
 .navigation-module-form {
   align-items: end;
+}
+.system-icon-picker {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+}
+.system-icon-preview {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 5px 0 0 5px;
+  background: var(--panel-soft);
+  color: var(--primary-dark);
+}
+.system-icon-preview svg,
+.floating-select-icon svg {
+  width: 19px;
+  height: 19px;
+}
+.system-icon-picker select {
+  border-radius: 0 5px 5px 0;
+}
+.system-screen-form {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: end;
+}
+.system-screen-form > * {
+  min-width: 0;
+}
+.system-screen-form textarea[name="description"] {
+  min-height: 64px;
+  resize: vertical;
+}
+.system-screen-roles {
+  min-width: 0;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.system-screen-roles legend {
+  width: auto;
+  margin: 0 0 5px;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.system-screen-options {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.system-screen-options > .field-xs {
+  flex: 0 1 90px;
+}
+.floating-select-panel button.has-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.floating-select-icon {
+  display: grid;
+  flex: 0 0 24px;
+  place-items: center;
+  color: var(--primary-dark);
 }
 .navigation-tree-node:hover {
   background: var(--primary-soft);
@@ -6119,6 +6233,7 @@ body:has(.configurable-forms-page) .content {
 }
 .td-icon {
   text-align: center;
+  vertical-align: middle;
 }
 .call-icon-preview {
   display: inline-grid;

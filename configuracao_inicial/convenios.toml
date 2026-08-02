@@ -1,0 +1,6 @@
+habilitado = false
+
+[[registros]]
+empresa_codigo = 1
+nome = "Particular"
+ativo = true

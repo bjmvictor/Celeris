@@ -1,0 +1,42 @@
+backend:
+  name: github
+  repo: bjmvictor/Celeris
+  branch: main
+  base_url: https://SEU-OAUTH-PROXY.example.com
+  auth_endpoint: auth
+
+local_backend: true
+publish_mode: editorial_workflow
+media_folder: docs/assets/uploads
+public_folder: assets/uploads
+
+collections:
+  - name: biblioteca
+    label: Biblioteca Celeris
+    files:
+      - name: conteudo
+        label: Tópicos da biblioteca
+        file: docs/data/topics.json
+        format: json
+        fields:
+          - label: Configuração do portal
+            name: site
+            widget: object
+            fields:
+              - { label: Nome, name: name, widget: string }
+              - { label: Versão, name: version, widget: string }
+          - label: Tópicos
+            name: topics
+            widget: list
+            summary: "{{fields.category}} / {{fields.title}}"
+            fields:
+              - { label: Identificador, name: id, widget: string, hint: "Único, minúsculo e sem espaços." }
+              - { label: Ordem, name: order, widget: number, value_type: int }
+              - { label: Categoria, name: category, widget: string }
+              - { label: Título, name: title, widget: string }
+              - { label: Resumo, name: summary, widget: text }
+              - { label: Palavras-chave, name: keywords, widget: list, required: false }
+              - { label: Data de atualização, name: updatedAt, widget: datetime, date_format: YYYY-MM-DD, time_format: false, format: YYYY-MM-DD }
+              - { label: Atualizado por, name: updatedBy, widget: string }
+              - { label: Revisão, name: revision, widget: string, default: "1" }
+              - { label: Conteúdo, name: body, widget: markdown }

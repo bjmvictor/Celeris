@@ -14,7 +14,7 @@ def _stable_slug(module_code, labels):
 
 
 def normalize_navigation_catalog(apps, schema_editor):
-    from apps.core.navigation import MODULES
+    from apps.core.operacoes_migracao.navigation_legacy_snapshot import MODULES
 
     Group = apps.get_model("auth", "Group")
     Papel = apps.get_model("accounts", "Papel")

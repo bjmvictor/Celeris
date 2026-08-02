@@ -1,0 +1,8 @@
+habilitado = false
+tabela = "plano"
+descricao = "Planos de convênio"
+
+[[registros]]
+codigo = "PARTICULAR"
+descricao = "Particular"
+ativo = true

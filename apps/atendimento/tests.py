@@ -772,6 +772,68 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.assertTrue(proceed.url.startswith(expected))
 
+    def test_recepcao_abre_novo_paciente_em_subtela_e_habilita_confirmacao_apos_salvar(self):
+        self.login_as(self.recepcionista)
+        reception_url = f"{reverse('atendimento:recepcao')}?termo=NOVO"
+        reception = self.client.get(reception_url)
+        new_patient_url = reception.context["current_new_url"]
+        self.assertIn(reverse("atendimento:cadastro-paciente-agendamento"), new_patient_url)
+        self.assertIn("recepcao_direta=1", new_patient_url)
+        self.assertIn("return_to=", new_patient_url)
+
+        patient_form = self.client.get(new_patient_url)
+        self.assertEqual(patient_form.context["current_close_mode"], "back")
+        self.assertEqual(patient_form.context["current_tab_key"], reverse("atendimento:recepcao"))
+        self.assertEqual(patient_form.context["current_close_url"], reception_url)
+        self.assertFalse(patient_form.context["current_continue_url"])
+        self.assertContains(patient_form, 'data-subscreen-toolbar="true"')
+        self.assertContains(patient_form, 'data-subscreen-allow-continue="true"')
+        self.assertContains(patient_form, 'data-nav-icon="corner-up-left"')
+
+        saved = self.client.post(
+            new_patient_url,
+            {
+                "nm_paciente": "PACIENTE CADASTRADO NA RECEPÇÃO",
+                "dt_nascimento": "1992-03-04",
+            },
+        )
+        paciente = Paciente.objects.get(nm_paciente="PACIENTE CADASTRADO NA RECEPÇÃO")
+        expected_form_url = reverse("atendimento:revisar-paciente-agendamento", args=[paciente.pk])
+        self.assertEqual(saved.status_code, 302)
+        self.assertTrue(saved.url.startswith(expected_form_url))
+        self.assertIn("recepcao_direta=1", saved.url)
+
+        confirmed_form = self.client.get(saved.url)
+        self.assertEqual(confirmed_form.context["current_close_url"], reception_url)
+        self.assertIn(
+            reverse("atendimento:novo-atendimento-direto", args=[paciente.pk]),
+            confirmed_form.context["current_continue_url"],
+        )
+        self.assertContains(confirmed_form, 'data-continue-url="/atendimento/recepcao/pacientes/')
+
+    def test_data_hora_do_atendimento_aceita_valor_retroativo_e_preserva_criacao(self):
+        self.login_as(self.recepcionista)
+        url = reverse("atendimento:novo-atendimento-direto", args=[self.paciente.pk])
+        form_response = self.client.get(url)
+        datetime_field = form_response.context["form"]["dh_atendimento_exibicao"]
+        self.assertNotIn("disabled", datetime_field.field.widget.attrs)
+        self.assertTrue(datetime_field.value())
+
+        retroactive_value = "2024-01-15T08:30"
+        saved = self.client.post(
+            url,
+            {
+                "dh_atendimento_exibicao": retroactive_value,
+                "ds_origem": "DEMANDA_ESPONTANEA",
+                "responsavel-nm_responsavel": "",
+            },
+        )
+        self.assertEqual(saved.status_code, 302)
+        atendimento = Atendimento.objects.filter(cd_paciente=self.paciente).latest("cd_atendimento")
+        local_start = timezone.localtime(atendimento.dh_inicio)
+        self.assertEqual(local_start.strftime("%Y-%m-%dT%H:%M"), retroactive_value)
+        self.assertGreater(atendimento.dh_criacao, atendimento.dh_inicio)
+
     def test_totem_configura_gera_e_movimenta_senha(self):
         setor = Setor.objects.create(
             cd_empresa=self.empresa,
@@ -1651,7 +1713,10 @@ class FluxoHomologacaoTests(TestCase):
             reverse("atendimento:cadastro-profissional-novo"),
             {"consultar": "1", "nm_prestador": "INEXISTENTE"},
         )
-        self.assertRedirects(response, reverse("atendimento:cadastro-profissional-novo"))
+        self.assertRedirects(
+            response,
+            f'{reverse("atendimento:cadastro-profissional-novo")}?sem_resultados=1',
+        )
 
     def test_consulta_de_prestadores_sem_filtros_retorna_ativos_e_inativos(self):
         inactive = Prestador.objects.create(
@@ -1828,7 +1893,10 @@ class FluxoHomologacaoTests(TestCase):
             reverse("atendimento:cadastro-profissional-novo"),
             {"consultar": "1", "nm_prestador": "W"},
         )
-        self.assertRedirects(second_response, reverse("atendimento:cadastro-profissional-novo"))
+        self.assertRedirects(
+            second_response,
+            f'{reverse("atendimento:cadastro-profissional-novo")}?sem_resultados=1',
+        )
         self.assertEqual(self.client.session["consulta_prestadores"], [])
 
     def test_filtros_paciente_individuais_e_combinados(self):
@@ -2351,7 +2419,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertIn("margin:0;padding:2px;background:#fff", javascript)
         self.assertIn("[...formFields].sort", javascript)
         self.assertIn('["prestador.uf_conselho", "UF do conselho"]', javascript)
-        self.assertIn("targetIsCustomVariableEditor", javascript)
+        self.assertIn('customVariableExpressionInput?.addEventListener("drop"', javascript)
         self.assertIn("overflow-wrap:anywhere;word-break:break-word;white-space:normal", javascript)
         self.assertIn("contentWidth > availableWidth ?availableWidth / contentWidth : 1", javascript)
         self.assertNotIn('["paciente.nome_social", "Nome social"]', javascript)
@@ -2738,7 +2806,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertIn("group.open = openStateBeforeSearch.get(group) || false", javascript)
         self.assertIn("if (!term && searchActive)", javascript)
         self.assertIn("formHasActualChanges(form)", javascript)
-        self.assertIn('form.method.toLowerCase() === "get"', javascript)
+        self.assertIn('form.method?.toLowerCase() === "get"', javascript)
         self.assertIn('document.addEventListener("pointerdown"', javascript)
         patient_template = (
             settings.BASE_DIR / "templates" / "atendimento" / "cadastro_paciente.html"

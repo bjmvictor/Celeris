@@ -1,0 +1,13 @@
+habilitado = false
+tabela = "meio_transporte"
+descricao = "Meios de transporte do paciente"
+
+[[registros]]
+codigo = "PROPRIO"
+descricao = "Meios próprios"
+ativo = true
+
+[[registros]]
+codigo = "AMBULANCIA"
+descricao = "Ambulância"
+ativo = true

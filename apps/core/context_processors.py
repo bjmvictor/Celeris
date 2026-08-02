@@ -1,22 +1,20 @@
-from django.db import OperationalError, ProgrammingError
+from django.db import OperationalError, ProgrammingError, connection
+from django.db.models import Q
+from django.core.cache import cache
 from django.urls import NoReverseMatch, reverse
 from urllib.parse import urlencode
 import unicodedata
 
 from apps.accounts.models import Empresa
-from apps.accounts.access import user_access_keys
+from apps.accounts.access import request_access_key_candidates, user_access_keys
 
-from .models import Module, ScreenDefinition
-from .navigation import MODULES, item
-
-
-HIDDEN_UNIMPLEMENTED_MODULE_CODES = {"COMPRAS", "FINANCEIRO", "RH"}
-
-
-def _flatten_items(items):
-    for nav_item in items:
-        yield nav_item
-        yield from _flatten_items(nav_item.get("children", []))
+from .models import IconeSistema, Module, ScreenDefinition
+from .navigation import item
+from .navigation_cache import (
+    NAVIGATION_CACHE_KEY,
+    NAVIGATION_CACHE_TIMEOUT,
+    SYSTEM_ICONS_CACHE_KEY,
+)
 
 
 def _current_navigation(request):
@@ -42,10 +40,18 @@ def _current_navigation(request):
         except (ScreenDefinition.DoesNotExist, OperationalError, ProgrammingError):
             return "Celeris", "Sistema"
 
-    for module in MODULES:
-        for nav_item in _flatten_items(module["items"]):
-            if nav_item.get("route_name") == route_name:
-                return nav_item["label"], module["title"]
+    try:
+        candidates = request_access_key_candidates(request)
+        screen = (
+            ScreenDefinition.objects.select_related("module")
+            .filter(active=True, module__active=True)
+            .filter(Q(access_key__in=candidates) | Q(navigation_url=request.path))
+            .first()
+        )
+        if screen:
+            return screen.title, screen.module.title
+    except (OperationalError, ProgrammingError):
+        pass
 
     return "Celeris", "Sistema"
 
@@ -65,172 +71,19 @@ def _short_user_name(user):
     return " ".join(parts[:2]).upper() if parts else user.get_username().upper()
 
 
-def _configured_screen_items():
-    try:
-        screens = (
-            ScreenDefinition.objects.select_related("module")
-            .filter(active=True, module__active=True)
-            .order_by("module__title", "parent_label", "order", "title")
-        )
-    except (OperationalError, ProgrammingError):
-        return {}
-
-    static_access_keys = {
-        nav_item.get("access_key")
-        for module in MODULES
-        for nav_item in _flatten_items(module["items"])
-        if not nav_item.get("children")
-    }
-    configured = {}
-    for screen in screens:
-        access_key = screen.access_key or ""
-        if screen.module.code in HIDDEN_UNIMPLEMENTED_MODULE_CODES:
-            continue
-        if (
-            screen.module.code == "ESTOQUE"
-            or screen.module.code == "ALMOXARIFADO"
-            or screen.access_key in {"estoque-produtos", "estoque-entradas", "estoque-saidas", "estoque-inventario"}
-            or screen.slug.startswith("estoque-")
-            or screen.slug.startswith("almoxarifado-")
-            or screen.slug.startswith("produtos-")
-            or screen.slug.startswith("inventario")
-            or screen.slug.startswith("entradas")
-            or screen.slug.startswith("saidas")
-            or screen.slug.startswith("movimentacao")
-            or screen.slug.startswith("movimentacoes")
-            or screen.slug.startswith("produto")
-            or screen.slug.startswith("produtos")
-            or screen.slug.startswith("solicitacao-produto")
-            or screen.slug.startswith("solicitacoes-produto")
-            or screen.slug.startswith("estoques")
-            or screen.slug.startswith("unidades")
-            or screen.slug.startswith("cotas")
-            or screen.slug.startswith("saldos")
-            or screen.slug.startswith("classificacao-produto")
-            or screen.slug.startswith("classificacoes-produto")
-            or screen.slug.startswith("motivos-baixa")
-            or screen.slug.startswith("motivos-devolucao")
-            or screen.slug.startswith("programacao-reposicao")
-            or screen.slug.startswith("motivos-cancelamento")
-            or screen.slug.startswith("carater-produto")
-            or screen.slug.startswith("classes-produto")
-            or screen.slug.startswith("recebimento-cadastro-produto")
-            or screen.slug.startswith("alteracao-exclusao-produto")
-            or screen.slug.startswith("fracionamento")
-            or screen.slug.startswith("acerto-estoque")
-            or screen.slug == "cadastros-profissionais"
-            or screen.slug.startswith("acesso-")
-            or screen.slug.startswith("totem-")
-            or access_key.startswith("acesso-totem-")
-            or screen.slug in {"ti-alteracao-senha-usuario", "ti-cadastro-copia-usuario"}
-            or access_key in static_access_keys
-        ):
-            continue
-        configured.setdefault(screen.module.code, {})
-        parent_label = screen.parent_label or ""
-        configured[screen.module.code].setdefault(parent_label, [])
-        if screen.slug == "pacientes-cadastro":
-            configured[screen.module.code][parent_label].append(
-                item(
-                    screen.title,
-                    url=reverse("atendimento:cadastro-paciente-novo"),
-                    access_key=screen.access_key,
-                )
-            )
-            continue
-        configured[screen.module.code][parent_label].append(
-            item(
-                screen.title,
-                url=reverse("core:dynamic_screen", kwargs={"slug": screen.slug}),
-                access_key=screen.access_key,
-            )
-        )
-    return configured
-
-
-def _organize_runtime_modules(modules):
-    modules = list(modules)
-
-    def pop_module(code):
-        for index, module in enumerate(modules):
-            if module["code"] == code:
-                return modules.pop(index)
-        return None
-
-    def append_group(target_code, label, source):
-        if not source or not source.get("items"):
-            return
-        target = next((module for module in modules if module["code"] == target_code), None)
-        if target:
-            target["items"].append(item(label, children=source["items"]))
-
-    pacientes = pop_module("PACIENTES")
-    indicadores = pop_module("BI")
-    fiscal = pop_module("FISCAL")
-    relacionamento = pop_module("RELACIONAMENTO")
-    append_group("ATENDIMENTO", "Pacientes", pacientes)
-    append_group("ATENDIMENTO", "Indicadores", indicadores)
-    append_group("FINANCEIRO", "Fiscal", fiscal)
-
-    if relacionamento and relacionamento.get("items"):
-        global_module = next((module for module in modules if module["code"] == "GLOBAL"), None)
-        empresa_group = next(
-            (nav_item for nav_item in global_module["items"] if nav_item["label"] == "Empresa"),
-            None,
-        ) if global_module else None
-        if empresa_group:
-            empresa_group["children"].append(item("Relacionamentos", children=relacionamento["items"]))
-
-    return modules
-
-
 def _merge_configured_menu():
-    database_menu = _database_navigation_menu()
-    if database_menu:
-        return database_menu
-    configured = _configured_screen_items()
-    merged = []
-    known_codes = set()
-    for module in MODULES:
-        known_codes.add(module["code"])
-        items = [*module["items"]]
-        for parent_label, screens in configured.get(module["code"], {}).items():
-            if parent_label:
-                items.append(item(parent_label, children=screens))
-            else:
-                items.extend(screens)
-        merged.append({**module, "items": items})
-    try:
-        modules = (
-            Module.objects.filter(active=True)
-            .exclude(code__in=HIDDEN_UNIMPLEMENTED_MODULE_CODES)
-            .order_by("title")
-        )
-    except (OperationalError, ProgrammingError):
-        modules = []
-    for module in modules:
-        if module.code in known_codes or module.code not in configured:
-            continue
-        items = []
-        for parent_label, screens in configured[module.code].items():
-            if parent_label:
-                items.append(item(parent_label, children=screens))
-            else:
-                items.extend(screens)
-        merged.append({"code": module.code, "title": module.title, "icon": "grid", "items": items})
-    return _organize_runtime_modules(merged)
+    return _database_navigation_menu()
 
 
 def _database_navigation_menu():
+    use_cache = not connection.in_atomic_block
+    if use_cache:
+        cached_menu = cache.get(NAVIGATION_CACHE_KEY)
+        if cached_menu is not None:
+            return cached_menu
     try:
-        if not ScreenDefinition.objects.filter(
-            active=True,
-            screen_type=ScreenDefinition.TYPE_GROUP,
-        ).exists():
-            return []
         modules = list(
             Module.objects.filter(active=True)
-            .exclude(code__in=HIDDEN_UNIMPLEMENTED_MODULE_CODES)
             .order_by("order", "title")
         )
         screens = list(
@@ -269,7 +122,13 @@ def _database_navigation_menu():
         return "", ""
 
     def build_item(screen):
-        children = [build_item(child) for child in children_by_parent.get(screen.pk, [])]
+        children = [
+            child_item
+            for child in children_by_parent.get(screen.pk, [])
+            if (child_item := build_item(child)) is not None
+        ]
+        if screen.screen_type == ScreenDefinition.TYPE_GROUP and not children:
+            return None
         route_name, url = screen_destination(screen)
         navigation_item = item(
             screen.title,
@@ -313,9 +172,19 @@ def _database_navigation_menu():
 
     result = []
     for module in modules:
-        module_items = [build_item(screen) for screen in roots_by_module.get(module.pk, [])]
+        module_items = [
+            navigation_item
+            for screen in roots_by_module.get(module.pk, [])
+            if (navigation_item := build_item(screen)) is not None
+        ]
         for label, legacy_screens in legacy_by_module.get(module.pk, {}).items():
-            module_items.append(item(label, children=[build_item(screen) for screen in legacy_screens]))
+            children = [
+                navigation_item
+                for screen in legacy_screens
+                if (navigation_item := build_item(screen)) is not None
+            ]
+            if children:
+                module_items.append(item(label, children=children))
         module_items = merge_items(module_items)
         if module_items:
             result.append(
@@ -326,11 +195,14 @@ def _database_navigation_menu():
                     "items": module_items,
                 }
             )
+    if use_cache:
+        cache.set(NAVIGATION_CACHE_KEY, result, NAVIGATION_CACHE_TIMEOUT)
     return result
 
 
-def _filter_menu_for_user(menu, user):
-    allowed_keys = user_access_keys(user) if user.is_authenticated and not user.is_superuser else set()
+def _filter_menu_for_user(menu, user, allowed_keys=None):
+    if allowed_keys is None:
+        allowed_keys = user_access_keys(user) if user.is_authenticated and not user.is_superuser else set()
 
     def filter_items(items):
         visible = []
@@ -338,19 +210,22 @@ def _filter_menu_for_user(menu, user):
             children = filter_items(nav_item.get("children", []))
             if nav_item.get("is_group") and not children:
                 continue
-            if nav_item.get("children"):
-                if not children:
-                    continue
-            elif not user.is_superuser and nav_item.get("access_key") not in allowed_keys:
+            if (
+                not nav_item.get("is_group")
+                and not user.is_superuser
+                and nav_item.get("access_key") not in allowed_keys
+                and not children
+            ):
                 continue
             visible.append((index, {**nav_item, "children": children}))
         return [nav_item for _, nav_item in visible]
 
-    return [
-        {**module, "items": filter_items(module["items"])}
-        for module in menu
-        if filter_items(module["items"])
-    ]
+    filtered_modules = []
+    for module in menu:
+        filtered_items = filter_items(module["items"])
+        if filtered_items:
+            filtered_modules.append({**module, "items": filtered_items})
+    return filtered_modules
 
 
 def navigation(request):
@@ -385,6 +260,8 @@ def navigation(request):
     tab_key = request.path
     close_mode = ""
     unified_tab_routes = {
+        "core:system_screen_new": reverse("core:system_screens"),
+        "core:system_screen_edit": reverse("core:system_screens"),
         "atendimento:cadastro-paciente": reverse("atendimento:cadastro-paciente-novo"),
         "atendimento:cadastro-paciente-novo": reverse("atendimento:cadastro-paciente-novo"),
         "atendimento:cadastro-profissional": reverse("atendimento:cadastro-profissional-novo"),
@@ -406,6 +283,12 @@ def navigation(request):
     if route_name == "atendimento:revisar-paciente-agendamento" and request.GET.get("recepcionar"):
         tab_key = reverse("atendimento:agendamentos-operacionais")
         close_mode = "back"
+    if route_name in {
+        "atendimento:cadastro-paciente-agendamento",
+        "atendimento:revisar-paciente-agendamento",
+    } and request.GET.get("recepcao_direta") == "1":
+        tab_key = reverse("atendimento:recepcao")
+        close_mode = "back"
     return_url = getattr(request, "current_return_url", "")
     if return_url:
         close_mode = "back"
@@ -419,12 +302,24 @@ def navigation(request):
         current_empresa = Empresa.objects.get(cd_empresa=cd_empresa, sn_ativo=True)
     except (Empresa.DoesNotExist, OperationalError, ProgrammingError):
         current_empresa = None
+    system_icon_svgs = cache.get(SYSTEM_ICONS_CACHE_KEY)
+    if system_icon_svgs is None:
+        try:
+            system_icon_svgs = dict(IconeSistema.objects.values_list("cd_icone", "ds_svg"))
+        except (OperationalError, ProgrammingError):
+            system_icon_svgs = {}
+        else:
+            cache.set(SYSTEM_ICONS_CACHE_KEY, system_icon_svgs, NAVIGATION_CACHE_TIMEOUT)
     current_new_url = getattr(request, "current_new_url", new_url_by_route.get(route_name, ""))
     if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
         separator = "&" if "?" in current_new_url else "?"
         current_new_url = f"{current_new_url}{separator}{urlencode({'return_to': request.get_full_path()})}"
     return {
-        "modules_menu": _filter_menu_for_user(_merge_configured_menu(), request.user),
+        "modules_menu": _filter_menu_for_user(
+            _merge_configured_menu(),
+            request.user,
+            getattr(request, "_celeris_access_keys", None),
+        ),
         "current_tab_title": current_tab_title,
         "current_module_title": current_module_title,
         "current_can_query": getattr(request, "current_can_query", current_tab_title not in {"Início", "Alterar senha"}),
@@ -433,6 +328,7 @@ def navigation(request):
         "current_new_url": current_new_url,
         "current_continue_url": getattr(request, "current_continue_url", ""),
         "current_empresa": current_empresa,
+        "system_icon_svgs": system_icon_svgs,
         "current_tab_key": tab_key,
         "current_tab_root_title": tab_root_title,
         "current_close_mode": close_mode,

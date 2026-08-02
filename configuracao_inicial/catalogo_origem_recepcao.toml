@@ -1,0 +1,8 @@
+habilitado = false
+tabela = "origem_recepcao"
+descricao = "Recepções de origem do atendimento"
+
+[[registros]]
+codigo = "RECEPCAO_PRINCIPAL"
+descricao = "Recepção principal"
+ativo = true

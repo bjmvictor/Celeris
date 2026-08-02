@@ -17,6 +17,10 @@ except ModuleNotFoundError:
 if load_dotenv:
     load_dotenv(BASE_DIR / ".env")
 
+
+def env_bool(name, default=False):
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
 WEASYPRINT_DLL_DIRECTORIES = [
     item
     for item in [
@@ -36,7 +40,7 @@ if WEASYPRINT_DLL_DIRECTORIES:
             except OSError:
                 pass
 
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
+DEBUG = env_bool("DJANGO_DEBUG", True)
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     if not DEBUG:
@@ -138,6 +142,16 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
+SECURE_SSL_REDIRECT = env_bool("CELERIS_SECURE_SSL_REDIRECT", not DEBUG)
+SESSION_COOKIE_SECURE = env_bool("CELERIS_SESSION_COOKIE_SECURE", not DEBUG)
+CSRF_COOKIE_SECURE = env_bool("CELERIS_CSRF_COOKIE_SECURE", not DEBUG)
+SECURE_HSTS_SECONDS = int(
+    os.getenv("CELERIS_SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0")
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("CELERIS_SECURE_HSTS_INCLUDE_SUBDOMAINS", not DEBUG)
+SECURE_HSTS_PRELOAD = env_bool("CELERIS_SECURE_HSTS_PRELOAD", not DEBUG)
+if env_bool("CELERIS_TRUST_PROXY_SSL_HEADER", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("CELERIS_DATA_UPLOAD_MAX_MEMORY_SIZE", "25000000"))
 
 AUTH_PASSWORD_VALIDATORS = [

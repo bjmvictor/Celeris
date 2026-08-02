@@ -69,6 +69,10 @@
         <label class="field-xs">UF do Conselho {{ form.sg_conselho }}</label>
         <div class="field-fluid specialty-manager" data-specialty-manager>
           <span>Especialidades</span>
+          <div class="field-auxiliary-actions">
+            <a class="button button-secondary" href="{% url 'atendimento:especialidades' %}?overlay=1" data-screen-overlay-link data-overlay-title="Especialidades">Gerenciar especialidades</a>
+            <a class="button button-secondary" href="{% url 'core:tipo_prestador_conselho' %}?overlay=1" data-screen-overlay-link data-overlay-title="Tipos de prestador e conselhos">Tipos e conselhos</a>
+          </div>
           <div class="specialty-toolbar">
             <div class="specialty-chips" data-specialty-chips></div>
             <button class="button button-secondary specialty-open-button" data-specialty-open type="button">+ Adicionar especialidade</button>

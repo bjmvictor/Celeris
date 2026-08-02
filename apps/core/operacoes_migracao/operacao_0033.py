@@ -15,7 +15,7 @@ def _stable_slug(module_code, labels):
 
 
 def seed_navigation_tree(apps, schema_editor):
-    from apps.core.navigation import MODULES
+    from apps.core.operacoes_migracao.navigation_legacy_snapshot import MODULES
 
     Module = apps.get_model("core", "Module")
     ScreenDefinition = apps.get_model("core", "ScreenDefinition")

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from apps.atendimento.models import AgendaProfissional, Prestador
+from apps.core.context_processors import _database_navigation_menu
 from apps.core.models import Module, ScreenDefinition
-from apps.core.navigation import MODULES
 from .access import has_screen_access
 from .middleware import ScreenAccessMiddleware
 
@@ -419,7 +419,7 @@ class PapelAcessoTests(TestCase):
             return keys
 
         navigation_keys = set()
-        for module in MODULES:
+        for module in _database_navigation_menu():
             navigation_keys.update(leaf_access_keys(module["items"]))
         catalog_keys = set(
             ScreenDefinition.objects.filter(active=True, module__active=True)

@@ -143,7 +143,7 @@
           </header>
           <div class="form-grid">
             <label class="field-md">Elemento
-              <select data-profile-node-kind>
+              <select data-profile-node-kind data-native-select>
                 <option value="MENU">Menu</option>
                 <option value="SUBMENU">Submenu</option>
                 <option value="TELA">Tela</option>
@@ -168,7 +168,7 @@
               </div>
             </label>
             <label class="field-lg" data-profile-parent-field hidden>Dentro de
-              <select name="cd_item_pai">
+              <select name="cd_item_pai" data-native-select>
                 <option value="">Sem grupo</option>
                 {% for item in itens_versao %}
                   {% if item.tp_item == "GRUPO" %}<option value="{{ item.pk }}">{{ item.nm_item }}</option>{% endif %}
@@ -176,26 +176,26 @@
               </select>
             </label>
             <label class="field-lg" data-profile-screen-type hidden>Tipo da tela
-              <select data-profile-screen-type-select>
+              <select data-profile-screen-type-select data-native-select>
                 {% for value,label in tipos_item %}
                   {% if value != "GRUPO" %}<option value="{{ value }}">{{ label }}</option>{% endif %}
                 {% endfor %}
               </select>
             </label>
             <label class="field-lg" data-profile-type="ACAO" hidden>Ação
-              <select name="ds_acao">
+              <select name="ds_acao" data-native-select>
                 <option value=""></option>
                 {% for value,label in acoes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
               </select>
             </label>
             <label class="field-xl" data-profile-type="DOCUMENTO" hidden>Modelo de documento
-              <select name="cd_modelo_documento">
+              <select name="cd_modelo_documento" data-native-select>
                 <option value=""></option>
                 {% for modelo in modelos_documento %}<option value="{{ modelo.pk }}">{{ modelo.nm_modelo }}</option>{% endfor %}
               </select>
             </label>
             <label class="field-xl" data-profile-type="ESCALA" hidden>Escala existente
-              <select name="cd_escala_clinica">
+              <select name="cd_escala_clinica" data-native-select>
                 <option value="">Criar uma nova escala abaixo</option>
                 {% for escala in escalas_clinicas %}<option value="{{ escala.pk }}">{{ escala.nm_escala }} · v{{ escala.nr_versao }}</option>{% endfor %}
               </select>
@@ -213,7 +213,7 @@
                 <label class="field-lg">Nome da escala <input name="nm_nova_escala" placeholder="Escala de Braden"></label>
                 <label class="field-xl">Descrição <input name="ds_descricao_nova_escala"></label>
                 <label class="field-md">Cálculo padrão
-                  <select name="tp_calculo_nova_escala"><option value="SOMA">Soma</option><option value="MEDIA">Média</option></select>
+                  <select name="tp_calculo_nova_escala" data-native-select><option value="SOMA">Soma</option><option value="MEDIA">Média</option></select>
                 </label>
                 <label class="field-fluid">Expressão personalizada
                   <input name="ds_expressao_nova_escala" data-scale-expression placeholder="{% verbatim %}{{pergunta_1}} + {{pergunta_2}}{% endverbatim %}">

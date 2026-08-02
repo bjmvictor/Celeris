@@ -85,7 +85,7 @@
       <section class="card pep-patients">
         <h2>Pacientes encontrados</h2>
         <table class="data-table">
-          <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Nascimento</th><th>Convênio</th></tr></thead>
+          <thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Nascimento</th><th>Convênio</th><th>Ações</th></tr></thead>
           <tbody>
             {% for paciente in pacientes_geral %}
               <tr data-row-url="{% if pep_standalone %}{% url 'pep_prontuario_standalone' paciente.pk %}{% else %}{% url 'atendimento:pep-prontuario-paciente' paciente.pk %}{% endif %}?modo=consulta&return_to={{ request.get_full_path|urlencode }}" tabindex="0">
@@ -95,9 +95,10 @@
                 <td>{{ paciente.nr_cartao_sus|default:"-" }}</td>
                 <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
                 <td>{% if paciente.cd_convenio %}{{ paciente.cd_convenio.nm_convenio }}{% elif paciente.nm_convenio %}{{ paciente.nm_convenio }}{% else %}-{% endif %}</td>
+                <td><a class="button button-secondary" href="{% if pep_standalone %}{% url 'pep_prontuario_standalone' paciente.pk %}{% else %}{% url 'atendimento:pep-prontuario-paciente' paciente.pk %}{% endif %}?modo=consulta&return_to={{ request.get_full_path|urlencode }}">Abrir prontuário</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="6">Use a consulta para localizar pacientes.</td></tr>
+              <tr><td colspan="7">Use a consulta para localizar pacientes.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -107,7 +108,7 @@
         <h2>Atendimentos sem alta</h2>
         <table class="data-table">
           <thead>
-            <tr><th>Prioridade</th><th>Atendimento</th><th>Paciente</th><th>Prontuário</th><th>Convênio</th><th>Status</th><th>Setor</th><th>Tempo</th><th>Responsável</th><th>Alertas</th></tr>
+            <tr><th>Prioridade</th><th>Atendimento</th><th>Paciente</th><th>Prontuário</th><th>Convênio</th><th>Status</th><th>Setor</th><th>Tempo</th><th>Responsável</th><th>Alertas</th><th>Ações</th></tr>
           </thead>
           <tbody>
             {% for atendimento in atendimentos %}
@@ -126,9 +127,10 @@
                   {% if atendimento.solicitacoes_exames.exists %}<span class="status-badge">Exame pendente</span>{% endif %}
                   {% if atendimento.cd_paciente.ds_observacao %}<span class="status-badge warning">Observação clínica</span>{% endif %}
                 </td>
+                <td><a class="button button-secondary" href="{% if pep_standalone %}{% url 'pep_prontuario_standalone' atendimento.cd_paciente_id %}{% else %}{% url 'atendimento:pep-prontuario-paciente' atendimento.cd_paciente_id %}{% endif %}?modo=atendimento&atendimento={{ atendimento.pk }}&return_to={{ request.get_full_path|urlencode }}">Abrir prontuário</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="10">Nenhum paciente aguardando atendimento nos setores selecionados.</td></tr>
+              <tr><td colspan="11">Nenhum paciente aguardando atendimento nos setores selecionados.</td></tr>
             {% endfor %}
           </tbody>
         </table>

@@ -1,0 +1,13 @@
+habilitado = false
+tabela = "destino_atendimento"
+descricao = "Destinos iniciais do atendimento"
+
+[[registros]]
+codigo = "CONSULTORIO"
+descricao = "Consultório"
+ativo = true
+
+[[registros]]
+codigo = "OBSERVACAO"
+descricao = "Observação"
+ativo = true

@@ -1,0 +1,13 @@
+habilitado = false
+tabela = "local_procedencia"
+descricao = "Locais de procedência do paciente"
+
+[[registros]]
+codigo = "DOMICILIO"
+descricao = "Domicílio"
+ativo = true
+
+[[registros]]
+codigo = "OUTRA_UNIDADE"
+descricao = "Outra unidade hospitalar"
+ativo = true

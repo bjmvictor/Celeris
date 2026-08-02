@@ -2,6 +2,8 @@
 {% block body_class_extra %}{% if pep_standalone and atendimento and menu_assistencial_raizes %} pep-has-sidebar{% endif %}{% endblock %}
 {% block content %}
 
+  <h1 class="visually-hidden">Prontuário{% if somente_consulta %} — consulta{% else %} — atendimento{% endif %}</h1>
+
   {% if pep_standalone and atendimento and menu_assistencial_raizes %}
     <aside class="sidebar pep-standalone-sidebar" data-pep-sidebar>
       <nav>
@@ -114,8 +116,9 @@
     </div>
   </section>
 
-  {% if pep_standalone and pep_telas_barra and item_selecionado %}
+  {% if pep_telas_barra and item_selecionado %}
     <nav class="card pep-screen-tabs" data-pep-screen-tabs>
+      {% if pep_grupo_tela_atual %}<strong class="pep-screen-tabs-group">{{ pep_grupo_tela_atual.nm_item }}</strong>{% endif %}
       <button class="icon-button pep-screen-tabs-arrow" type="button" data-pep-tabs-left aria-label="Rolar telas para a esquerda" hidden><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
       <div class="pep-screen-tabs-scroll" data-pep-tabs-scroll>
         {% for tela in pep_telas_barra %}
@@ -129,7 +132,6 @@
   <div class="pep-record-layout{% if pep_standalone %} pep-record-layout-standalone{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' %} has-selected-item{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' and historico_documentos_item %} has-history-panel{% endif %}">
     <main class="pep-record-main">
       {% if atendimento %}
-        {% if not item_selecionado %}
         <details class="card pep-vital-signs pep-clinical-section" open>
           <summary>Últimos sinais vitais</summary>
           {% if ultimos_sinais_vitais %}
@@ -163,7 +165,6 @@
             <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
           </div>
         </details>
-        {% endif %}
         {% if item_selecionado %}
           <section class="card pep-selected-screen">
             <header class="section-heading">
@@ -187,7 +188,9 @@
                   <button class="toolbar-button primary" type="button" data-pep-new-discharge title="Nova alta médica" aria-label="Nova alta médica"><span class="svg-icon" data-nav-icon="plus"></span></button>
                 {% endif %}
                 {% if ultimo_documento_item and item_selecionado.sn_imprimivel %}
-                  <button class="toolbar-button" type="button" data-pep-print-document="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1" title="Imprimir" aria-label="Imprimir"><span class="svg-icon" data-nav-icon="printer"></span></button>
+                  <button class="toolbar-button" type="button" data-pep-print-document="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1" title="Impressão" aria-label="Impressão"><span class="svg-icon" data-nav-icon="printer"></span></button>
+                {% elif item_selecionado.sn_imprimivel %}
+                  <button class="toolbar-button" type="button" title="Impressão disponível após criar o documento" aria-label="Impressão indisponível" disabled><span class="svg-icon" data-nav-icon="printer"></span></button>
                 {% endif %}
                 {% if pode_copiar_documento_item %}
                   <form method="post" action="{% url 'atendimento:copiar-documento-clinico' ultimo_documento_item.pk %}" class="document-inline-action">
@@ -310,7 +313,6 @@
             {% endif %}
           </section>
         {% endif %}
-        {% if not item_selecionado %}
         <details class="card pep-clinical-section" open>
           <summary>Resumo clínico do prontuário</summary>
           <section class="pep-clinical-grid pep-section-content">
@@ -320,7 +322,6 @@
             <div class="pep-summary-card pep-summary-documents"><h4><span class="svg-icon" data-nav-icon="file-text"></span> Documentos</h4><ul>{% for item in atendimento.documentos.all %}<li class="pep-summary-document pep-summary-document-{{ item.ds_status|lower }}"><strong>{{ item.ds_titulo }}</strong><span>{{ item.get_ds_status_display }} · {{ item.dh_emissao|date:"d/m/Y H:i" }} · {{ item.cd_usuario_responsavel|default:item.cd_usuario_emissor|default:"Sem responsável" }}</span></li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul></div>
           </section>
         </details>
-        {% endif %}
       {% endif %}
     </main>
 

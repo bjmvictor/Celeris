@@ -11,13 +11,19 @@
       <div class="form-grid navigation-module-form">
         <label class="field-md">{{ form.code.label }} {{ form.code }} {{ form.code.errors }}</label>
         <label class="field-xl">{{ form.title.label }} {{ form.title }} {{ form.title.errors }}</label>
-        <label class="field-md">{{ form.icon.label }} {{ form.icon }} {{ form.icon.errors }}</label>
+        <label class="field-md">{{ form.icon.label }}
+          <span class="system-icon-picker">
+            <span class="system-icon-preview" data-system-icon-preview aria-hidden="true"></span>
+            {{ form.icon }}
+          </span>
+          {{ form.icon.errors }}
+        </label>
         <label class="field-xs">{{ form.order.label }} {{ form.order }} {{ form.order.errors }}</label>
         <label class="field-sm">{{ form.active.label }} {{ form.active }} {{ form.active.errors }}</label>
       </div>
     </details>
 
-    <details class="card form-section">
+    <details class="card form-section" id="module-items">
       <summary>2. Itens</summary>
       <div class="navigation-builder">
         {% if module %}
@@ -26,11 +32,15 @@
               <span class="svg-icon" data-nav-icon="{{ module.icon|default:'grid' }}"></span>
               <strong>{{ module.title }}</strong>
               <small>{{ module.code }}</small>
-              <a class="icon-button" href="{% url 'core:system_screen_new' %}?module={{ module.pk }}" title="Adicionar item">+</a>
+              {% if module.is_system %}
+                <span class="status-badge">Estrutural</span>
+              {% else %}
+                <a class="icon-button" href="{% url 'core:system_screen_new' %}?module={{ module.pk }}" title="Adicionar item">+</a>
+              {% endif %}
             </header>
             <div class="navigation-tree" data-navigation-parent="">
               {% for root in root_items %}
-                {% include "core/partials/navigation_tree_item.html" with node=root level=0 only %}
+                {% include "core/partials/navigation_tree_item.html" with node=root level=0 protected=module.is_system only %}
               {% empty %}
                 <span class="empty-state">Nenhum item configurado para este módulo.</span>
               {% endfor %}

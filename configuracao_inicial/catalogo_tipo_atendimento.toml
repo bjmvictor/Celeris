@@ -1,0 +1,13 @@
+habilitado = false
+tabela = "tipo_atendimento"
+descricao = "Tipos de atendimento"
+
+[[registros]]
+codigo = "CONSULTA"
+descricao = "Consulta"
+ativo = true
+
+[[registros]]
+codigo = "URGENCIA_EMERGENCIA"
+descricao = "Urgência/Emergência"
+ativo = true

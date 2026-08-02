@@ -1,0 +1,8 @@
+habilitado = false
+tabela = "especialidade"
+descricao = "Especialidades"
+
+[[registros]]
+codigo = "CLINICA_MEDICA"
+descricao = "Clínica médica"
+ativo = true
