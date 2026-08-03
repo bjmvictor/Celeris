@@ -199,7 +199,7 @@
     themeButton.addEventListener("click", () => {
       const enabled = document.documentElement.classList.toggle("dark");
       localStorage.setItem("celeris-docs-theme", enabled ? "dark" : "light");
-      themeButton.textContent = enabled ? sunIcon: moonIcon;
+      themeButton.innerHTML = enabled ? sunIcon: moonIcon;
     });
   }
 
