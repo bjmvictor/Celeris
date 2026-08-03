@@ -14,24 +14,20 @@
       <a class="docs-brand" href="#inicio" aria-label="Início da Biblioteca Celeris">
         <img src="assets/logo.png" alt="Celeris">
         <span><strong>Biblioteca Celeris</strong><small>Manual operacional e técnico</small></span>
-      </a>
+      </a> 
       <div class="docs-topbar-actions">
-        <span class="docs-version" data-docs-version>Carregando…</span>
-        <button class="icon-button" type="button" data-theme-toggle title="Alternar tema" aria-label="Alternar tema">◐</button>
-        <a class="button button-primary" href="admin/" title="Entrar para editar a documentação">Editar documentação</a>
+        <span class="docs-version" data-docs-version>0.0.0</span>
+        <button class="icon-button" type="button" data-theme-toggle title="Alternar tema" aria-label="Alternar tema"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun-icon lucide-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+        <a class="button button-primary" href="admin/" title="Entrar para editar a documentação">Editar</a>
       </div>
     </header>
 
     <main class="docs-layout">
-      <article class="docs-content" data-topic-content aria-live="polite">
-        <div class="docs-loading">Carregando biblioteca…</div>
-      </article>
-
       <aside class="docs-sidebar" aria-label="Tópicos da documentação">
         <div class="docs-search-wrap">
           <label for="docs-search">Buscar na biblioteca</label>
           <div class="docs-search-field">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search-icon lucide-search"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
             <input id="docs-search" type="search" placeholder="Ex.: recepção, usuário, erro…" autocomplete="off" data-docs-search>
             <kbd>/</kbd>
           </div>
@@ -40,9 +36,12 @@
         <nav class="docs-navigation" data-docs-navigation></nav>
         <footer class="docs-sidebar-footer">
           <span>Documentação versionada no Git</span>
-          <a href="PUBLICACAO.md">Como publicar e editar</a>
+          <!--<a href="PUBLICACAO.md">Como publicar e editar</a>-->
         </footer>
       </aside>
+      <article class="docs-content" data-topic-content aria-live="polite">
+        <div class="docs-loading">Carregando biblioteca…</div>
+      </article>
     </main>
 
     <noscript>Ative o JavaScript para navegar e pesquisar a documentação.</noscript>
