@@ -52,7 +52,7 @@ from apps.core.models import TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 from apps.core.permissions import role_required
 from apps.core.table_utils import paginate_table
 
-from .forms import AgendamentoForm, AtendimentoForm, CadastroAtendimentoForm, EscalaForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm
+from .forms import AgendamentoForm, AlteracaoAtendimentoForm, AtendimentoForm, CadastroAtendimentoForm, EscalaForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm
 from .models import (
     AcessoClinicoAuditado,
     AnexoClinico,
@@ -70,6 +70,7 @@ from .models import (
     EscalaClinica,
     EventoDocumentoClinico,
     EvolucaoAtendimento,
+    HistoricoAlteracaoAtendimento,
     HistoricoAlteracaoPaciente,
     HorarioAgenda,
     IconeChamada,
@@ -1997,13 +1998,31 @@ def recepcao_revisar_paciente(request, cd_paciente):
         prosseguir_params = {"prosseguir": "1"}
         if request.GET.get("senha", "").isdigit():
             prosseguir_params["senha"] = request.GET["senha"]
+        prosseguir_url = f"{request.path}?{urlencode(prosseguir_params)}"
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            data_abertura = atendimento_aberto.dh_inicio
+            if data_abertura and timezone.is_aware(data_abertura):
+                data_abertura = timezone.localtime(data_abertura)
+            data_abertura_texto = data_abertura.strftime("%d/%m/%Y %H:%M") if data_abertura else "-"
+            return JsonResponse(
+                {
+                    "confirmacao_necessaria": True,
+                    "titulo": "Paciente com atendimento em aberto",
+                    "mensagem": (
+                        f"{paciente.nm_social or paciente.nm_paciente} já possui o atendimento "
+                        f"{atendimento_aberto.pk}, aberto em {data_abertura_texto}. "
+                        "Deseja prosseguir com uma nova recepção?"
+                    ),
+                    "prosseguir_url": prosseguir_url,
+                }
+            )
         return render(
             request,
             "atendimento/confirmar_atendimento_aberto.html",
             {
                 "paciente": paciente,
                 "atendimento": atendimento_aberto,
-                "prosseguir_url": f"{request.path}?{urlencode(prosseguir_params)}",
+                "prosseguir_url": prosseguir_url,
                 "cancelar_url": reverse("atendimento:recepcao"),
             },
         )
@@ -2012,7 +2031,10 @@ def recepcao_revisar_paciente(request, cd_paciente):
     if request.GET.get("senha", "").isdigit():
         params_data["senha"] = request.GET["senha"]
     params = urlencode(params_data)
-    return redirect(f"{target}?{params}")
+    redirect_url = f"{target}?{params}"
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"confirmacao_necessaria": False, "redirect_url": redirect_url})
+    return redirect(redirect_url)
 
 
 @login_required
@@ -6421,20 +6443,15 @@ def _fila_atendimento(request):
     return render(request, "atendimento/fila_atendimento.html", {"fila": fila})
 
 
-@login_required
-@role_required("Recepcionista", "Enfermeiro", "Médico")
-def atendimentos(request):
-    empresa = _empresa_logada(request)
-    request.current_tab_title = "Atendimento > Consulta de atendimentos"
-    request.current_tab_root_title = "Consulta de atendimentos"
-    request.current_module_title = "Atendimento"
-    request.current_can_query = True
-    request.current_can_insert = False
-    request.current_can_save = False
-    request.current_can_remove = False
-
+def _filtrar_atendimentos(request, empresa):
     registros = Atendimento.objects.select_related(
-        "cd_paciente", "cd_prestador", "cd_convenio", "cd_setor_atual"
+        "cd_paciente",
+        "cd_prestador",
+        "cd_convenio",
+        "cd_setor_atual",
+        "cd_usuario_criacao",
+        "cd_usuario_atualizacao",
+        "responsavel",
     ).filter(cd_empresa=empresa)
     nr_atendimento = request.GET.get("nr_atendimento", "").strip()
     nr_prontuario = request.GET.get("nr_prontuario", "").strip()
@@ -6462,17 +6479,272 @@ def atendimentos(request):
         registros = registros.filter(dh_inicio__date__gte=dt_inicio)
     if dt_fim:
         registros = registros.filter(dh_inicio__date__lte=dt_fim)
+    return registros.order_by("-dh_inicio", "-cd_atendimento")
 
-    registros = paginate_table(
-        request,
-        registros,
-        {"cd_atendimento", "cd_paciente__nm_paciente", "dh_inicio", "ds_status"},
-        "-dh_inicio",
+
+def _url_atendimento_com_filtros(request, route_name, atendimento):
+    query = request.GET.copy()
+    query["atendimento"] = str(atendimento.pk)
+    query["consultar"] = "1"
+    return f"{reverse(route_name, args=[atendimento.pk]) if route_name == 'atendimento:editar-atendimento' else reverse(route_name)}?{query.urlencode()}"
+
+
+def _filtros_consulta_atendimento_informados(request):
+    return any(
+        request.GET.get(nome, "").strip()
+        for nome in ("nr_atendimento", "nr_prontuario", "nm_paciente", "ds_status", "dt_inicio", "dt_fim")
     )
+
+
+def _valor_historico(value):
+    if value is None:
+        return ""
+    if hasattr(value, "pk"):
+        return str(value.pk)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+@login_required
+@role_required("Recepcionista", "Enfermeiro", "Médico")
+def alteracao_atendimento(request, cd_atendimento=None):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Atendimento > Alteração de atendimento"
+    request.current_tab_root_title = "Alteração de atendimento"
+    request.current_module_title = "Atendimento"
+    request.current_can_query = True
+    request.current_can_insert = False
+    request.current_can_remove = False
+    request.current_can_save = bool(cd_atendimento)
+    request.current_start_query = not bool(cd_atendimento)
+
+    if not cd_atendimento and request.GET.get("consultar") == "1":
+        codigo_consulta = request.GET.get("cd_atendimento", "").strip()
+        if not codigo_consulta.isdigit():
+            messages.warning(request, "Informe o código do atendimento para realizar a consulta.")
+        else:
+            atendimento_consulta = Atendimento.objects.filter(
+                cd_empresa=empresa,
+                pk=int(codigo_consulta),
+            ).first()
+            if atendimento_consulta:
+                return redirect("atendimento:editar-atendimento", cd_atendimento=atendimento_consulta.pk)
+            messages.warning(request, "Atendimento não encontrado para o código informado.")
+
+    atendimento = None
+    if cd_atendimento:
+        atendimento = get_object_or_404(
+            Atendimento.objects.select_related("cd_paciente", "cd_agendamento", "responsavel"),
+            cd_empresa=empresa,
+            pk=cd_atendimento,
+        )
+
+    form = AlteracaoAtendimentoForm(
+        request.POST or None,
+        instance=atendimento,
+        empresa=empresa,
+        paciente=atendimento.cd_paciente if atendimento else None,
+        agendamento=atendimento.cd_agendamento if atendimento else None,
+    )
+    responsavel = getattr(atendimento, "responsavel", None) if atendimento else None
+    responsavel_form = ResponsavelAtendimentoForm(
+        request.POST or None,
+        instance=responsavel,
+        prefix="responsavel",
+        empresa=empresa,
+    )
+    for field in responsavel_form.fields.values():
+        field.widget.attrs["data-consultable"] = "false"
+
+    if request.method == "POST" and atendimento:
+        with transaction.atomic():
+            atual = Atendimento.objects.select_for_update().select_related("cd_paciente", "cd_agendamento").get(
+                cd_empresa=empresa,
+                pk=atendimento.pk,
+            )
+            resultado_trava = usuario_tem_trava_ou_livre(empresa, request.user, "atendimento", atual.pk)
+            if not resultado_trava.permitido:
+                messages.warning(request, resultado_trava.mensagem)
+                return redirect(_url_atendimento_com_filtros(request, "atendimento:editar-atendimento", atual))
+
+            form = AlteracaoAtendimentoForm(
+                request.POST,
+                instance=atual,
+                empresa=empresa,
+                paciente=atual.cd_paciente,
+                agendamento=atual.cd_agendamento,
+            )
+            responsavel = ResponsavelAtendimento.objects.filter(cd_atendimento=atual).first()
+            responsavel_form = ResponsavelAtendimentoForm(
+                request.POST,
+                instance=responsavel,
+                prefix="responsavel",
+                empresa=empresa,
+            )
+            versao_enviada = request.POST.get("versao_atendimento", "")
+            if versao_enviada and versao_enviada != atual.dh_atualizacao.isoformat():
+                form.add_error(None, "O atendimento foi alterado por outro usuário. Recarregue os dados antes de continuar.")
+                messages.warning(request, "O atendimento foi alterado por outro usuário. Recarregue os dados antes de continuar.")
+            if form.is_valid() and responsavel_form.is_valid():
+                campos_atendimento = [
+                    field for field in form.changed_data
+                    if field not in {"motivo_alteracao", "observacao_alteracao", "versao_atendimento"}
+                    and field not in form.CAMPOS_IMUTAVEIS
+                ]
+                campos_responsavel = list(responsavel_form.changed_data)
+                if not campos_atendimento and not campos_responsavel:
+                    messages.info(request, "Nenhuma alteração real foi identificada.")
+                elif not form.cleaned_data.get("motivo_alteracao") or not form.cleaned_data.get("observacao_alteracao", "").strip():
+                    if not form.cleaned_data.get("motivo_alteracao"):
+                        form.add_error("motivo_alteracao", "Informe o motivo da alteração.")
+                    if not form.cleaned_data.get("observacao_alteracao", "").strip():
+                        form.add_error("observacao_alteracao", "Informe a observação da alteração.")
+                    messages.warning(request, "Informe o motivo e a observação para registrar a alteração do atendimento.")
+                else:
+                    antes = {
+                        **{field: _valor_historico(getattr(atual, field)) for field in campos_atendimento},
+                        **{
+                            f"responsavel.{field}": _valor_historico(getattr(responsavel, field, None))
+                            for field in campos_responsavel
+                        },
+                    }
+                    salvo = form.save(commit=False)
+                    _apply_audit(salvo, request.user)
+                    salvo.save()
+                    if campos_responsavel:
+                        responsavel_salvo = responsavel_form.save(commit=False)
+                        responsavel_salvo.cd_empresa = empresa
+                        responsavel_salvo.cd_atendimento = salvo
+                        _apply_audit(responsavel_salvo, request.user)
+                        responsavel_salvo.save()
+                    else:
+                        responsavel_salvo = responsavel
+                    depois = {
+                        **{field: _valor_historico(getattr(salvo, field)) for field in campos_atendimento},
+                        **{
+                            f"responsavel.{field}": _valor_historico(getattr(responsavel_salvo, field, None))
+                            for field in campos_responsavel
+                        },
+                    }
+                    HistoricoAlteracaoAtendimento.objects.create(
+                        cd_empresa=empresa,
+                        cd_atendimento=salvo,
+                        cd_usuario=request.user,
+                        cd_motivo_alteracao=form.cleaned_data["motivo_alteracao"],
+                        ds_observacao=form.cleaned_data["observacao_alteracao"].strip(),
+                        ds_antes=antes,
+                        ds_depois=depois,
+                        ds_alteracoes={
+                            field: {"antes": antes.get(field, ""), "depois": depois.get(field, "")}
+                            for field in antes
+                        },
+                    )
+                    liberar_trava_edicao(
+                        empresa,
+                        request.user,
+                        "atendimento",
+                        salvo.pk,
+                        motivo="Liberada após alteração auditada do atendimento.",
+                    )
+                    messages.success(request, "Atendimento alterado e histórico de auditoria registrado.")
+                    return redirect(_url_atendimento_com_filtros(request, "atendimento:editar-atendimento", salvo))
+
+    return render(
+        request,
+        "atendimento/alteracao_atendimento.html",
+        {
+            "form": form,
+            "responsavel_form": responsavel_form,
+            "atendimento": atendimento,
+            "status_atendimento": Atendimento.STATUS,
+        },
+    )
+
+
+@login_required
+@role_required("Recepcionista", "Enfermeiro", "Médico")
+def atendimentos(request):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = "Atendimento > Consulta de atendimentos"
+    request.current_tab_root_title = "Consulta de atendimentos"
+    request.current_module_title = "Atendimento"
+    request.current_can_query = True
+    request.current_can_insert = False
+    request.current_can_save = False
+    request.current_can_remove = False
+    request.current_start_query = request.GET.get("consultar") != "1"
+
+    consultar = request.GET.get("consultar") == "1"
+    filtros_informados = _filtros_consulta_atendimento_informados(request)
+    if consultar and not filtros_informados:
+        messages.warning(request, "Informe pelo menos um filtro para realizar a consulta.")
+        request.current_start_query = True
+    resultados = list(_filtrar_atendimentos(request, empresa)) if consultar and filtros_informados else []
+
+    atendimentos_por_paciente = {}
+    ordem_pacientes = []
+    for item in resultados:
+        if item.cd_paciente_id not in atendimentos_por_paciente:
+            atendimentos_por_paciente[item.cd_paciente_id] = []
+            ordem_pacientes.append(item.cd_paciente_id)
+        atendimentos_por_paciente[item.cd_paciente_id].append(item)
+
+    paciente_id = request.GET.get("paciente", "")
+    paciente_id = int(paciente_id) if paciente_id.isdigit() and int(paciente_id) in atendimentos_por_paciente else None
+    if paciente_id is None and ordem_pacientes:
+        paciente_id = ordem_pacientes[0]
+    registros = atendimentos_por_paciente.get(paciente_id, [])
+    selecionado_id = request.GET.get("atendimento", "")
+    selecionado = next((item for item in registros if str(item.pk) == selecionado_id), None)
+    if not selecionado and registros:
+        selecionado = registros[0]
+    for item in registros:
+        query = request.GET.copy()
+        query["consultar"] = "1"
+        query["paciente"] = str(item.cd_paciente_id)
+        query["atendimento"] = str(item.pk)
+        item.url_consulta = f"{reverse('atendimento:atendimentos')}?{query.urlencode()}"
+
+    def url_paciente(indice):
+        if indice < 0 or indice >= len(ordem_pacientes):
+            return ""
+        proximo_paciente = ordem_pacientes[indice]
+        query = request.GET.copy()
+        query["consultar"] = "1"
+        query["paciente"] = str(proximo_paciente)
+        query["atendimento"] = str(atendimentos_por_paciente[proximo_paciente][0].pk)
+        return f"{reverse('atendimento:atendimentos')}?{query.urlencode()}"
+
+    if paciente_id in ordem_pacientes:
+        indice_paciente = ordem_pacientes.index(paciente_id)
+        request.current_record_status = f"Paciente {indice_paciente + 1} de {len(ordem_pacientes)}"
+        request.current_first_url = url_paciente(0) if indice_paciente > 0 else ""
+        request.current_previous_url = url_paciente(indice_paciente - 1)
+        request.current_next_url = url_paciente(indice_paciente + 1)
+        request.current_last_url = url_paciente(len(ordem_pacientes) - 1) if indice_paciente < len(ordem_pacientes) - 1 else ""
+
+    usuario_alta_medica = None
+    usuario_alta_hospitalar = None
+    if selecionado:
+        fluxos = list(selecionado.fluxos.select_related("cd_usuario").order_by("-dh_evento"))
+        fluxo_alta_medica = next((item for item in fluxos if item.ds_status_novo == "ALTA_MEDICA"), None)
+        fluxo_alta_hospitalar = next(
+            (item for item in fluxos if item.ds_status_novo in {"ALTA_HOSPITALAR", "FINALIZADO"}),
+            None,
+        )
+        usuario_alta_medica = fluxo_alta_medica.cd_usuario if fluxo_alta_medica else None
+        usuario_alta_hospitalar = fluxo_alta_hospitalar.cd_usuario if fluxo_alta_hospitalar else None
     return render(
         request,
         "atendimento/atendimentos.html",
-        {"registros": registros, "status_atendimento": Atendimento.STATUS},
+        {
+            "registros": registros,
+            "atendimento_selecionado": selecionado,
+            "usuario_alta_medica": usuario_alta_medica,
+            "usuario_alta_hospitalar": usuario_alta_hospitalar,
+            "status_atendimento": Atendimento.STATUS,
+        },
     )
 
 
@@ -7945,10 +8217,10 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
     request.current_tab_title = (
         "Atendimento > Agendamento > Agendar > Cadastro de paciente"
         if fluxo_agendamento
-        else "Pacientes > Cadastro de paciente"
+        else "Atendimento > Pacientes > Cadastro de pacientes"
     )
-    request.current_module_title = "Atendimento" if fluxo_agendamento else "Pacientes"
-    request.current_tab_root_title = "Cadastro de paciente"
+    request.current_module_title = "Atendimento"
+    request.current_tab_root_title = "Cadastro de paciente" if fluxo_agendamento else "Cadastro de pacientes"
     empresa = _empresa_logada(request)
     recepcao_direta = request.GET.get("recepcao_direta") == "1"
     senha_recepcao_id = request.GET.get("senha", "")

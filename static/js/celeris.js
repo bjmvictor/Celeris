@@ -149,9 +149,21 @@
     }
     if (cancelButton) cancelButton.hidden = !enabled;
     document.querySelectorAll("[data-consultable], [data-primary-key]").forEach((field) => {
-      const canQuery = field.dataset.consultable === "true" || field.dataset.primaryKey === "true";
+      const codeOnlyForm = field.closest("[data-query-code-only]");
+      const canQuery = codeOnlyForm
+        ? field.name === codeOnlyForm.dataset.queryCodeOnly
+        : field.dataset.consultable === "true" || field.dataset.primaryKey === "true";
       const canEdit = field.dataset.editable !== "false" && field.dataset.primaryKey !== "true";
       if (enabled && canQuery) {
+        field.removeAttribute("readonly");
+        field.removeAttribute("disabled");
+      } else if (enabled && codeOnlyForm) {
+        if (field.matches("select, input[type='checkbox'], input[type='radio']")) {
+          field.setAttribute("disabled", "disabled");
+        } else {
+          field.setAttribute("readonly", "readonly");
+        }
+      } else if (!enabled && codeOnlyForm && canEdit) {
         field.removeAttribute("readonly");
         field.removeAttribute("disabled");
       } else if (!canEdit) {
@@ -790,7 +802,7 @@
 
     return showBlockingNotification({
       title: "Motivo da alteração",
-      message: "Informe o motivo e a observação para registrar a alteração do paciente.",
+      message: "Informe o motivo e a observação para registrar esta alteração.",
       confirmText: "Confirmar",
       cancelText: "Cancelar",
       extraElement: extra,
@@ -1015,6 +1027,44 @@
   }
 
   document.addEventListener("click", async function (event) {
+    const receptionPatientSelect = event.target.closest("[data-reception-patient-select]");
+    if (receptionPatientSelect && !event.defaultPrevented) {
+      event.preventDefault();
+      if (receptionPatientSelect.dataset.loading === "true") return;
+      receptionPatientSelect.dataset.loading = "true";
+      receptionPatientSelect.setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(receptionPatientSelect.href, {
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        if (payload.confirmacao_necessaria) {
+          const confirmed = await showBlockingNotification({
+            title: payload.titulo || "Paciente com atendimento em aberto",
+            message: payload.mensagem || "Este paciente já possui um atendimento em aberto. Deseja prosseguir?",
+            confirmText: "Confirmar",
+            cancelText: "Cancelar",
+            initialFocus: "cancel",
+            type: "warning",
+          });
+          if (confirmed && payload.prosseguir_url) window.location.href = payload.prosseguir_url;
+          return;
+        }
+        if (payload.redirect_url) window.location.href = payload.redirect_url;
+      } catch (error) {
+        window.location.href = receptionPatientSelect.href;
+      } finally {
+        receptionPatientSelect.dataset.loading = "false";
+        receptionPatientSelect.removeAttribute("aria-busy");
+      }
+      return;
+    }
+
     const sidebarDestination = event.target.closest(".sidebar a[href], .sidebar-flyout a[href]");
     if (sidebarDestination && !event.defaultPrevented) {
       shell?.classList.add("sidebar-collapsed");

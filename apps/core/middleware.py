@@ -45,10 +45,11 @@ class SecurityHeadersMiddleware:
             "frame-ancestors 'self'",
             "frame-src 'self' blob:",
             "img-src 'self' data: blob:",
-            "font-src 'self' data:",
+            "font-src 'self' data: blob:",
             "connect-src 'self'",
             "style-src 'self' 'unsafe-inline'",
             "script-src 'self' 'unsafe-inline'",
+            "worker-src 'self' blob:",
         )
     )
 

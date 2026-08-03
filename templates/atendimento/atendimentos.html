@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <form class="card form-grid" method="get" data-query-only-form data-table="atendimento" autocomplete="off">
+  <form class="card form-grid attendance-query-form" method="get" action="{% url 'atendimento:atendimentos' %}" data-query-only-form data-table="atendimento" autocomplete="off">
     <input type="hidden" name="consultar" value="1">
     <label class="field-sm">Atendimento
       <input type="number" name="nr_atendimento" value="{{ request.GET.nr_atendimento }}" min="1" data-field-name="cd_atendimento">
@@ -11,7 +11,7 @@
     <label class="field-xl">Nome do paciente
       <input name="nm_paciente" value="{{ request.GET.nm_paciente }}" data-field-table="paciente" data-field-name="nm_paciente">
     </label>
-    <label class="field-md">Status
+    <label class="field-sm">Status
       <select name="ds_status" data-field-name="ds_status">
         <option value="">Todos</option>
         {% for value, label in status_atendimento %}
@@ -19,29 +19,98 @@
         {% endfor %}
       </select>
     </label>
-    <label class="field-md">Data inicial
+    <label class="field-xs">Data inicial
       <input type="date" name="dt_inicio" value="{{ request.GET.dt_inicio }}" data-field-name="dh_inicio">
     </label>
-    <label class="field-md">Data final
+    <label class="field-xs">Data final
       <input type="date" name="dt_fim" value="{{ request.GET.dt_fim }}" data-field-name="dh_inicio">
     </label>
   </form>
 
-  <section class="card table-card">
-    <table><thead><tr><th>Atendimento</th><th>Prontuário</th><th>Paciente</th><th>Abertura</th><th>Prestador</th><th>Convênio</th><th>Setor</th><th>Origem</th><th>Status</th></tr></thead><tbody>
-      {% for item in registros %}
-        <tr>
-          <td>{{ item.cd_atendimento }}</td>
-          <td>{{ item.cd_paciente_id }}</td>
-          <td>{{ item.cd_paciente.nm_social|default:item.cd_paciente.nm_paciente }}</td>
-          <td>{{ item.dh_inicio|date:"d/m/Y H:i" }}</td>
-          <td>{{ item.cd_prestador|default:"-" }}</td>
-          <td>{{ item.cd_convenio|default:"-" }}</td>
-          <td>{{ item.cd_setor_atual|default:item.ds_unidade_setor|default:"-" }}</td>
-          <td>{{ item.get_ds_origem_display }}</td>
-          <td><span class="status-badge">{{ item.get_ds_status_display }}</span></td>
-        </tr>
-      {% empty %}<tr><td colspan="9">Use os filtros e execute a consulta.</td></tr>{% endfor %}
-    </tbody></table>
+  <section class="attendance-consultation-layout">
+    <div class="card attendance-consultation-detail">
+      {% if atendimento_selecionado %}
+        <div class="provider-form attendance-readonly-sections" data-attendance-readonly-form>
+          <details class="form-section" open>
+            <summary>1. Dados do atendimento</summary>
+            <div class="form-grid readonly-form-grid">
+              <label class="field-xs">Código <input value="{{ atendimento_selecionado.pk }}" readonly></label>
+              <label class="field-sm">Data e hora <input value="{{ atendimento_selecionado.dh_inicio|date:'d/m/Y H:i' }}" readonly></label>
+              <label class="field-md">Status <input value="{{ atendimento_selecionado.get_ds_status_display }}" readonly></label>
+              <label class="field-lg">Prestador <input value="{{ atendimento_selecionado.cd_prestador|default:'-' }}" readonly></label>
+              <label class="field-md">Origem <input value="{{ atendimento_selecionado.get_ds_origem_display }}" readonly></label>
+              <label class="field-md">Recepção de origem <input value="{{ atendimento_selecionado.ds_recepcao_origem|default:'-' }}" readonly></label>
+              <label class="field-lg">Convênio <input value="{{ atendimento_selecionado.cd_convenio|default:'-' }}" readonly></label>
+              <label class="field-md">Plano <input value="{{ atendimento_selecionado.ds_plano|default:'-' }}" readonly></label>
+              <label class="field-md">Subplano <input value="{{ atendimento_selecionado.ds_subplano|default:'-' }}" readonly></label>
+              <label class="field-md">Tipo de atendimento <input value="{{ atendimento_selecionado.ds_tipo_atendimento|default:'-' }}" readonly></label>
+              <label class="field-lg">Especialidade <input value="{{ atendimento_selecionado.ds_especialidade|default:'-' }}" readonly></label>
+              <label class="field-md">Destino <input value="{{ atendimento_selecionado.ds_destino|default:'-' }}" readonly></label>
+              <label class="field-md">Setor atual <input value="{{ atendimento_selecionado.cd_setor_atual|default:atendimento_selecionado.ds_unidade_setor|default:'-' }}" readonly></label>
+              <label class="field-md">Meio de transporte <input value="{{ atendimento_selecionado.ds_meio_transporte|default:'-' }}" readonly></label>
+              <label class="field-xl">Observação <input value="{{ atendimento_selecionado.ds_observacao_recepcao|default:'-' }}" readonly></label>
+              <label class="field-md">Data da alta médica <input value="{{ atendimento_selecionado.dh_alta_medica|date:'d/m/Y H:i'|default:'-' }}" readonly></label>
+              <label class="field-lg">Usuário da alta médica <input value="{{ usuario_alta_medica|default:'-' }}" readonly></label>
+              <label class="field-md">Data da alta hospitalar <input value="{{ atendimento_selecionado.dh_alta_hospitalar|date:'d/m/Y H:i'|default:'-' }}" readonly></label>
+              <label class="field-lg">Usuário da alta hospitalar <input value="{{ usuario_alta_hospitalar|default:'-' }}" readonly></label>
+              <label class="field-md">Gerado em <input value="{{ atendimento_selecionado.dh_criacao|date:'d/m/Y H:i' }}" readonly></label>
+              <label class="field-lg">Usuário que gerou <input value="{{ atendimento_selecionado.cd_usuario_criacao|default:'-' }}" readonly></label>
+              <label class="field-md">Última alteração <input value="{{ atendimento_selecionado.dh_atualizacao|date:'d/m/Y H:i' }}" readonly></label>
+              <label class="field-lg">Usuário da última alteração <input value="{{ atendimento_selecionado.cd_usuario_atualizacao|default:'-' }}" readonly></label>
+              <label class="field-xl">Motivo da alta <input value="{{ atendimento_selecionado.ds_motivo_alta|default:'-' }}" readonly></label>
+            </div>
+          </details>
+
+          <details class="form-section">
+            <summary>2. Dados do paciente</summary>
+            <div class="form-grid readonly-form-grid">
+              <label class="field-xs">Prontuário <input value="{{ atendimento_selecionado.cd_paciente_id }}" readonly></label>
+              <label class="field-xl">Nome <input value="{{ atendimento_selecionado.cd_paciente.nm_paciente }}" readonly></label>
+              <label class="field-lg">Nome social <input value="{{ atendimento_selecionado.cd_paciente.nm_social|default:'-' }}" readonly></label>
+              <label class="field-sm">Nascimento <input value="{{ atendimento_selecionado.cd_paciente.dt_nascimento|date:'d/m/Y'|default:'-' }}" readonly></label>
+              <label class="field-sm">Sexo <input value="{{ atendimento_selecionado.cd_paciente.tp_sexo|default:'-' }}" readonly></label>
+              <label class="field-md">CPF <input value="{{ atendimento_selecionado.cd_paciente.nr_cpf|default:'-' }}" readonly></label>
+              <label class="field-md">CNS <input value="{{ atendimento_selecionado.cd_paciente.nr_cartao_sus|default:'-' }}" readonly></label>
+              <label class="field-lg">Nome da mãe <input value="{{ atendimento_selecionado.cd_paciente.nm_mae|default:'-' }}" readonly></label>
+              <label class="field-md">Telefone <input value="{{ atendimento_selecionado.cd_paciente.nr_celular|default:atendimento_selecionado.cd_paciente.nr_telefone|default:'-' }}" readonly></label>
+              <label class="field-xl">Endereço <input value="{{ atendimento_selecionado.cd_paciente.ds_endereco|default:'-' }} {{ atendimento_selecionado.cd_paciente.nr_endereco }}" readonly></label>
+            </div>
+          </details>
+
+          <details class="form-section">
+            <summary>3. Dados do responsável</summary>
+            <div class="form-grid readonly-form-grid">
+              <label class="field-xl">Nome <input value="{{ atendimento_selecionado.responsavel.nm_responsavel|default:'-' }}" readonly></label>
+              <label class="field-md">Parentesco <input value="{{ atendimento_selecionado.responsavel.ds_parentesco|default:'-' }}" readonly></label>
+              <label class="field-md">CPF <input value="{{ atendimento_selecionado.responsavel.nr_cpf|default:'-' }}" readonly></label>
+              <label class="field-md">Celular <input value="{{ atendimento_selecionado.responsavel.nr_celular|default:'-' }}" readonly></label>
+              <label class="field-lg">Profissão <input value="{{ atendimento_selecionado.responsavel.ds_profissao|default:'-' }}" readonly></label>
+              <label class="field-xl">Endereço <input value="{{ atendimento_selecionado.responsavel.ds_endereco|default:'-' }} {{ atendimento_selecionado.responsavel.nr_endereco }}" readonly></label>
+            </div>
+          </details>
+        </div>
+      {% else %}
+        <div class="empty-state">Abra a consulta, informe ao menos um filtro e execute para visualizar os atendimentos.</div>
+      {% endif %}
+    </div>
+
+    <aside class="card attendance-timeline-panel" aria-label="Atendimentos do paciente selecionado">
+      <header class="section-heading">
+        <div>
+          <h2>Atendimentos</h2>
+          <span class="status-badge">{{ registros|length }}</span>
+        </div>
+      </header>
+      <div class="attendance-timeline-list">
+        {% for item in registros %}
+          <a class="attendance-timeline-item{% if atendimento_selecionado.pk == item.pk %} active{% endif %}" href="{{ item.url_consulta }}">
+            <strong>{{ item.ds_tipo_atendimento|default:"Atendimento" }}</strong>
+            <span>{{ item.dh_inicio|date:"d/m/Y H:i" }}</span>
+          </a>
+        {% empty %}
+          <span class="empty-state">Nenhum atendimento selecionado.</span>
+        {% endfor %}
+      </div>
+    </aside>
   </section>
 {% endblock %}

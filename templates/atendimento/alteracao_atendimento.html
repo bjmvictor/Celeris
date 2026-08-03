@@ -1,0 +1,76 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <form
+    class="provider-form attendance-registration-form attendance-change-form"
+    data-primary-form
+    data-table="atendimento"
+    data-query-url="{% url 'atendimento:alteracao-atendimento' %}"
+    data-query-parameter="consultar"
+    data-query-code-only="cd_atendimento"
+    data-requires-change-reason="true"
+    method="post"
+    autocomplete="off"
+  >
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ responsavel_form.non_field_errors }}
+    {{ form.versao_atendimento }}
+    <details class="card form-section" open>
+      <summary>1. Atendimento</summary>
+      <div class="form-grid">
+        <label class="pk-label field-xs">Código {{ form.cd_atendimento }}</label>
+        <label class="field-sm">Prontuário {{ form.cd_paciente_exibicao }}</label>
+        <label class="field-xl">Paciente {{ form.nm_paciente_exibicao }}</label>
+        <label class="field-sm">Data e hora {{ form.dh_atendimento_exibicao }}</label>
+        <label class="field-xl">Médico/Prestador {{ form.cd_prestador }}</label>
+        <label class="field-md">Origem {{ form.ds_origem }}</label>
+        <label class="field-md">Recepção de origem {{ form.ds_recepcao_origem }}</label>
+        <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
+        <label class="field-md">Plano {{ form.ds_plano }}</label>
+        <label class="field-md">Subplano {{ form.ds_subplano }}</label>
+        <label class="field-md">Tipo de atendimento {{ form.ds_tipo_atendimento }}</label>
+        <label class="field-md">Local de procedência {{ form.ds_local_procedencia }}</label>
+        <label class="field-md">Destino {{ form.ds_destino }}</label>
+        <label class="field-lg">Especialidade {{ form.ds_especialidade }}</label>
+        <label class="field-sm">CID {{ form.ds_cid }}</label>
+        <label class="field-md">Meio de transporte {{ form.ds_meio_transporte }}</label>
+        <label class="field-lg">Procedimento {{ form.ds_procedimento_principal }}</label>
+        <label class="field-sm">CBO do prestador {{ form.ds_cbo_prestador }}</label>
+        <label class="field-sm">Senha de chamada {{ form.nr_senha_chamada }}</label>
+        <label class="field-xl">Observação do atendimento {{ form.ds_observacao_recepcao }}</label>
+        <label class="provider-checkbox field-sm">{{ form.sn_visita }} <span>Visita</span></label>
+        <label class="provider-checkbox field-sm">{{ form.sn_retorno }} <span>Retorno</span></label>
+      </div>
+    </details>
+    <details class="card form-section">
+      <summary>2. Responsável</summary>
+      <div class="form-grid">
+        <label class="field-md">Parentesco {{ responsavel_form.ds_parentesco }}</label>
+        <label class="field-xl">Nome do responsável {{ responsavel_form.nm_responsavel }}</label>
+        <label class="field-md">Estado civil {{ responsavel_form.tp_estado_civil }}</label>
+        <label class="field-md">Identidade {{ responsavel_form.nr_identidade }}</label>
+        <label class="field-md">Órgão emissor {{ responsavel_form.ds_orgao_emissor }}</label>
+        <label class="field-sm">Data de expedição {{ responsavel_form.dt_expedicao }}</label>
+        <label class="field-md">CPF {{ responsavel_form.nr_cpf }}</label>
+        <label class="field-lg">Profissão {{ responsavel_form.ds_profissao }}</label>
+        <label class="field-md">Nacionalidade {{ responsavel_form.ds_nacionalidade }}</label>
+        <label class="field-md">Celular {{ responsavel_form.nr_celular }}</label>
+        <label class="provider-checkbox same-address-field field-lg">{{ responsavel_form.sn_mesmo_endereco_paciente }} <span>Utilizar o mesmo endereço do paciente</span></label>
+        <label class="field-md">CEP {{ responsavel_form.cd_cep }}</label>
+        <label class="field-sm">UF {{ responsavel_form.sg_estado }}</label>
+        <label class="field-md">Cidade {{ responsavel_form.ds_cidade }}</label>
+        <label class="field-md">Tipo de logradouro {{ responsavel_form.tp_logradouro }}</label>
+        <label class="field-xl">Logradouro {{ responsavel_form.ds_endereco }}</label>
+        <label class="field-sm">Número {{ responsavel_form.nr_endereco }}</label>
+        <label class="field-md">Complemento {{ responsavel_form.ds_complemento }}</label>
+        <label class="field-md">Bairro {{ responsavel_form.ds_bairro }}</label>
+      </div>
+    </details>
+    <div hidden data-change-reason-fields>
+      {{ form.motivo_alteracao }}
+      {{ form.observacao_alteracao }}
+      {{ form.motivo_alteracao.errors }}
+      {{ form.observacao_alteracao.errors }}
+    </div>
+  </form>
+{% endblock %}

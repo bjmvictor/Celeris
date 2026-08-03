@@ -12,6 +12,8 @@ A plataforma acompanha a jornada do paciente desde o agendamento e recepção at
 
 Também contempla processos administrativos como gestão de usuários, unidades, setores, prestadores, convênios, materiais, chamados internos e auditoria.
 
+Documentação completa em: [Biblioteca Celeris](https://bjmvictor.github.io/Celeris/)
+
 ## Público-alvo
 
 O Celeris é direcionado a:
@@ -108,6 +110,8 @@ Entre as principais implementações planejadas estão:
 * Expansão da cobertura de testes automatizados
 
 O planejamento detalhado está disponível em [docs/roadmap.md](docs/roadmap.md).
+
+> **Escopo temporariamente pausado:** o desenvolvimento do módulo de **Pesquisas** está pausado. A capacidade existente permanece no código, mas novas evoluções foram postergadas para concentrar o trabalho nos fluxos assistenciais, operacionais e de segurança mais essenciais.
 
 ## Tecnologias
 

@@ -1,14 +1,14 @@
 {% extends "base/layout.html" %}
 {% block content %}
   <section class="card open-attendance-warning">
-    <span class="svg-icon" data-nav-icon="alert-triangle"></span>
+    <svg xmlns="http://www.w3.org/2000/svg" color="var(--warning)" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
     <div>
       <h2>Paciente com atendimento em aberto</h2>
       <p>
         {{ paciente.nm_social|default:paciente.nm_paciente }} já possui o atendimento
         <strong>{{ atendimento.pk }}</strong>, aberto em {{ atendimento.dh_inicio|date:"d/m/Y H:i" }}.
       </p>
-      <p>Deseja prosseguir com uma nova recepção ou cancelar</p>
+      <p>Deseja prosseguir com uma nova recepção ou cancelar?</p>
     </div>
     <div class="form-actions">
       <a class="button button-secondary" href="{{ cancelar_url }}">Cancelar</a>

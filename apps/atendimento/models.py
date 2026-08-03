@@ -676,6 +676,40 @@ class ResponsavelAtendimento(AuditoriaModel):
         db_table = "responsavel_atendimento"
 
 
+class HistoricoAlteracaoAtendimento(models.Model):
+    cd_historico_alteracao_atendimento = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_atendimento = models.ForeignKey(
+        Atendimento,
+        related_name="historico_alteracoes",
+        on_delete=models.PROTECT,
+        db_column="cd_atendimento",
+    )
+    cd_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario",
+    )
+    cd_motivo_alteracao = models.ForeignKey(
+        ValorAuxiliarGlobal,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_motivo_alteracao",
+    )
+    ds_observacao = models.TextField()
+    ds_alteracoes = models.JSONField(default=dict)
+    ds_antes = models.JSONField(default=dict)
+    ds_depois = models.JSONField(default=dict)
+    dh_alteracao = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "historico_alteracao_atendimento"
+        ordering = ("-dh_alteracao",)
+
+
 class PainelChamada(AuditoriaModel):
     TIPOS = [
         ("SALA", "Sala"),

@@ -4,6 +4,12 @@ Roadmap de desenvolvimento organizado por **prioridade**, **risco** e **dependê
 
 ---
 
+## Escopo temporariamente pausado
+
+O desenvolvimento do módulo de **Pesquisas** está pausado por decisão de priorização. As funcionalidades existentes serão preservadas, mas novas entregas desse módulo ficam postergadas enquanto o desenvolvimento se concentra nos fluxos assistenciais, operacionais, de segurança e estabilidade essenciais.
+
+---
+
 ## Legenda
 
 | Símbolo | Significado |

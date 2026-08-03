@@ -13,6 +13,7 @@ ROUTE_ACCESS_ALIASES = {
     "atendimento:alternar-status-prestador": {"atendimento:cadastro-profissional-novo"},
     "atendimento:cadastro-paciente": {"atendimento:cadastro-paciente-novo"},
     "atendimento:alternar-status-paciente": {"atendimento:cadastro-paciente-novo"},
+    "atendimento:editar-atendimento": {"atendimento:alteracao-atendimento"},
     "atendimento:cadastro-painel-chamada": {"atendimento:paineis-chamada"},
     "atendimento:alternar-status-painel-chamada": {"atendimento:paineis-chamada"},
     "atendimento:editar-configuracao-senha": {"atendimento:configurar-senhas"},

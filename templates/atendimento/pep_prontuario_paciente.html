@@ -1,4 +1,5 @@
 ﻿{% extends pep_base_template|default:"base/layout.html" %}
+{% load static %}
 {% block body_class_extra %}{% if pep_standalone and atendimento and menu_assistencial_raizes %} pep-has-sidebar{% endif %}{% endblock %}
 {% block content %}
 
@@ -604,12 +605,8 @@
           promise = new Promise((resolve, reject) => {
             const sources = [
               {
-                script: "/static/vendor/pdfjs/pdf.min.js",
-                worker: "/static/vendor/pdfjs/pdf.worker.min.js",
-              },
-              {
-                script: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
-                worker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+                script: "{% static 'vendor/pdfjs/pdf.min.js' %}",
+                worker: "{% static 'vendor/pdfjs/pdf.worker.min.js' %}",
               },
             ];
             const loadSource = (index) => {

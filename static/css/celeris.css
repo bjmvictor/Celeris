@@ -28,6 +28,7 @@
   --yellow: #f59e0b; /*#fc9700*/
   --orange: #f97316;
   --red: #dc2626;
+  --warning: #fa510e;
   --shadow: 0 12px 28px rgba(15, 23, 42, .08);
   --bs-body-bg: var(--bg);
   --bs-body-color: var(--text);
@@ -813,11 +814,9 @@ button, input, select, textarea { font: inherit; }
 }
 .status-badge {
   display: inline-block;
-  border-radius: 999px;
-  background: var(--primary-soft);
   color: var(--primary-dark);
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 .specialty-manager {
@@ -1938,7 +1937,7 @@ table th a {
 .button { padding: 7px 10px; font-weight: 700; font-size: 13px; }
 .button-primary { background: var(--primary); color: #072033; }
 .button-primary:hover { background: var(--primary-dark); color: white; }
-.button-secondary { background: var(--primary-soft); color: var(--primary-dark); }
+.button-secondary { background: var(--primary-soft-dark); color: var(--primary-dark); }
 .button-secondary:hover { background: #dff1ff; border-color: var(--primary); }
 .button-danger { background: #b42318; color: white; }
 .button-danger:hover { background: #912018; }
@@ -3665,6 +3664,10 @@ textarea { width: min(680px, 100%); resize: vertical; }
 .pep-document-history-list {
   overflow: auto;
   align-content: start;
+}
+.attendance-timeline-panel .section-heading div{
+  display: flex;
+  justify-content: space-between;
 }
 .pep-selected-screen > .section-heading {
   display: grid;
@@ -8481,6 +8484,17 @@ body:has(.profile-config-layout) .content {
   }
 }
 
+.pep-header.pep-filter-form label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.pep-header .pep-filter-form .field-sm { flex-basis: 160px; flex-grow: .65; }
+.pep-header .pep-filter-form .field-md { flex-basis: 240px; flex-grow: .9; }
+.pep-header .pep-filter-form .field-xl { flex-basis: 480px; flex-grow: 1.8; }
+.pep-header .pep-filter-form input {
+  width: 100%;
+}
+
 /* Pesquisas */
 .button.primary { background: var(--primary); color: #072033; }
 .button.primary:hover { background: var(--primary-dark); color: #fff; }
@@ -8533,4 +8547,121 @@ body:has(.profile-config-layout) .content {
 
 @media (max-width: 900px) {
   .survey-split, .survey-calculation-options { grid-template-columns: 1fr; }
+}
+.attendance-query-form {
+  flex: 0 0 auto;
+  align-items: end;
+  margin-bottom: var(--space-1, 4px);
+}
+
+.content:has(.attendance-consultation-layout) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.attendance-consultation-layout {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 300px);
+  gap: var(--space-1, 4px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.attendance-consultation-detail,
+.attendance-change-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.attendance-consultation-detail {
+  overflow: hidden;
+}
+
+.attendance-readonly-sections {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+
+.attendance-readonly-sections .form-section {
+  margin: 0;
+}
+
+.attendance-readonly-sections > .form-section-active-panel {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  box-sizing: border-box;
+}
+
+.readonly-form-grid input[readonly] {
+  cursor: default;
+}
+
+.attendance-timeline-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.attendance-timeline-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.attendance-change-form {
+  min-height: 0;
+}
+
+.attendance-timeline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.attendance-timeline-item:hover,
+.attendance-timeline-item.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.attendance-timeline-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .content:has(.attendance-consultation-layout) {
+    overflow: auto;
+  }
+
+  .attendance-consultation-layout {
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .attendance-timeline-panel {
+    order: -1;
+  }
+
+  .attendance-timeline-list {
+    max-height: 190px;
+  }
 }

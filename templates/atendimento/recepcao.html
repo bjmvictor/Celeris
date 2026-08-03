@@ -23,10 +23,10 @@
     <div class="form-grid">
       <label class="field-sm">Prontuário {{ form.cd_paciente }}</label>
       <label class="field-xl">Paciente {{ form.termo }}</label>
-      <label class="field-md">CPF {{ form.nr_cpf }}</label>
+      <label class="field-sm">CPF {{ form.nr_cpf }}</label>
       <label class="field-xl">Nome da mãe {{ form.nm_mae }}</label>
       <label class="field-md">Cartão SUS {{ form.nr_cartao_sus }}</label>
-      <label class="field-md">Nascimento {{ form.dt_nascimento }}</label>
+      <label class="field-sm">Nascimento {{ form.dt_nascimento }}</label>
     </div>
   </form>
 
@@ -54,7 +54,7 @@
             <td>{% if paciente.ds_cidade %}{{ paciente.ds_cidade }}{% if paciente.sg_estado %}-{{ paciente.sg_estado }}{% endif %}{% else %}-{% endif %}</td>
             <td>{{ paciente.nm_mae|default:"-" }}</td>
             <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
-            <td><a class="button button-primary" href="{% url 'atendimento:recepcao-revisar-paciente' paciente.pk %}{% if senha_selecionada %}senha={{ senha_selecionada }}{% endif %}">Selecionar e validar</a></td>
+            <td><a class="button button-primary" data-reception-patient-select href="{% url 'atendimento:recepcao-revisar-paciente' paciente.pk %}{% if senha_selecionada %}?senha={{ senha_selecionada }}{% endif %}">Selecionar</a></td>
           </tr>
         {% empty %}
           <tr><td colspan="8">{% if consulta_executada %}Nenhum paciente encontrado.{% else %}Execute uma consulta para localizar o paciente.{% endif %}</td></tr>

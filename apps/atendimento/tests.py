@@ -15,7 +15,7 @@ from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
 from apps.core.models import Cep, TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 
 from .forms import EscalaForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HorarioAgenda, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
+from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HistoricoAlteracaoAtendimento, HorarioAgenda, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
 
 
@@ -41,6 +41,146 @@ class ConsultaAtendimentosTests(TestCase):
         self.assertContains(response, "Consulta de atendimentos")
         self.assertContains(response, "MARIA TESTE")
         self.assertContains(response, str(self.atendimento.pk))
+
+    def test_lista_em_ordem_decrescente_e_exibe_detalhes_somente_leitura(self):
+        atendimento_novo = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            ds_tipo_atendimento="URGÊNCIA",
+            dh_inicio=timezone.now() + timedelta(hours=1),
+        )
+        response = self.client.get(
+            reverse("atendimento:atendimentos"),
+            {"consultar": "1", "nm_paciente": "MARIA"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["registros"][0].pk, atendimento_novo.pk)
+        self.assertEqual(response.context["atendimento_selecionado"].pk, atendimento_novo.pk)
+        self.assertContains(response, "Dados do atendimento")
+        self.assertNotContains(response, "Altas e auditoria")
+        self.assertContains(response, "Dados do responsável")
+        self.assertContains(response, "Data da alta médica")
+        self.assertFalse(response.context["current_can_save"])
+
+    def test_consulta_exige_ao_menos_um_filtro(self):
+        response = self.client.get(reverse("atendimento:atendimentos"), {"consultar": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["registros"], [])
+        self.assertIsNone(response.context["atendimento_selecionado"])
+        self.assertContains(response, "Informe pelo menos um filtro para realizar a consulta.")
+        self.assertTrue(response.context["current_start_query"])
+
+    def test_consulta_agrupa_por_paciente_e_navega_pelos_pacientes(self):
+        paciente_recente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="ANA RECENTE")
+        atendimento_recente = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=paciente_recente,
+            ds_tipo_atendimento="CONSULTA",
+            dh_inicio=timezone.now() + timedelta(hours=2),
+        )
+        atendimento_anterior = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=paciente_recente,
+            ds_tipo_atendimento="RETORNO",
+            dh_inicio=timezone.now() + timedelta(hours=1),
+        )
+        response = self.client.get(
+            reverse("atendimento:atendimentos"),
+            {"consultar": "1", "ds_status": self.atendimento.ds_status},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["atendimento_selecionado"].pk, atendimento_recente.pk)
+        self.assertEqual(
+            [item.pk for item in response.context["registros"]],
+            [atendimento_recente.pk, atendimento_anterior.pk],
+        )
+        self.assertEqual(response.context["current_record_status"], "Paciente 1 de 2")
+        self.assertIn("paciente=", response.context["current_next_url"])
+
+    def test_alteracao_abre_em_consulta_exclusiva_pelo_codigo(self):
+        url = reverse("atendimento:alteracao-atendimento")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertFalse(form.fields["cd_atendimento"].disabled)
+        self.assertEqual(form.fields["cd_atendimento"].widget.attrs["data-consultable"], "true")
+        self.assertEqual(form.fields["ds_plano"].widget.attrs["data-consultable"], "false")
+        self.assertContains(response, 'data-query-code-only="cd_atendimento"')
+
+        response = self.client.get(url, {"consultar": "1", "cd_atendimento": self.atendimento.pk})
+        self.assertRedirects(
+            response,
+            reverse("atendimento:editar-atendimento", args=[self.atendimento.pk]),
+            fetch_redirect_response=False,
+        )
+
+    def test_alteracao_exige_motivo_e_preserva_campos_estruturais(self):
+        tabela, _ = TabelaAuxiliarGlobal.objects.get_or_create(
+            ds_tabela="motivo_alteracao",
+            defaults={"ds_descricao": "Motivos de alteração", "sn_ativo": True},
+        )
+        motivo = ValorAuxiliarGlobal.objects.create(
+            cd_tabela_auxiliar_global=tabela,
+            cd_valor="CORRECAO",
+            ds_valor="Correção administrativa",
+        )
+        dados = {
+            "versao_atendimento": self.atendimento.dh_atualizacao.isoformat(),
+            "ds_plano": "PLANO CORRIGIDO",
+            "ds_origem": "AGENDADO",
+            "motivo_alteracao": motivo.pk,
+            "observacao_alteracao": "Correção solicitada pela recepção.",
+            "cd_prestador": "",
+            "ds_recepcao_origem": "",
+            "cd_convenio": "",
+            "ds_subplano": "",
+            "ds_tipo_atendimento": "",
+            "ds_local_procedencia": "",
+            "ds_destino": "",
+            "ds_especialidade": "",
+            "ds_cid": "",
+            "ds_meio_transporte": "",
+            "ds_procedimento_principal": "",
+            "ds_cbo_prestador": "",
+            "ds_observacao_recepcao": "",
+        }
+        response = self.client.post(
+            reverse("atendimento:editar-atendimento", args=[self.atendimento.pk]),
+            dados,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.atendimento.refresh_from_db()
+        self.assertEqual(self.atendimento.ds_plano, "PLANO CORRIGIDO")
+        self.assertEqual(self.atendimento.ds_origem, "DEMANDA_ESPONTANEA")
+        historico = HistoricoAlteracaoAtendimento.objects.get(cd_atendimento=self.atendimento)
+        self.assertEqual(historico.cd_motivo_alteracao, motivo)
+        self.assertEqual(historico.ds_depois["ds_plano"], "PLANO CORRIGIDO")
+
+    def test_alteracao_sem_motivo_nao_persiste(self):
+        response = self.client.post(
+            reverse("atendimento:editar-atendimento", args=[self.atendimento.pk]),
+            {
+                "versao_atendimento": self.atendimento.dh_atualizacao.isoformat(),
+                "ds_plano": "SEM AUDITORIA",
+                "cd_prestador": "",
+                "ds_recepcao_origem": "",
+                "cd_convenio": "",
+                "ds_subplano": "",
+                "ds_tipo_atendimento": "",
+                "ds_local_procedencia": "",
+                "ds_destino": "",
+                "ds_especialidade": "",
+                "ds_cid": "",
+                "ds_meio_transporte": "",
+                "ds_procedimento_principal": "",
+                "ds_cbo_prestador": "",
+                "ds_observacao_recepcao": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.atendimento.refresh_from_db()
+        self.assertNotEqual(self.atendimento.ds_plano, "SEM AUDITORIA")
+        self.assertFalse(HistoricoAlteracaoAtendimento.objects.exists())
 
 
 class PainelChamadaStandaloneTests(TestCase):
@@ -790,6 +930,15 @@ class FluxoHomologacaoTests(TestCase):
         )
         warning = self.client.get(reverse("atendimento:recepcao-revisar-paciente", args=[self.paciente.pk]))
         self.assertContains(warning, "Paciente com atendimento em aberto")
+        warning_json = self.client.get(
+            reverse("atendimento:recepcao-revisar-paciente", args=[self.paciente.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(warning_json.status_code, 200)
+        self.assertTrue(warning_json.json()["confirmacao_necessaria"])
+        self.assertIn("Paciente com atendimento em aberto", warning_json.json()["titulo"])
+        self.assertIn("prosseguir=1", warning_json.json()["prosseguir_url"])
         proceed = self.client.get(
             reverse("atendimento:recepcao-revisar-paciente", args=[self.paciente.pk]),
             {"prosseguir": "1"},

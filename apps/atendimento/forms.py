@@ -919,6 +919,58 @@ class CadastroAtendimentoForm(forms.ModelForm):
         return [("", "")] + (values or list(fallback))
 
 
+class AlteracaoAtendimentoForm(CadastroAtendimentoForm):
+    motivo_alteracao = forms.ModelChoiceField(
+        label="Motivo da alteração",
+        queryset=ValorAuxiliarGlobal.objects.none(),
+        required=False,
+        empty_label="",
+    )
+    observacao_alteracao = forms.CharField(
+        label="Observação da alteração",
+        required=False,
+        widget=forms.TextInput(attrs={"maxlength": 255}),
+    )
+    versao_atendimento = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    CAMPOS_IMUTAVEIS = {
+        "cd_atendimento",
+        "cd_paciente_exibicao",
+        "nm_paciente_exibicao",
+        "dh_atendimento_exibicao",
+        "ds_origem",
+        "nr_senha_chamada",
+    }
+
+    def __init__(self, *args, empresa=None, paciente=None, agendamento=None, **kwargs):
+        super().__init__(*args, empresa=empresa, paciente=paciente, agendamento=agendamento, **kwargs)
+        self.fields["motivo_alteracao"].queryset = ValorAuxiliarGlobal.objects.filter(
+            cd_tabela_auxiliar_global__ds_tabela="motivo_alteracao",
+            sn_ativo=True,
+        ).order_by("ds_valor")
+        self.fields["motivo_alteracao"].label_from_instance = lambda value: value.ds_valor
+        if self.instance and self.instance.pk:
+            self.fields["versao_atendimento"].initial = self.instance.dh_atualizacao.isoformat()
+        else:
+            self.fields["cd_atendimento"].disabled = False
+        for name, field in self.fields.items():
+            field.widget.attrs["data-consultable"] = "true" if name == "cd_atendimento" else "false"
+        for name in self.CAMPOS_IMUTAVEIS:
+            field = self.fields.get(name)
+            if not field:
+                continue
+            field.disabled = bool(self.instance and self.instance.pk) or name != "cd_atendimento"
+            field.widget.attrs["data-editable"] = "false"
+        for name in ("motivo_alteracao", "observacao_alteracao", "versao_atendimento"):
+            self.fields[name].widget.attrs.update(
+                {
+                    "data-field-table": "historico_alteracao_atendimento",
+                    "data-field-name": name,
+                    "data-consultable": "false",
+                }
+            )
+
+
 class ResponsavelAtendimentoForm(forms.ModelForm):
     class Meta:
         model = ResponsavelAtendimento
