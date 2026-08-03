@@ -6455,7 +6455,9 @@ def _filtrar_atendimentos(request, empresa):
     ).filter(cd_empresa=empresa)
     nr_atendimento = request.GET.get("nr_atendimento", "").strip()
     nr_prontuario = request.GET.get("nr_prontuario", "").strip()
-    nm_paciente = request.GET.get("nm_paciente", "").strip()
+    nm_paciente = request.GET.get("nm_paciente", "").strip().replace("%", "")
+    dt_nascimento = request.GET.get("dt_nascimento", "").strip()
+    nm_mae = request.GET.get("nm_mae", "").strip().replace("%", "")
     ds_status = request.GET.get("ds_status", "").strip()
     dt_inicio = request.GET.get("dt_inicio", "").strip()
     dt_fim = request.GET.get("dt_fim", "").strip()
@@ -6473,6 +6475,10 @@ def _filtrar_atendimentos(request, empresa):
             Q(cd_paciente__nm_paciente__icontains=nm_paciente)
             | Q(cd_paciente__nm_social__icontains=nm_paciente)
         )
+    if dt_nascimento:
+        registros = registros.filter(cd_paciente__dt_nascimento=dt_nascimento)
+    if nm_mae:
+        registros = registros.filter(cd_paciente__nm_mae__icontains=nm_mae)
     if ds_status:
         registros = registros.filter(ds_status=ds_status)
     if dt_inicio:
@@ -6492,7 +6498,16 @@ def _url_atendimento_com_filtros(request, route_name, atendimento):
 def _filtros_consulta_atendimento_informados(request):
     return any(
         request.GET.get(nome, "").strip()
-        for nome in ("nr_atendimento", "nr_prontuario", "nm_paciente", "ds_status", "dt_inicio", "dt_fim")
+        for nome in (
+            "nr_atendimento",
+            "nr_prontuario",
+            "nm_paciente",
+            "dt_nascimento",
+            "nm_mae",
+            "ds_status",
+            "dt_inicio",
+            "dt_fim",
+        )
     )
 
 
@@ -6680,21 +6695,37 @@ def atendimentos(request):
     if consultar and not filtros_informados:
         messages.warning(request, "Informe pelo menos um filtro para realizar a consulta.")
         request.current_start_query = True
-    resultados = list(_filtrar_atendimentos(request, empresa)) if consultar and filtros_informados else []
-
-    atendimentos_por_paciente = {}
-    ordem_pacientes = []
-    for item in resultados:
-        if item.cd_paciente_id not in atendimentos_por_paciente:
-            atendimentos_por_paciente[item.cd_paciente_id] = []
-            ordem_pacientes.append(item.cd_paciente_id)
-        atendimentos_por_paciente[item.cd_paciente_id].append(item)
+    resultados = _filtrar_atendimentos(request, empresa) if consultar and filtros_informados else Atendimento.objects.none()
+    pacientes_encontrados = list(
+        resultados.order_by()
+        .values("cd_paciente_id")
+        .annotate(ultimo_atendimento=Max("dh_inicio"), ultimo_codigo=Max("cd_atendimento"))
+        .order_by("-ultimo_atendimento", "-ultimo_codigo")[:11]
+    )
+    if len(pacientes_encontrados) > 10:
+        messages.warning(
+            request,
+            "A consulta encontrou mais de 10 pacientes. Refine os filtros; somente os 10 pacientes mais recentes foram carregados.",
+        )
+    ordem_pacientes = [item["cd_paciente_id"] for item in pacientes_encontrados[:10]]
 
     paciente_id = request.GET.get("paciente", "")
-    paciente_id = int(paciente_id) if paciente_id.isdigit() and int(paciente_id) in atendimentos_por_paciente else None
+    paciente_id = int(paciente_id) if paciente_id.isdigit() and int(paciente_id) in ordem_pacientes else None
     if paciente_id is None and ordem_pacientes:
         paciente_id = ordem_pacientes[0]
-    registros = atendimentos_por_paciente.get(paciente_id, [])
+    registros = list(
+        Atendimento.objects.select_related(
+            "cd_paciente",
+            "cd_prestador",
+            "cd_convenio",
+            "cd_setor_atual",
+            "cd_usuario_criacao",
+            "cd_usuario_atualizacao",
+            "responsavel",
+        )
+        .filter(cd_empresa=empresa, cd_paciente_id=paciente_id)
+        .order_by("-dh_inicio", "-cd_atendimento")
+    ) if paciente_id else []
     selecionado_id = request.GET.get("atendimento", "")
     selecionado = next((item for item in registros if str(item.pk) == selecionado_id), None)
     if not selecionado and registros:
@@ -6713,7 +6744,11 @@ def atendimentos(request):
         query = request.GET.copy()
         query["consultar"] = "1"
         query["paciente"] = str(proximo_paciente)
-        query["atendimento"] = str(atendimentos_por_paciente[proximo_paciente][0].pk)
+        proximo_atendimento = Atendimento.objects.filter(
+            cd_empresa=empresa,
+            cd_paciente_id=proximo_paciente,
+        ).order_by("-dh_inicio", "-cd_atendimento").values_list("pk", flat=True).first()
+        query["atendimento"] = str(proximo_atendimento)
         return f"{reverse('atendimento:atendimentos')}?{query.urlencode()}"
 
     if paciente_id in ordem_pacientes:
@@ -6744,6 +6779,7 @@ def atendimentos(request):
             "usuario_alta_medica": usuario_alta_medica,
             "usuario_alta_hospitalar": usuario_alta_hospitalar,
             "status_atendimento": Atendimento.STATUS,
+            "total_pacientes_resultado": len(ordem_pacientes),
         },
     )
 

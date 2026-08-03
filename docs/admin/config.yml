@@ -2,8 +2,6 @@ backend:
   name: github
   repo: bjmvictor/Celeris
   branch: main
-  base_url: https://SEU-OAUTH-PROXY.example.com
-  auth_endpoint: auth
 
 local_backend: true
 publish_mode: editorial_workflow

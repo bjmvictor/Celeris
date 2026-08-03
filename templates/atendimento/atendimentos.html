@@ -2,14 +2,20 @@
 {% block content %}
   <form class="card form-grid attendance-query-form" method="get" action="{% url 'atendimento:atendimentos' %}" data-query-only-form data-table="atendimento" autocomplete="off">
     <input type="hidden" name="consultar" value="1">
-    <label class="field-sm">Atendimento
+    <label class="attendance-filter-code">Atendimento
       <input type="number" name="nr_atendimento" value="{{ request.GET.nr_atendimento }}" min="1" data-field-name="cd_atendimento">
     </label>
-    <label class="field-sm">Prontuário
+    <label class="attendance-filter-record">Prontuário
       <input type="number" name="nr_prontuario" value="{{ request.GET.nr_prontuario }}" min="1" data-field-table="paciente" data-field-name="cd_paciente">
     </label>
-    <label class="field-xl">Nome do paciente
+    <label class="attendance-filter-patient">Nome do paciente
       <input name="nm_paciente" value="{{ request.GET.nm_paciente }}" data-field-table="paciente" data-field-name="nm_paciente">
+    </label>
+    <label class="attendance-filter-birth">Data de nascimento
+      <input type="date" name="dt_nascimento" value="{{ request.GET.dt_nascimento }}" data-field-table="paciente" data-field-name="dt_nascimento">
+    </label>
+    <label class="attendance-filter-mother">Nome da mãe
+      <input name="nm_mae" value="{{ request.GET.nm_mae }}" data-field-table="paciente" data-field-name="nm_mae">
     </label>
     <label class="field-sm">Status
       <select name="ds_status" data-field-name="ds_status">

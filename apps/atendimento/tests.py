@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 import gzip
 import json
 import sys
@@ -41,6 +41,56 @@ class ConsultaAtendimentosTests(TestCase):
         self.assertContains(response, "Consulta de atendimentos")
         self.assertContains(response, "MARIA TESTE")
         self.assertContains(response, str(self.atendimento.pk))
+
+    def test_consulta_por_data_de_nascimento_e_nome_da_mae(self):
+        self.paciente.dt_nascimento = date(1985, 4, 12)
+        self.paciente.nm_mae = "JOANA TESTE"
+        self.paciente.save(update_fields=["dt_nascimento", "nm_mae"])
+        outro_paciente = Paciente.objects.create(
+            cd_empresa=self.empresa,
+            nm_paciente="OUTRA PACIENTE",
+            dt_nascimento=date(1990, 1, 1),
+            nm_mae="OUTRA MAE",
+        )
+        Atendimento.objects.create(cd_empresa=self.empresa, cd_paciente=outro_paciente)
+
+        response = self.client.get(
+            reverse("atendimento:atendimentos"),
+            {
+                "consultar": "1",
+                "dt_nascimento": "1985-04-12",
+                "nm_mae": "Joana",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_pacientes_resultado"], 1)
+        self.assertEqual(response.context["atendimento_selecionado"].pk, self.atendimento.pk)
+        self.assertContains(response, 'name="dt_nascimento" value="1985-04-12"')
+        self.assertContains(response, 'name="nm_mae" value="Joana"')
+
+    def test_consulta_limita_resultado_a_dez_pacientes(self):
+        for indice in range(10):
+            paciente = Paciente.objects.create(
+                cd_empresa=self.empresa,
+                nm_paciente=f"PACIENTE LIMITE {indice:02d}",
+            )
+            Atendimento.objects.create(
+                cd_empresa=self.empresa,
+                cd_paciente=paciente,
+                ds_status="ABERTO",
+                dh_inicio=timezone.now() + timedelta(minutes=indice + 1),
+            )
+
+        response = self.client.get(
+            reverse("atendimento:atendimentos"),
+            {"consultar": "1", "ds_status": "ABERTO"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_pacientes_resultado"], 10)
+        self.assertEqual(response.context["current_record_status"], "Paciente 1 de 10")
+        self.assertContains(response, "A consulta encontrou mais de 10 pacientes")
 
     def test_lista_em_ordem_decrescente_e_exibe_detalhes_somente_leitura(self):
         atendimento_novo = Atendimento.objects.create(

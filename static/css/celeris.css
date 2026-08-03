@@ -8549,9 +8549,41 @@ body:has(.profile-config-layout) .content {
   .survey-split, .survey-calculation-options { grid-template-columns: 1fr; }
 }
 .attendance-query-form {
+  display: flex;
+  flex-wrap: wrap;
   flex: 0 0 auto;
   align-items: end;
+  gap: 8px;
   margin-bottom: var(--space-1, 4px);
+}
+
+.attendance-query-form > label {
+  min-width: 0;
+}
+
+.attendance-query-form > .attendance-filter-code,
+.attendance-query-form > .attendance-filter-record {
+  flex: 0 1 120px;
+}
+
+.attendance-query-form > .attendance-filter-patient {
+  flex: 1 1 320px;
+}
+
+.attendance-query-form > .attendance-filter-birth {
+  flex: 0 1 145px;
+}
+
+.attendance-query-form > .attendance-filter-mother {
+  flex: 1 1 250px;
+}
+
+.attendance-query-form > .field-sm {
+  flex: 0 1 140px;
+}
+
+.attendance-query-form > .field-xs {
+  flex: 0 1 135px;
 }
 
 .content:has(.attendance-consultation-layout) {

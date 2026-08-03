@@ -8,6 +8,15 @@
   </head>
   <body>
     <noscript>Ative o JavaScript para acessar o editor.</noscript>
-    <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
+    <script>
+      const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+      if (localHosts.has(window.location.hostname)) {
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js";
+        document.body.appendChild(script);
+      } else {
+        window.location.replace("https://github.com/bjmvictor/Celeris/edit/main/docs/data/topics.json");
+      }
+    </script>
   </body>
 </html>

@@ -20,16 +20,17 @@ Abra `http://localhost:8000/docs/`. Não abra o `index.html` diretamente pelo ex
 
 ## Edição autenticada
 
-O editor em `docs/admin/` usa Decap CMS e grava as mudanças como commits no repositório. O login seguro é realizado pelo GitHub; nenhuma senha é armazenada no HTML ou JavaScript.
+Na documentação publicada, o botão **Editar** abre o editor de arquivos do próprio GitHub para `docs/data/topics.json`. Dessa forma, a autenticação é feita pelo GitHub sem depender de um proxy OAuth externo ou de uma URL fictícia.
 
-Uma página estática não consegue validar com segurança usuário e senha do próprio Celeris. Para usar as contas do sistema seria necessário servir o editor pelo Django. Na hospedagem estática, utilize GitHub OAuth:
+O painel Decap CMS em `docs/admin/` fica habilitado por padrão apenas no ambiente local. Para disponibilizá-lo também no GitHub Pages é obrigatório:
 
-1. Crie um GitHub OAuth App para a URL publicada.
-2. Publique um proxy OAuth compatível com Decap CMS.
-3. Edite `docs/admin/config.yml`.
-4. O repositório `bjmvictor/Celeris` já está configurado; ajuste-o apenas se a documentação for movida.
-5. Troque `SEU-OAUTH-PROXY.example.com` pela URL HTTPS do proxy.
-6. Conceda acesso ao repositório somente aos editores autorizados.
+1. Criar um GitHub OAuth App para a URL publicada.
+2. Publicar um proxy OAuth compatível com Decap CMS.
+3. Configurar `base_url` e `auth_endpoint` em `docs/admin/config.yml` com a URL real do proxy.
+4. Manter o segredo OAuth exclusivamente no proxy autenticador.
+5. Conceder acesso ao repositório somente aos editores autorizados.
+
+Sem um proxy configurado, mantenha o fluxo público pelo editor do GitHub, que já está configurado no botão **Editar**.
 
 O histórico do Git registra quem alterou cada versão. Além disso, todo tópico exige os campos `updatedAt` e `updatedBy`, exibidos no cabeçalho da página.
 
