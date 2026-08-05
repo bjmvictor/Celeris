@@ -27,7 +27,7 @@
       "updatedAt": "2026-08-05",
       "updatedBy": "Benjamin Victor",
       "revision": "2",
-      "body": "## Preparação\n1. Clone o repositório com: `git clone https://github.com/bjmvictor/Celeris.git`\n2. Crie o arquivo `.env` a partir de `.env.example`.\n3. Acesse a pasta do repositório e crie o ambiente virtual: `cd Celeris` e `py -m venv .`\n4. Ative o ambiente virtual: `Scripts\\activate.bat`\n5. Instale as dependências Python: `pip install -r requirements.txt`\n6. Crie o usuario mestre: `py manage.py createsuperuser`\n7. Execute as migrações: `py manage.py migrate` e `py manage.py check` e aguarde concluir sem falhas.\n8. [Aplique a configuração inicial da empresa](#configuracao-inicial) e valide os acessos administrativos."
+      "body": "## Preparação\n1. Clone o repositório com: `git clone https://github.com/bjmvictor/Celeris.git`\n2. Crie o arquivo `.env` a partir de `.env.example`.\n3. Acesse a pasta do repositório e crie o ambiente virtual: `cd Celeris` e `py -m venv .`\n4. Ative o ambiente virtual: `Scripts\\activate.bat`\n5. Instale as dependências Python: `pip install -r requirements.txt`\n6. Execute as migrações: `py manage.py migrate` e `py manage.py check` e aguarde concluir sem falhas.\n7. Crie o usuario mestre: `py manage.py createsuperuser`\n8. [Aplique a configuração inicial da empresa](#configuracao-inicial) e valide os acessos administrativos."
     },
     {
       "id": "primeiro-acesso",
