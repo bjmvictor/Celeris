@@ -8,6 +8,10 @@
 /share/
 /pyvenv.cfg
 
+# Arquivos de mídia do painel de chamada
+/painel_chamada/
+/painel_chamada/*
+
 node_modules/
 db.sqlite3
 dbtest.sqlite3
