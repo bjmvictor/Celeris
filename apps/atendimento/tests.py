@@ -15,7 +15,7 @@ from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
 from apps.core.models import Cep, TabelaAuxiliarGlobal, ValorAuxiliarGlobal
 
 from .forms import EscalaForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HistoricoAlteracaoAtendimento, HorarioAgenda, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
+from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HistoricoAlteracaoAtendimento, HorarioAgenda, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
 
 
@@ -253,14 +253,36 @@ class PainelChamadaStandaloneTests(TestCase):
         response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Configurar painel")
+        self.assertContains(response, ">PAINEL<")
+        self.assertContains(response, "Especialidades que podem chamar")
+        self.assertContains(response, "Chamar paciente")
 
         response = self.client.post(
             f"/painel/?maquina={self.maquina.nm_maquina}",
-            {"layout": "compacto", "tamanho": "grande", "cor": "verde"},
+            {
+                "empresa": self.empresa.pk,
+                "layout": "compacto",
+                "tamanho": "grande",
+                "cor": "verde",
+                "chamar_paciente": "1",
+                "mostrar_nome": "1",
+                "mostrar_especialidade": "1",
+                "mostrar_direcao": "1",
+                "som_chamada": "1",
+                "voz_chamada": "1",
+                "ler_nome": "1",
+                "mostrar_ultimas": "1",
+                "quantidade_ultimas": "5",
+                "repeticoes": "1",
+                "fonte_principal": "6",
+                "fonte_tela_cheia": "8",
+            },
         )
         self.assertEqual(response.status_code, 302)
         painel = PainelChamada.objects.get(cd_empresa=self.empresa, nm_maquina=self.maquina.nm_maquina)
         self.assertEqual((painel.ds_layout, painel.ds_tamanho, painel.ds_cor), ("compacto", "grande", "verde"))
+        self.assertTrue(painel.ds_configuracao["chamar_paciente"])
+        self.assertTrue(painel.ds_configuracao["mostrar_nome"])
         self.assertEqual(list(painel.setores.values_list("pk", flat=True)), [self.setor.pk])
 
         response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
@@ -268,12 +290,131 @@ class PainelChamadaStandaloneTests(TestCase):
         self.assertNotContains(response, "Configurar painel</h1>")
         self.assertContains(response, "Aguardando chamada")
 
-    def test_estacao_nao_pode_ser_aberta_como_painel(self):
+    def test_maquina_sem_painel_abre_configuracao_inicial(self):
         self.maquina.tp_maquina = "ESTACAO"
         self.maquina.save(update_fields=["tp_maquina"])
         response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Máquina não cadastrada")
+        self.assertContains(response, "Configurar painel")
+
+    def test_acesso_sem_identificador_cria_identificador_persistente(self):
+        response = self.client.get("/painel/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configurar painel")
+        self.assertRegex(response.cookies["celeris_maquina_chamada"].value, r"^PAINEL-[A-F0-9]{8}$")
+
+    def test_catalogos_sao_separados_por_empresa(self):
+        Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Médico Cardiologista",
+            nm_guerra="Cardiologista",
+            ds_especialidades=["CARDIOLOGIA"],
+        )
+        paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="Paciente painel")
+        Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=paciente,
+            ds_especialidade="CARDIOLOGIA",
+            ds_tipo_atendimento="CONSULTA",
+        )
+        outra_empresa = Empresa.objects.create(cd_empresa=703, nm_empresa="Outra empresa", sn_ativo=True)
+        Prestador.objects.create(
+            cd_empresa=outra_empresa,
+            nm_prestador="Médico Neurologista",
+            nm_guerra="Neurologista",
+            ds_especialidades=["NEUROLOGIA"],
+        )
+
+        response = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+
+        especialidades = {item["valor"] for item in response.context["catalogo_atual"]["especialidades"]}
+        self.assertIn("CARDIOLOGIA", especialidades)
+        self.assertNotIn("NEUROLOGIA", especialidades)
+        self.assertEqual(
+            {item["valor"] for item in response.context["catalogos_empresas"][str(outra_empresa.pk)]["especialidades"]},
+            {"NEUROLOGIA"},
+        )
+
+    def test_debug_cria_uma_chamada_e_depois_move_para_historico(self):
+        response = self.client.post(
+            f"/painel/?maquina={self.maquina.nm_maquina}",
+            {
+                "empresa": self.empresa.pk,
+                "nome_painel": "Painel principal",
+                "layout": "classico",
+                "tamanho": "medio",
+                "cor": "azul",
+                "chamar_paciente": "1",
+                "mostrar_nome": "1",
+                "mostrar_senha": "1",
+                "mostrar_ultimas": "1",
+                "quantidade_ultimas": "5",
+                "tempo_exibicao": "10",
+                "repeticoes": "1",
+                "debug": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        painel = PainelChamada.objects.get(cd_empresa=self.empresa, nm_maquina=self.maquina.nm_maquina)
+        chamada = ChamadaPainel.objects.get(cd_painel_chamada=painel)
+
+        active = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+        self.assertContains(active, "Painel principal")
+        self.assertContains(active, "TESTE 001")
+        self.assertEqual(active.context["chamada_atual"]["id"], chamada.pk)
+
+        chamada.dh_chamada = timezone.now() - timedelta(minutes=1)
+        chamada.save(update_fields=["dh_chamada"])
+        history = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+        self.assertIsNone(history.context["chamada_atual"])
+        self.assertEqual(history.context["historico_chamadas"][0]["id"], chamada.pk)
+
+    def test_chamada_do_pep_e_enviada_somente_ao_painel_compativel(self):
+        painel_compativel = PainelChamada.objects.create(
+            cd_empresa=self.empresa,
+            nm_painel="Painel compatível",
+            nm_maquina=self.maquina.nm_maquina,
+            ds_configuracao={
+                "chamar_paciente": True,
+                "todas_especialidades": False,
+                "especialidades": ["CARDIOLOGIA"],
+                "tipos_atendimento": ["CONSULTA"],
+            },
+        )
+        painel_compativel.setores.add(self.setor)
+        painel_incompativel = PainelChamada.objects.create(
+            cd_empresa=self.empresa,
+            nm_painel="Painel incompatível",
+            nm_maquina="PAINEL02",
+            ds_configuracao={
+                "chamar_paciente": True,
+                "todas_especialidades": False,
+                "especialidades": ["NEUROLOGIA"],
+            },
+        )
+        painel_incompativel.setores.add(self.setor)
+        paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="Paciente chamado")
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=paciente,
+            cd_setor_atual=self.setor,
+            ds_especialidade="CARDIOLOGIA",
+            ds_tipo_atendimento="CONSULTA",
+        )
+        usuario = User.objects.create_superuser("painel-admin", "painel@example.com", "senha-forte")
+        self.client.force_login(usuario)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
+
+        response = self.client.post(
+            reverse("atendimento:pep-chamar", args=[atendimento.pk]),
+            {"setor": self.setor.pk, "next": "/PEP/"},
+        )
+
+        self.assertRedirects(response, "/PEP/", fetch_redirect_response=False)
+        self.assertTrue(ChamadaPainel.objects.filter(cd_atendimento=atendimento, cd_painel_chamada=painel_compativel).exists())
+        self.assertFalse(ChamadaPainel.objects.filter(cd_atendimento=atendimento, cd_painel_chamada=painel_incompativel).exists())
 
 
 class EscalaEspecialidadesTests(TestCase):
@@ -620,7 +761,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertContains(response, "Todos os setores permitidos")
         self.assertContains(response, "Atendimentos sem alta")
         self.assertContains(response, self.paciente.nm_paciente)
-        self.assertContains(response, "Abrir prontuário")
+        #self.assertContains(response, "Abrir prontuário")
 
     def test_pep_todos_pacientes_consulta_prontuario_e_atendimentos(self):
         atendimento = Atendimento.objects.create(
@@ -1095,14 +1236,136 @@ class FluxoHomologacaoTests(TestCase):
         self.assertTrue(senha.ds_senha.startswith("AN "))
         self.login_as(self.enfermeiro)
         called = self.client.post(reverse("atendimento:acao-senha-classificacao", args=[senha.pk, "chamar"]))
-        self.assertRedirects(called, reverse("atendimento:fila-classificacao"))
+        self.assertRedirects(called, f"{reverse('atendimento:fila-classificacao')}?aba=demanda")
         senha.refresh_from_db()
         self.assertEqual(senha.ds_status, "CHAMADA")
         self.assertTrue(ChamadaPainel.objects.filter(cd_senha_atendimento=senha, cd_setor=setor).exists())
-        queue = self.client.get(reverse("atendimento:fila-classificacao"))
+        queue = self.client.get(reverse("atendimento:fila-classificacao"), {"aba": "demanda"})
         self.assertContains(queue, senha.ds_senha)
         public_panel = self.client.get(reverse("atendimento:painel-chamada-publico"), {"painel": painel.pk})
         self.assertContains(public_panel, senha.ds_senha)
+
+    def test_classificacao_demanda_vincula_paciente_existente(self):
+        tipo = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            nm_tipo_senha="Demanda",
+            sg_tipo_senha="D",
+            nr_tempo_minimo=15,
+        )
+        cor = CorClassificacaoRisco.objects.create(
+            cd_empresa=self.empresa,
+            cd_cor="AMARELO",
+            nm_cor="Amarelo",
+            ds_cor_hex="#eab308",
+            nr_prioridade=3,
+        )
+        classe = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            nm_classe_senha="Normal",
+            sg_classe_senha="N",
+            nr_prioridade=3,
+            cd_cor_classificacao=cor,
+        )
+        senha = SenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            cd_classe_senha=classe,
+            cd_cor_classificacao=cor,
+            nr_senha=1,
+            ds_senha="DN 01",
+        )
+        self.login_as(self.enfermeiro)
+
+        response = self.client.post(
+            reverse("atendimento:fila-classificacao"),
+            {
+                "acao": "finalizar",
+                "senha_id": senha.pk,
+                "paciente_id": self.paciente.pk,
+                "cor_classificacao": cor.pk,
+                "nr_prioridade": "3",
+                "ds_queixa_principal": "Dor abdominal",
+                "cd_prestador_responsavel": self.prestador.pk,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('atendimento:fila-classificacao')}?aba=demanda&data={timezone.localdate().isoformat()}",
+        )
+        senha.refresh_from_db()
+        self.assertEqual(senha.ds_status, "CLASSIFICADA")
+        self.assertEqual(senha.cd_paciente, self.paciente)
+        self.assertIsNotNone(senha.cd_pre_atendimento_id)
+        self.assertEqual(senha.cd_pre_atendimento.ds_cor_prioridade, "AMARELO")
+
+    def test_classificacao_demanda_pre_cadastra_e_prefill_na_recepcao(self):
+        tipo = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            nm_tipo_senha="Demanda",
+            sg_tipo_senha="D",
+        )
+        cor = CorClassificacaoRisco.objects.create(
+            cd_empresa=self.empresa,
+            cd_cor="VERDE",
+            nm_cor="Verde",
+            ds_cor_hex="#22c55e",
+        )
+        classe = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            nm_classe_senha="Normal",
+            sg_classe_senha="N",
+            cd_cor_classificacao=cor,
+        )
+        senha = SenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            cd_classe_senha=classe,
+            nr_senha=2,
+            ds_senha="DN 02",
+        )
+        self.login_as(self.enfermeiro)
+        classified = self.client.post(
+            reverse("atendimento:fila-classificacao"),
+            {
+                "acao": "finalizar",
+                "senha_id": senha.pk,
+                "cor_classificacao": cor.pk,
+                "nm_pre_cadastro": "PACIENTE PRÉ-CADASTRADO",
+                "dt_nascimento_pre_cadastro": "2001-02-03",
+                "nm_mae_pre_cadastro": "MÃE DO PACIENTE",
+                "nr_prioridade": "4",
+                "ds_queixa_principal": "Queixa de demanda",
+                "cd_prestador_responsavel": self.prestador.pk,
+            },
+        )
+        self.assertEqual(classified.status_code, 302)
+        senha.refresh_from_db()
+        self.assertIsNone(senha.cd_paciente_id)
+        self.assertEqual(senha.nm_pre_cadastro, "PACIENTE PRÉ-CADASTRADO")
+
+        self.login_as(self.recepcionista)
+        reception = self.client.get(reverse("atendimento:recepcao"))
+        self.assertContains(reception, "Completar cadastro")
+        cadastro_url = (
+            f"{reverse('atendimento:cadastro-paciente-agendamento')}?recepcao_direta=1&senha={senha.pk}"
+        )
+        form_response = self.client.get(cadastro_url)
+        self.assertEqual(form_response.context["form"]["nm_paciente"].value(), "PACIENTE PRÉ-CADASTRADO")
+        saved = self.client.post(
+            cadastro_url,
+            {
+                "nm_paciente": "PACIENTE PRÉ-CADASTRADO",
+                "dt_nascimento": "2001-02-03",
+                "nm_mae": "MÃE DO PACIENTE",
+            },
+        )
+        self.assertEqual(saved.status_code, 302)
+        senha.refresh_from_db()
+        self.assertIsNotNone(senha.cd_paciente_id)
+        self.assertIsNotNone(senha.cd_pre_atendimento_id)
 
     def test_configuracao_totem_inicia_em_consulta_e_exibe_tabelas_normalizadas(self):
         self.login_as(self.ti_user)

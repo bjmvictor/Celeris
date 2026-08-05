@@ -42,6 +42,7 @@ urlpatterns = [
     path("paineis-chamada/configurar/<int:cd_tipo>/alternar-status/", views.alternar_status_configuracao_senha, name="alternar-status-configuracao-senha"),
     path("paineis-chamada/tabelas/classes/", views.classes_senha, name="classes-senha"),
     path("paineis-chamada/tabelas/protocolos/", views.protocolos_senha, name="protocolos-senha"),
+    path("classificacao/tabelas/cores/", views.cores_classificacao, name="cores-classificacao"),
     path("paineis-chamada/tabelas/icones/", views.icones_chamada, name="icones-chamada"),
     path("paineis-chamada/tabelas/maquinas/", views.maquinas_chamada, name="maquinas-chamada"),
     path("totem-senhas/configurar/", views.configurar_senhas, name="configurar-senhas-legado"),

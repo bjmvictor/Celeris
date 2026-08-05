@@ -985,11 +985,14 @@ class NavigationIntegrationTests(TestCase):
     def test_menu_lateral_nao_repete_grupos_equivalentes(self):
         response = self.client.get(reverse("core:home"))
         modules = response.context["modules_menu"]
-        cadastros = next(module for module in modules if module["code"] == "CADASTROS")
+        self.assertFalse(any(module["code"] == "CADASTROS" for module in modules))
+        atendimento = next(module for module in modules if module["code"] == "ATENDIMENTO")
+        cadastros = next(item for item in atendimento["items"] if item["label"] == "Cadastros")
         ti = next(module for module in modules if module["code"] == "TI")
+        self.assertFalse(any(item["label"].casefold() == "tabelas" for item in cadastros["children"]))
         self.assertEqual(
-            sum(item["label"].casefold() == "tabelas" for item in cadastros["items"]),
-            1,
+            [item["label"] for item in cadastros["children"]],
+            ["Pacientes", "Prestadores", "Convênios", "Planos", "Procedimentos", "Salas e Recursos"],
         )
         self.assertFalse(
             any(item["label"].casefold().startswith("gerenciamento de usu") for item in ti["items"])

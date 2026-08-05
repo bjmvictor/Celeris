@@ -10,6 +10,7 @@
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sg_classe_senha' %}-{% endif %}sg_classe_senha">Sigla</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nr_prioridade' %}-{% endif %}nr_prioridade">Prioridade</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_icone_chamada' %}-{% endif %}cd_icone_chamada">Ícone</a></th>
+          <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_cor_classificacao' %}-{% endif %}cd_cor_classificacao">Cor</a></th>
           <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
         </tr>
       </thead>
@@ -31,10 +32,16 @@
                 </select>
               </div>
             </td>
+            <td>
+              <select name="color_{{ item.pk }}">
+                <option value="">Sem cor</option>
+                {% for cor in cores %}<option value="{{ cor.pk }}" {% if item.cd_cor_classificacao_id == cor.pk %}selected{% endif %}>{{ cor.nm_cor }}</option>{% endfor %}
+              </select>
+            </td>
             <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty-cell">Nenhum dado encontrado.</td></tr>
+          <tr><td colspan="7" class="empty-cell">Nenhum dado encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -54,6 +61,12 @@
               {% endfor %}
             </select>
           </div>
+        </td>
+        <td>
+          <select name="new_color">
+            <option value="">Sem cor</option>
+            {% for cor in cores %}<option value="{{ cor.pk }}">{{ cor.nm_cor }}</option>{% endfor %}
+          </select>
         </td>
         <td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>
       </tr>

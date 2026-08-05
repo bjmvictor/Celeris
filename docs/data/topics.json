@@ -1,7 +1,7 @@
 {
   "site": {
     "name": "Biblioteca Celeris",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "topics": [
     {
@@ -10,35 +10,36 @@
       "category": "Começando",
       "title": "Visão geral do Celeris",
       "summary": "Entenda os módulos, a navegação e o ciclo básico de trabalho no sistema.",
-      "keywords": ["início", "menu", "módulos", "navegação"],
-      "updatedAt": "2026-08-02",
-      "updatedBy": "Equipe Celeris",
-      "revision": "1",
-      "body": "## O que é o Celeris\nO Celeris organiza processos administrativos e assistenciais em módulos. O menu lateral apresenta apenas módulos e telas liberados para o usuário. A barra superior reúne consulta, limpeza, salvamento, criação, confirmação e navegação entre registros.\n## Fluxo básico\n1. Selecione uma empresa quando houver mais de uma disponível.\n2. Abra o módulo desejado no menu lateral.\n3. Use Consultar para localizar registros existentes.\n4. Use o botão `+` para iniciar um cadastro.\n5. Preencha os campos obrigatórios e salve.\n6. Em fluxos com etapas, use Confirmar para avançar.\n> Os botões disponíveis mudam conforme a tela, a permissão e o estado atual do registro."
-    },
-    {
-      "id": "primeiro-acesso",
-      "order": 20,
-      "category": "Começando",
-      "title": "Login e primeiro acesso",
-      "summary": "Acesse o sistema, selecione a empresa e atualize sua senha inicial.",
-      "keywords": ["login", "senha", "empresa", "primeiro acesso"],
-      "updatedAt": "2026-08-02",
-      "updatedBy": "Equipe Celeris",
-      "revision": "1",
-      "body": "## Entrar\nInforme o usuário e a senha fornecidos pelo administrador. O nome de usuário normalmente é gerado a partir do nome completo e armazenado em letras maiúsculas.\n## Primeiro acesso\nSe o usuário estiver marcado para troca obrigatória, defina uma nova senha antes de continuar. Não compartilhe credenciais.\n## Empresa ativa\nQuando o usuário possuir acesso a várias empresas, selecione a empresa correta no menu do usuário. Cadastros e consultas respeitam essa empresa.\n## Problemas comuns\n- Usuário bloqueado: solicite o desbloqueio ao administrador.\n- Senha expirada: utilize a troca de senha.\n- Tela ausente: confirme o papel, o módulo e a permissão atribuídos ao usuário."
+      "keywords": ["início", "menu", "módulos", "navegação", "interface", "janelas", "tela", "utiliza"],
+      "updatedAt": "2026-08-05",
+      "updatedBy": "Benjamin Victor",
+      "revision": "2",
+      "body": "## O que é o Celeris\nO Celeris é uma plataforma modular voltada à organização de processos administrativos e assistenciais.\nO menu lateral exibe somente os módulos e as telas disponíveis conforme as permissões do usuário. Já a barra superior, também chamada de barra de ações, reúne os principais comandos da tela, como consultar, limpar, salvar, criar, confirmar e navegar entre registros.\n## Fluxo básico de utilização\n1. Faça login no sistema: [Como fazer login?](#primeiro-acesso)\n2. No menu lateral, abra o módulo e a tela desejada.\n3. Use a ação **Consultar** para localizar registros existentes.\n4. Para iniciar um novo cadastro, clique no botão `+`.\n5. Preencha os campos obrigatórios e selecione **Salvar**.\n6. Em processos divididos em etapas, utilize a ação **Confirmar** para avançar no fluxo.\n> As ações disponíveis podem variar de acordo com a tela, as permissões do usuário e o estado atual do registro."
+
     },
     {
       "id": "setup-servidor",
+      "order": 20,
+      "category": "Começando",
+      "title": "Setup e implantação do sistema",
+      "summary": "Prepare ambiente, banco, migrações e superuser para a implantação do sistema.",
+      "keywords": ["setup", "instalação", "migrate", "servidor", "implantar", "implantação"],
+      "updatedAt": "2026-08-05",
+      "updatedBy": "Benjamin Victor",
+      "revision": "2",
+      "body": "## Preparação\n1. Clone o repositório com: `git clone https://github.com/bjmvictor/Celeris.git`\n2. Crie o arquivo `.env` a partir de `.env.example`.\n3. Acesse a pasta do repositório e crie o ambiente virtual: `cd Celeris` e `py -m venv .`\n4. Ative o ambiente virtual: `./scripts/activate`\n5. Instale as dependências Python: `pip install -r requirements.txt`\n6. Crie o usuario mestre: `py manage.py createsuperuser`\n7. Execute as migrações: `py manage.py migrate` e `py manage.py check` e aguarde concluir sem falhas.\n8. [Aplique a configuração inicial da empresa](#configuracao-inicial) e valide os acessos administrativos."
+    },
+    {
+      "id": "primeiro-acesso",
       "order": 30,
       "category": "Começando",
-      "title": "Setup do sistema",
-      "summary": "Prepare ambiente, banco, migrações e arquivos estáticos para uma instalação.",
-      "keywords": ["setup", "instalação", "migrate", "servidor"],
-      "updatedAt": "2026-08-02",
-      "updatedBy": "Equipe Celeris",
-      "revision": "1",
-      "body": "## Preparação\n1. Configure as variáveis a partir de `.env.example`.\n2. Instale as dependências Python de `requirements.txt`.\n3. Configure o banco da implantação.\n4. Execute as migrações.\n5. Colete os arquivos estáticos no ambiente de produção.\n```powershell\npython manage.py migrate\npython manage.py check\npython manage.py collectstatic --noinput\n```\n## Depois das migrações\nAplique a configuração inicial da empresa e valide os acessos administrativos. Faça backup antes de qualquer carga em produção.\n> O comando `manage.py check` deve terminar sem erros antes de liberar o ambiente."
+      "title": "Login e primeiro acesso",
+      "summary": "Acesse o sistema, selecione a empresa e atualize sua senha inicial.",
+      "keywords": ["login", "senha", "empresa", "primeiro acesso", "acesso", "bloqueio", "permissão"],
+      "updatedAt": "2026-08-05",
+      "updatedBy": "Benjamin Victor",
+      "revision": "2",
+      "body": "## Entrar\nDigite o usuário e a senha fornecidos pelo administrador. O nome de usuário normalmente é gerado a partir do nome completo e armazenado em letras maiúsculas.\n## Primeiro acesso\nSe o usuário estiver marcado para troca obrigatória, defina uma nova senha antes de continuar. Não compartilhe credenciais.\n## Empresa ativa\nQuando o usuário possuir acesso a várias empresas, selecione a empresa correta na tela de login após digitar o usuario. Cadastros e consultas respeitam essa empresa.\n## Problemas comuns\n- Usuário bloqueado: solicite o desbloqueio ao administrador.\n- Senha expirada: utilize a troca de senha.\n- Tela ausente: confirme o papel, o módulo e a permissão atribuídos ao usuário.\n> Outros problemas contate o administrador do sistema."
     },
     {
       "id": "configuracao-inicial",
@@ -46,11 +47,11 @@
       "category": "Começando",
       "title": "Configuração inicial por arquivos",
       "summary": "Cadastre empresa, setores, convênios e catálogos usando arquivos TOML versionáveis.",
-      "keywords": ["toml", "configuração inicial", "empresa", "catálogos"],
-      "updatedAt": "2026-08-02",
-      "updatedBy": "Equipe Celeris",
-      "revision": "1",
-      "body": "## Arquivos\nA pasta `configuracao_inicial/` contém um arquivo por cadastro. Preencha os registros e altere `habilitado = false` para `habilitado = true`.\n## Validar\n```powershell\npython manage.py aplicar_configuracao_inicial --validar\n```\n## Aplicar\n```powershell\npython manage.py aplicar_configuracao_inicial\n```\nO comando é idempotente: reaplicar atualiza as mesmas chaves sem duplicar registros. Consulte o [manual completo](./configuracao-inicial.md)."
+    "keywords": ["toml", "configuração inicial", "empresa", "catálogos", "setup", "start", "implantar", "iniciar"],
+      "updatedAt": "2026-08-05",
+      "updatedBy": "Benjamin Victor",
+      "revision": "2",
+      "body": "## Arquivos\nA pasta `/configuracao_inicial` contém um arquivo por cadastro. Preencha os registros e altere `habilitado` de `false` para `true`.\n## Validar\n```powershell\npython manage.py aplicar_configuracao_inicial --validar\n```\n## Aplicar\n```powershell\npython manage.py aplicar_configuracao_inicial\n```\nO comando é idempotente: reaplicar atualiza as mesmas chaves sem duplicar registros. Consulte o [manual completo](./configuracao-inicial.md)."
     },
     {
       "id": "empresas-setores",

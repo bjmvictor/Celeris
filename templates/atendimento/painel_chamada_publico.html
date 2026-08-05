@@ -4,59 +4,327 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {% if painel and not show_config %}<meta http-equiv="refresh" content="8">{% endif %}
+  {% if painel and not show_config %}<meta http-equiv="refresh" content="4">{% endif %}
   <title>Celeris Painel</title>
   <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
 </head>
 <body class="public-panel layout-{{ painel.ds_layout|default:'classico' }} size-{{ painel.ds_tamanho|default:'medio' }} color-{{ painel.ds_cor|default:'azul' }}">
-  {% if not maquina and not painel %}
-    <main class="public-panel-config card">
-      <img src="{% static 'img/logo.svg' %}" alt="Celeris">
-      <h1>Máquina não cadastrada</h1>
-      <p>Cadastre esta máquina como <strong>Painel</strong> em Painéis de Chamada &gt; Tabelas &gt; Máquinas.</p>
-      <p class="muted">A identificação pode ser enviada pelo cabeçalho <code>X-Celeris-Machine</code> ou uma única vez por <code>?maquina=NOME</code>.</p>
-    </main>
-  {% elif show_config %}
-    <main class="public-panel-config card">
-      <img src="{% static 'img/logo.svg' %}" alt="Celeris">
-      <h1>Configurar painel</h1>
-      <p>{{ maquina.nm_maquina }}{% if maquina.nm_sala %} · {{ maquina.nm_sala }}{% endif %}</p>
-      <form method="post" autocomplete="off">
+  <header
+    class="public-panel-header"
+    {% if painel and not show_config %}data-panel-config-url="?maquina={{ machine_name|urlencode }}&configurar=1" role="button" tabindex="0" title="Abrir configurações"{% endif %}
+  >
+    <img src="{% static 'img/logo.png' %}" alt="Celeris">
+    <strong>{{ painel.nm_painel|default:"PAINEL" }}</strong>
+    <time data-panel-clock></time>
+  </header>
+
+  {% if show_config %}
+    <main class="public-panel-settings">
+      <h1 class="visually-hidden">Configurar painel</h1>
+      <form method="post" enctype="multipart/form-data" autocomplete="off" data-panel-settings-form>
         {% csrf_token %}
-        <label>Layout
-          <select name="layout">
-            {% for value, label in layout_choices %}<option value="{{ value }}" {% if painel.ds_layout == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-          </select>
-        </label>
-        <label>Tamanho
-          <select name="tamanho">
-            {% for value, label in size_choices %}<option value="{{ value }}" {% if painel.ds_tamanho == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-          </select>
-        </label>
-        <label>Cor
-          <select name="cor">
-            {% for value, label in color_choices %}<option value="{{ value }}" {% if painel.ds_cor == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-          </select>
-        </label>
-        <button class="button button-primary" type="submit">Salvar</button>
+        <div class="public-panel-settings-toolbar">
+          <div class="public-panel-tabs" role="tablist" aria-label="Configurações do painel">
+            <button class="is-active" type="button" role="tab" data-panel-tab="painel">Painel</button>
+            <button type="button" role="tab" data-panel-tab="chamada" {% if not config.chamar_paciente %}hidden{% endif %}>Chamada</button>
+            <button type="button" role="tab" data-panel-tab="midia" {% if not config.habilitar_midia %}hidden{% endif %}>Mídia</button>
+          </div>
+          <div class="public-panel-settings-actions">
+            <button class="icon-button success" type="submit" title="Salvar" aria-label="Salvar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+            </button>
+            {% if painel %}
+              <a class="icon-button danger" href="?maquina={{ machine_name|urlencode }}" title="Fechar" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></a>
+            {% else %}
+              <button class="icon-button danger" type="button" data-panel-settings-close title="Fechar" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if erro_configuracao %}<div class="alert error">{{ erro_configuracao }}</div>{% endif %}
+
+        <section class="public-panel-tab-panel is-active" data-panel-section="painel">
+          <div class="public-panel-form-grid">
+            <label>Identificação da máquina
+              <input value="{{ machine_name }}" disabled>
+            </label>
+            <label>Empresa
+              <select name="empresa" required data-panel-company>
+                <option value="">Selecione</option>
+                {% for empresa in empresas %}
+                  <option value="{{ empresa.pk }}" {% if empresa_selecionada.pk == empresa.pk %}selected{% endif %}>{{ empresa.nm_empresa }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Nome do painel
+              <input name="nome_painel" maxlength="120" value="{{ painel.nm_painel|default:'' }}" placeholder="Ex.: Painel da recepção" required>
+            </label>
+            <label>Layout
+              <select name="layout">
+                {% for value, label in layout_choices %}<option value="{{ value }}" {% if painel.ds_layout == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Tamanho
+              <select name="tamanho">
+                {% for value, label in size_choices %}<option value="{{ value }}" {% if painel.ds_tamanho == value or not painel and value == 'medio' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Cor
+              <select name="cor">
+                {% for value, label in color_choices %}<option value="{{ value }}" {% if painel.ds_cor == value or not painel and value == 'azul' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="public-panel-feature-switches">
+            <label class="checkbox-field"><input type="checkbox" name="chamar_paciente" value="1" data-panel-feature="chamada" {% if config.chamar_paciente %}checked{% endif %}> Chamar paciente</label>
+            <label class="checkbox-field"><input type="checkbox" name="habilitar_midia" value="1" data-panel-feature="midia" {% if config.habilitar_midia %}checked{% endif %}> Exibir mídia enquanto o painel estiver ocioso</label>
+          </div>
+
+          <div class="public-panel-option-groups">
+            <fieldset>
+              <legend>Especialidades que podem chamar</legend>
+              <div class="public-panel-checkbox-grid" data-panel-catalog="especialidades" data-panel-specialties>
+                {% for item in catalogo_atual.especialidades %}
+                  <label class="checkbox-field"><input type="checkbox" name="especialidades" value="{{ item.valor }}" {% if item.valor in config.especialidades %}checked{% endif %}> {{ item.rotulo }}</label>
+                {% empty %}<span class="muted">Nenhuma especialidade cadastrada para a empresa.</span>{% endfor %}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Tipos de atendimento</legend>
+              <div class="public-panel-checkbox-grid" data-panel-catalog="tipos_atendimento">
+                {% for item in catalogo_atual.tipos_atendimento %}
+                  <label class="checkbox-field"><input type="checkbox" name="tipos_atendimento" value="{{ item.valor }}" {% if item.valor in config.tipos_atendimento %}checked{% endif %}> {{ item.rotulo }}</label>
+                {% empty %}<span class="muted">Nenhum tipo cadastrado para a empresa.</span>{% endfor %}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Cores da classificação</legend>
+              <div class="public-panel-checkbox-grid" data-panel-catalog="cores_classificacao">
+                {% for item in catalogo_atual.cores_classificacao %}
+                  <label class="checkbox-field"><input type="checkbox" name="cores_classificacao" value="{{ item.valor }}" {% if item.valor in config.cores_classificacao %}checked{% endif %}> {{ item.rotulo }}</label>
+                {% empty %}<span class="muted">Nenhuma classificação utilizada pela empresa.</span>{% endfor %}
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="public-panel-debug-row">
+            <label class="checkbox-field"><input type="checkbox" name="debug" value="1"> Debug</label>
+          </div>
+        </section>
+
+        <section class="public-panel-tab-panel" data-panel-section="chamada" hidden>
+          <div class="public-panel-option-groups two-columns">
+            <fieldset>
+              <legend>Informações exibidas</legend>
+              <label class="checkbox-field"><input type="checkbox" name="mostrar_nome" value="1" {% if config.mostrar_nome %}checked{% endif %}> Mostrar nome do paciente</label>
+              <label class="checkbox-field"><input type="checkbox" name="mostrar_senha" value="1" {% if config.mostrar_senha %}checked{% endif %}> Mostrar senha</label>
+              <label class="checkbox-field"><input type="checkbox" name="abreviar_nome" value="1" {% if config.abreviar_nome %}checked{% endif %}> Abreviar nome</label>
+              <label class="checkbox-field"><input type="checkbox" name="mostrar_especialidade" value="1" {% if config.mostrar_especialidade %}checked{% endif %}> Mostrar especialidade</label>
+              <label class="checkbox-field"><input type="checkbox" name="mostrar_fila" value="1" {% if config.mostrar_fila %}checked{% endif %}> Mostrar fila</label>
+              <label class="checkbox-field"><input type="checkbox" name="mostrar_direcao" value="1" {% if config.mostrar_direcao %}checked{% endif %}> Mostrar direção</label>
+              <label class="checkbox-field"><input type="checkbox" name="controle_salas" value="1" {% if config.controle_salas %}checked{% endif %}> Utilizar controle de salas</label>
+            </fieldset>
+            <fieldset>
+              <legend>Som e voz</legend>
+              <label class="checkbox-field"><input type="checkbox" name="som_chamada" value="1" {% if config.som_chamada %}checked{% endif %}> Emitir som ao chamar</label>
+              <label class="checkbox-field"><input type="checkbox" name="voz_chamada" value="1" {% if config.voz_chamada %}checked{% endif %}> Habilitar chamada de voz</label>
+              <label class="checkbox-field"><input type="checkbox" name="ler_nome" value="1" {% if config.ler_nome %}checked{% endif %}> Ler nome do paciente</label>
+              <label class="checkbox-field"><input type="checkbox" name="ler_senha" value="1" {% if config.ler_senha %}checked{% endif %}> Ler senha do paciente</label>
+              <label class="checkbox-field"><input type="checkbox" name="tela_cheia" value="1" {% if config.tela_cheia %}checked{% endif %}> Mostrar chamada em tela cheia</label>
+            </fieldset>
+            <fieldset>
+              <legend>Exibição</legend>
+              <label>Tempo da chamada em destaque (segundos)<input type="number" name="tempo_exibicao" min="3" max="60" value="{{ painel.nr_tempo_exibicao|default:10 }}"></label>
+              <label class="checkbox-field"><input type="checkbox" name="mostrar_ultimas" value="1" {% if config.mostrar_ultimas %}checked{% endif %}> Mostrar últimas chamadas</label>
+              <label>Quantidade de chamadas anteriores<input type="number" name="quantidade_ultimas" min="1" max="20" value="{{ config.quantidade_ultimas }}"></label>
+              <label>Repetições da chamada<input type="number" name="repeticoes" min="1" max="5" value="{{ config.repeticoes }}"></label>
+            </fieldset>
+          </div>
+        </section>
+
+        <section class="public-panel-tab-panel" data-panel-section="midia" hidden>
+          <div class="public-panel-form-grid media-grid">
+            <label>Arquivo de mídia
+              <input type="file" name="midia_arquivo" accept="image/*,video/*,audio/*">
+            </label>
+            <label>URL da mídia
+              <input type="url" name="midia_url" value="{{ painel.ds_midia_url }}" placeholder="https://...">
+            </label>
+          </div>
+          {% if media_source %}<p class="muted">Mídia atual: {{ media_source }}</p>{% endif %}
+        </section>
       </form>
     </main>
   {% else %}
-    <a class="public-panel-gear" href="?configurar=1" title="Configurar" aria-label="Configurar painel">⚙</a>
-    <main class="public-panel-screen">
+    <main class="public-panel-screen {% if chamada_atual %}has-active-call{% else %}is-idle{% endif %}">
+      {% if not chamada_atual and media_source and config.habilitar_midia %}
+        <section class="public-panel-media">
+          {% if media_kind == 'video' %}<video src="{{ media_source }}" autoplay muted loop playsinline></video>
+          {% elif media_kind == 'audio' %}<audio src="{{ media_source }}" autoplay loop controls></audio>
+          {% else %}<img src="{{ media_source }}" alt="Mídia do painel">{% endif %}
+        </section>
+      {% endif %}
+
       <section class="public-panel-calls">
-        <h1>{{ painel.nm_painel }}</h1>
-        {% for chamada in chamadas %}
-          <article class="public-panel-call">
-            <strong>{% if chamada.cd_senha_atendimento %}{{ chamada.cd_senha_atendimento.ds_senha }}{% else %}{{ chamada.cd_atendimento.cd_paciente.nm_social|default:chamada.cd_atendimento.cd_paciente.nm_paciente }}{% endif %}</strong>
-            <span>{{ chamada.cd_setor.nm_setor }}{% if chamada.ds_local %} — {{ chamada.ds_local }}{% endif %}</span>
-            <small>{{ chamada.dh_chamada|date:"H:i" }}</small>
+        {% if chamada_atual %}
+          <article
+            class="public-panel-call"
+            data-panel-call
+            data-call-id="{{ chamada_atual.id }}"
+            data-call-name="{{ chamada_atual.nome }}"
+            data-call-password="{{ chamada_atual.senha }}"
+            data-call-destination="{{ chamada_atual.destino }}"
+          >
+            {% if config.mostrar_senha %}<strong class="public-panel-call-password">{{ chamada_atual.senha }}</strong>{% endif %}
+            {% if config.mostrar_nome %}<b class="public-panel-call-name">{{ chamada_atual.nome }}</b>{% endif %}
+            {% if config.mostrar_direcao and chamada_atual.destino %}<span>{{ chamada_atual.destino }}</span>{% endif %}
+            {% if config.mostrar_especialidade and chamada_atual.especialidade %}<em>{{ chamada_atual.especialidade }}</em>{% endif %}
           </article>
-        {% empty %}
+        {% elif not media_source or not config.habilitar_midia %}
           <article class="public-panel-idle"><strong>Aguardando chamada</strong></article>
-        {% endfor %}
+        {% endif %}
       </section>
+
+      {% if config.mostrar_ultimas and historico_chamadas %}
+        <aside class="public-panel-history" aria-label="Últimas chamadas">
+          <h2>Últimas chamadas</h2>
+          <ol>
+            {% for chamada in historico_chamadas %}
+              <li>
+                <div>{% if config.mostrar_senha %}<strong>{{ chamada.senha }}</strong>{% endif %}{% if config.mostrar_nome %}<span>{{ chamada.nome }}</span>{% endif %}</div>
+                <small>{% if config.mostrar_direcao %}{{ chamada.destino }} · {% endif %}{{ chamada.hora }}</small>
+              </li>
+            {% endfor %}
+          </ol>
+        </aside>
+      {% endif %}
     </main>
   {% endif %}
+
+  {% if show_config %}
+    {{ catalogos_empresas|json_script:"panel-company-catalogs" }}
+    {{ config|json_script:"panel-current-config" }}
+  {% endif %}
+  <script>
+    (() => {
+      const clock = document.querySelector("[data-panel-clock]");
+      const updateClock = () => {
+        if (clock) clock.textContent = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(new Date());
+      };
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      const header = document.querySelector("[data-panel-config-url]");
+      const openSettings = () => { if (header?.dataset.panelConfigUrl) window.location.href = header.dataset.panelConfigUrl; };
+      header?.addEventListener("click", openSettings);
+      header?.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") openSettings(); });
+
+      const form = document.querySelector("[data-panel-settings-form]");
+      if (form) {
+        const activate = (name) => {
+          form.querySelectorAll("[data-panel-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.panelTab === name));
+          form.querySelectorAll("[data-panel-section]").forEach((section) => {
+            const active = section.dataset.panelSection === name;
+            section.classList.toggle("is-active", active);
+            section.hidden = !active;
+          });
+        };
+        form.querySelectorAll("[data-panel-tab]").forEach((tab) => tab.addEventListener("click", () => activate(tab.dataset.panelTab)));
+        form.querySelectorAll("[data-panel-feature]").forEach((field) => field.addEventListener("change", () => {
+          const tab = form.querySelector(`[data-panel-tab="${field.dataset.panelFeature}"]`);
+          if (tab) tab.hidden = !field.checked;
+          if (!field.checked && tab?.classList.contains("is-active")) activate("painel");
+        }));
+
+        const catalogs = JSON.parse(document.getElementById("panel-company-catalogs")?.textContent || "{}");
+        const currentConfig = JSON.parse(document.getElementById("panel-current-config")?.textContent || "{}");
+        const company = form.querySelector("[data-panel-company]");
+        const renderCatalog = (container, items, selected) => {
+          container.replaceChildren();
+          if (!items.length) {
+            const empty = document.createElement("span");
+            empty.className = "muted";
+            empty.textContent = "Nenhum item disponível para a empresa selecionada.";
+            container.append(empty);
+            return;
+          }
+          items.forEach((item) => {
+            const label = document.createElement("label");
+            label.className = "checkbox-field";
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.name = container.dataset.panelCatalog;
+            input.value = item.valor;
+            input.checked = selected.includes(item.valor);
+            label.append(input, document.createTextNode(` ${item.rotulo}`));
+            container.append(label);
+          });
+        };
+        const renderCompanyCatalogs = (keepCurrentSelection = false) => {
+          const companyCatalog = catalogs[company?.value] || {};
+          form.querySelectorAll("[data-panel-catalog]").forEach((container) => {
+            const key = container.dataset.panelCatalog;
+            const selected = keepCurrentSelection
+              ? Array.from(container.querySelectorAll("input:checked"), (input) => input.value)
+              : (currentConfig[key] || []);
+            renderCatalog(container, companyCatalog[key] || [], selected);
+          });
+        };
+        company?.addEventListener("change", () => renderCompanyCatalogs(true));
+        form.querySelector("[data-panel-settings-close]")?.addEventListener("click", () => {
+          form.closest(".public-panel-settings").hidden = true;
+        });
+      }
+
+      const call = document.querySelector("[data-panel-call]");
+      if (!call) return;
+      const storageKey = `celeris-panel-last-call-{{ painel.pk }}`;
+      if (localStorage.getItem(storageKey) === call.dataset.callId) return;
+      localStorage.setItem(storageKey, call.dataset.callId);
+
+      const beep = () => {
+        if (!{{ config.som_chamada|yesno:'true,false' }}) return;
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          const context = new AudioContext();
+          const gain = context.createGain();
+          gain.gain.setValueAtTime(0.0001, context.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.7);
+          gain.connect(context.destination);
+          [659, 880].forEach((frequency, index) => {
+            const oscillator = context.createOscillator();
+            oscillator.type = "sine";
+            oscillator.frequency.value = frequency;
+            oscillator.connect(gain);
+            oscillator.start(context.currentTime + index * 0.18);
+            oscillator.stop(context.currentTime + 0.65);
+          });
+          window.setTimeout(() => context.close(), 900);
+        } catch (_error) {
+          return;
+        }
+      };
+
+      const speak = () => {
+        if (!{{ config.voz_chamada|yesno:'true,false' }} || !window.speechSynthesis) return;
+        const parts = [];
+        if ({{ config.ler_senha|yesno:'true,false' }} && call.dataset.callPassword) parts.push(`Senha ${call.dataset.callPassword}`);
+        if ({{ config.ler_nome|yesno:'true,false' }} && call.dataset.callName) parts.push(call.dataset.callName);
+        if (call.dataset.callDestination) parts.push(`dirija-se a ${call.dataset.callDestination}`);
+        if (!parts.length) return;
+        const utterance = new SpeechSynthesisUtterance(parts.join(". "));
+        utterance.lang = "pt-BR";
+        window.speechSynthesis.speak(utterance);
+      };
+
+      const repetitions = {{ config.repeticoes|default:1 }};
+      for (let index = 0; index < repetitions; index += 1) {
+        window.setTimeout(() => { beep(); speak(); }, index * 2600);
+      }
+    })();
+  </script>
 </body>
 </html>

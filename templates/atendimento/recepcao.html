@@ -1,5 +1,6 @@
 {% extends "base/layout.html" %}
 {% block content %}
+  {% url 'atendimento:recepcao' as reception_url %}
   <section class="card reception-classified-list">
     <div class="section-heading">
       <h2>Pacientes classificados</h2>
@@ -10,7 +11,11 @@
           <strong>{{ senha.ds_senha }}</strong>
           <span>{{ senha.cd_tipo_senha.nm_tipo_senha }} · {{ senha.cd_classe_senha.nm_classe_senha }}</span>
           <small>Classificada em {{ senha.dh_classificacao|date:"H:i" }}</small>
-        <a class="button button-secondary" href="?senha={{ senha.pk }}">Recepcionar senha</a>
+          {% if senha.cd_paciente_id %}
+            <a class="button button-secondary" href="{% url 'atendimento:recepcao-revisar-paciente' senha.cd_paciente_id %}?senha={{ senha.pk }}">Recepcionar senha</a>
+          {% else %}
+            <a class="button button-secondary" href="{% url 'atendimento:cadastro-paciente-agendamento' %}?recepcao_direta=1&senha={{ senha.pk }}&return_to={{ reception_url|urlencode }}">Completar cadastro</a>
+          {% endif %}
         </article>
       {% empty %}
         <div class="empty-state">Nenhum paciente classificado aguardando recepção.</div>

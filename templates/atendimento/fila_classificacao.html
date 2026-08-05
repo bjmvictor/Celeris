@@ -1,42 +1,145 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  <section class="flow-banner">AGUARDANDO CLASSIFICAÇÃO → CLASSIFICAR → AGUARDANDO CONSULTA</section>
-  <section class="card table-card">
-    <table>
-      <thead><tr><th>Senha</th><th>Tipo</th><th>Classe</th><th>Prioridade</th><th>Espera</th><th>Status</th><th>Ações</th></tr></thead>
-      <tbody>
-        {% for senha in senhas %}
-          <tr class="{% if senha.tempo_excedido %}ticket-overdue{% endif %}">
-            <td><strong>{{ senha.ds_senha }}</strong></td>
-            <td>{{ senha.cd_tipo_senha.nm_tipo_senha }}</td>
-            <td>{{ senha.cd_classe_senha.nm_classe_senha }}</td>
-            <td>{{ senha.nr_prioridade }}</td>
-            <td>{{ senha.dh_criacao|timesince }}</td>
-            <td>{{ senha.get_ds_status_display }}</td>
-            <td class="inline-actions">
-              <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'chamar' %}">{% csrf_token %}<button class="button button-secondary" type="submit">Chamar</button></form>
-              <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'receber' %}">{% csrf_token %}<button class="button button-primary" type="submit">Receber</button></form>
-              {% if senha.ds_status == "EM_CLASSIFICACAO" %}
-                <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'classificar' %}">{% csrf_token %}<button class="button button-primary" type="submit">Concluir classificação</button></form>
-              {% endif %}
-            </td>
-          </tr>
-        {% empty %}<tr><td colspan="7">Nenhuma senha aguardando classificação.</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </section>
-  <section class="card table-card">
-    <table><thead><tr><th>Atendimento</th><th>Paciente</th><th>Abertura</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
-      {% for item in registros %}
-        <tr><td>{{ item.cd_atendimento }}</td><td>{{ item.cd_paciente.nm_paciente }}</td><td>{{ item.dh_inicio|date:"H:i" }}</td><td>{{ item.get_ds_origem_display }}</td>
-          <td>
-            {% if item.cd_agendamento_id %}
-              <a class="button button-primary" href="{% url 'atendimento:pre-atendimento' item.cd_agendamento_id %}">Classificar</a>
-            {% else %}
-              <a class="button button-primary" href="{% url 'atendimento:pre-atendimento-atendimento' item.pk %}">Classificar</a>
-            {% endif %}
-          </td></tr>
-      {% empty %}<tr><td colspan="5">Nenhum paciente aguardando classificação.</td></tr>{% endfor %}
-    </tbody></table>
-  </section>
+  <nav class="card classification-tabs" aria-label="Origem da classificação">
+    <a class="button {% if aba == 'agendados' %}button-primary{% else %}button-secondary{% endif %}" href="?aba=agendados&data={{ data_selecionada|date:'Y-m-d' }}">Agendados</a>
+    <a class="button {% if aba == 'demanda' %}button-primary{% else %}button-secondary{% endif %}" href="?aba=demanda&data={{ data_selecionada|date:'Y-m-d' }}">Demanda</a>
+    {% if aba == "agendados" %}
+    <form class="classification-date-filter" method="get">
+      <input type="hidden" name="aba" value="agendados">
+      <label>Data: </label><input type="date" name="data" value="{{ data_selecionada|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </form>
+    {% endif %}
+  </nav>
+
+  {% if aba == "agendados" %}
+    <section class="card table-card classification-queue-card">
+      <table>
+        <thead><tr><th>Horário</th><th>Paciente</th><th>Prestador</th><th>Especialidade</th><th>Status</th><th>Ação</th></tr></thead>
+        <tbody>
+          {% for item in agendamentos %}
+            <tr>
+              <td>{{ item.dh_agendamento|date:"H:i" }}</td>
+              <td>{{ item.cd_paciente.nm_social|default:item.cd_paciente.nm_paciente }}</td>
+              <td>{{ item.cd_agenda_profissional.cd_prestador.nm_prestador|default:item.ds_profissional|default:"-" }}</td>
+              <td>{{ item.ds_especialidade|default:"-" }}</td>
+              <td>{% if item.pre_atendimento %}Classificado{% else %}{{ item.get_ds_status_display }}{% endif %}</td>
+              <td><a class="button button-primary" href="?aba=agendados&data={{ data_selecionada|date:'Y-m-d' }}&agendamento={{ item.pk }}">Classificar</a></td>
+            </tr>
+          {% empty %}<tr><td colspan="6">Nenhum paciente agendado para a data selecionada.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% else %}
+    <section class="card table-card classification-queue-card">
+      <table>
+        <thead><tr><th>Senha</th><th>Tipo</th><th>Classe</th><th>Prioridade</th><th>Espera</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>
+          {% for senha in senhas %}
+            <tr class="classification-ticket-row {% if senha.tempo_excedido %}ticket-overdue{% endif %}" style="--classification-color: {% if senha.cd_cor_classificacao %}{{ senha.cd_cor_classificacao.ds_cor_hex }}{% elif senha.cd_classe_senha.cd_cor_classificacao %}{{ senha.cd_classe_senha.cd_cor_classificacao.ds_cor_hex }}{% else %}#94a3b8{% endif %}">
+              <td>
+                <span class="classification-ticket-icon">{% if senha.cd_classe_senha.cd_icone_chamada %}{{ senha.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}{% endif %}</span>
+                <strong>{{ senha.ds_senha }}</strong>
+              </td>
+              <td>{{ senha.cd_tipo_senha.nm_tipo_senha }}</td>
+              <td>{{ senha.cd_classe_senha.nm_classe_senha }}</td>
+              <td>{{ senha.nr_prioridade }}</td>
+              <td class="{% if senha.tempo_excedido %}classification-wait-overdue{% endif %}">{{ senha.dh_criacao|timesince }}</td>
+              <td>{{ senha.get_ds_status_display }}</td>
+              <td class="inline-actions">
+                <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'chamar' %}">{% csrf_token %}<button class="button button-secondary" title="Chamar" type="submit"><span class="svg-icon" data-nav-icon="audio"></span></button></form>
+                {% if senha.ds_status == "EM_CLASSIFICACAO" %}
+                  <a class="button button-primary" href="?aba=demanda&senha={{ senha.pk }}">Classificar</a>
+                {% else %}
+                  <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'receber' %}">{% csrf_token %}<button class="button button-primary" title="Classificar" type="submit"><span class="svg-icon" data-nav-icon="clipboard-plus"></span></button></form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}<tr><td colspan="7">Nenhuma senha aguardando classificação.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  {% if senha_selecionada or agendamento_selecionado %}
+    <section class="card classification-editor" data-classification-editor>
+      <nav class="classification-editor-tabs" role="tablist">
+        <button class="button button-primary" type="button" data-classification-tab="paciente">Paciente</button>
+        <button class="button button-secondary" type="button" data-classification-tab="classificacao">Classificação</button>
+      </nav>
+
+      <div data-classification-panel="paciente">
+        {% if paciente_selecionado %}
+          <div class="classification-patient-summary">
+            <strong>{{ paciente_selecionado.nm_social|default:paciente_selecionado.nm_paciente }}</strong>
+            <span>Prontuário {{ paciente_selecionado.pk }}</span>
+            <span>Nascimento: {{ paciente_selecionado.dt_nascimento|date:"d/m/Y"|default:"-" }}</span>
+            <span>Mãe: {{ paciente_selecionado.nm_mae|default:"-" }}</span>
+          </div>
+        {% elif senha_selecionada %}
+          <form class="classification-patient-search" method="get">
+            <input type="hidden" name="aba" value="demanda">
+            <input type="hidden" name="senha" value="{{ senha_selecionada.pk }}">
+            <label>Pesquisar paciente <input name="busca_paciente" value="{{ busca_paciente }}" placeholder="Nome, CPF, CNS ou nome da mãe"></label>
+            <button class="button button-secondary" type="submit">Pesquisar</button>
+          </form>
+          {% if pacientes_encontrados %}
+            <div class="classification-patient-results">
+              {% for paciente in pacientes_encontrados %}
+                <label><input type="radio" name="patient_picker" value="{{ paciente.pk }}" data-classification-patient-picker> <strong>{{ paciente.nm_social|default:paciente.nm_paciente }}</strong> · {{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }} · {{ paciente.nm_mae|default:"Mãe não informada" }}</label>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <div class="classification-pre-registration">
+            <h3>Pré-cadastro</h3>
+            <p>Preencha somente quando o paciente não estiver cadastrado.</p>
+            <div class="form-grid">
+              <label class="field-xl">Nome <input form="classification-form" name="nm_pre_cadastro" value="{{ senha_selecionada.nm_pre_cadastro }}"></label>
+              <label class="field-md">Data de nascimento <input form="classification-form" type="date" name="dt_nascimento_pre_cadastro" value="{{ senha_selecionada.dt_nascimento_pre_cadastro|date:'Y-m-d' }}"></label>
+              <label class="field-xl">Nome da mãe <input form="classification-form" name="nm_mae_pre_cadastro" value="{{ senha_selecionada.nm_mae_pre_cadastro }}"></label>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div data-classification-panel="classificacao" hidden>
+        <form id="classification-form" method="post" class="classification-form">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="finalizar">
+          {% if senha_selecionada %}<input type="hidden" name="senha_id" value="{{ senha_selecionada.pk }}">{% endif %}
+          {% if agendamento_selecionado %}<input type="hidden" name="agendamento_id" value="{{ agendamento_selecionado.pk }}">{% endif %}
+          <input type="hidden" name="paciente_id" value="{{ paciente_selecionado.pk|default:'' }}" data-classification-patient-id>
+          {{ form.non_field_errors }}
+          <div class="form-grid classification-fields">
+            {% for field in form %}<label>{{ field.label }} {{ field }} {{ field.errors }}</label>{% endfor %}
+          </div>
+          <fieldset class="classification-colors">
+            <legend>Cor da classificação</legend>
+            {% for cor in cores %}
+              <label style="--classification-color: {{ cor.ds_cor_hex }}"><input type="radio" name="cor_classificacao" value="{{ cor.pk }}" {% if cor_inicial == cor.pk|stringformat:'s' %}checked{% endif %} required> <span>{{ cor.nm_cor }}</span></label>
+            {% empty %}<p>Cadastre ao menos uma cor em Classificação &gt; Tabelas &gt; Cores.</p>{% endfor %}
+          </fieldset>
+          <div class="table-actions"><button class="button button-primary" type="submit">Finalizar classificação</button></div>
+        </form>
+      </div>
+    </section>
+  {% endif %}
+
+  <script>
+    (() => {
+      const editor = document.querySelector("[data-classification-editor]");
+      if (!editor) return;
+      const buttons = [...editor.querySelectorAll("[data-classification-tab]")];
+      const panels = [...editor.querySelectorAll("[data-classification-panel]")];
+      buttons.forEach((button) => button.addEventListener("click", () => {
+        buttons.forEach((item) => item.className = `button ${item === button ? "button-primary" : "button-secondary"}`);
+        panels.forEach((panel) => { panel.hidden = panel.dataset.classificationPanel !== button.dataset.classificationTab; });
+      }));
+      editor.querySelectorAll("[data-classification-patient-picker]").forEach((radio) => {
+        radio.addEventListener("change", () => {
+          const target = editor.querySelector("[data-classification-patient-id]");
+          if (target) target.value = radio.value;
+        });
+      });
+    })();
+  </script>
 {% endblock %}

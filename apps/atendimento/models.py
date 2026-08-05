@@ -4,16 +4,23 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 from django.db import models
 from django.utils import timezone
+from django.utils.deconstruct import deconstructible
 
 from apps.accounts.models import Empresa, Setor
 from apps.core.models import Cep, ValorAuxiliarGlobal
 from apps.core.validators import validate_cpf
 
 
-armazenamento_clinico_privado = FileSystemStorage(
-    location=settings.BASE_DIR / "private_clinical_media",
-    base_url=None,
-)
+@deconstructible
+class ArmazenamentoClinicoPrivado(FileSystemStorage):
+    def __init__(self):
+        super().__init__(
+            location=settings.BASE_DIR / "private_clinical_media",
+            base_url=None,
+        )
+
+
+armazenamento_clinico_privado = ArmazenamentoClinicoPrivado()
 
 
 class AuditoriaModel(models.Model):
@@ -733,6 +740,8 @@ class PainelChamada(AuditoriaModel):
     ds_prioridade_visual = models.CharField(max_length=30, default="normal")
     sn_voz = models.BooleanField(default=True)
     ds_midia_url = models.CharField(max_length=500, blank=True)
+    ds_midia_arquivo = models.FileField(upload_to="painel_chamada/midia/%Y/%m/", blank=True)
+    ds_configuracao = models.JSONField(default=dict, blank=True)
     ds_observacao = models.TextField(blank=True)
     sn_ativo = models.BooleanField(default=True)
     setores = models.ManyToManyField(Setor, through="PainelChamadaSetor", related_name="paineis_chamada", blank=True)
@@ -874,6 +883,24 @@ class TipoSenhaAtendimento(AuditoriaModel):
         return f"{self.sg_tipo_senha} - {self.nm_tipo_senha}"
 
 
+class CorClassificacaoRisco(AuditoriaModel):
+    cd_cor_classificacao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_cor = models.CharField(max_length=30)
+    nm_cor = models.CharField(max_length=80)
+    ds_cor_hex = models.CharField(max_length=7, default="#22c55e")
+    nr_prioridade = models.PositiveSmallIntegerField(default=5)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "cor_classificacao_risco"
+        ordering = ("nr_prioridade", "nm_cor")
+        unique_together = ("cd_empresa", "cd_cor")
+
+    def __str__(self):
+        return self.nm_cor
+
+
 class ClasseSenhaAtendimento(AuditoriaModel):
     cd_classe_senha = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
@@ -895,6 +922,14 @@ class ClasseSenhaAtendimento(AuditoriaModel):
         blank=True,
         on_delete=models.SET_NULL,
         db_column="cd_icone_chamada",
+    )
+    cd_cor_classificacao = models.ForeignKey(
+        CorClassificacaoRisco,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_cor_classificacao",
+        related_name="classes_senha",
     )
     nr_idade_minima = models.PositiveSmallIntegerField(null=True, blank=True)
     nr_idade_maxima = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -977,6 +1012,26 @@ class SenhaAtendimento(AuditoriaModel):
         db_column="cd_paciente",
         related_name="senhas_atendimento",
     )
+    cd_pre_atendimento = models.ForeignKey(
+        PreAtendimento,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_pre_atendimento",
+        related_name="senhas_atendimento",
+    )
+    cd_cor_classificacao = models.ForeignKey(
+        CorClassificacaoRisco,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_cor_classificacao",
+        related_name="senhas_atendimento",
+    )
+    nm_pre_cadastro = models.CharField(max_length=160, blank=True)
+    dt_nascimento_pre_cadastro = models.DateField(null=True, blank=True)
+    nm_mae_pre_cadastro = models.CharField(max_length=160, blank=True)
+    ds_dados_classificacao = models.JSONField(default=dict, blank=True)
     dt_senha = models.DateField(default=timezone.localdate)
     nr_senha = models.PositiveIntegerField()
     ds_senha = models.CharField(max_length=16)

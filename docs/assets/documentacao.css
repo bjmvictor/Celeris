@@ -179,8 +179,8 @@ kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; backg
 .topic-body p { margin: 9px 0 14px; }
 .topic-body ul, .topic-body ol { display: grid; gap: 7px; padding-left: 24px; }
 .topic-body code { padding: 2px 5px; border-radius: 4px; background: var(--field-bg); color: var(--primary-darker); font-family: Consolas, monospace; font-size: .9em; }
-.topic-body pre { overflow: auto; padding: 15px; border: 1px solid var(--line); border-radius: 8px; background: #0f172a; color: #e5e7eb; box-shadow: var(--shadow); }
-.topic-body pre code { padding: 0; background: transparent; color: inherit; }
+.topic-body pre { overflow: auto; padding: 0 15px; margin: 0px; border: 1px solid var(--line); border-radius: 8px; background: #0f172a; color: #e5e7eb; box-shadow: var(--shadow); }
+.topic-body pre code { padding: 0; margin: 0px; background: transparent; color: inherit; }
 .topic-body blockquote { margin: 17px 0; padding: 11px 14px; border-left: 4px solid var(--primary); background: var(--primary-soft); color: var(--primary-darker); }
 .topic-body a { color: var(--primary-dark); text-decoration: underline; text-underline-offset: 3px; }
 .topic-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); }
