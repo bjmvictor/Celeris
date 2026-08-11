@@ -79,7 +79,7 @@ O Celeris pode ser utilizado como uma plataforma única ou dividido em produtos 
 
 | Produto             | Finalidade                                                    |
 | ------------------- | ------------------------------------------------------------- |
-| **Celeris Central** | Gestão administrativa, operacional e integração dos processos |
+| **Celeris (Core)** | Gestão administrativa, operacional e integração dos processos |
 | **Celeris PEP**     | Prontuário eletrônico e atendimento assistencial              |
 | **Celeris Class**   | Pré-atendimento e classificação de risco                      |
 | **Celeris Totem**   | Autoatendimento e geração de senhas                           |
