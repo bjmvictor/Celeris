@@ -76,7 +76,7 @@ class ModuleForm(forms.ModelForm):
                     "data-field": name,
                 }
             )
-            if self.is_protected and not query_mode:
+            if self.is_protected and not query_mode and name != "order":
                 field.disabled = True
 
     def clean_code(self):

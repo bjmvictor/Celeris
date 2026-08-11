@@ -13,15 +13,15 @@ def seed_auxiliares(apps, schema_editor):
     dados = {
         "local_procedencia": (
             "Locais de procedência do paciente",
-            (("DOMICILIO", "Domicílio"), ("OUTRA_UNIDADE", "Outra unidade hospitalar")),
+            (("DOMICILIO", "Domicílio"), ("OUTRA_UNIDADE", "Outra unidade hospitalar"), ("TRABALHO", "Trabalho"), ("OUTRO", "Outro/Desconhecido")),
         ),
         "destino_atendimento": (
             "Destinos iniciais do atendimento",
-            (("CONSULTORIO", "Consultório"), ("SALA", "Sala"), ("OBSERVACAO", "Observação")),
+            (("CONSULTORIO", "Consultório"), ("ESPERA", "Sala de espera"), ("OBSERVACAO", "Observação")),
         ),
         "meio_transporte": (
             "Meios de transporte do paciente",
-            (("PROPRIO", "Meios próprios"), ("AMBULANCIA", "Ambulância"), ("CADEIRA_RODAS", "Cadeira de rodas"), ("MACA", "Maca")),
+            (("PROPRIO", "Meios próprios"), ("AMBULANCIA", "Ambulância"), ("CARONA", "Carona"), ("OUTRO", "Outro")),
         ),
         "origem_recepcao": (
             "Recepções de origem do atendimento",

@@ -54,40 +54,124 @@ class UserModule(TimeStampedModel):
         unique_together = ("user", "module")
 
 
-class TabelaAuxiliarGlobal(TimeStampedModel):
-    cd_tabela_auxiliar_global = models.BigAutoField(primary_key=True)
-    ds_tabela = models.CharField(max_length=120, unique=True)
-    ds_descricao = models.CharField(max_length=220, blank=True)
+class CatalogoTematico(TimeStampedModel):
+    cd_item_catalogo = models.BigAutoField(primary_key=True)
+    cd_valor = models.CharField(max_length=40, unique=True)
+    ds_valor = models.CharField(max_length=500)
+    ds_grupo = models.CharField(max_length=160, blank=True)
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "tabela_auxiliar"
-        ordering = ("ds_tabela",)
-
-    def __str__(self) -> str:
-        return self.ds_tabela
-
-
-class ValorAuxiliarGlobal(TimeStampedModel):
-    cd_valor_auxiliar_global = models.BigAutoField(primary_key=True)
-    cd_tabela_auxiliar_global = models.ForeignKey(
-        TabelaAuxiliarGlobal,
-        related_name="valores",
-        on_delete=models.CASCADE,
-        db_column="cd_tabela_auxiliar_global",
-    )
-    cd_valor = models.CharField(max_length=40)
-    ds_valor = models.CharField(max_length=160)
-    ds_grupo = models.CharField(max_length=40, blank=True)
-    sn_ativo = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "valor_auxiliar"
-        ordering = ("cd_tabela_auxiliar_global__ds_tabela", "ds_valor")
-        unique_together = ("cd_tabela_auxiliar_global", "cd_valor")
+        abstract = True
+        ordering = ("ds_valor",)
 
     def __str__(self) -> str:
         return f"{self.cd_valor} - {self.ds_valor}"
+
+
+def _modelo_catalogo(nome: str, tabela: str):
+    meta = type("Meta", (), {"db_table": tabela, "ordering": ("ds_valor",)})
+    return type(nome, (CatalogoTematico,), {"__module__": __name__, "Meta": meta})
+
+
+Bairro = _modelo_catalogo("Bairro", "bairros")
+Banco = _modelo_catalogo("Banco", "bancos")
+Cbo = _modelo_catalogo("Cbo", "cbos")
+Cidade = _modelo_catalogo("Cidade", "cidades")
+Cid = _modelo_catalogo("Cid", "cids")
+ConselhoProfissional = _modelo_catalogo("ConselhoProfissional", "conselhos_profissionais")
+CorRaca = _modelo_catalogo("CorRaca", "cores_racas")
+DestinoAtendimento = _modelo_catalogo("DestinoAtendimento", "destinos_atendimento")
+Especialidade = _modelo_catalogo("Especialidade", "especialidades")
+Estado = _modelo_catalogo("Estado", "estados")
+EstadoCivil = _modelo_catalogo("EstadoCivil", "estados_civis")
+Feriado = _modelo_catalogo("Feriado", "feriados")
+Genero = _modelo_catalogo("Genero", "generos")
+GrauInstrucao = _modelo_catalogo("GrauInstrucao", "graus_instrucao")
+IdentidadeGenero = _modelo_catalogo("IdentidadeGenero", "identidades_genero")
+Idioma = _modelo_catalogo("Idioma", "idiomas")
+LocalProcedencia = _modelo_catalogo("LocalProcedencia", "locais_procedencia")
+MeioComunicacao = _modelo_catalogo("MeioComunicacao", "meios_comunicacao")
+MeioTransporte = _modelo_catalogo("MeioTransporte", "meios_transporte")
+MotivoAlteracao = _modelo_catalogo("MotivoAlteracao", "motivos_alteracao")
+MotivoAlta = _modelo_catalogo("MotivoAlta", "motivos_alta")
+Nacionalidade = _modelo_catalogo("Nacionalidade", "nacionalidades")
+Naturalidade = _modelo_catalogo("Naturalidade", "naturalidades")
+OrgaoEmissor = _modelo_catalogo("OrgaoEmissor", "orgaos_emissores")
+OrientacaoSexual = _modelo_catalogo("OrientacaoSexual", "orientacoes_sexuais")
+Origem = _modelo_catalogo("Origem", "origens")
+OrigemRecepcao = _modelo_catalogo("OrigemRecepcao", "origens_recepcao")
+Pais = _modelo_catalogo("Pais", "paises")
+Parentesco = _modelo_catalogo("Parentesco", "parentescos")
+Plano = _modelo_catalogo("Plano", "planos")
+Procedimento = _modelo_catalogo("Procedimento", "procedimentos")
+Profissao = _modelo_catalogo("Profissao", "profissoes")
+RacaCor = _modelo_catalogo("RacaCor", "racas_cores")
+Religiao = _modelo_catalogo("Religiao", "religioes")
+Sala = _modelo_catalogo("Sala", "salas")
+SetorExame = _modelo_catalogo("SetorExame", "setores_exame")
+Sexo = _modelo_catalogo("Sexo", "sexos")
+TipoIdentificadorPessoa = _modelo_catalogo("TipoIdentificadorPessoa", "tipos_identificador_pessoa")
+TipoAtendimento = _modelo_catalogo("TipoAtendimento", "tipos_atendimento")
+TipoEscala = _modelo_catalogo("TipoEscala", "tipos_escala")
+TipoLogradouro = _modelo_catalogo("TipoLogradouro", "tipos_logradouro")
+TipoMoradia = _modelo_catalogo("TipoMoradia", "tipos_moradia")
+TipoOcorrencia = _modelo_catalogo("TipoOcorrencia", "tipos_ocorrencia")
+TipoPrestador = _modelo_catalogo("TipoPrestador", "tipos_prestador")
+TipoSanguineo = _modelo_catalogo("TipoSanguineo", "tipos_sanguineos")
+TipoVinculo = _modelo_catalogo("TipoVinculo", "tipos_vinculo")
+VulnerabilidadeSocial = _modelo_catalogo("VulnerabilidadeSocial", "vulnerabilidades_sociais")
+
+
+MODELOS_CATALOGO_POR_TEMA = {
+    "bairro": Bairro,
+    "banco": Banco,
+    "cbo": Cbo,
+    "cidade": Cidade,
+    "cids": Cid,
+    "conselho_profissional": ConselhoProfissional,
+    "cor_raca": CorRaca,
+    "destino_atendimento": DestinoAtendimento,
+    "especialidade": Especialidade,
+    "estado": Estado,
+    "estado_civil": EstadoCivil,
+    "feriado": Feriado,
+    "genero": Genero,
+    "grau_instrucao": GrauInstrucao,
+    "identidade_genero": IdentidadeGenero,
+    "idioma": Idioma,
+    "local_procedencia": LocalProcedencia,
+    "meio_comunicacao": MeioComunicacao,
+    "meio_transporte": MeioTransporte,
+    "motivo_alteracao": MotivoAlteracao,
+    "motivos_alta": MotivoAlta,
+    "nacionalidade": Nacionalidade,
+    "naturalidade": Naturalidade,
+    "orgao_emissor": OrgaoEmissor,
+    "orientacao_sexual": OrientacaoSexual,
+    "origem": Origem,
+    "origem_recepcao": OrigemRecepcao,
+    "pais": Pais,
+    "parentesco": Parentesco,
+    "plano": Plano,
+    "procedimento": Procedimento,
+    "profissao": Profissao,
+    "raca_cor": RacaCor,
+    "religiao": Religiao,
+    "sala": Sala,
+    "setor_exame": SetorExame,
+    "sexo": Sexo,
+    "tipo_identificador_pessoa": TipoIdentificadorPessoa,
+    "tipo_atendimento": TipoAtendimento,
+    "tipo_escala": TipoEscala,
+    "tipo_logradouro": TipoLogradouro,
+    "tipo_moradia": TipoMoradia,
+    "tipo_ocorrencia": TipoOcorrencia,
+    "tipo_prestador": TipoPrestador,
+    "tipo_sanguineo": TipoSanguineo,
+    "tipo_vinculo": TipoVinculo,
+    "vulnerabilidade_social": VulnerabilidadeSocial,
+}
 
 
 class Cep(TimeStampedModel):
@@ -102,7 +186,7 @@ class Cep(TimeStampedModel):
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "cep"
+        db_table = "ceps"
         ordering = ("nr_cep",)
 
     def __str__(self) -> str:

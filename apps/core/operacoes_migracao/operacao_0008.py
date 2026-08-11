@@ -16,9 +16,9 @@ TABLES = {
         ("O-", "O-"),
     ],
     "sexo": [
-        ("F", "FEMININO"),
         ("M", "MASCULINO"),
-        ("I", "INTERSEXO"),
+        ("F", "FEMININO"),
+        ("O", "OUTRO"),
         ("N", "NÃO INFORMADO"),
     ],
     "estado_civil": [

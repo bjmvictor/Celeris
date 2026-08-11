@@ -1,4 +1,4 @@
-{% extends "base/layout.html" %}
+{% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
   <form class="card table-card" data-editable-table data-table="cor_classificacao_risco" method="post">
     {% csrf_token %}

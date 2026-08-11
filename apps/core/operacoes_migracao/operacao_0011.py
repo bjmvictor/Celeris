@@ -1,114 +1,179 @@
-"""Operações históricas de dados da migration 0011."""
+"""Cadastra domínios sociodemográficos oficiais."""
 
 from django.db import migrations
 
+from apps.core.operacoes_migracao.paises_ibge_0011 import PAISES
 
-TABLE_VALUES = {
-    "genero": [
-        ("", ""),
-        ("FEMININO", "FEMININO"),
-        ("MASCULINO", "MASCULINO"),
-        ("NAO_BINARIO", "NÃO BINÁRIO"),
-        ("TRANSGENERO", "TRANSGÊNERO"),
-        ("OUTRO", "OUTRO"),
-    ],
-    "cor_raca": [
-        ("BRANCA", "BRANCA"),
-        ("PRETA", "PRETA"),
-        ("PARDA", "PARDA"),
-        ("AMARELA", "AMARELA"),
-        ("INDIGENA", "INDÍGENA"),
-        ("NAO_INFORMADA", "NÃO INFORMADA"),
-    ],
-    "pais": [
-        ("BRASIL", "BRASIL"),
-        ("ARGENTINA", "ARGENTINA"),
-        ("BOLIVIA", "BOLÍVIA"),
-        ("CHILE", "CHILE"),
-        ("COLOMBIA", "COLÔMBIA"),
-        ("PARAGUAI", "PARAGUAI"),
-        ("PERU", "PERU"),
-        ("PORTUGAL", "PORTUGAL"),
-        ("URUGUAI", "URUGUAI"),
-        ("VENEZUELA", "VENEZUELA"),
-        ("OUTRO", "OUTRO"),
-    ],
+
+DADOS_ESTATICOS = {
+    "raca_cor": {
+        "descricao": "Raça/Cor",
+        "valores": [
+            ("01", "BRANCA", True),
+            ("02", "PRETA", True),
+            ("03", "PARDA", True),
+            ("04", "AMARELA", True),
+            ("05", "INDÍGENA", True),
+            ("99", "SEM INFORMAÇÃO", False),
+        ],
+    },
+    "sexo": {
+        "descricao": "Sexo",
+        "valores": [
+            ("M", "MASCULINO", True),
+            ("F", "FEMININO", True),
+            ("I", "INDETERMINADO", True),
+        ],
+    },
+    "nacionalidade": {
+        "descricao": "Nacionalidade",
+        "valores": [
+            ("BRASILEIRA", "BRASILEIRA", True),
+            ("NATURALIZADA", "NATURALIZADA", True),
+            ("ESTRANGEIRA", "ESTRANGEIRA", True),
+        ],
+    },
+    "identidade_genero": {
+        "descricao": "Identidade de gênero",
+        "valores": [
+            ("HOMEM_CIS", "HOMEM CISGÊNERO", True),
+            ("MULHER_CIS", "MULHER CISGÊNERO", True),
+            ("HOMEM_TRANS", "HOMEM TRANSGÊNERO", True),
+            ("MULHER_TRANS", "MULHER TRANSGÊNERO", True),
+            ("TRAVESTI", "TRAVESTI", True),
+            ("NAO_BINARIO", "NÃO BINÁRIO", True),
+            ("OUTRO", "OUTRO", True),
+        ],
+    },
+    "orientacao_sexual": {
+        "descricao": "Orientação sexual",
+        "valores": [
+            ("HETEROSSEXUAL", "HETEROSSEXUAL", True),
+            ("GAY", "GAY", True),
+            ("LESBICA", "LÉSBICA", True),
+            ("BISSEXUAL", "BISSEXUAL", True),
+            ("ASSEXUAL", "ASSEXUAL", True),
+            ("PANSEXUAL", "PANSEXUAL", True),
+            ("OUTRO", "OUTRO", True),
+        ],
+    },
+    "pais": {
+        "descricao": "País",
+        "valores": [
+            (codigo, nome, True)
+            for codigo, nome in PAISES
+        ],
+    },
 }
-
-CITY_VALUES = [
-    ("AC", "RIO_BRANCO", "RIO BRANCO"),
-    ("AL", "MACEIO", "MACEIÓ"),
-    ("AP", "MACAPA", "MACAPÁ"),
-    ("AM", "MANAUS", "MANAUS"),
-    ("BA", "SALVADOR", "SALVADOR"),
-    ("BA", "FEIRA_DE_SANTANA", "FEIRA DE SANTANA"),
-    ("CE", "FORTALEZA", "FORTALEZA"),
-    ("DF", "BRASILIA", "BRASÍLIA"),
-    ("ES", "VITORIA", "VITÓRIA"),
-    ("ES", "VILA_VELHA", "VILA VELHA"),
-    ("GO", "GOIANIA", "GOIÂNIA"),
-    ("MA", "SAO_LUIS", "SÃO LUÍS"),
-    ("MT", "CUIABA", "CUIABÁ"),
-    ("MS", "CAMPO_GRANDE", "CAMPO GRANDE"),
-    ("MG", "BELO_HORIZONTE", "BELO HORIZONTE"),
-    ("MG", "UBERLANDIA", "UBERLÂNDIA"),
-    ("PA", "BELEM", "BELÉM"),
-    ("PB", "JOAO_PESSOA", "JOÃO PESSOA"),
-    ("PR", "CURITIBA", "CURITIBA"),
-    ("PR", "LONDRINA", "LONDRINA"),
-    ("PE", "RECIFE", "RECIFE"),
-    ("PE", "JABOATAO_DOS_GUARARAPES", "JABOATÃO DOS GUARARAPES"),
-    ("PI", "TERESINA", "TERESINA"),
-    ("RJ", "RIO_DE_JANEIRO", "RIO DE JANEIRO"),
-    ("RJ", "NITEROI", "NITERÓI"),
-    ("RN", "NATAL", "NATAL"),
-    ("RS", "PORTO_ALEGRE", "PORTO ALEGRE"),
-    ("RS", "CAXIAS_DO_SUL", "CAXIAS DO SUL"),
-    ("RO", "PORTO_VELHO", "PORTO VELHO"),
-    ("RR", "BOA_VISTA", "BOA VISTA"),
-    ("SC", "FLORIANOPOLIS", "FLORIANÓPOLIS"),
-    ("SC", "JOINVILLE", "JOINVILLE"),
-    ("SP", "SAO_PAULO", "SÃO PAULO"),
-    ("SP", "CAMPINAS", "CAMPINAS"),
-    ("SP", "SANTOS", "SANTOS"),
-    ("SE", "ARACAJU", "ARACAJU"),
-    ("TO", "PALMAS", "PALMAS"),
-]
 
 
 def seed(apps, schema_editor):
-    TabelaAuxiliarGlobal = apps.get_model("core", "TabelaAuxiliarGlobal")
-    ValorAuxiliarGlobal = apps.get_model("core", "ValorAuxiliarGlobal")
-    for table_name, values in TABLE_VALUES.items():
-        table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela=table_name,
-            defaults={"ds_descricao": table_name.replace("_", " ").title(), "sn_ativo": True},
-        )
-        for code, description in values:
-            if not code:
-                continue
-            ValorAuxiliarGlobal.objects.get_or_create(
-                cd_tabela_auxiliar_global=table,
-                cd_valor=code,
-                defaults={"ds_valor": description, "sn_ativo": True},
-            )
-    city_table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-        ds_tabela="cidade",
-        defaults={"ds_descricao": "Cidades", "sn_ativo": True},
+    TabelaAuxiliarGlobal = apps.get_model(
+        "core",
+        "TabelaAuxiliarGlobal",
     )
-    for state, code, description in CITY_VALUES:
-        ValorAuxiliarGlobal.objects.update_or_create(
-            cd_tabela_auxiliar_global=city_table,
-            cd_valor=code,
-            defaults={"ds_valor": description, "ds_grupo": state, "sn_ativo": True},
+    ValorAuxiliarGlobal = apps.get_model(
+        "core",
+        "ValorAuxiliarGlobal",
+    )
+
+    db_alias = schema_editor.connection.alias
+
+    for nome_tabela, configuracao in DADOS_ESTATICOS.items():
+        tabela, _ = (
+            TabelaAuxiliarGlobal.objects
+            .using(db_alias)
+            .get_or_create(
+                ds_tabela=nome_tabela,
+                defaults={
+                    "ds_descricao": configuracao["descricao"],
+                    "sn_ativo": True,
+                },
+            )
+        )
+
+        codigos_existentes = set(
+            ValorAuxiliarGlobal.objects
+            .using(db_alias)
+            .filter(
+                cd_tabela_auxiliar_global=tabela,
+            )
+            .values_list(
+                "cd_valor",
+                flat=True,
+            )
+        )
+
+        novos_valores = [
+            ValorAuxiliarGlobal(
+                cd_tabela_auxiliar_global=tabela,
+                cd_valor=codigo,
+                ds_valor=descricao,
+                ds_grupo="",
+                sn_ativo=ativo,
+            )
+            for codigo, descricao, ativo
+            in configuracao["valores"]
+            if codigo not in codigos_existentes
+        ]
+
+        ValorAuxiliarGlobal.objects.using(
+            db_alias
+        ).bulk_create(
+            novos_valores,
+            batch_size=500,
+        )
+
+
+def unseed(apps, schema_editor):
+    TabelaAuxiliarGlobal = apps.get_model(
+        "core",
+        "TabelaAuxiliarGlobal",
+    )
+    ValorAuxiliarGlobal = apps.get_model(
+        "core",
+        "ValorAuxiliarGlobal",
+    )
+
+    db_alias = schema_editor.connection.alias
+
+    for nome_tabela, configuracao in DADOS_ESTATICOS.items():
+        tabela = (
+            TabelaAuxiliarGlobal.objects
+            .using(db_alias)
+            .filter(ds_tabela=nome_tabela)
+            .first()
+        )
+
+        if tabela is None:
+            continue
+
+        codigos = [
+            codigo
+            for codigo, _, _
+            in configuracao["valores"]
+        ]
+
+        (
+            ValorAuxiliarGlobal.objects
+            .using(db_alias)
+            .filter(
+                cd_tabela_auxiliar_global=tabela,
+                cd_valor__in=codigos,
+            )
+            .delete()
         )
 
 
 class Migration(migrations.Migration):
+
     dependencies = [
-        ("core", "0010_auxiliary_value_group"),
+        ("core", "0010_add_group_and_seed_cities"),
     ]
 
     operations = [
-        migrations.RunPython(seed, migrations.RunPython.noop),
+        migrations.RunPython(
+            seed,
+            unseed,
+        ),
     ]

@@ -1,0 +1,24 @@
+{% extends class_base_template|default:"base/layout.html" %}
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="fluxo_classificacao" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead><tr><th>Código</th><th>Grupo</th><th>Fluxo/sintoma</th><th>Orientação</th><th>Cor recomendada</th><th>Ordem</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for item in registros %}
+          <tr data-editable-row>
+            <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
+            <td><input name="group_{{ item.pk }}" value="{{ item.nm_grupo }}" required></td>
+            <td><input name="name_{{ item.pk }}" value="{{ item.nm_fluxo }}" required></td>
+            <td><input name="guidance_{{ item.pk }}" value="{{ item.ds_orientacao }}"></td>
+            <td><select name="color_{{ item.pk }}"><option value="">Sem recomendação</option>{% for cor in cores %}<option value="{{ cor.pk }}" {% if item.cd_cor_recomendada_id == cor.pk %}selected{% endif %}>{{ cor.nm_cor }}</option>{% endfor %}</select></td>
+            <td><input name="order_{{ item.pk }}" type="number" min="0" value="{{ item.nr_ordem }}"></td>
+            <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
+          </tr>
+        {% empty %}<tr><td colspan="7" class="empty-cell">Nenhum fluxo encontrado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row><tr data-editable-row><td><input readonly data-primary-key="true" placeholder="Automático"></td><td><input name="new_group" required></td><td><input name="new_name" required></td><td><input name="new_guidance"></td><td><select name="new_color"><option value="">Sem recomendação</option>{% for cor in cores %}<option value="{{ cor.pk }}">{{ cor.nm_cor }}</option>{% endfor %}</select></td><td><input name="new_order" type="number" min="0" value="10"></td><td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td></tr></template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

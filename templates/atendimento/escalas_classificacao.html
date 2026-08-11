@@ -1,0 +1,344 @@
+{% extends class_base_template|default:"base/class_layout.html" %}
+{% block content %}
+  {{ perguntas_escala|json_script:"scale-questions-data" }}
+  {{ formula_escala|json_script:"scale-formula-data" }}
+  {{ faixas_escala|json_script:"scale-ranges-data" }}
+  <form class="card scale-editor-form" method="post" data-scale-editor data-table="escala_classificacao" data-query-url="{% url 'class_escalas' %}" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="perguntas_json" data-scale-questions-json>
+    <input type="hidden" name="formula_json" data-scale-formula-json>
+    <input type="hidden" name="faixas_json" data-scale-ranges-json>
+
+    <nav class="scale-editor-tabs" role="tablist" aria-label="Configuração da escala">
+      <button class="active" type="button" data-scale-editor-tab="geral">1. Escala</button>
+      <button type="button" data-scale-editor-tab="perguntas">2. Perguntas e respostas</button>
+      <button type="button" data-scale-editor-tab="formula">3. Fórmula</button>
+      <button type="button" data-scale-editor-tab="resultados">4. Resultados</button>
+    </nav>
+
+    <section class="scale-editor-panel form-grid" data-scale-editor-panel="geral">
+      <label class="field-sm">Código<input value="{{ escala.pk|default:'' }}" readonly data-primary-key="true"></label>
+      <label class="field-lg">Nome<input name="nm_escala" value="{{ escala.nm_escala|default:'' }}" maxlength="160" data-consultable="true" required></label>
+      <label class="field-xl">Descrição<input name="ds_descricao" value="{{ escala.ds_descricao|default:'' }}" maxlength="500" data-consultable="true"></label>
+      <label class="field-md">Cálculo padrão<select name="tp_calculo"><option value="SOMA" {% if not escala or escala.tp_calculo == 'SOMA' %}selected{% endif %}>Soma</option><option value="MEDIA" {% if escala.tp_calculo == 'MEDIA' %}selected{% endif %}>Média</option></select></label>
+      <label class="field-md">Status<select name="sn_ativo" data-consultable="true"><option value="true" {% if not escala or escala.sn_ativo %}selected{% endif %}>Ativa</option><option value="false" {% if escala and not escala.sn_ativo %}selected{% endif %}>Inativa</option></select></label>
+    </section>
+
+    <section class="scale-editor-panel" data-scale-editor-panel="perguntas" hidden>
+      <div class="scale-editor-table-block" data-scale-table="questions" tabindex="-1">
+        <div class="section-heading"><div><h3>Perguntas</h3><small>Selecione uma pergunta para editar as respostas dela.</small></div></div>
+        <div class="table-card"><table class="editable-table"><thead><tr><th>Ordem</th><th>Pergunta</th><th>Chave técnica</th><th>Ativa</th></tr></thead><tbody data-scale-question-rows></tbody></table></div>
+      </div>
+      <div class="scale-editor-table-block" data-scale-table="answers" tabindex="-1">
+        <div class="section-heading"><div><h3>Respostas da pergunta</h3><small data-scale-answer-help>Selecione uma pergunta acima.</small></div></div>
+        <div class="table-card"><table class="editable-table"><thead><tr><th>Resposta</th><th title="Identificador técnico com até 8 caracteres, sem espaços.">Valor técnico</th><th>Pontos</th><th>Ativa</th></tr></thead><tbody data-scale-answer-rows></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="scale-editor-panel" data-scale-editor-panel="formula" hidden>
+      <div class="scale-editor-table-block" data-scale-table="formula" tabindex="-1">
+        <div class="section-heading"><div><h3>Fórmula de cálculo</h3><small>Cada linha representa uma pergunta, operador ou número.</small></div><button class="button button-secondary" type="button" data-scale-validate-formula>Validar fórmula</button></div>
+        <div class="table-card"><table class="editable-table"><thead><tr><th>Ordem</th><th>Tipo</th><th>Valor</th></tr></thead><tbody data-scale-formula-rows></tbody></table></div>
+        <div class="scale-formula-status" data-scale-formula-status>Fórmula ainda não validada.</div>
+      </div>
+    </section>
+
+    <section class="scale-editor-panel" data-scale-editor-panel="resultados" hidden>
+      <div class="scale-editor-table-block" data-scale-table="ranges" tabindex="-1">
+        <div class="section-heading"><div><h3>Faixas de resultado</h3><small>Defina a interpretação para cada intervalo calculado.</small></div></div>
+        <div class="table-card"><table class="editable-table"><thead><tr><th>Valor inicial</th><th>Valor final</th><th>Resultado</th><th>Cor</th></tr></thead><tbody data-scale-range-rows></tbody></table></div>
+      </div>
+    </section>
+  </form>
+
+  <script>
+    (() => {
+      const form = document.querySelector("[data-scale-editor]");
+      if (!form) return;
+      let questions = JSON.parse(document.getElementById("scale-questions-data")?.textContent || "[]");
+      let formula = JSON.parse(document.getElementById("scale-formula-data")?.textContent || "[]");
+      let ranges = JSON.parse(document.getElementById("scale-ranges-data")?.textContent || "[]");
+      let selectedQuestion = questions.length ? 0 : -1;
+      let activeTable = null;
+      let activeRowIndex = -1;
+      const undoStack = [];
+      const redoStack = [];
+      const questionBody = form.querySelector("[data-scale-question-rows]");
+      const answerBody = form.querySelector("[data-scale-answer-rows]");
+      const formulaBody = form.querySelector("[data-scale-formula-rows]");
+      const rangeBody = form.querySelector("[data-scale-range-rows]");
+      const answerHelp = form.querySelector("[data-scale-answer-help]");
+      const formulaStatus = form.querySelector("[data-scale-formula-status]");
+      const undoButton = document.querySelector('[data-action="undo"]');
+      const redoButton = document.querySelector('[data-action="redo"]');
+      const escapeHTML = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[character]));
+      const normalizeKey = (value, fallback = "pergunta") => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase() || fallback;
+      const snapshot = () => JSON.stringify({questions, formula, ranges, selectedQuestion});
+      const updateHistoryButtons = () => {
+        if (undoButton) undoButton.disabled = !undoStack.length;
+        if (redoButton) redoButton.disabled = !redoStack.length;
+      };
+      const remember = () => {
+        const state = snapshot();
+        if (undoStack.at(-1) !== state) undoStack.push(state);
+        if (undoStack.length > 60) undoStack.shift();
+        redoStack.length = 0;
+        updateHistoryButtons();
+      };
+      const restore = (state) => {
+        const parsed = JSON.parse(state);
+        questions = parsed.questions;
+        formula = parsed.formula;
+        ranges = parsed.ranges;
+        selectedQuestion = parsed.selectedQuestion;
+        renderQuestions();
+        renderRanges();
+        serialize();
+        markChanged();
+      };
+      const markChanged = () => {
+        form.dataset.dirty = "true";
+        const saveButton = document.querySelector('[data-action="save"]');
+        if (saveButton) saveButton.disabled = false;
+        formulaStatus.textContent = "Fórmula alterada; valide novamente.";
+        formulaStatus.className = "scale-formula-status";
+      };
+      const serialize = () => {
+        form.querySelector("[data-scale-questions-json]").value = JSON.stringify(questions);
+        form.querySelector("[data-scale-formula-json]").value = JSON.stringify(formula);
+        form.querySelector("[data-scale-ranges-json]").value = JSON.stringify(ranges);
+      };
+      const activeOptions = (selected = "") => questions.map((question) => `<option value="${escapeHTML(question.chave)}" ${question.chave === selected ? "selected" : ""}>${escapeHTML(question.texto || question.chave)}</option>`).join("");
+      const renderQuestions = () => {
+        questionBody.innerHTML = questions.map((question, index) => `<tr data-question-index="${index}" class="${index === selectedQuestion ? "selected" : ""}"><td>${index + 1}</td><td><input value="${escapeHTML(question.texto)}" data-field-name="ds_perguntas" data-question-field="texto"></td><td><input value="${escapeHTML(question.chave)}" maxlength="40" data-field-name="ds_perguntas" data-question-field="chave"></td><td><select data-field-name="ds_perguntas" data-question-field="ativo"><option value="true" ${question.ativo !== false ? "selected" : ""}>Sim</option><option value="false" ${question.ativo === false ? "selected" : ""}>Não</option></select></td></tr>`).join("") || '<tr><td colspan="4" class="empty-cell">Nenhuma pergunta configurada.</td></tr>';
+        window.CelerisRenderIcons?.();
+        renderAnswers();
+        renderFormula();
+      };
+      const renderAnswers = () => {
+        const question = questions[selectedQuestion];
+        answerHelp.textContent = question ? `Respostas de ${question.texto || question.chave}` : "Selecione uma pergunta acima.";
+        answerBody.innerHTML = question ? (question.opcoes || []).map((answer, index) => `<tr data-answer-index="${index}"><td><input value="${escapeHTML(answer.descricao)}" data-field-name="ds_perguntas" data-answer-field="descricao"></td><td><input value="${escapeHTML(answer.valor)}" maxlength="8" title="Use até 8 caracteres, sem espaços." data-field-name="ds_perguntas" data-answer-field="valor"></td><td><input type="number" step="0.01" value="${escapeHTML(answer.pontos ?? 0)}" data-field-name="ds_perguntas" data-answer-field="pontos"></td><td><select data-field-name="ds_perguntas" data-answer-field="ativo"><option value="true" ${answer.ativo !== false ? "selected" : ""}>Sim</option><option value="false" ${answer.ativo === false ? "selected" : ""}>Não</option></select></td></tr>`).join("") || '<tr><td colspan="4" class="empty-cell">Nenhuma resposta configurada.</td></tr>' : '<tr><td colspan="4" class="empty-cell">Selecione uma pergunta.</td></tr>';
+        window.CelerisRenderIcons?.();
+      };
+      const renderFormula = () => {
+        formulaBody.innerHTML = formula.map((line, index) => {
+          const valueField = line.tipo === "PERGUNTA"
+            ? `<select data-field-name="ds_expressao_calculo" data-formula-field="valor">${activeOptions(line.valor)}</select>`
+            : line.tipo === "OPERADOR"
+              ? `<select data-field-name="ds_expressao_calculo" data-formula-field="valor">${["+","-","*","/","%","(",")"].map((value) => `<option ${line.valor === value ? "selected" : ""}>${value}</option>`).join("")}</select>`
+              : `<input type="number" step="0.01" value="${escapeHTML(line.valor)}" data-field-name="ds_expressao_calculo" data-formula-field="valor">`;
+          return `<tr data-formula-index="${index}"><td>${index + 1}</td><td><select data-field-name="ds_expressao_calculo" data-formula-field="tipo"><option value="PERGUNTA" ${line.tipo === "PERGUNTA" ? "selected" : ""}>Resposta de pergunta</option><option value="OPERADOR" ${line.tipo === "OPERADOR" ? "selected" : ""}>Operador</option><option value="NUMERO" ${line.tipo === "NUMERO" ? "selected" : ""}>Número</option></select></td><td data-formula-value>${valueField}</td></tr>`;
+        }).join("") || '<tr><td colspan="3" class="empty-cell">Sem fórmula personalizada; será utilizado o cálculo padrão.</td></tr>';
+        window.CelerisRenderIcons?.();
+      };
+      const renderRanges = () => {
+        rangeBody.innerHTML = ranges.map((range, index) => `<tr data-range-index="${index}"><td><input type="number" step="0.01" value="${escapeHTML(range.min ?? range.valor ?? 0)}" data-field-name="ds_faixas_resultado" data-range-field="min"></td><td><input type="number" step="0.01" value="${escapeHTML(range.max ?? range.valor_final ?? 0)}" data-field-name="ds_faixas_resultado" data-range-field="max"></td><td><input value="${escapeHTML(range.descricao)}" data-field-name="ds_faixas_resultado" data-range-field="descricao"></td><td><input type="color" value="${escapeHTML(range.cor || '#000000')}" data-field-name="ds_faixas_resultado" data-range-field="cor" title="Cor do resultado"></td></tr>`).join("") || '<tr><td colspan="4" class="empty-cell">Nenhuma faixa configurada.</td></tr>';
+        window.CelerisRenderIcons?.();
+      };
+      const setActiveTable = (table) => {
+        activeTable = table;
+        activeRowIndex = -1;
+        form.querySelectorAll("[data-scale-table]").forEach((block) => block.classList.toggle("active", block.dataset.scaleTable === table));
+      };
+      form.querySelectorAll("[data-scale-table]").forEach((block) => block.addEventListener("pointerdown", (event) => {
+        if (activeTable !== block.dataset.scaleTable) setActiveTable(block.dataset.scaleTable);
+        const row = event.target.closest("tr");
+        activeRowIndex = Number(row?.dataset.questionIndex ?? row?.dataset.answerIndex ?? row?.dataset.formulaIndex ?? row?.dataset.rangeIndex ?? -1);
+        block.querySelectorAll("tbody tr").forEach((item) => item.classList.toggle("selected", item === row));
+        const removeButton = document.querySelector('[data-action="remove"]');
+        if (removeButton) {
+          removeButton.hidden = activeRowIndex < 0;
+          removeButton.disabled = activeRowIndex < 0;
+        }
+      }));
+      form.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest("[data-scale-table]")) setActiveTable(null);
+      });
+      form.querySelectorAll("[data-scale-editor-tab]").forEach((button) => button.addEventListener("click", () => {
+        form.querySelectorAll("[data-scale-editor-tab]").forEach((item) => item.classList.toggle("active", item === button));
+        form.querySelectorAll("[data-scale-editor-panel]").forEach((panel) => { panel.hidden = panel.dataset.scaleEditorPanel !== button.dataset.scaleEditorTab; });
+        activeTable = null;
+        activeRowIndex = -1;
+      }));
+      form.addEventListener("focusin", (event) => {
+        if (!event.target.matches("input, select, textarea") || event.target.dataset.historyCaptured) return;
+        remember();
+        event.target.dataset.historyCaptured = "true";
+      });
+      form.addEventListener("focusout", (event) => { delete event.target.dataset.historyCaptured; });
+      questionBody.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-question-index]");
+        if (!row) return;
+        const index = Number(row.dataset.questionIndex);
+        if (event.target.closest("[data-question-remove]")) {
+          remember();
+          questions.splice(index, 1);
+          selectedQuestion = Math.min(selectedQuestion, questions.length - 1);
+          formula = formula.filter((line) => line.tipo !== "PERGUNTA" || questions.some((question) => question.chave === line.valor));
+          renderQuestions(); markChanged(); return;
+        }
+        if (selectedQuestion !== index) {
+          selectedQuestion = index;
+          renderQuestions();
+        }
+      });
+      questionBody.addEventListener("input", (event) => {
+        const row = event.target.closest("[data-question-index]");
+        const field = event.target.dataset.questionField;
+        if (!row || !field) return;
+        const question = questions[Number(row.dataset.questionIndex)];
+        question[field] = field === "ativo" ? event.target.value === "true" : event.target.value;
+        if (field === "texto" && !question.chave) question.chave = normalizeKey(question.texto, `pergunta_${Number(row.dataset.questionIndex) + 1}`);
+        serialize(); markChanged();
+      });
+      answerBody.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-answer-index]");
+        if (!row || !event.target.closest("[data-answer-remove]") || selectedQuestion < 0) return;
+        remember(); questions[selectedQuestion].opcoes.splice(Number(row.dataset.answerIndex), 1);
+        renderAnswers(); serialize(); markChanged();
+      });
+      answerBody.addEventListener("input", (event) => {
+        const row = event.target.closest("[data-answer-index]");
+        const field = event.target.dataset.answerField;
+        if (!row || !field || selectedQuestion < 0) return;
+        const answer = questions[selectedQuestion].opcoes[Number(row.dataset.answerIndex)];
+        answer[field] = field === "ativo" ? event.target.value === "true" : event.target.value;
+        serialize(); markChanged();
+      });
+      formulaBody.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-formula-index]");
+        if (!row || !event.target.closest("[data-formula-remove]")) return;
+        remember(); formula.splice(Number(row.dataset.formulaIndex), 1); renderFormula(); serialize(); markChanged();
+      });
+      const updateFormulaField = (event) => {
+        const row = event.target.closest("[data-formula-index]");
+        const field = event.target.dataset.formulaField;
+        if (!row || !field) return;
+        const line = formula[Number(row.dataset.formulaIndex)];
+        line[field] = event.target.value;
+        if (field === "tipo") {
+          line.valor = line.tipo === "PERGUNTA" ? (questions[0]?.chave || "") : line.tipo === "OPERADOR" ? "+" : "0";
+          renderFormula();
+        }
+        serialize(); markChanged();
+      };
+      formulaBody.addEventListener("input", updateFormulaField);
+      formulaBody.addEventListener("change", updateFormulaField);
+      rangeBody.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-range-index]");
+        if (!row || !event.target.closest("[data-range-remove]")) return;
+        remember(); ranges.splice(Number(row.dataset.rangeIndex), 1); renderRanges(); serialize(); markChanged();
+      });
+      rangeBody.addEventListener("input", (event) => {
+        const row = event.target.closest("[data-range-index]");
+        const field = event.target.dataset.rangeField;
+        if (!row || !field) return;
+        ranges[Number(row.dataset.rangeIndex)][field] = event.target.value;
+        serialize(); markChanged();
+      });
+      document.addEventListener("click", async (event) => {
+        const addButton = event.target.closest('[data-action="new"]');
+        if (!addButton || addButton.disabled) return;
+        if (!activeTable) {
+          event.preventDefault(); event.stopImmediatePropagation();
+          if (form.dataset.dirty === "true") {
+            const action = await window.CelerisPromptUnsavedAction?.("Existem alterações na escala. Deseja salvar antes de criar uma nova?");
+            if (action === "cancel" || !action) return;
+            if (action === "save") { serialize(); form.requestSubmit(); return; }
+          }
+          window.location.href = document.body.dataset.newUrl || "{% url 'class_escalas' %}?novo=1";
+          return;
+        }
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (activeTable === "questions") {
+          remember();
+          const index = questions.length + 1;
+          questions.push({texto: "", chave: `pergunta_${index}`, ativo: true, opcoes: []});
+          selectedQuestion = questions.length - 1; renderQuestions();
+        } else if (activeTable === "answers" && selectedQuestion >= 0) {
+          remember();
+          const answers = questions[selectedQuestion].opcoes ||= [];
+          answers.push({descricao: "", valor: `opcao_${answers.length + 1}`, pontos: 0, ativo: true}); renderAnswers();
+        } else if (activeTable === "formula") {
+          remember();
+          formula.push({tipo: questions.length ? "PERGUNTA" : "NUMERO", valor: questions[0]?.chave || "0"}); renderFormula();
+        } else if (activeTable === "ranges") {
+          remember(); ranges.push({min: 0, max: 0, descricao: "", cor: "#000000"}); renderRanges();
+        }
+        serialize(); markChanged();
+      }, true);
+      document.addEventListener("click", (event) => {
+        const removeButton = event.target.closest('[data-action="remove"]');
+        if (!removeButton || removeButton.disabled || activeRowIndex < 0 || !activeTable) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        remember();
+        if (activeTable === "questions") {
+          const removed = questions.splice(activeRowIndex, 1)[0];
+          formula = formula.filter((line) => line.tipo !== "PERGUNTA" || line.valor !== removed?.chave);
+          selectedQuestion = Math.min(selectedQuestion, questions.length - 1);
+          renderQuestions();
+        } else if (activeTable === "answers" && selectedQuestion >= 0) {
+          questions[selectedQuestion].opcoes.splice(activeRowIndex, 1);
+          renderAnswers();
+        } else if (activeTable === "formula") {
+          formula.splice(activeRowIndex, 1);
+          renderFormula();
+        } else if (activeTable === "ranges") {
+          ranges.splice(activeRowIndex, 1);
+          renderRanges();
+        }
+        activeRowIndex = -1;
+        removeButton.hidden = true;
+        removeButton.disabled = true;
+        serialize();
+        markChanged();
+      }, true);
+      undoButton?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!undoStack.length) return;
+        redoStack.push(snapshot());
+        restore(undoStack.pop());
+        updateHistoryButtons();
+      }, true);
+      redoButton?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!redoStack.length) return;
+        undoStack.push(snapshot());
+        restore(redoStack.pop());
+        updateHistoryButtons();
+      }, true);
+      document.addEventListener("keydown", (event) => {
+        if (!event.ctrlKey || event.altKey || event.metaKey) return;
+        const key = event.key.toLowerCase();
+        if (key === "z") {
+          event.preventDefault();
+          undoButton?.click();
+        } else if (key === "y") {
+          event.preventDefault();
+          redoButton?.click();
+        }
+      });
+      form.querySelector("[data-scale-validate-formula]")?.addEventListener("click", () => {
+        let expectingValue = true;
+        let depth = 0;
+        let valid = formula.length > 0;
+        formula.forEach((line) => {
+          if (line.tipo === "OPERADOR" && line.valor === "(") { if (!expectingValue) valid = false; depth += 1; return; }
+          if (line.tipo === "OPERADOR" && line.valor === ")") { if (expectingValue || depth < 1) valid = false; depth -= 1; expectingValue = false; return; }
+          const isValue = line.tipo === "PERGUNTA" || line.tipo === "NUMERO";
+          if (isValue !== expectingValue) valid = false;
+          expectingValue = !isValue;
+        });
+        valid = valid && !expectingValue && depth === 0;
+        formulaStatus.textContent = valid ? "Fórmula válida." : "Fórmula inválida. Verifique a ordem de perguntas, operadores e parênteses.";
+        formulaStatus.className = `scale-formula-status ${valid ? "valid" : "invalid"}`;
+      });
+      form.addEventListener("submit", serialize);
+      serialize(); renderQuestions(); renderRanges(); updateHistoryButtons();
+    })();
+  </script>
+{% endblock %}

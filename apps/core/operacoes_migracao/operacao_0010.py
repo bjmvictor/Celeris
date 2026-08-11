@@ -2,36 +2,98 @@
 
 from django.db import migrations, models
 
-
-CITY_GROUPS = {
-    "SAO_PAULO": "SP",
-    "RIO_DE_JANEIRO": "RJ",
-    "BELO_HORIZONTE": "MG",
-    "CURITIBA": "PR",
-    "PORTO_ALEGRE": "RS",
-    "BRASILIA": "DF",
-}
+from apps.core.operacoes_migracao.municipios_ibge import MUNICIPIOS
 
 
-def seed_city_groups(apps, schema_editor):
-    ValorAuxiliarGlobal = apps.get_model("core", "ValorAuxiliarGlobal")
-    for code, state in CITY_GROUPS.items():
+def seed_cities(apps, schema_editor):
+    TabelaAuxiliarGlobal = apps.get_model(
+        "core",
+        "TabelaAuxiliarGlobal",
+    )
+    ValorAuxiliarGlobal = apps.get_model(
+        "core",
+        "ValorAuxiliarGlobal",
+    )
+
+    tabela_cidade, _ = TabelaAuxiliarGlobal.objects.get_or_create(
+        ds_tabela="cidade",
+        defaults={
+            "ds_descricao": "Cidade",
+            "sn_ativo": True,
+        },
+    )
+
+    codigos_existentes = set(
         ValorAuxiliarGlobal.objects.filter(
-            cd_tabela_auxiliar_global__ds_tabela="cidade",
-            cd_valor=code,
-        ).update(ds_grupo=state)
+            cd_tabela_auxiliar_global=tabela_cidade,
+        ).values_list("cd_valor", flat=True)
+    )
+
+    novas_cidades = [
+        ValorAuxiliarGlobal(
+            cd_tabela_auxiliar_global=tabela_cidade,
+            cd_valor=codigo_ibge,
+            ds_valor=nome,
+            ds_grupo=uf,
+            sn_ativo=True,
+        )
+        for codigo_ibge, nome, uf in MUNICIPIOS
+        if codigo_ibge not in codigos_existentes
+    ]
+
+    ValorAuxiliarGlobal.objects.bulk_create(
+        novas_cidades,
+        batch_size=500,
+    )
+
+
+def unseed_cities(apps, schema_editor):
+    TabelaAuxiliarGlobal = apps.get_model(
+        "core",
+        "TabelaAuxiliarGlobal",
+    )
+    ValorAuxiliarGlobal = apps.get_model(
+        "core",
+        "ValorAuxiliarGlobal",
+    )
+
+    tabela_cidade = TabelaAuxiliarGlobal.objects.filter(
+        ds_tabela="cidade",
+    ).first()
+
+    if tabela_cidade is None:
+        return
+
+    codigos_ibge = [
+        codigo_ibge
+        for codigo_ibge, _, _ in MUNICIPIOS
+    ]
+
+    ValorAuxiliarGlobal.objects.filter(
+        cd_tabela_auxiliar_global=tabela_cidade,
+        cd_valor__in=codigos_ibge,
+    ).delete()
 
 
 class Migration(migrations.Migration):
+
     dependencies = [
-        ("core", "0009_seed_city_state_auxiliary"),
+        ("core", "0009_seed_states_auxiliary"),
     ]
 
     operations = [
         migrations.AddField(
             model_name="valorauxiliarglobal",
             name="ds_grupo",
-            field=models.CharField(blank=True, max_length=40),
+            field=models.CharField(
+                blank=True,
+                default="",
+                max_length=160,
+            ),
+            preserve_default=False,
         ),
-        migrations.RunPython(seed_city_groups, migrations.RunPython.noop),
+        migrations.RunPython(
+            seed_cities,
+            unseed_cities,
+        ),
     ]

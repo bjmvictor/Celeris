@@ -5,10 +5,11 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import Setor
+from apps.core.catalogos import catalogo_queryset, opcoes_catalogo
 from apps.core.form_registry import aplicar_configuracao_formulario
-from apps.core.models import Cep, TipoPrestadorConselho, ValorAuxiliarGlobal
+from apps.core.models import Cep, MotivoAlteracao, TipoPrestadorConselho
 
-from .models import AgendaProfissional, Agendamento, Atendimento, ClasseSenhaAtendimento, Convenio, EvolucaoAtendimento, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ProtocoloSenhaAtendimento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame, TipoSenhaAtendimento
+from .models import AgendaProfissional, Agendamento, Atendimento, ClasseSenhaAtendimento, Convenio, EvolucaoAtendimento, IconeChamada, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ProtocoloSenhaAtendimento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame, TipoSenhaAtendimento
 
 
 class PacienteSearchForm(forms.Form):
@@ -37,7 +38,7 @@ class PacienteForm(forms.ModelForm):
     cd_paciente = forms.IntegerField(label="Código", required=False, disabled=True)
     motivo_alteracao = forms.ModelChoiceField(
         label="Motivo da alteração",
-        queryset=ValorAuxiliarGlobal.objects.none(),
+        queryset=MotivoAlteracao.objects.none(),
         required=False,
         empty_label="",
     )
@@ -51,6 +52,9 @@ class PacienteForm(forms.ModelForm):
         self.empresa = kwargs.pop("empresa", None)
         super().__init__(*args, **kwargs)
         selected_state = self.data.get(self.add_prefix("sg_estado")) or getattr(self.instance, "sg_estado", "")
+        selected_birth_state = self.data.get(self.add_prefix("sg_uf_nascimento")) or getattr(
+            self.instance, "sg_uf_nascimento", ""
+        )
         self.fields["nm_paciente"].required = True
         self.fields["dt_nascimento"].required = True
         self.fields["sn_ativo"].disabled = True
@@ -60,24 +64,30 @@ class PacienteForm(forms.ModelForm):
             self.fields["cd_convenio"].queryset = Convenio.objects.none()
         self.fields["tp_sanguineo"].choices = self._choices_for("tipo_sanguineo")
         self.fields["tp_sexo"].choices = self._choices_for("sexo")
-        self.fields["tp_genero"].choices = self._choices_for("genero")
-        self.fields["ds_cor_raca"].choices = self._choices_for("cor_raca")
+        self.fields["tp_genero"].choices = self._choices_for("identidade_genero")
+        self.fields["ds_orientacao_sexual"].choices = self._choices_for("orientacao_sexual")
+        self.fields["ds_cor_raca"].choices = self._choices_for("raca_cor")
         self.fields["tp_estado_civil"].choices = self._choices_for("estado_civil")
-        self.fields["ds_nacionalidade"].choices = self._choices_for("pais")
-        self.fields["ds_naturalidade"].choices = self._choices_for("estado")
+        self.fields["ds_nacionalidade"].choices = self._choices_for("nacionalidade")
+        self.fields["ds_pais_nascimento"].choices = self._choices_for("pais")
+        self.fields["sg_uf_nascimento"].choices = self._choices_for("estado")
+        self.fields["ds_municipio_nascimento"].choices = self._choices_for("cidade", group=selected_birth_state)
+        self.fields["ds_naturalidade"].choices = self._choices_for("cidade")
         self.fields["ds_profissao"].choices = self._choices_for("profissao")
         self.fields["ds_orgao_emissor"].choices = self._choices_for("orgao_emissor")
         self.fields["tp_logradouro"].choices = self._choices_for("tipo_logradouro")
         self.fields["ds_cidade"].choices = self._choices_for("cidade", group=selected_state)
         self.fields["sg_estado"].choices = self._choices_for("estado")
-        for name in ("tp_sanguineo", "tp_sexo", "tp_genero", "ds_cor_raca", "tp_estado_civil", "ds_nacionalidade", "ds_naturalidade", "ds_profissao", "ds_orgao_emissor", "tp_logradouro", "ds_cidade", "sg_estado"):
+        for name in (
+            "tp_sanguineo", "tp_sexo", "tp_genero", "ds_orientacao_sexual", "ds_cor_raca",
+            "tp_estado_civil", "ds_nacionalidade", "ds_pais_nascimento", "sg_uf_nascimento",
+            "ds_municipio_nascimento", "ds_naturalidade", "ds_profissao", "ds_orgao_emissor",
+            "tp_logradouro", "ds_cidade", "sg_estado",
+        ):
             self.fields[name].widget = forms.Select(choices=self.fields[name].choices)
         self.fields["cd_cep"].queryset = Cep.objects.filter(sn_ativo=True).order_by("nr_cep")
         self.fields["cd_cep"].label_from_instance = lambda cep: f"{cep.nr_cep} - {cep.ds_logradouro or cep.ds_cidade}"
-        self.fields["motivo_alteracao"].queryset = ValorAuxiliarGlobal.objects.filter(
-            cd_tabela_auxiliar_global__ds_tabela="motivo_alteracao",
-            sn_ativo=True,
-        ).order_by("ds_valor")
+        self.fields["motivo_alteracao"].queryset = catalogo_queryset("motivo_alteracao", ativos=True).order_by("ds_valor")
         self.fields["motivo_alteracao"].label_from_instance = lambda value: value.ds_valor
         if not self.instance or not self.instance.pk:
             self.fields.pop("motivo_alteracao")
@@ -105,6 +115,8 @@ class PacienteForm(forms.ModelForm):
         self.fields["ds_cidade"].widget.attrs["data-city-select"] = "true"
         self.fields["ds_cidade"].widget.attrs["data-linked-city"] = "paciente"
         self.fields["cd_cep"].widget.attrs["data-linked-cep"] = "paciente"
+        self.fields["sg_uf_nascimento"].widget.attrs["data-linked-state"] = "nascimento"
+        self.fields["ds_municipio_nascimento"].widget.attrs["data-linked-city"] = "nascimento"
         self.fields["nr_cpf"].widget.attrs.update({"maxlength": "14", "inputmode": "numeric", "data-mask": "cpf"})
         self.fields["nr_cpf"].widget.attrs["data-validate-cpf"] = "true"
         self.fields["ds_email"].widget.attrs["data-validate-email"] = "true"
@@ -188,13 +200,7 @@ class PacienteForm(forms.ModelForm):
         return f"({digits[:2]}) {digits[2]} {digits[3:7]}-{digits[7:]}"
 
     def _choices_for(self, table_name, group=None):
-        values = ValorAuxiliarGlobal.objects.filter(
-            cd_tabela_auxiliar_global__ds_tabela=table_name,
-            sn_ativo=True,
-        ).order_by("ds_valor")
-        if group:
-            values = values.filter(ds_grupo=group)
-        return [("", "")] + [(value.cd_valor, value.ds_valor) for value in values]
+        return opcoes_catalogo(table_name, grupo=group)
 
 
 class PrestadorForm(forms.ModelForm):
@@ -232,7 +238,7 @@ class PrestadorForm(forms.ModelForm):
         self.fields["sn_ativo"].initial = True
         self.fields["sn_ativo"].disabled = True
         self.fields["tp_sexo"].widget = forms.Select(choices=self._choices_for("sexo"))
-        self.fields["ds_cor_raca"].widget = forms.Select(choices=self._choices_for("cor_raca"))
+        self.fields["ds_cor_raca"].widget = forms.Select(choices=self._choices_for("raca_cor"))
         self.fields["tp_prestador"].widget = forms.Select(choices=self._choices_for("tipo_prestador"))
         provider_type_choices = self._choices_for("tipo_prestador")[1:]
         self.fields["tipos_prestador"].choices = provider_type_choices
@@ -245,8 +251,9 @@ class PrestadorForm(forms.ModelForm):
         self.fields["ds_orgao_emissor"].widget = forms.Select(choices=self._choices_for("orgao_emissor"))
         self.fields["ds_grau_instrucao"].widget = forms.Select(choices=self._choices_for("grau_instrucao"))
         self.fields["tp_genero"].widget = forms.Select(choices=self._choices_for("identidade_genero"))
-        self.fields["ds_nacionalidade"].widget = forms.Select(choices=self._choices_for("pais"))
-        self.fields["ds_naturalidade"].widget = forms.Select(choices=self._choices_for("estado"))
+        self.fields["ds_nacionalidade"].widget = forms.Select(choices=self._choices_for("nacionalidade"))
+        self.fields["ds_naturalidade"].widget = forms.Select(choices=self._choices_for("cidade"))
+        self.fields["cd_cbo"].widget = forms.Select(choices=self._choices_for("cbo"))
         self.fields["tp_logradouro"].widget = forms.Select(choices=self._choices_for("tipo_logradouro"))
         self.fields["tp_logradouro_comercial"].widget = forms.Select(choices=self._choices_for("tipo_logradouro"))
         self.fields["tp_vinculo"].widget = forms.Select(choices=self._choices_for("tipo_vinculo"))
@@ -323,13 +330,7 @@ class PrestadorForm(forms.ModelForm):
         aplicar_configuracao_formulario(self, "cadastro_prestador", self.empresa)
 
     def _choices_for(self, table_name, group=None):
-        values = ValorAuxiliarGlobal.objects.filter(
-            cd_tabela_auxiliar_global__ds_tabela=table_name,
-            sn_ativo=True,
-        ).order_by("ds_valor")
-        if group:
-            values = values.filter(ds_grupo=group)
-        return [("", "")] + [(value.cd_valor, value.ds_valor) for value in values]
+        return opcoes_catalogo(table_name, grupo=group)
 
     def _choices_with_current(self, table_name, current):
         choices = self._choices_for(table_name)
@@ -403,9 +404,6 @@ class TipoSenhaAtendimentoForm(forms.ModelForm):
             "sn_ativo",
             "nm_tipo_senha",
             "sg_tipo_senha",
-            "cd_protocolo",
-            "nr_tempo_minimo",
-            "nr_prioridade",
             "cd_setor_atendimento",
         )
         widgets = {
@@ -416,11 +414,6 @@ class TipoSenhaAtendimentoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["sn_ativo"].initial = True
         self.fields["sn_ativo"].disabled = True
-        self.fields["cd_protocolo"].queryset = (
-            ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_protocolo")
-            if empresa
-            else ProtocoloSenhaAtendimento.objects.none()
-        )
         self.fields["cd_setor_atendimento"].queryset = (
             Setor.objects.filter(
                 cd_empresa=empresa,
@@ -469,7 +462,7 @@ class ClasseSenhaAtendimentoForm(forms.ModelForm):
 class ProtocoloSenhaAtendimentoForm(forms.ModelForm):
     class Meta:
         model = ProtocoloSenhaAtendimento
-        fields = ("nm_protocolo", "ds_protocolo", "sn_ativo")
+        fields = ("sg_protocolo", "nm_protocolo", "ds_protocolo", "sn_ativo")
         widgets = {
             "sn_ativo": forms.Select(choices=(("", ""), (True, "Ativo"), (False, "Inativo"))),
         }
@@ -477,6 +470,8 @@ class ProtocoloSenhaAtendimentoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["sn_ativo"].initial = True
+        self.fields["sg_protocolo"].widget.attrs.update({"maxlength": "8", "data-uppercase": "true"})
+        self.fields["nm_protocolo"].widget.attrs.update({"data-uppercase": "true"})
         for name, field in self.fields.items():
             field.widget.attrs.update(
                 {
@@ -493,10 +488,14 @@ class RegraSubdivisaoSenhaForm(forms.ModelForm):
         model = RegraSubdivisaoSenha
         fields = (
             "cd_classe_senha",
+            "sg_regra",
             "nr_prioridade",
             "nr_idade_minima",
             "nr_idade_maxima",
-            "ds_icone",
+            "cd_icone_chamada",
+            "cd_protocolo",
+            "nr_tempo_limite",
+            "sn_ativo",
         )
 
     def __init__(self, *args, empresa=None, **kwargs):
@@ -507,6 +506,17 @@ class RegraSubdivisaoSenhaForm(forms.ModelForm):
             if empresa
             else ClasseSenhaAtendimento.objects.none()
         )
+        self.fields["cd_icone_chamada"].queryset = (
+            IconeChamada.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_icone")
+            if empresa
+            else IconeChamada.objects.none()
+        )
+        self.fields["cd_protocolo"].queryset = (
+            ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_protocolo")
+            if empresa
+            else ProtocoloSenhaAtendimento.objects.none()
+        )
+        self.fields["sg_regra"].widget.attrs.update({"maxlength": "4", "data-uppercase": "true"})
 
 
 class EscalaForm(forms.ModelForm):
@@ -660,12 +670,7 @@ class EscalaForm(forms.ModelForm):
 
     @staticmethod
     def _choices(table_name, fallback=()):
-        values = list(
-            ValorAuxiliarGlobal.objects.filter(
-                cd_tabela_auxiliar_global__ds_tabela=table_name,
-                sn_ativo=True,
-            ).order_by("ds_valor").values_list("cd_valor", "ds_valor")
-        )
+        values = opcoes_catalogo(table_name, incluir_vazio=False)
         return [("", "")] + (values or list(fallback))
 
     def clean(self):
@@ -808,6 +813,24 @@ class PreAtendimentoForm(forms.ModelForm):
 
     def __init__(self, *args, empresa=None, **kwargs):
         super().__init__(*args, **kwargs)
+        rotulos = {
+            "nr_prioridade": "Prioridade",
+            "ds_queixa_principal": "Queixa principal",
+            "ds_sintomas": "Sintomas",
+            "cd_prestador_responsavel": "Prestador responsável",
+            "nr_pressao_arterial": "Pressão arterial",
+            "nr_frequencia_cardiaca": "Frequência cardíaca",
+            "nr_frequencia_respiratoria": "Frequência respiratória",
+            "nr_saturacao": "Saturação de O₂",
+            "nr_temperatura": "Temperatura",
+            "nr_peso": "Peso",
+            "nr_altura": "Altura",
+            "ds_observacao": "Observações",
+            "ds_cor_prioridade": "Cor da prioridade",
+        }
+        for nome, rotulo in rotulos.items():
+            if nome in self.fields:
+                self.fields[nome].label = rotulo
         self.fields["cd_prestador_responsavel"].queryset = (
             Prestador.objects.filter(cd_empresa=empresa, sn_ativo=True, sn_permite_classificacao=True)
             if empresa
@@ -910,19 +933,14 @@ class CadastroAtendimentoForm(forms.ModelForm):
 
     @staticmethod
     def _choices(table_name, fallback=()):
-        values = list(
-            ValorAuxiliarGlobal.objects.filter(
-                cd_tabela_auxiliar_global__ds_tabela=table_name,
-                sn_ativo=True,
-            ).order_by("ds_valor").values_list("cd_valor", "ds_valor")
-        )
+        values = opcoes_catalogo(table_name, incluir_vazio=False)
         return [("", "")] + (values or list(fallback))
 
 
 class AlteracaoAtendimentoForm(CadastroAtendimentoForm):
     motivo_alteracao = forms.ModelChoiceField(
         label="Motivo da alteração",
-        queryset=ValorAuxiliarGlobal.objects.none(),
+        queryset=MotivoAlteracao.objects.none(),
         required=False,
         empty_label="",
     )
@@ -944,10 +962,7 @@ class AlteracaoAtendimentoForm(CadastroAtendimentoForm):
 
     def __init__(self, *args, empresa=None, paciente=None, agendamento=None, **kwargs):
         super().__init__(*args, empresa=empresa, paciente=paciente, agendamento=agendamento, **kwargs)
-        self.fields["motivo_alteracao"].queryset = ValorAuxiliarGlobal.objects.filter(
-            cd_tabela_auxiliar_global__ds_tabela="motivo_alteracao",
-            sn_ativo=True,
-        ).order_by("ds_valor")
+        self.fields["motivo_alteracao"].queryset = catalogo_queryset("motivo_alteracao", ativos=True).order_by("ds_valor")
         self.fields["motivo_alteracao"].label_from_instance = lambda value: value.ds_valor
         if self.instance and self.instance.pk:
             self.fields["versao_atendimento"].initial = self.instance.dh_atualizacao.isoformat()

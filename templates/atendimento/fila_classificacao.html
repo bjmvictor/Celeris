@@ -1,126 +1,200 @@
-{% extends "base/layout.html" %}
+{% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
+  {% if class_standalone %}
+    {% if not senha_selecionada and not agendamento_selecionado %}
+    <form class="card classification-queue-filters classification-unified-filters" method="get" data-classification-filter-form>
+      <label><input type="checkbox" name="filtro" value="agendados" {% if 'agendados' in filtros_fila %}checked{% endif %} data-classification-filter> Agendados</label>
+      <label><input type="checkbox" name="filtro" value="classificados" {% if 'classificados' in filtros_fila %}checked{% endif %} data-classification-filter> Classificados</label>
+      <label><input type="checkbox" name="filtro" value="nao_classificados" {% if 'nao_classificados' in filtros_fila %}checked{% endif %} data-classification-filter> Não classificados</label>
+      <label class="classification-inline-date">Data <input type="date" name="data" value="{{ data_selecionada|date:'Y-m-d' }}" data-classification-date></label>
+      <div class="classification-search-field">
+        <input name="q" value="{{ busca_fila }}" placeholder="Senha, paciente, atendimento ou especialidade" autocomplete="off" data-classification-search>
+        <button class="icon-button" type="button" title="Limpar pesquisa" aria-label="Limpar pesquisa" data-classification-search-clear {% if not busca_fila %}hidden{% endif %}><span class="svg-icon" data-nav-icon="x"></span></button>
+      </div>
+      <button class="button button-primary classification-reception-button" type="submit" form="classification-direct-demand-form" aria-label="Recepcionar" title="Recepcionar"><span class="svg-icon" data-nav-icon="heart-hands" aria-hidden="true"></span></button>
+    </form>
+    <form id="classification-direct-demand-form" method="post" hidden>{% csrf_token %}<input type="hidden" name="acao" value="nova_demanda"></form>
+    <div class="classification-unified-queue" data-classification-unified-queue>
+      {% include "atendimento/_fila_classificacao_unificada.html" %}
+    </div>
+    {% endif %}
+  {% else %}
   <nav class="card classification-tabs" aria-label="Origem da classificação">
     <a class="button {% if aba == 'agendados' %}button-primary{% else %}button-secondary{% endif %}" href="?aba=agendados&data={{ data_selecionada|date:'Y-m-d' }}">Agendados</a>
     <a class="button {% if aba == 'demanda' %}button-primary{% else %}button-secondary{% endif %}" href="?aba=demanda&data={{ data_selecionada|date:'Y-m-d' }}">Demanda</a>
     {% if aba == "agendados" %}
-    <form class="classification-date-filter" method="get">
-      <input type="hidden" name="aba" value="agendados">
-      <label>Data: </label><input type="date" name="data" value="{{ data_selecionada|date:'Y-m-d' }}" onchange="this.form.submit()">
-    </form>
+      <form class="classification-date-filter" method="get">
+        <input type="hidden" name="aba" value="agendados">
+        <label>Data <input type="date" name="data" value="{{ data_selecionada|date:'Y-m-d' }}" onchange="this.form.submit()"></label>
+      </form>
     {% endif %}
   </nav>
 
   {% if aba == "agendados" %}
     <section class="card table-card classification-queue-card">
       <table>
-        <thead><tr><th>Horário</th><th>Paciente</th><th>Prestador</th><th>Especialidade</th><th>Status</th><th>Ação</th></tr></thead>
+        <thead><tr><th>Horário</th><th>Paciente</th><th>Nome da mãe</th><th>Nascimento</th><th>CPF</th><th>Prestador</th><th>Especialidade</th><th>Status</th><th>Ação</th></tr></thead>
         <tbody>
           {% for item in agendamentos %}
-            <tr>
+            <tr data-classification-row-url="?aba=agendados&data={{ data_selecionada|date:'Y-m-d' }}&agendamento={{ item.pk }}">
               <td>{{ item.dh_agendamento|date:"H:i" }}</td>
               <td>{{ item.cd_paciente.nm_social|default:item.cd_paciente.nm_paciente }}</td>
+              <td>{{ item.cd_paciente.nm_mae|default:"-" }}</td>
+              <td>{{ item.cd_paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
+              <td>{{ item.cd_paciente.nr_cpf|default:"-" }}</td>
               <td>{{ item.cd_agenda_profissional.cd_prestador.nm_prestador|default:item.ds_profissional|default:"-" }}</td>
               <td>{{ item.ds_especialidade|default:"-" }}</td>
               <td>{% if item.pre_atendimento %}Classificado{% else %}{{ item.get_ds_status_display }}{% endif %}</td>
-              <td><a class="button button-primary" href="?aba=agendados&data={{ data_selecionada|date:'Y-m-d' }}&agendamento={{ item.pk }}">Classificar</a></td>
+              <td class="inline-actions">
+                <form method="post" action="{% url 'atendimento:chamar-agendamento-classificacao' item.pk %}">{% csrf_token %}<input type="hidden" name="return_to" value="{{ classification_list_url }}?aba=agendados&amp;data={{ data_selecionada|date:'Y-m-d' }}"><button class="button button-secondary" title="Chamar" type="submit"><span class="svg-icon" data-nav-icon="audio"></span></button></form>
+              </td>
             </tr>
-          {% empty %}<tr><td colspan="6">Nenhum paciente agendado para a data selecionada.</td></tr>{% endfor %}
+          {% empty %}<tr><td colspan="9">Nenhum paciente agendado para a data selecionada.</td></tr>{% endfor %}
         </tbody>
       </table>
     </section>
   {% else %}
+    <form class="card classification-queue-filters" method="get">
+      <input type="hidden" name="aba" value="demanda">
+      <label><input type="checkbox" name="filtro" value="todos" {% if 'todos' in filtros_fila %}checked{% endif %} data-classification-all> Todos</label>
+      <label><input type="checkbox" name="filtro" value="classificados" {% if 'classificados' in filtros_fila %}checked{% endif %} data-classification-filter> Classificados</label>
+      <label><input type="checkbox" name="filtro" value="nao_classificados" {% if 'nao_classificados' in filtros_fila %}checked{% endif %} data-classification-filter> Não classificados</label>
+      <input name="q" value="{{ busca_fila }}" placeholder="Senha, paciente, atendimento ou especialidade">
+      <button class="button button-primary" type="submit">Consultar</button>
+      <button class="button button-secondary" type="submit" form="classification-direct-demand-form" alt="Recepciona"><span class="svg-icon" data-nav-icon="heart-hands"></span></button>
+    </form>
+    <form id="classification-direct-demand-form" method="post" hidden>{% csrf_token %}<input type="hidden" name="acao" value="nova_demanda"></form>
     <section class="card table-card classification-queue-card">
       <table>
-        <thead><tr><th>Senha</th><th>Tipo</th><th>Classe</th><th>Prioridade</th><th>Espera</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>
-          {% for senha in senhas %}
-            <tr class="classification-ticket-row {% if senha.tempo_excedido %}ticket-overdue{% endif %}" style="--classification-color: {% if senha.cd_cor_classificacao %}{{ senha.cd_cor_classificacao.ds_cor_hex }}{% elif senha.cd_classe_senha.cd_cor_classificacao %}{{ senha.cd_classe_senha.cd_cor_classificacao.ds_cor_hex }}{% else %}#94a3b8{% endif %}">
-              <td>
-                <span class="classification-ticket-icon">{% if senha.cd_classe_senha.cd_icone_chamada %}{{ senha.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}{% endif %}</span>
-                <strong>{{ senha.ds_senha }}</strong>
-              </td>
-              <td>{{ senha.cd_tipo_senha.nm_tipo_senha }}</td>
-              <td>{{ senha.cd_classe_senha.nm_classe_senha }}</td>
-              <td>{{ senha.nr_prioridade }}</td>
-              <td class="{% if senha.tempo_excedido %}classification-wait-overdue{% endif %}">{{ senha.dh_criacao|timesince }}</td>
-              <td>{{ senha.get_ds_status_display }}</td>
-              <td class="inline-actions">
-                <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'chamar' %}">{% csrf_token %}<button class="button button-secondary" title="Chamar" type="submit"><span class="svg-icon" data-nav-icon="audio"></span></button></form>
-                {% if senha.ds_status == "EM_CLASSIFICACAO" %}
-                  <a class="button button-primary" href="?aba=demanda&senha={{ senha.pk }}">Classificar</a>
-                {% else %}
-                  <form method="post" action="{% url 'atendimento:acao-senha-classificacao' senha.pk 'receber' %}">{% csrf_token %}<button class="button button-primary" title="Classificar" type="submit"><span class="svg-icon" data-nav-icon="clipboard-plus"></span></button></form>
-                {% endif %}
-              </td>
-            </tr>
-          {% empty %}<tr><td colspan="7">Nenhuma senha aguardando classificação.</td></tr>{% endfor %}
-        </tbody>
+        <thead><tr><th>Prioridade</th><th>Senha</th><th>Fila / protocolo</th><th>Atendimento</th><th>Paciente</th><th>Sexo</th><th>Idade</th><th>Especialidade</th><th>Entrada</th><th>Classificação</th><th>Tempo</th><th>Ação</th></tr></thead>
+        <tbody data-classification-demand-body>{% include "atendimento/_fila_classificacao_demanda.html" %}</tbody>
       </table>
     </section>
   {% endif %}
+  {% endif %}
 
   {% if senha_selecionada or agendamento_selecionado %}
-    <section class="card classification-editor" data-classification-editor>
-      <nav class="classification-editor-tabs" role="tablist">
-        <button class="button button-primary" type="button" data-classification-tab="paciente">Paciente</button>
-        <button class="button button-secondary" type="button" data-classification-tab="classificacao">Classificação</button>
-      </nav>
+    <section class="card classification-editor classification-wizard" data-classification-editor>
+      <form id="classification-form" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="finalizar">
+        {% if senha_selecionada %}<input type="hidden" name="senha_id" value="{{ senha_selecionada.pk }}">{% endif %}
+        {% if agendamento_selecionado %}<input type="hidden" name="agendamento_id" value="{{ agendamento_selecionado.pk }}">{% endif %}
+        <input type="hidden" name="paciente_id" value="{{ paciente_selecionado.pk|default:'' }}" data-classification-patient-id>
 
-      <div data-classification-panel="paciente">
-        {% if paciente_selecionado %}
-          <div class="classification-patient-summary">
-            <strong>{{ paciente_selecionado.nm_social|default:paciente_selecionado.nm_paciente }}</strong>
-            <span>Prontuário {{ paciente_selecionado.pk }}</span>
-            <span>Nascimento: {{ paciente_selecionado.dt_nascimento|date:"d/m/Y"|default:"-" }}</span>
-            <span>Mãe: {{ paciente_selecionado.nm_mae|default:"-" }}</span>
-          </div>
-        {% elif senha_selecionada %}
-          <form class="classification-patient-search" method="get">
-            <input type="hidden" name="aba" value="demanda">
-            <input type="hidden" name="senha" value="{{ senha_selecionada.pk }}">
-            <label>Pesquisar paciente <input name="busca_paciente" value="{{ busca_paciente }}" placeholder="Nome, CPF, CNS ou nome da mãe"></label>
-            <button class="button button-secondary" type="submit">Pesquisar</button>
-          </form>
-          {% if pacientes_encontrados %}
-            <div class="classification-patient-results">
-              {% for paciente in pacientes_encontrados %}
-                <label><input type="radio" name="patient_picker" value="{{ paciente.pk }}" data-classification-patient-picker> <strong>{{ paciente.nm_social|default:paciente.nm_paciente }}</strong> · {{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }} · {{ paciente.nm_mae|default:"Mãe não informada" }}</label>
-              {% endfor %}
+        <nav class="classification-editor-tabs" role="tablist" aria-label="Etapas da classificação">
+          <button class="button button-primary" type="button" data-classification-tab="identificacao">1. Identificação</button>
+          <button class="button button-secondary" type="button" data-classification-tab="abordagem">2. Abordagem inicial</button>
+          <button class="button button-secondary" type="button" data-classification-tab="avaliacao">3. Avaliação</button>
+          <button class="button button-secondary" type="button" data-classification-tab="afericao">4. Aferição</button>
+          <button class="button button-secondary" type="button" data-classification-tab="classificacao">5. Classificação</button>
+          <button class="button button-secondary" type="button" data-classification-tab="resumo">6. Resumo</button>
+        </nav>
+
+        <section class="classification-stage" data-classification-panel="identificacao">
+          {% if paciente_selecionado %}
+            <div class="classification-patient-summary detailed">
+              <strong>{{ paciente_selecionado.nm_social|default:paciente_selecionado.nm_paciente }}</strong>
+              <span><b>Prontuário</b>{{ paciente_selecionado.pk }}</span><span><b>Sexo</b>{{ paciente_selecionado.tp_sexo|default:"-" }}</span>
+              <span><b>Nascimento</b>{{ paciente_selecionado.dt_nascimento|date:"d/m/Y"|default:"-" }}</span><span><b>Mãe</b>{{ paciente_selecionado.nm_mae|default:"-" }}</span>
+              <span><b>CPF</b>{{ paciente_selecionado.nr_cpf|default:"-" }}</span><span><b>CNS</b>{{ paciente_selecionado.nr_cartao_sus|default:"-" }}</span>
+              <span><b>Telefone</b>{{ paciente_selecionado.nr_celular|default:paciente_selecionado.nr_telefone|default:"-" }}</span>
+              <span><b>Pai</b>{{ paciente_selecionado.nm_pai|default:"-" }}</span><span><b>Estado civil</b>{{ paciente_selecionado.tp_estado_civil|default:"-" }}</span>
+              <span><b>Naturalidade</b>{{ paciente_selecionado.ds_naturalidade|default:"-" }}</span><span><b>Nacionalidade</b>{{ paciente_selecionado.ds_nacionalidade|default:"-" }}</span>
+              <span><b>Raça/cor</b>{{ paciente_selecionado.ds_cor_raca|default:"-" }}</span><span><b>Tipo sanguíneo</b>{{ paciente_selecionado.tp_sanguineo|default:"-" }}</span>
+              <span><b>E-mail</b>{{ paciente_selecionado.ds_email|default:"-" }}</span>
+              <span><b>Endereço</b>{{ paciente_selecionado.ds_endereco|default:"-" }} {{ paciente_selecionado.nr_endereco|default:"" }}</span>
             </div>
+            <details class="classification-attendance-history"><summary>Histórico de atendimentos</summary><div class="table-card"><table><thead><tr><th>Atendimento</th><th>Data</th><th>Alta</th><th>Prestador</th><th>Especialidade</th><th>CID</th></tr></thead><tbody>{% for atendimento in paciente_selecionado.atendimento_set.all|slice:":5" %}<tr><td>{{ atendimento.pk }}</td><td>{{ atendimento.dh_inicio|date:"d/m/Y H:i" }}</td><td>{{ atendimento.dh_alta_hospitalar|date:"d/m/Y H:i"|default:"-" }}</td><td>{{ atendimento.cd_prestador.nm_prestador|default:"-" }}</td><td>{{ atendimento.ds_especialidade|default:"-" }}</td><td>{{ atendimento.ds_cid|default:"-" }}</td></tr>{% empty %}<tr><td colspan="6">Nenhum atendimento anterior.</td></tr>{% endfor %}</tbody></table></div></details>
+          {% elif senha_selecionada %}
+            <div class="classification-patient-search-row">
+              <label>Localizar paciente <input name="busca_paciente_visual" value="{{ busca_paciente }}" placeholder="Nome, CPF, CNS ou nome da mãe" data-classification-patient-search></label>
+              <button class="button button-secondary" type="button" data-classification-patient-search-button>Pesquisar</button>
+            </div>
+            {% if pacientes_encontrados %}<div class="classification-patient-results">{% for paciente in pacientes_encontrados %}<label class="classification-patient-option"><input type="radio" name="patient_picker" value="{{ paciente.pk }}" {% if paciente.pk|stringformat:'s' == paciente_escolhido_id %}checked{% endif %} data-classification-patient-picker><span><strong>{{ paciente.nm_social|default:paciente.nm_paciente }}</strong><small>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }} · {{ paciente.nm_mae|default:"Mãe não informada" }}</small></span></label>{% endfor %}</div>{% endif %}
+            <div class="classification-selected-patient-actions" {% if not paciente_escolhido_id %}hidden{% endif %} data-classification-selected-patient-actions><span>Paciente do cadastro selecionado.</span><button class="button button-secondary" type="button" data-classification-patient-clear>Remover seleção</button></div>
+            <fieldset class="classification-pre-registration" data-classification-pre-registration {% if paciente_escolhido_id %}disabled{% endif %}><legend>Pré-cadastro</legend><div class="form-grid"><label class="field-xl">Nome <input name="nm_pre_cadastro" value="{{ senha_selecionada.nm_pre_cadastro }}"></label><label class="field-md">Data de nascimento <input type="date" name="dt_nascimento_pre_cadastro" value="{{ senha_selecionada.dt_nascimento_pre_cadastro|date:'Y-m-d' }}"></label><label class="field-sm">Sexo <input name="tp_sexo_pre_cadastro" value="{{ senha_selecionada.tp_sexo_pre_cadastro }}"></label><label class="field-xl">Nome da mãe <input name="nm_mae_pre_cadastro" value="{{ senha_selecionada.nm_mae_pre_cadastro }}"></label></div></fieldset>
           {% endif %}
-          <div class="classification-pre-registration">
-            <h3>Pré-cadastro</h3>
-            <p>Preencha somente quando o paciente não estiver cadastrado.</p>
-            <div class="form-grid">
-              <label class="field-xl">Nome <input form="classification-form" name="nm_pre_cadastro" value="{{ senha_selecionada.nm_pre_cadastro }}"></label>
-              <label class="field-md">Data de nascimento <input form="classification-form" type="date" name="dt_nascimento_pre_cadastro" value="{{ senha_selecionada.dt_nascimento_pre_cadastro|date:'Y-m-d' }}"></label>
-              <label class="field-xl">Nome da mãe <input form="classification-form" name="nm_mae_pre_cadastro" value="{{ senha_selecionada.nm_mae_pre_cadastro }}"></label>
-            </div>
-          </div>
-        {% endif %}
-      </div>
+        </section>
 
-      <div data-classification-panel="classificacao" hidden>
-        <form id="classification-form" method="post" class="classification-form">
-          {% csrf_token %}
-          <input type="hidden" name="acao" value="finalizar">
-          {% if senha_selecionada %}<input type="hidden" name="senha_id" value="{{ senha_selecionada.pk }}">{% endif %}
-          {% if agendamento_selecionado %}<input type="hidden" name="agendamento_id" value="{{ agendamento_selecionado.pk }}">{% endif %}
-          <input type="hidden" name="paciente_id" value="{{ paciente_selecionado.pk|default:'' }}" data-classification-patient-id>
-          {{ form.non_field_errors }}
-          <div class="form-grid classification-fields">
-            {% for field in form %}<label>{{ field.label }} {{ field }} {{ field.errors }}</label>{% endfor %}
+        <section class="classification-stage" data-classification-panel="abordagem" hidden>
+          <div class="classification-approach-layout">
+            <div class="form-grid classification-fields">
+              <label class="field-fluid">{{ form.ds_queixa_principal.label }} {{ form.ds_queixa_principal }} {{ form.ds_queixa_principal.errors }}</label>
+              <label class="field-fluid">{{ form.ds_observacao.label }} {{ form.ds_observacao }}</label>
+              <label class="field-fluid">Medicamentos <textarea name="medicamentos" rows="3">{{ dados_classificacao.medicamentos }}</textarea></label>
+            </div>
+            <section class="classification-allergies" data-classification-allergies>
+              <div class="section-heading"><div><h3>Alergias</h3><small>Informe a substância e a reação observada.</small></div><button class="button button-secondary" type="button" data-allergy-add>+</button></div>
+              <div class="table-card"><table><thead><tr><th>Substância</th><th>Observação</th><th>Ação</th></tr></thead><tbody data-allergy-rows>
+                {% for alergia in dados_classificacao.alergias_itens %}<tr><td><input name="alergia_substancia" value="{{ alergia.substancia }}"></td><td><input name="alergia_observacao" value="{{ alergia.observacao }}"></td><td><button class="icon-button danger" type="button" data-allergy-remove title="Remover">×</button></td></tr>{% empty %}<tr><td><input name="alergia_substancia"></td><td><input name="alergia_observacao"></td><td><button class="icon-button danger" type="button" data-allergy-remove title="Remover">×</button></td></tr>{% endfor %}
+              </tbody></table></div>
+              <input type="hidden" name="alergias" value="{{ dados_classificacao.alergias }}">
+            </section>
           </div>
-          <fieldset class="classification-colors">
-            <legend>Cor da classificação</legend>
-            {% for cor in cores %}
-              <label style="--classification-color: {{ cor.ds_cor_hex }}"><input type="radio" name="cor_classificacao" value="{{ cor.pk }}" {% if cor_inicial == cor.pk|stringformat:'s' %}checked{% endif %} required> <span>{{ cor.nm_cor }}</span></label>
-            {% empty %}<p>Cadastre ao menos uma cor em Classificação &gt; Tabelas &gt; Cores.</p>{% endfor %}
-          </fieldset>
-          <div class="table-actions"><button class="button button-primary" type="submit">Finalizar classificação</button></div>
-        </form>
-      </div>
+          <details class="classification-questions"><summary>Perguntas complementares</summary><div class="form-grid">{% for pergunta in perguntas_classificacao %}<label class="field-lg{% if pergunta.sn_obrigatoria %} classification-required-question{% endif %}">{{ pergunta.nm_pergunta }}{% if pergunta.sn_obrigatoria %} *{% endif %}{% if pergunta.tp_resposta == 'SIM_NAO' %}<select name="pergunta_{{ pergunta.pk }}" {% if pergunta.sn_obrigatoria %}required data-classification-required-question{% endif %}><option value=""></option><option value="SIM" {% if pergunta.valor_inicial == 'SIM' %}selected{% endif %}>Sim</option><option value="NAO" {% if pergunta.valor_inicial == 'NAO' %}selected{% endif %}>Não</option></select>{% elif pergunta.tp_resposta == 'NUMERO' %}<input type="number" name="pergunta_{{ pergunta.pk }}" value="{{ pergunta.valor_inicial }}" {% if pergunta.sn_obrigatoria %}required data-classification-required-question{% endif %}>{% else %}<input name="pergunta_{{ pergunta.pk }}" value="{{ pergunta.valor_inicial }}" {% if pergunta.sn_obrigatoria %}required data-classification-required-question{% endif %}>{% endif %}</label>{% empty %}<span>Nenhuma pergunta configurada.</span>{% endfor %}</div></details>
+        </section>
+
+        <section class="classification-stage" data-classification-panel="avaliacao" hidden>
+          <div class="classification-scale-list">
+            {% for escala in escalas_classificacao %}
+              <article class="classification-scale-item" data-classification-scale data-scale-id="{{ escala.pk }}">
+                <button class="classification-scale-open" type="button" data-scale-open><strong>{{ escala.nm_escala }}</strong>{% if escala.ds_descricao %}<small>{{ escala.ds_descricao }}</small>{% endif %}</button>
+                <output class="classification-scale-result" data-scale-result hidden></output>
+                <button class="icon-button danger" type="button" data-scale-clear title="Remover avaliação" hidden><span class="svg-icon" data-nav-icon="trash"></span></button>
+                <dialog class="celeris-modal classification-scale-dialog" data-scale-dialog>
+                  <div class="celeris-modal-header"><div><h3>{{ escala.nm_escala }}</h3>{% if escala.ds_descricao %}<p>{{ escala.ds_descricao }}</p>{% endif %}</div><button class="icon-button" type="button" data-scale-close title="Fechar"><span class="svg-icon" data-nav-icon="x"></span></button></div>
+                  <div class="celeris-modal-body form-grid">
+                    {% for pergunta in escala.perguntas_render %}
+                      <label class="field-lg">{% firstof pergunta.texto pergunta.rotulo pergunta.nome pergunta.chave %}
+                        {% if pergunta.opcoes_render %}
+                          <select name="escala_{{ escala.pk }}_{{ pergunta.chave_render }}" data-scale-value data-scale-question="{{ pergunta.chave_render }}">
+                            <option value=""></option>
+                            {% for opcao in pergunta.opcoes_render %}<option value="{{ opcao.valor_render }}" {% if opcao.selecionada %}selected{% endif %}>{% firstof opcao.descricao opcao.rotulo opcao.nome opcao.valor_render %}</option>{% endfor %}
+                          </select>
+                        {% else %}
+                          <input type="number" name="escala_{{ escala.pk }}_{{ pergunta.chave_render }}" value="{{ pergunta.valor_inicial }}" data-scale-value data-scale-question="{{ pergunta.chave_render }}">
+                        {% endif %}
+                      </label>
+                    {% empty %}<span class="empty-state">Escala sem perguntas configuradas.</span>{% endfor %}
+                  </div>
+                  <div class="celeris-modal-actions"><button class="button button-secondary" type="button" data-scale-close>Cancelar</button><button class="button button-primary" type="button" data-scale-apply>Concluir avaliação</button></div>
+                </dialog>
+              </article>
+            {% empty %}<p class="empty-state">Nenhuma escala ativa configurada.</p>{% endfor %}
+          </div>
+          <label class="classification-findings">Sintomas e achados {{ form.ds_sintomas }}</label>
+        </section>
+
+        <section class="classification-stage" data-classification-panel="afericao" hidden>
+          <div class="form-grid classification-vitals">
+            <label>Pressão arterial {{ form.nr_pressao_arterial }}</label><label>Frequência cardíaca {{ form.nr_frequencia_cardiaca }}</label>
+            <label>Frequência respiratória {{ form.nr_frequencia_respiratoria }}</label><label>Saturação O₂ {{ form.nr_saturacao }}</label>
+            <label>Temperatura {{ form.nr_temperatura }}</label><label>Peso {{ form.nr_peso }}</label><label>Altura {{ form.nr_altura }}</label>
+            <label>HGT <input type="number" min="0" name="nr_hgt" value="{{ dados_classificacao.nr_hgt }}"></label>
+            <label>Prestador responsável {{ form.cd_prestador_responsavel }}</label>
+          </div>
+        </section>
+
+        <section class="classification-stage" data-classification-panel="classificacao" hidden>
+          <div class="classification-flow-list">
+            {% regroup fluxos_classificacao by nm_grupo as grupos_fluxo %}
+            {% for grupo in grupos_fluxo %}<fieldset><legend>{{ grupo.grouper }}</legend>{% for fluxo in grupo.list %}<label title="{{ fluxo.ds_orientacao }}"><input type="checkbox" name="fluxos_classificacao" value="{{ fluxo.pk }}" {% if fluxo.pk|stringformat:'s' in dados_classificacao.fluxos %}checked{% endif %}> <strong>{{ fluxo.nm_fluxo }}</strong>{% if fluxo.cd_cor_recomendada %}<span class="classification-flow-color" style="--classification-color:{{ fluxo.cd_cor_recomendada.ds_cor_hex }}">{{ fluxo.cd_cor_recomendada.nm_cor }}</span>{% endif %}</label>{% endfor %}</fieldset>{% empty %}<p>Nenhum fluxo configurado.</p>{% endfor %}
+          </div>
+          <div class="form-grid">
+            <label class="field-lg">Especialidade<select name="especialidade_classificacao"><option value=""></option>{% for item in especialidades_classificacao %}<option value="{{ item.cd_valor }}" {% if dados_classificacao.especialidade == item.cd_valor %}selected{% endif %}>{{ item.ds_valor }}</option>{% endfor %}</select></label>
+            <label class="field-sm">Prioridade {{ form.nr_prioridade }}</label>
+          </div>
+          <fieldset class="classification-colors" data-classification-colors><legend>Cor recomendada/final</legend>{% if cores %}<button class="icon-button" type="button" data-color-previous title="Cor anterior"><span class="svg-icon" data-nav-icon="chevron-left"></span></button><div class="classification-color-options">{% for cor in cores %}<label style="--classification-color:{{ cor.ds_cor_hex }}" {% if cor_inicial != cor.pk|stringformat:'s' and cor_inicial or not cor_inicial and not forloop.first %}hidden{% endif %}><input type="radio" name="cor_classificacao" value="{{ cor.pk }}" {% if cor_inicial == cor.pk|stringformat:'s' or not cor_inicial and forloop.first %}checked{% endif %} required><span>{{ cor.nm_cor }}</span></label>{% endfor %}</div><button class="icon-button" type="button" data-color-next title="Próxima cor"><span class="svg-icon" data-nav-icon="chevron-right"></span></button>{% else %}<p>Cadastre ao menos uma cor.</p>{% endif %}</fieldset>
+        </section>
+
+        <section class="classification-stage" data-classification-panel="resumo" hidden>
+          <div class="classification-summary" data-classification-summary></div>
+          <div class="table-actions"><button class="button button-secondary" type="button" onclick="window.print()"><span class="svg-icon" data-nav-icon="printer"></span> Imprimir resumo</button><button class="button button-primary" type="submit">Finalizar classificação</button></div>
+        </section>
+
+        <footer class="classification-wizard-actions"><button class="button button-secondary" type="button" data-classification-previous disabled>Anterior</button><button class="button button-primary" type="button" data-classification-next>Próxima etapa</button></footer>
+      </form>
     </section>
   {% endif %}
 
@@ -130,16 +204,307 @@
       if (!editor) return;
       const buttons = [...editor.querySelectorAll("[data-classification-tab]")];
       const panels = [...editor.querySelectorAll("[data-classification-panel]")];
-      buttons.forEach((button) => button.addEventListener("click", () => {
-        buttons.forEach((item) => item.className = `button ${item === button ? "button-primary" : "button-secondary"}`);
-        panels.forEach((panel) => { panel.hidden = panel.dataset.classificationPanel !== button.dataset.classificationTab; });
-      }));
-      editor.querySelectorAll("[data-classification-patient-picker]").forEach((radio) => {
-        radio.addEventListener("change", () => {
-          const target = editor.querySelector("[data-classification-patient-id]");
-          if (target) target.value = radio.value;
+      const previous = editor.querySelector("[data-classification-previous]");
+      const next = editor.querySelector("[data-classification-next]");
+      let current = 0;
+      const validateCurrentStage = () => {
+        const invalid = panels[current]?.querySelector(":invalid");
+        if (!invalid) return true;
+        const questions = invalid.closest(".classification-questions");
+        if (questions) questions.open = true;
+        invalid.closest("label")?.classList.add("classification-question-missing");
+        invalid.focus();
+        invalid.reportValidity();
+        return false;
+      };
+      const summarize = () => {
+        const summary = editor.querySelector("[data-classification-summary]");
+        if (!summary) return;
+        const data = new FormData(editor.querySelector("form"));
+        const selectedColor = editor.querySelector("input[name='cor_classificacao']:checked")?.nextElementSibling?.textContent || "Não definida";
+        const flows = [...editor.querySelectorAll("input[name='fluxos_classificacao']:checked")].map((item) => item.closest("label")?.querySelector("strong")?.textContent).filter(Boolean);
+        summary.innerHTML = `<h3>Resumo da classificação</h3><dl><div><dt>Paciente</dt><dd>${editor.querySelector(".classification-patient-summary strong")?.textContent || data.get("nm_pre_cadastro") || "Não identificado"}</dd></div><div><dt>Queixa principal</dt><dd>${data.get("ds_queixa_principal") || "-"}</dd></div><div><dt>Alergias</dt><dd>${data.get("alergias") || "-"}</dd></div><div><dt>Medicamentos</dt><dd>${data.get("medicamentos") || "-"}</dd></div><div><dt>Fluxos</dt><dd>${flows.join(", ") || "-"}</dd></div><div><dt>Classificação</dt><dd>${selectedColor}</dd></div></dl>`;
+      };
+      const activate = (index) => {
+        current = Math.max(0, Math.min(index, panels.length - 1));
+        buttons.forEach((button, position) => button.className = `button ${position === current ? "button-primary" : "button-secondary"}`);
+        panels.forEach((panel, position) => panel.hidden = position !== current);
+        previous.disabled = current === 0;
+        next.hidden = current === panels.length - 1;
+        if (current === panels.length - 1) summarize();
+      };
+      editor.querySelectorAll("[data-classification-scale]").forEach((scale) => {
+        const fields = [...scale.querySelectorAll("[data-scale-value]")];
+        const output = scale.querySelector("[data-scale-result]");
+        const clear = scale.querySelector("[data-scale-clear]");
+        const dialog = scale.querySelector("[data-scale-dialog]");
+        scale.querySelector("[data-scale-open]")?.addEventListener("click", () => dialog?.showModal());
+        scale.querySelectorAll("[data-scale-close]").forEach((button) => button.addEventListener("click", () => dialog?.close()));
+        dialog?.addEventListener("click", (event) => {
+          if (event.target === dialog) dialog.close();
+        });
+        scale.querySelector("[data-scale-apply]")?.addEventListener("click", async () => {
+          const unanswered = fields.find((field) => !String(field.value || "").trim());
+          if (unanswered) {
+            unanswered.focus();
+            return;
+          }
+          const responses = Object.fromEntries(fields.map((field) => [field.dataset.scaleQuestion, field.value]));
+          const response = await fetch("{% url 'atendimento:testar-escala-clinica' %}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json", "X-CSRFToken": editor.querySelector("[name='csrfmiddlewaretoken']").value},
+            body: JSON.stringify({escala: scale.dataset.scaleId, respostas: responses}),
+          });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) {
+            output.hidden = false;
+            output.textContent = payload.error || "Não foi possível calcular a avaliação.";
+            output.classList.add("error");
+            return;
+          }
+          output.classList.remove("error");
+          output.textContent = `${payload.resultado} · ${payload.classificacao}`;
+          output.hidden = false;
+          clear.hidden = false;
+          dialog.close();
+        });
+        clear?.addEventListener("click", () => {
+          fields.forEach((field) => {
+            field.value = "";
+            field.dispatchEvent(new Event("change", {bubbles: true}));
+          });
+          output.hidden = true;
+          output.textContent = "";
+          clear.hidden = true;
         });
       });
+      const allergyRows = editor.querySelector("[data-allergy-rows]");
+      const allergyRow = () => {
+        const row = document.createElement("tr");
+        row.innerHTML = '<td><input name="alergia_substancia"></td><td><input name="alergia_observacao"></td><td><button class="icon-button danger" type="button" data-allergy-remove title="Remover">×</button></td>';
+        return row;
+      };
+      editor.querySelector("[data-allergy-add]")?.addEventListener("click", () => allergyRows?.append(allergyRow()));
+      allergyRows?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-allergy-remove]");
+        if (!button) return;
+        const rows = allergyRows.querySelectorAll("tr");
+        if (rows.length === 1) rows[0].querySelectorAll("input").forEach((field) => { field.value = ""; });
+        else button.closest("tr")?.remove();
+      });
+      buttons.forEach((button, index) => button.addEventListener("click", () => {
+        if (index <= current || validateCurrentStage()) activate(index);
+      }));
+      previous?.addEventListener("click", () => activate(current - 1));
+      next?.addEventListener("click", () => {
+        if (validateCurrentStage()) activate(current + 1);
+      });
+      editor.querySelector("form")?.addEventListener("submit", (event) => {
+        const invalid = editor.querySelector(":invalid");
+        if (!invalid) return;
+        event.preventDefault();
+        const panel = invalid.closest("[data-classification-panel]");
+        const index = panels.indexOf(panel);
+        if (index >= 0) activate(index);
+        const questions = invalid.closest(".classification-questions");
+        if (questions) questions.open = true;
+        invalid.closest("label")?.classList.add("classification-question-missing");
+        window.requestAnimationFrame(() => invalid.focus());
+      });
+      const patientId = editor.querySelector("[data-classification-patient-id]");
+      const preRegistration = editor.querySelector("[data-classification-pre-registration]");
+      const selectedPatientActions = editor.querySelector("[data-classification-selected-patient-actions]");
+      const setSelectedPatient = (value = "") => {
+        if (patientId) patientId.value = value;
+        if (preRegistration) preRegistration.disabled = Boolean(value);
+        if (selectedPatientActions) selectedPatientActions.hidden = !value;
+      };
+      editor.querySelectorAll("[data-classification-patient-picker]").forEach((radio) => radio.addEventListener("change", () => setSelectedPatient(radio.value)));
+      editor.querySelector("[data-classification-patient-clear]")?.addEventListener("click", () => {
+        editor.querySelectorAll("[data-classification-patient-picker]").forEach((radio) => { radio.checked = false; });
+        setSelectedPatient();
+        preRegistration?.querySelector("input")?.focus();
+      });
+      const patientSearch = editor.querySelector("[data-classification-patient-search]");
+      const executePatientSearch = () => {
+        const url = new URL(window.location.href);
+        const value = patientSearch?.value?.trim() || "";
+        if (value) url.searchParams.set("busca_paciente", value);
+        else url.searchParams.delete("busca_paciente");
+        window.location.href = url;
+      };
+      editor.querySelector("[data-classification-patient-search-button]")?.addEventListener("click", executePatientSearch);
+      patientSearch?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        executePatientSearch();
+      });
+      const colorSelector = editor.querySelector("[data-classification-colors]");
+      if (colorSelector) {
+        const colorOptions = [...colorSelector.querySelectorAll(".classification-color-options label")];
+        let colorIndex = Math.max(0, colorOptions.findIndex((option) => option.querySelector("input")?.checked));
+        const showColor = (index) => {
+          if (!colorOptions.length) return;
+          colorIndex = (index + colorOptions.length) % colorOptions.length;
+          colorOptions.forEach((option, position) => { option.hidden = position !== colorIndex; });
+          const radio = colorOptions[colorIndex].querySelector("input");
+          radio.checked = true;
+          radio.dispatchEvent(new Event("change", {bubbles: true}));
+        };
+        colorSelector.querySelector("[data-color-previous]")?.addEventListener("click", () => showColor(colorIndex - 1));
+        colorSelector.querySelector("[data-color-next]")?.addEventListener("click", () => showColor(colorIndex + 1));
+        showColor(colorIndex);
+      }
+      activate(0);
+    })();
+    (() => {
+      const body = document.querySelector("[data-classification-demand-body]");
+      if (!body || document.querySelector("[data-classification-unified-queue]")) return;
+      const bind = () => body.querySelectorAll("[data-classification-row-url]").forEach((row) => row.addEventListener("click", (event) => { if (!event.target.closest("a,button,form,input,select,textarea")) window.location.href = row.dataset.classificationRowUrl; }));
+      const refresh = async () => { if (document.querySelector("[data-classification-editor]")) return; const url = new URL(window.location.href); url.searchParams.set("parcial", "demanda"); try { const response = await fetch(url, {headers:{"X-Requested-With":"XMLHttpRequest"}}); if (response.ok) { body.innerHTML = await response.text(); bind(); } } catch (_) {} };
+      bind(); window.setInterval(refresh, 2000);
+      const all = document.querySelector("[data-classification-all]");
+      const specific = [...document.querySelectorAll("[data-classification-filter]")];
+      all?.addEventListener("change", () => { if (all.checked) specific.forEach((item) => item.checked = false); });
+      specific.forEach((item) => item.addEventListener("change", () => {
+        if (item.checked && all) all.checked = false;
+        if (!specific.some((field) => field.checked) && all) all.checked = true;
+      }));
+    })();
+    (() => {
+      const form = document.querySelector("[data-classification-filter-form]");
+      const queue = document.querySelector("[data-classification-unified-queue]");
+      if (!form || !queue) return;
+      const search = form.querySelector("[data-classification-search]");
+      const clear = form.querySelector("[data-classification-search-clear]");
+      const specific = [...form.querySelectorAll("[data-classification-filter]")];
+      const scheduledFilter = form.querySelector('[data-classification-filter][value="agendados"]');
+      const dateField = form.querySelector("[data-classification-date]")?.closest("label");
+      let debounceTimer = 0;
+      let activeRequest = null;
+      let queueSignature = "";
+
+      const formatElapsedTime = (seconds) => {
+        const safeSeconds = Math.max(Math.floor(seconds), 0);
+        const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, "0");
+        const minutes = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, "0");
+        return `${hours}:${minutes}`;
+      };
+      const updateWaitTimes = () => {
+        const now = Date.now();
+        queue.querySelectorAll("[data-classification-wait]").forEach((field) => {
+          const createdAt = Date.parse(field.dataset.createdAt || "");
+          if (!Number.isFinite(createdAt)) return;
+          const elapsedSeconds = (now - createdAt) / 1000;
+          const limitSeconds = (Number(field.dataset.timeLimit) || 0) * 60;
+          const canExpire = ["AGUARDANDO", "CHAMADA"].includes(field.dataset.ticketStatus || "");
+          const overdue = canExpire && limitSeconds > 0 && elapsedSeconds > limitSeconds;
+          field.textContent = formatElapsedTime(elapsedSeconds);
+          field.classList.toggle("classification-wait-overdue", overdue);
+          field.closest("tr")?.classList.toggle("ticket-overdue", overdue);
+        });
+      };
+      const contentSignature = (html) => {
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        template.content.querySelectorAll('input[name="csrfmiddlewaretoken"]').forEach((field) => {
+          field.value = "";
+          field.setAttribute("value", "");
+        });
+        template.content.querySelectorAll("[data-classification-wait]").forEach((field) => {
+          field.textContent = "";
+          field.classList.remove("classification-wait-overdue");
+          field.closest("tr")?.classList.remove("ticket-overdue");
+        });
+        return template.innerHTML;
+      };
+
+      const syncQueueVisibility = () => {
+        const showScheduled = Boolean(scheduledFilter?.checked);
+        const showDemand = specific.some((field) => field.value !== "agendados" && field.checked);
+        const scheduledSection = queue.querySelector("[data-classification-scheduled-section]");
+        const demandSection = queue.querySelector("[data-classification-demand-section]");
+        if (scheduledSection) scheduledSection.hidden = !showScheduled;
+        if (demandSection) demandSection.hidden = !showDemand;
+        if (dateField) dateField.hidden = !showScheduled;
+      };
+
+      const bindRows = () => queue.querySelectorAll("[data-classification-row-url]").forEach((row) => {
+        row.addEventListener("click", (event) => {
+          if (!event.target.closest("a,button,form,input,select,textarea")) window.location.href = row.dataset.classificationRowUrl;
+        });
+      });
+      const normalizedUrl = () => {
+        const url = new URL(window.location.href);
+        url.search = new URLSearchParams(new FormData(form)).toString();
+        return url;
+      };
+      const refresh = async ({ updateAddress = false, force = false, showLoading = false } = {}) => {
+        if (document.querySelector("[data-classification-editor]")) return;
+        if (!force && activeRequest) return;
+        if (force) activeRequest?.abort();
+        const requestController = new AbortController();
+        activeRequest = requestController;
+        const url = normalizedUrl();
+        if (updateAddress) window.history.replaceState({}, "", url);
+        url.searchParams.set("parcial", "fila_unificada");
+        if (showLoading) queue.setAttribute("aria-busy", "true");
+        try {
+          const response = await fetch(url, {
+            headers: {"X-Requested-With": "XMLHttpRequest"},
+            signal: requestController.signal,
+          });
+          if (response.ok) {
+            const nextHTML = await response.text();
+            const nextSignature = contentSignature(nextHTML);
+            if (force || nextSignature !== queueSignature) {
+              queue.innerHTML = nextHTML;
+              queueSignature = nextSignature;
+              bindRows();
+              syncQueueVisibility();
+              updateWaitTimes();
+              window.CelerisRenderIcons?.();
+            }
+          }
+        } catch (error) {
+          if (error.name !== "AbortError") console.error(error);
+        } finally {
+          if (showLoading) queue.removeAttribute("aria-busy");
+          if (activeRequest === requestController) activeRequest = null;
+        }
+      };
+      const scheduleRefresh = () => {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => refresh({updateAddress: true, force: true, showLoading: true}), 900);
+      };
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        refresh({updateAddress: true, force: true, showLoading: true});
+      });
+      specific.forEach((item) => item.addEventListener("change", () => {
+        if (!specific.some((field) => field.checked)) item.checked = true;
+        syncQueueVisibility();
+        refresh({updateAddress: true, force: true, showLoading: true});
+      }));
+      form.querySelector("[data-classification-date]")?.addEventListener("change", () => refresh({updateAddress: true, force: true, showLoading: true}));
+      search?.addEventListener("input", () => {
+        if (clear) clear.hidden = !search.value;
+        scheduleRefresh();
+      });
+      clear?.addEventListener("click", () => {
+        search.value = "";
+        clear.hidden = true;
+        search.focus();
+        window.clearTimeout(debounceTimer);
+        refresh({updateAddress: true, force: true, showLoading: true});
+      });
+      bindRows();
+      syncQueueVisibility();
+      queueSignature = contentSignature(queue.innerHTML);
+      updateWaitTimes();
+      window.setInterval(updateWaitTimes, 1000);
+      window.setInterval(() => refresh(), 2000);
     })();
   </script>
 {% endblock %}

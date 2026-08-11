@@ -19,6 +19,8 @@
     'shopping-cart': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart-icon lucide-shopping-cart"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>',
     form: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-form-icon lucide-form"><path d="M4 14h6"/><path d="M4 2h10"/><rect x="4" y="18" width="16" height="4" rx="1"/><rect x="4" y="6" width="16" height="4" rx="1"/></svg>',
     "clipboard-plus": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-plus-icon lucide-clipboard-plus"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14h6"/><path d="M12 17v-6"/></svg>',
+    "heart-pulse": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M320 171.9L305 151.1C280 116.5 239.9 96 197.1 96C123.6 96 64 155.6 64 229.1L64 231.7C64 255.3 70.2 279.7 80.6 304L186.6 304C189.8 304 192.7 302.1 194 299.1L225.8 222.8C229.5 214 238.1 208.2 247.6 208C257.1 207.8 265.9 213.4 269.8 222.1L321.1 336L362.5 253.2C366.6 245.1 374.9 239.9 384 239.9C393.1 239.9 401.4 245 405.5 253.2L428.7 299.5C430.1 302.2 432.8 303.9 435.9 303.9L559.5 303.9C570 279.6 576.1 255.2 576.1 231.6L576.1 229C576 155.6 516.4 96 442.9 96C400.2 96 360 116.5 335 151.1L320 171.8zM533.6 352L435.8 352C414.6 352 395.2 340 385.7 321L384 317.6L341.5 402.7C337.4 411 328.8 416.2 319.5 416C310.2 415.8 301.9 410.3 298.1 401.9L248.8 292.4L238.3 317.6C229.6 338.5 209.2 352.1 186.6 352.1L106.4 352.1C153.6 425.9 229.4 493.8 276.8 530C289.2 539.4 304.4 544.1 319.9 544.1C335.4 544.1 350.7 539.5 363 530C410.6 493.7 486.4 425.8 533.6 352z"/></svg>',
+    "heart-hands": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-heart-handshake-icon lucide-heart-handshake"><path d="M19.414 14.414C21 12.828 22 11.5 22 9.5a5.5 5.5 0 0 0-9.591-3.676.6.6 0 0 1-.818.001A5.5 5.5 0 0 0 2 9.5c0 2.3 1.5 4 3 5.5l5.535 5.362a2 2 0 0 0 2.879.052 2.12 2.12 0 0 0-.004-3 2.124 2.124 0 1 0 3-3 2.124 2.124 0 0 0 3.004 0 2 2 0 0 0 0-2.828l-1.881-1.882a2.41 2.41 0 0 0-3.409 0l-1.71 1.71a2 2 0 0 1-2.828 0 2 2 0 0 1 0-2.828l2.823-2.762"/></svg>',
     presentation: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-presentation-icon lucide-presentation"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>',
     audio: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume2-icon lucide-volume-2"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></svg>',
     ticket: '<path d="M2 9a3 3 0 0 0 0 6v3a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3a3 3 0 0 0 0-6V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>',
@@ -537,8 +539,11 @@
     const firstInvalid = form?.querySelector(":invalid");
     if (firstInvalid) {
       const section = firstInvalid.closest("details");
-      if (section) section.open = true;
-      firstInvalid.focus();
+      if (section) {
+        section.open = true;
+        section.dispatchEvent(new CustomEvent("celeris:activate-section", { bubbles: true }));
+      }
+      window.requestAnimationFrame(() => firstInvalid.focus());
     }
     return Boolean(firstInvalid);
   }
@@ -582,7 +587,10 @@
     if (!firstErrorName) return;
     const firstField = document.querySelector(`[name="${CSS.escape(firstErrorName)}"]`);
     const section = firstField?.closest("details");
-    if (section) section.open = true;
+    if (section) {
+      section.open = true;
+      section.dispatchEvent(new CustomEvent("celeris:activate-section", { bubbles: true }));
+    }
     firstField?.scrollIntoView({ behavior: "smooth", block: "center" });
     const blockingNotification = document.querySelector("[data-blocking-notification]");
     if (!blockingNotification || blockingNotification.hidden) {
@@ -780,6 +788,30 @@
     return "cancel";
   }
 
+  function setupFormConfirmations() {
+    document.addEventListener("submit", async (event) => {
+      const form = event.target.closest?.("form[data-confirm]");
+      if (!form || form.dataset.confirmed === "true") {
+        if (form) delete form.dataset.confirmed;
+        return;
+      }
+      event.preventDefault();
+      const submitter = event.submitter;
+      const confirmed = await showBlockingNotification({
+        title: submitter?.title || "Confirmar ação",
+        message: form.dataset.confirm,
+        confirmText: "Confirmar",
+        cancelText: "Cancelar",
+        type: "warning",
+        initialFocus: "cancel",
+      });
+      if (!confirmed) return;
+      form.dataset.confirmed = "true";
+      form.requestSubmit(submitter || undefined);
+    }, true);
+  }
+  window.CelerisPromptUnsavedAction = promptUnsavedAction;
+
   async function promptChangeReason(form) {
     if (form?.dataset.requiresChangeReason !== "true" || form.dataset.dirty !== "true") return true;
     const reasonField = form.querySelector('[name="motivo_alteracao"]');
@@ -847,8 +879,9 @@
   }
 
   function getActiveEditableRow() {
-    const active = document.activeElement?.closest?.("tr[data-editable-row]");
-    return active || document.querySelector("tr[data-editable-row].selected");
+    const selected = document.querySelector("tr[data-editable-row].selected:not([hidden])");
+    const active = document.activeElement?.closest?.("tr[data-editable-row]:not([hidden])");
+    return selected || active;
   }
 
   function markFormDirty(form) {
@@ -869,6 +902,8 @@
     const row = fragment.querySelector("tr");
     tbody.querySelector(".empty-cell")?.closest("tr")?.remove();
     tbody.appendChild(fragment);
+    tbody.querySelectorAll("tr[data-editable-row].selected").forEach((item) => item.classList.remove("selected"));
+    row?.classList.add("selected");
     row?.querySelectorAll("[data-cep-state-select]").forEach(filterCepCitiesForState);
     updateTablePagerVisibility(form);
     if (markDirty) {
@@ -1985,6 +2020,15 @@
       .toUpperCase();
   }
 
+  const fieldColumnAliases = {
+    pergunta_classificacao: { _pk: "cd_pergunta_classificacao", name: "nm_pergunta", type: "tp_resposta", order: "nr_ordem", required: "sn_obrigatoria", active: "sn_ativo" },
+    fluxo_classificacao: { _pk: "cd_fluxo_classificacao", group: "nm_grupo", name: "nm_fluxo", guidance: "ds_orientacao", color: "cd_cor_recomendada", order: "nr_ordem", active: "sn_ativo" },
+    cor_classificacao_risco: { _pk: "cd_cor_classificacao", code: "cd_cor", name: "nm_cor", hex: "ds_cor_hex", priority: "nr_prioridade", active: "sn_ativo" },
+    protocolo_senha: { _pk: "cd_protocolo_senha", acronym: "sg_protocolo", name: "nm_protocolo", description: "ds_protocolo", active: "sn_ativo" },
+    icone_chamada: { _pk: "cd_icone_chamada", name: "nm_icone", svg: "ds_svg", active: "sn_ativo" },
+    regra_subdivisao_senha: { rule_name: "cd_classe_senha", rule_acronym: "sg_regra", rule_priority: "nr_prioridade", rule_min_age: "nr_idade_minima", rule_max_age: "nr_idade_maxima", rule_protocol: "cd_protocolo", rule_timeout: "nr_tempo_limite", rule_icon: "cd_icone_chamada", rule_active: "sn_ativo" },
+  };
+
   function updateFieldStatus(field) {
     const status = document.querySelector("[data-field-status]");
     if (!status) return;
@@ -1996,16 +2040,21 @@
 
     const labelText = field.closest("label")?.childNodes?.[0]?.textContent?.trim() || "";
     const businessLabel = labelText || field.getAttribute("aria-label") || field.placeholder || "Campo";
-    const owner = field.closest("form[data-table], section[data-table]");
+    const owner = field.closest("form[data-table], section[data-table], details[data-table]");
     const tableName = field.dataset.fieldTable || owner?.dataset.table;
     const rawFieldName = field.dataset.fieldName || field.name || "";
-    const fieldName = rawFieldName.replace(/^new_/, "").replace(/_\d+$/, "");
+    const normalizedFieldName = rawFieldName.replace(/^new_/, "").replace(/_\d+$/, "");
+    const aliases = fieldColumnAliases[tableName] || {};
+    const fieldName = field.dataset.fieldName
+      || aliases[normalizedFieldName]
+      || (field.dataset.primaryKey === "true" ? aliases._pk : "")
+      || normalizedFieldName;
     const isExactTableField = Boolean(
       tableName
       && fieldName
       && (field.dataset.fieldTable || (
-        owner?.tagName === "FORM"
-        && owner.method?.toLowerCase() !== "get"
+        owner
+        && (owner.tagName !== "FORM" || owner.method?.toLowerCase() !== "get")
       ))
       && field.type !== "hidden"
     );
@@ -2052,9 +2101,15 @@
       const providerForm = field.closest(".provider-form");
       const isNewProvider = providerForm && !providerForm.dataset.providerId;
       const isQueryMode = document.body.classList.contains("screen-query-mode");
-      if (warNameField && isNewProvider && !isQueryMode && !warNameField.value.trim() && !warNameField.dataset.manuallyEdited) {
-        const nameParts = field.value.trim().split(/\s+/).filter(Boolean);
-        warNameField.value = nameParts[0] || "";
+      if (warNameField && isNewProvider && !isQueryMode && !warNameField.dataset.manuallyEdited) {
+        window.clearTimeout(field.celerisWarNameTimer);
+        field.celerisWarNameTimer = window.setTimeout(() => {
+          const nameParts = field.value.trim().split(/\s+/).filter(Boolean);
+          warNameField.value = nameParts.length > 1
+            ? `${nameParts[0]} ${nameParts.at(-1)}`
+            : (nameParts[0] || "");
+          warNameField.dispatchEvent(new Event("change", { bubbles: true }));
+        }, 700);
       }
     }
     if (field.dataset.mask === "cpf") {
@@ -2396,6 +2451,14 @@
     };
 
     openButton.addEventListener("click", () => {
+      if (!options.length) {
+        addNotificationToHistory(
+          manager.dataset.emptyOptionsMessage || "Lista sem valores cadastrados para seleção.",
+          "warning",
+          false
+        );
+        return;
+      }
       openButton.hidden = true;
       addRow.hidden = false;
       picker.focus();
@@ -2490,6 +2553,14 @@
       };
 
       openButton.addEventListener("click", () => {
+        if (!options.length) {
+          addNotificationToHistory(
+            manager.dataset.emptyOptionsMessage || "Lista sem valores cadastrados para seleção.",
+            "warning",
+            false
+          );
+          return;
+        }
         openButton.hidden = true;
         addRow.hidden = false;
         picker.focus();
@@ -2591,6 +2662,12 @@
         window.requestAnimationFrame(() => anchoredSection.scrollIntoView({ block: "start" }));
       }
       sections.forEach((section) => {
+        section.addEventListener("celeris:activate-section", () => {
+          activateSectionPanel(section);
+          sections.forEach((otherSection) => {
+            if (otherSection !== section) otherSection.open = false;
+          });
+        });
         section.addEventListener("toggle", () => {
           if (!section.open) return;
           activateSectionPanel(section);
@@ -2612,9 +2689,12 @@
         sections.forEach((otherSection) => {
           if (otherSection !== section) otherSection.open = false;
         });
-        const fields = editableFields(section);
-        const target = fromEnd ? fields.at(-1) : fields[0];
-        window.requestAnimationFrame(() => target?.focus());
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+          const fields = editableFields(section);
+          const target = fromEnd ? fields.at(-1) : fields[0];
+          target?.focus({ preventScroll: true });
+          target?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }));
       };
       form.addEventListener("keydown", (event) => {
         const activeSection = sections.find((section) => section.open);
@@ -2670,6 +2750,17 @@
     const form = document.querySelector("[data-navigation-reorder-form]");
     if (!builder || !form) return;
     let draggedItem = null;
+    const serializeOrder = () => {
+      const structure = {};
+      builder.querySelectorAll("[data-navigation-parent]").forEach((container) => {
+        const parent = container.dataset.navigationParent || "";
+        structure[parent] = Array.from(
+          container.querySelectorAll(":scope > [data-navigation-item]"),
+          (item) => item.dataset.navigationItem || "",
+        ).filter(Boolean);
+      });
+      return JSON.stringify(structure);
+    };
 
     builder.addEventListener("dragstart", (event) => {
       const handle = event.target.closest("[data-navigation-node]");
@@ -2702,6 +2793,14 @@
       try {
         const response = await fetch(form.action, {method: "POST", credentials: "same-origin", body: payload});
         if (!response.ok) throw new Error("Não foi possível salvar a ordem.");
+        const dirtyField = document.querySelector("[data-navigation-order-dirty]");
+        if (dirtyField) {
+          dirtyField.value = serializeOrder();
+          dirtyField.dispatchEvent(new Event("input", {bubbles: true}));
+          dirtyField.dispatchEvent(new Event("change", {bubbles: true}));
+        }
+        const saveButton = document.querySelector('[data-action="save"]');
+        if (saveButton) saveButton.disabled = false;
         addNotificationToHistory("Ordem do menu atualizada.", "success", false);
       } catch (error) {
         addNotificationToHistory(error.message || "Não foi possível salvar a ordem.", "error", false);
@@ -3342,7 +3441,9 @@
             payload = {};
           }
           clearUserRuntimeState();
-          window.location.replace(payload.login_url || "/accounts/login/");
+          const loginUrl = new URL(payload.login_url || "/accounts/login/", window.location.origin);
+          loginUrl.searchParams.set("next", `${window.location.pathname}${window.location.search}${window.location.hash}`);
+          window.location.replace(loginUrl.toString());
         }
       } catch (error) {
         // Falha transitória de rede não encerra a sessão local imediatamente.
@@ -3801,10 +3902,26 @@
   setupUserLoginSuggestion();
   setupServerValidationErrors();
   setupNotifications();
+  setupFormConfirmations();
   setupReadonlyLockedForms();
   setupRecordLockRelease();
   setupSessionMonitor();
   setupSidebarSearch();
+  document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    const queryButton = document.querySelector("[data-query-toggle]");
+    const cancelButton = document.querySelector("[data-query-cancel]");
+    if (event.key === "F7" && queryButton?.dataset.queryMode !== "execute") {
+      event.preventDefault();
+      queryButton?.click();
+    } else if (event.key === "F8" && queryButton?.dataset.queryMode === "execute") {
+      event.preventDefault();
+      queryButton.click();
+    } else if (event.key === "Escape" && document.body.classList.contains("screen-query-mode")) {
+      event.preventDefault();
+      cancelButton?.click();
+    }
+  });
   const printPrompt = document.querySelector("[data-print-after-save]");
   if (printPrompt) {
     showBlockingNotification({

@@ -14,15 +14,6 @@ TABLES = {
         ("SUPERIOR_COMPLETO", "ENSINO SUPERIOR COMPLETO"),
         ("POS_GRADUACAO", "PÓS-GRADUAÇÃO"),
     ],
-    "identidade_genero": [
-        ("MULHER_CIS", "MULHER CISGÊNERO"),
-        ("HOMEM_CIS", "HOMEM CISGÊNERO"),
-        ("MULHER_TRANS", "MULHER TRANSGÊNERO"),
-        ("HOMEM_TRANS", "HOMEM TRANSGÊNERO"),
-        ("NAO_BINARIO", "NÃO BINÁRIO"),
-        ("OUTRA", "OUTRA"),
-        ("NAO_INFORMADA", "NÃO INFORMADA"),
-    ],
     "banco": [
         ("001", "BANCO DO BRASIL"),
         ("033", "SANTANDER"),

@@ -1,0 +1,29 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card document-screen-map-filter">
+    <form method="get" class="form-grid" data-query-form>
+      <label class="field-fluid">Documento
+        <select name="modelo" required data-consultable="true">
+          <option value="">Selecione</option>
+          {% for item in modelos %}<option value="{{ item.pk }}" {% if modelo.pk == item.pk %}selected{% endif %}>{{ item.nm_modelo }} · {{ item.get_tp_documento_display }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="pep-submit-field"><span>&nbsp;</span><button class="button button-primary" type="submit">Executar consulta</button></label>
+    </form>
+  </section>
+  {% if modelo %}
+    <form class="card table-card" method="post" data-document-screen-map data-primary-form>
+      {% csrf_token %}<input type="hidden" name="modelo" value="{{ modelo.pk }}">
+      <div class="form-grid document-screen-map-summary">
+        <label class="field-xs">Código<input value="{{ modelo.pk }}" readonly></label>
+        <label class="field-xl">Documento<input value="{{ modelo.nm_modelo }}" readonly></label>
+        <label class="field-md">Tipo<input value="{{ modelo.get_tp_documento_display }}" readonly></label>
+        <label class="field-xs">Versão<input value="{{ modelo.nr_versao }}" readonly></label>
+      </div>
+      <div class="section-heading"><div><h2>Telas habilitadas</h2><small>Marque onde este documento poderá ser impresso.</small></div></div>
+      <table class="editable-table"><thead><tr><th>Imprimir</th><th>Tela</th><th>Chave de acesso</th></tr></thead><tbody>
+        {% for tela in telas %}<tr><td><input type="checkbox" name="tela" value="{{ tela.pk }}" {% if tela.pk in telas_selecionadas %}checked{% endif %}></td><td><span class="table-text">{{ tela.caminho_impressao }}</span></td><td><span class="table-text">{{ tela.access_key }}</span></td></tr>{% endfor %}
+      </tbody></table>
+    </form>
+  {% endif %}
+{% endblock %}

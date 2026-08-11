@@ -1,4 +1,4 @@
-{% extends "base/layout.html" %}
+{% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
   <form class="card table-card call-icons-table-card" data-editable-table data-table="icone_chamada" data-preserve-input method="post">
     {% csrf_token %}

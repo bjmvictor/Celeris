@@ -16,7 +16,7 @@ DESCRICOES_TABELAS = {
     "meio_comunicacao": "Meios de comunicação",
     "meio_transporte": "Meios de transporte",
     "orgao_emissor": "Órgãos emissores",
-    "origem": "Origens",
+    "origem": "Origens de atendimento",
     "orientacao_sexual": "Orientações sexuais",
     "pais": "Países",
     "parentesco": "Parentescos",

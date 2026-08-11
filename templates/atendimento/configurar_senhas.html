@@ -1,16 +1,8 @@
-{% extends "base/layout.html" %}
+{% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
-  <form
-    class="ticket-config-form"
-    method="post"
-    autocomplete="off"
-    data-table="tipo_senha_atendimento"
-    data-query-url="{% url 'atendimento:configurar-senhas' %}"
-    data-query-parameter="consultar"
-  >
+  <form class="ticket-config-form" method="post" autocomplete="off" data-table="tipo_senha_atendimento" data-password-config-form data-query-url="{{ request.path }}" data-query-parameter="consultar">
     {% csrf_token %}
     {{ form.non_field_errors }}
-
     <details class="card form-section" open>
       <summary>1. Dados gerais da senha</summary>
       <div class="form-grid">
@@ -18,27 +10,46 @@
         <label class="field-sm">Status {{ form.sn_ativo }}</label>
         <label class="field-lg">Tipo de senha * {{ form.nm_tipo_senha }} {{ form.nm_tipo_senha.errors }}</label>
         <label class="field-xs">Sigla * {{ form.sg_tipo_senha }} {{ form.sg_tipo_senha.errors }}</label>
-        <label class="field-lg">Protocolo {{ form.cd_protocolo }}</label>
-        <label class="field-sm">Tempo limite (min) {{ form.nr_tempo_minimo }}</label>
-        <label class="field-sm">Prioridade <small>menor = mais prioridade</small>{{ form.nr_prioridade }}</label>
         <label class="field-xl">Setor/painel de chamada {{ form.cd_setor_atendimento }}</label>
       </div>
     </details>
-
-    <details class="card form-section" open>
+    <details class="card form-section" data-password-rules-section data-table="regra_subdivisao_senha">
       <summary>2. Regras de subdivisão</summary>
-      <div class="form-grid ticket-rule-editor">
-        <label class="field-lg">Classe {{ regra_form.cd_classe_senha }}</label>
-        <label class="field-sm">Prioridade <small>menor = mais prioridade</small>{{ regra_form.nr_prioridade }}</label>
-        <label class="field-sm">Idade mínima {{ regra_form.nr_idade_minima }}</label>
-        <label class="field-sm">Idade máxima {{ regra_form.nr_idade_maxima }}</label>
-        <label class="field-md">Ícone {{ regra_form.ds_icone }}</label>
+      <small class="table-help">Na prioridade, menor = mais prioridade.</small>
+      <div class="table-card compact-table-card">
+        <table class="editable-table password-rules-table">
+          <thead><tr><th>Nome da subdivisão</th><th>Sigla</th><th>Prioridade</th><th>Idade mínima</th><th>Idade máxima</th><th>Protocolo</th><th>Tempo limite</th><th>Ícone</th><th>Status</th></tr></thead>
+          <tbody data-password-rule-rows>
+            {% for regra in regras %}
+              <tr data-editable-row>
+                <td><input name="rule_name_{{ regra.pk }}" value="{{ regra.cd_classe_senha.nm_classe_senha }}" required><input type="hidden" name="delete_rule_{{ regra.pk }}" value="0" data-row-delete></td>
+                <td><input name="rule_acronym_{{ regra.pk }}" maxlength="4" value="{{ regra.sg_regra }}" data-uppercase="true"></td>
+                <td><input type="number" min="1" name="rule_priority_{{ regra.pk }}" value="{{ regra.nr_prioridade }}"></td>
+                <td><input type="number" min="0" name="rule_min_age_{{ regra.pk }}" value="{{ regra.nr_idade_minima|default_if_none:'' }}"></td>
+                <td><input type="number" min="0" name="rule_max_age_{{ regra.pk }}" value="{{ regra.nr_idade_maxima|default_if_none:'' }}"></td>
+                <td><select name="rule_protocol_{{ regra.pk }}"><option value=""></option>{% for protocolo in protocolos %}<option value="{{ protocolo.pk }}" {% if regra.cd_protocolo_id == protocolo.pk %}selected{% endif %}>{{ protocolo.sg_protocolo|default:protocolo.nm_protocolo }} - {{ protocolo.nm_protocolo }}</option>{% endfor %}</select></td>
+                <td><input type="number" min="1" name="rule_timeout_{{ regra.pk }}" value="{{ regra.nr_tempo_limite }}"></td>
+                <td>{% include "atendimento/_seletor_icone_chamada.html" with input_prefix="rule_icon_" input_suffix=regra.pk selected_icon=regra.cd_icone_chamada %}</td>
+                <td><select name="rule_active_{{ regra.pk }}"><option value="true" {% if regra.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not regra.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <template data-password-rule-template>
+          <tr data-editable-row>
+            <td><input name="new_rule_name" placeholder="Ex.: Acima de 75 anos"></td>
+            <td><input name="new_rule_acronym" maxlength="4" data-uppercase="true"></td>
+            <td><input type="number" min="1" name="new_rule_priority" value="5"></td>
+            <td><input type="number" min="0" name="new_rule_min_age"></td>
+            <td><input type="number" min="0" name="new_rule_max_age"></td>
+            <td><select name="new_rule_protocol"><option value=""></option>{% for protocolo in protocolos %}<option value="{{ protocolo.pk }}">{{ protocolo.sg_protocolo|default:protocolo.nm_protocolo }} - {{ protocolo.nm_protocolo }}</option>{% endfor %}</select></td>
+            <td><input type="number" min="1" name="new_rule_timeout" value="30"></td>
+            <td>{% include "atendimento/_seletor_icone_chamada.html" with input_name="new_rule_icon" %}</td>
+            <td><select name="new_rule_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>
+          </tr>
+        </template>
       </div>
-      {% if not tipo %}
-        <span class="empty-state">Salve os dados gerais para começar a adicionar regras.</span>
-      {% endif %}
     </details>
-
     {% if tipo and can_view_audit %}
       <details class="card form-section">
         <summary>3. Auditoria</summary>
@@ -51,4 +62,35 @@
       </details>
     {% endif %}
   </form>
+  <script>
+    (() => {
+      const form = document.querySelector("[data-password-config-form]");
+      const target = document.querySelector("[data-password-rule-rows]");
+      const template = document.querySelector("[data-password-rule-template]");
+      const rulesSection = document.querySelector("[data-password-rules-section]");
+      const addRule = (markDirty = true) => {
+        if (!target || !template) return;
+        target.append(template.content.cloneNode(true));
+        if (markDirty) form?.dispatchEvent(new Event("input", { bubbles: true }));
+        target.lastElementChild?.querySelector("input:not([readonly]), select")?.focus();
+      };
+      if (target && !target.querySelector("tr[data-editable-row]")) addRule(false);
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest('[data-action="new"]');
+        if (!button || button.disabled || !form) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (rulesSection?.open) addRule();
+        else if (document.body.dataset.newUrl) window.location.href = document.body.dataset.newUrl;
+      }, true);
+      document.addEventListener("change", (event) => {
+        const radio = event.target.closest("[data-call-icon-option]");
+        if (!radio) return;
+        const picker = radio.closest("[data-call-icon-picker]");
+        const preview = picker?.querySelector("[data-call-icon-selected]");
+        if (preview) preview.innerHTML = radio.dataset.iconSvg || "";
+        picker?.removeAttribute("open");
+      });
+    })();
+  </script>
 {% endblock %}

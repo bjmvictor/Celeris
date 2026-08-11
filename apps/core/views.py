@@ -3,11 +3,11 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.sessions.models import Session
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -15,6 +15,7 @@ from django.utils.dateparse import parse_datetime
 from io import BytesIO, StringIO
 from urllib.parse import urlencode
 import csv
+import json
 import re
 import unicodedata
 import bleach
@@ -25,10 +26,18 @@ from .form_registry import (
     consultar_campos_formularios,
     opcoes_formularios,
 )
+from .catalogos import (
+    ROTULOS_CATALOGO,
+    atualizar_item_catalogo,
+    catalogo_queryset,
+    catalogos_configurados,
+    modelo_catalogo,
+)
 from .permissions import role_required
 
 from .forms import EmpresaForm, ModuleForm, ScreenDefinitionForm, ScreenFieldForm
 from .locks import adquirir_trava_edicao, liberar_trava_edicao
+from .navigation_cache import invalidate_navigation_cache
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
@@ -36,10 +45,8 @@ from .models import (
     Module,
     ScreenDefinition,
     ScreenField,
-    TabelaAuxiliarGlobal,
     TipoPrestadorConselho,
     TravaEdicao,
-    ValorAuxiliarGlobal,
 )
 from .table_utils import paginate_table
 
@@ -436,10 +443,51 @@ def system_screens(request):
     query_mode = bool(request.GET.get("sem_resultados") == "1" or (not module and request.GET.get("novo") != "1"))
     form = ModuleForm(request.POST or None, instance=module, query_mode=query_mode)
 
+    def persistir_ordem_enviada():
+        raw_order = request.POST.get("navigation_order_changed", "").strip()
+        if not module or not raw_order.startswith("{"):
+            return
+        try:
+            containers = json.loads(raw_order)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if not isinstance(containers, dict):
+            return
+        valid_items = {
+            str(item.pk): item
+            for item in ScreenDefinition.objects.filter(module=module).only("pk", "parent_id", "order")
+        }
+        with transaction.atomic():
+            for raw_parent_id, raw_ids in containers.items():
+                parent_id = int(raw_parent_id) if str(raw_parent_id).isdigit() else None
+                if parent_id is not None and str(parent_id) not in valid_items:
+                    continue
+                ordered_ids = [str(value) for value in raw_ids] if isinstance(raw_ids, list) else []
+                for position, item_id in enumerate(ordered_ids, start=1):
+                    item = valid_items.get(item_id)
+                    if not item:
+                        continue
+                    item.parent_id = parent_id
+                    item.order = position * 10
+                    item.save(update_fields=("parent", "order", "updated_at"))
+        invalidate_navigation_cache()
+
     if request.method == "POST" and module and module.is_system:
-        raise PermissionDenied("Módulos estruturais só podem ser alterados por migrações do sistema.")
+        order = str(request.POST.get("order") or "").strip()
+        if not order.isdigit():
+            messages.error(request, "Informe uma ordem válida para o módulo.")
+        else:
+            module.order = int(order)
+            module.save(update_fields=("order", "updated_at"))
+            persistir_ordem_enviada()
+            invalidate_navigation_cache()
+            messages.success(request, "Ordem do módulo atualizada com sucesso.")
+            return redirect(f"{reverse('core:system_screens')}?module={module.pk}")
     if request.method == "POST" and form.is_valid():
         saved_module = form.save()
+        module = saved_module
+        persistir_ordem_enviada()
+        invalidate_navigation_cache()
         messages.success(request, "Módulo salvo com sucesso.")
         redirect_params = {"module": saved_module.pk}
         if query_context and saved_module.pk in result_ids:
@@ -450,7 +498,7 @@ def system_screens(request):
 
     if module:
         if module.is_system:
-            request.current_can_save = False
+            request.current_can_save = True
         else:
             request.current_toggle_active_url = reverse("core:system_module_toggle_active", args=[module.pk])
             request.current_toggle_active_label = "Desativar" if module.active else "Ativar"
@@ -490,6 +538,7 @@ def system_module_toggle_active(request, pk):
         raise PermissionDenied("Módulos estruturais não podem ser desativados.")
     module.active = not module.active
     module.save(update_fields=["active", "updated_at"])
+    invalidate_navigation_cache()
     messages.success(request, "Módulo ativado com sucesso." if module.active else "Módulo desativado com sucesso.")
     return redirect(f"{reverse('core:system_screens')}?module={module.pk}")
 
@@ -646,8 +695,8 @@ def system_navigation_reorder(request):
     if not node_id.isdigit():
         return JsonResponse({"ok": False, "error": "Item inválido."}, status=400)
     node = get_object_or_404(ScreenDefinition.objects.select_related("module"), pk=node_id)
-    if node.module.is_system:
-        raise PermissionDenied("Itens de módulos estruturais não podem ser reordenados.")
+    # A estrutura dos itens continua protegida contra edição, mas a ordem é
+    # uma configuração operacional do menu e pode ser ajustada pelo TI.
     parent = None
     if parent_id:
         if not parent_id.isdigit():
@@ -669,6 +718,7 @@ def system_navigation_reorder(request):
     normalized_ids.extend(sibling_id for sibling_id in valid_ids if sibling_id not in normalized_ids)
     for position, sibling_id in enumerate(normalized_ids, start=1):
         ScreenDefinition.objects.filter(pk=sibling_id).update(order=position * 10)
+    invalidate_navigation_cache()
     return JsonResponse({"ok": True})
 
 
@@ -761,13 +811,13 @@ def system_company_edit(request, pk=None):
 
 @login_required
 @role_required("TI")
-def setores(request, tipo=None):
+def setores(request, tipo=None, tab_title=None, module_title=None):
     empresa = get_object_or_404(Empresa, pk=request.session.get("cd_empresa") or 1)
     request.current_can_query = True
     request.current_can_remove = True
-    request.current_tab_title = "Global > Empresa > Setores de Atendimento" if tipo == Setor.TipoSetor.ATENDIMENTO else "Global > Empresa > Setores"
+    request.current_tab_title = tab_title or ("Global > Empresa > Setores de Atendimento" if tipo == Setor.TipoSetor.ATENDIMENTO else "Global > Empresa > Setores")
     request.current_tab_root_title = "Setores de Atendimento" if tipo == Setor.TipoSetor.ATENDIMENTO else "Setores"
-    request.current_module_title = "Global"
+    request.current_module_title = module_title or "Global"
     registros = Setor.objects.filter(cd_empresa=empresa)
     if tipo:
         registros = registros.filter(tp_setor=tipo)
@@ -822,6 +872,11 @@ def global_auxiliary_values(request, tabela, custom_title=None, custom_module=No
         "estado_civil": "Estado civil",
         "naturalidade": "Naturalidade",
         "nacionalidade": "Nacionalidade",
+        "raca_cor": "Raça/Cor",
+        "identidade_genero": "Identidades de gênero",
+        "orientacao_sexual": "Orientações sexuais",
+        "pais": "Países",
+        "cbo": "Classificação Brasileira de Ocupações (CBO)",
         "cidade": "Cidade",
         "estado": "Estado",
         "cep": "CEPs",
@@ -831,14 +886,13 @@ def global_auxiliary_values(request, tabela, custom_title=None, custom_module=No
         "conselho_profissional": "Conselhos Profissionais",
         "orgao_emissor": "Órgãos Emissores",
         "banco": "Bancos",
-        "pais": "Nacionalidades",
         "tipo_prestador": "Tipos de Prestador",
         "tipo_vinculo": "Tipos de Vínculo",
         "motivo_alteracao": "Motivos de alteração",
         "cids": "CIDs",
         "motivos_alta": "Motivos de alta",
     }
-    label = custom_title or labels.get(tabela, tabela.replace("_", " ").title())
+    label = custom_title or labels.get(tabela) or ROTULOS_CATALOGO.get(tabela, tabela.replace("_", " ").title())
     request.current_tab_title = (
         f"{custom_module} > {label}"
         if custom_module
@@ -848,13 +902,14 @@ def global_auxiliary_values(request, tabela, custom_title=None, custom_module=No
     request.current_module_title = custom_module or "Global"
     request.current_can_query = True
     request.current_can_remove = True
-    tabela_auxiliar, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-        ds_tabela=tabela,
-        defaults={"ds_descricao": label, "sn_ativo": True},
-    )
+    try:
+        modelo = modelo_catalogo(tabela)
+    except ImproperlyConfigured as error:
+        raise Http404(str(error)) from error
+    tabela_auxiliar = {"ds_tabela": tabela, "ds_descricao": label}
     query = _query_text(request)
     if request.method == "POST":
-        for valor in tabela_auxiliar.valores.all():
+        for valor in modelo.objects.all():
             if request.POST.get(f"delete_{valor.pk}") == "1":
                 try:
                     valor.delete()
@@ -879,40 +934,35 @@ def global_auxiliary_values(request, tabela, custom_title=None, custom_module=No
             if not new_description:
                 continue
             new_code = _auxiliary_code(new_description)
-            ValorAuxiliarGlobal.objects.update_or_create(
-                cd_tabela_auxiliar_global=tabela_auxiliar,
-                cd_valor=new_code,
-                defaults={
-                    "ds_valor": new_description,
-                    "ds_grupo": new_groups[index].strip() if index < len(new_groups) else "",
-                    "sn_ativo": (new_actives[index] if index < len(new_actives) else "true") == "true",
-                },
+            atualizar_item_catalogo(
+                tabela,
+                new_code,
+                ds_valor=new_description,
+                ds_grupo=new_groups[index].strip() if index < len(new_groups) else "",
+                sn_ativo=(new_actives[index] if index < len(new_actives) else "true") == "true",
             )
             created += 1
-        if new_descriptions and not created and not tabela_auxiliar.valores.exists():
+        if new_descriptions and not created and not modelo.objects.exists():
             messages.error(request, "Informe a descrição obrigatória antes de salvar.")
         else:
             messages.success(request, "Tabela auxiliar salva com sucesso.")
         return redirect(f"{request.path}?consultar=1")
-    valores = tabela_auxiliar.valores.all()
+    valores = modelo.objects.all()
     if query:
         value_filter = Q(cd_valor__icontains=query) | Q(ds_valor__icontains=query) | Q(ds_grupo__icontains=query)
         if query.isdigit():
-            value_filter |= Q(cd_valor_auxiliar_global=int(query))
+            value_filter |= Q(cd_item_catalogo=int(query))
         valores = valores.filter(value_filter)
     valores = paginate_table(
         request,
         valores,
-        {"cd_valor_auxiliar_global", "cd_valor", "ds_valor", "ds_grupo", "sn_ativo"},
-        "cd_valor_auxiliar_global",
+        {"cd_item_catalogo", "cd_valor", "ds_valor", "ds_grupo", "sn_ativo"},
+        "cd_item_catalogo",
     )
     estados = []
     if tabela == "cidade":
         estados = list(
-            ValorAuxiliarGlobal.objects.filter(
-                cd_tabela_auxiliar_global__ds_tabela="estado",
-                sn_ativo=True,
-            ).order_by("ds_valor")
+            catalogo_queryset("estado", ativos=True).order_by("ds_valor")
         )
     return render(
         request,
@@ -927,7 +977,15 @@ def global_tables(request):
     request.current_tab_title = "Global > Tabelas Auxiliares"
     request.current_tab_root_title = "Tabelas Auxiliares"
     request.current_module_title = "Global"
-    tables = TabelaAuxiliarGlobal.objects.filter(sn_ativo=True).order_by("ds_descricao", "ds_tabela")
+    tables = [
+        {
+            "codigo": index,
+            "ds_tabela": item["tema"],
+            "ds_descricao": item["descricao"],
+            "quantidade": item["modelo"].objects.count(),
+        }
+        for index, item in enumerate(catalogos_configurados(), start=1)
+    ]
     return render(request, "core/global_tables.html", {"tables": tables})
 
 
@@ -1010,10 +1068,9 @@ def global_ceps(request):
         {"cd_cep", "nr_cep", "sg_estado", "ds_cidade", "ds_logradouro", "ds_bairro", "sn_ativo"},
         "cd_cep",
     )
-    auxiliary_values = ValorAuxiliarGlobal.objects.filter(sn_ativo=True).select_related("cd_tabela_auxiliar_global")
-    estados = auxiliary_values.filter(cd_tabela_auxiliar_global__ds_tabela="estado").order_by("ds_valor")
-    cidades = auxiliary_values.filter(cd_tabela_auxiliar_global__ds_tabela="cidade").order_by("ds_valor")
-    tipos_logradouro = auxiliary_values.filter(cd_tabela_auxiliar_global__ds_tabela="tipo_logradouro").order_by("ds_valor")
+    estados = catalogo_queryset("estado", ativos=True).order_by("ds_valor")
+    cidades = catalogo_queryset("cidade", ativos=True).order_by("ds_valor")
+    tipos_logradouro = catalogo_queryset("tipo_logradouro", ativos=True).order_by("ds_valor")
     return render(
         request,
         "core/global_ceps.html",
@@ -1126,18 +1183,12 @@ def global_integrations(request):
                                 },
                             )
                         else:
-                            table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-                                ds_tabela=table_name,
-                                defaults={"ds_descricao": IMPORT_TABLES[table_name], "sn_ativo": True},
-                            )
-                            _, was_created = ValorAuxiliarGlobal.objects.update_or_create(
-                                cd_tabela_auxiliar_global=table,
-                                cd_valor=code,
-                                defaults={
-                                    "ds_valor": description[:160],
-                                    "ds_grupo": group[:40],
-                                    "sn_ativo": active,
-                                },
+                            _, was_created = atualizar_item_catalogo(
+                                table_name,
+                                code,
+                                ds_valor=description[:160],
+                                ds_grupo=group[:40],
+                                sn_ativo=active,
                             )
                         processed += 1
                         created += int(was_created)
@@ -1182,10 +1233,7 @@ def tipo_prestador_conselho(request):
         {"id", "tp_prestador", "ds_conselho", "sn_ativo"},
         "id",
     )
-    tipos = ValorAuxiliarGlobal.objects.filter(
-        cd_tabela_auxiliar_global__ds_tabela="tipo_prestador",
-        sn_ativo=True,
-    ).order_by("ds_valor")
+    tipos = catalogo_queryset("tipo_prestador", ativos=True).order_by("ds_valor")
     if request.method == "POST":
         for registro in registros:
             if request.POST.get(f"delete_{registro.pk}") == "1":
@@ -1215,11 +1263,7 @@ def tipo_prestador_conselho(request):
 @login_required
 def city_options(request):
     uf = request.GET.get("uf", "")
-    cidades = ValorAuxiliarGlobal.objects.filter(
-        cd_tabela_auxiliar_global__ds_tabela="cidade",
-        sn_ativo=True,
-        ds_grupo=uf,
-    ).order_by("ds_valor")
+    cidades = catalogo_queryset("cidade", ativos=True, grupo=uf).order_by("ds_valor")
     return JsonResponse({"cidades": [{"value": cidade.cd_valor, "label": cidade.ds_valor} for cidade in cidades]})
 
 

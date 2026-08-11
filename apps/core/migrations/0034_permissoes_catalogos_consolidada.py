@@ -27,10 +27,6 @@ class Migration(migrations.Migration):
             reverse_code=django.db.migrations.operations.special.RunPython.noop,
         ),
         migrations.RunPython(
-            code=migracao_0036.normalizar_catalogos,
-            reverse_code=django.db.migrations.operations.special.RunPython.noop,
-        ),
-        migrations.RunPython(
             code=migracao_0037.mesclar_grupos_navegacao,
             reverse_code=django.db.migrations.operations.special.RunPython.noop,
         ),

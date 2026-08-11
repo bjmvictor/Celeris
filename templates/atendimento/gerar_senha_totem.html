@@ -29,10 +29,10 @@
       {% for regra in regras %}
         <form class="card ticket-option" method="post">
           {% csrf_token %}<input type="hidden" name="regra" value="{{ regra.pk }}">
-          {% if regra.cd_classe_senha.cd_icone_chamada %}<span class="ticket-option-icon">{{ regra.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}</span>{% endif %}
+          {% if regra.cd_icone_chamada %}<span class="ticket-option-icon">{{ regra.cd_icone_chamada.ds_svg|safe }}</span>{% elif regra.cd_classe_senha.cd_icone_chamada %}<span class="ticket-option-icon">{{ regra.cd_classe_senha.cd_icone_chamada.ds_svg|safe }}</span>{% endif %}
           <small>{{ regra.cd_tipo_senha.nm_tipo_senha }}</small>
           <strong>{{ regra.cd_classe_senha.nm_classe_senha }}</strong>
-          <span>{{ regra.cd_tipo_senha.sg_tipo_senha }}{{ regra.cd_classe_senha.sg_classe_senha }} · prioridade {{ regra.nr_prioridade }}</span>
+          <span>{{ regra.cd_tipo_senha.sg_tipo_senha }}{{ regra.sg_regra|default:regra.cd_classe_senha.sg_classe_senha }} · prioridade {{ regra.nr_prioridade }}</span>
           <button class="button button-primary" type="submit">Gerar senha</button>
         </form>
       {% endfor %}

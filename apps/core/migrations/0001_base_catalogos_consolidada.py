@@ -212,7 +212,7 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, max_length=40),
         ),
         migrations.RunPython(
-            code=migracao_0010.seed_city_groups,
+            code=migracao_0010.seed_cities,
             reverse_code=django.db.migrations.operations.special.RunPython.noop,
         ),
         migrations.RunPython(
@@ -221,6 +221,10 @@ class Migration(migrations.Migration):
         ),
         migrations.RunPython(
             code=migracao_0012.seed_provider_types,
+            reverse_code=django.db.migrations.operations.special.RunPython.noop,
+        ),
+        migrations.RunPython(
+            code=migracao_0012.seed_cbo,
             reverse_code=django.db.migrations.operations.special.RunPython.noop,
         ),
         migrations.CreateModel(

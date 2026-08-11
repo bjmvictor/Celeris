@@ -1,7 +1,10 @@
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
-
-from .models import IconeSistema, Module, ScreenDefinition
+from .models import (
+    IconeSistema,
+    Module,
+    ScreenDefinition,
+)
 from .navigation_cache import invalidate_navigation_cache
 
 

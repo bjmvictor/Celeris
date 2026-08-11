@@ -1,0 +1,28 @@
+  <section class="card table-card classification-queue-card" data-classification-scheduled-section {% if not mostrar_agendados %}hidden{% endif %}>
+    <div class="classification-queue-heading"><strong>Agendados</strong><span>{{ data_selecionada|date:"d/m/Y" }}</span></div>
+    <table>
+      <thead><tr><th>Horário</th><th>Paciente</th><th>Nome da mãe</th><th>Nascimento</th><th>CPF</th><th>Prestador</th><th>Especialidade</th><th>Status</th><th>Ação</th></tr></thead>
+      <tbody>
+        {% for item in agendamentos %}
+          <tr data-classification-row-url="?data={{ data_selecionada|date:'Y-m-d' }}&agendamento={{ item.pk }}">
+            <td>{{ item.dh_agendamento|date:"H:i" }}</td>
+            <td>{{ item.cd_paciente.nm_social|default:item.cd_paciente.nm_paciente }}</td>
+            <td>{{ item.cd_paciente.nm_mae|default:"-" }}</td>
+            <td>{{ item.cd_paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
+            <td>{{ item.cd_paciente.nr_cpf|default:"-" }}</td>
+            <td>{{ item.cd_agenda_profissional.cd_prestador.nm_prestador|default:item.ds_profissional|default:"-" }}</td>
+            <td>{{ item.ds_especialidade|default:"-" }}</td>
+            <td>{% if item.pre_atendimento %}Classificado{% else %}{{ item.get_ds_status_display }}{% endif %}</td>
+            <td class="inline-actions"><form method="post" action="{% url 'atendimento:chamar-agendamento-classificacao' item.pk %}">{% csrf_token %}<input type="hidden" name="return_to" value="{{ classification_list_url }}?data={{ data_selecionada|date:'Y-m-d' }}"><button class="button button-secondary" title="Chamar" type="submit"><span class="svg-icon" data-nav-icon="audio"></span></button></form></td>
+          </tr>
+        {% empty %}<tr><td colspan="9">Nenhum paciente agendado encontrado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card table-card classification-queue-card" data-classification-demand-section {% if not mostrar_demanda %}hidden{% endif %}>
+    <div class="classification-queue-heading"><strong>Fila de classificação</strong><span>Atualização automática</span></div>
+    <table>
+      <thead><tr><th>Prioridade</th><th>Senha</th><th>Fila / protocolo</th><th>Atendimento</th><th>Paciente</th><th>Sexo</th><th>Idade</th><th>Especialidade</th><th>Entrada</th><th>Classificação</th><th>Tempo</th><th>Ação</th></tr></thead>
+      <tbody data-classification-demand-body>{% include "atendimento/_fila_classificacao_demanda.html" %}</tbody>
+    </table>
+  </section>

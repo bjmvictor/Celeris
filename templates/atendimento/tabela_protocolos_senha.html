@@ -1,10 +1,11 @@
-{% extends "base/layout.html" %}
+{% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
-  <form class="card table-card" data-editable-table data-table="protocolo_senha" method="post">
+  <form class="card table-card" data-editable-table data-table="protocolo_senha" data-preserve-input method="post">
     {% csrf_token %}
     <table class="editable-table">
       <thead><tr>
         <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'cd_protocolo_senha' %}-{% endif %}cd_protocolo_senha">Código</a></th>
+        <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sg_protocolo' %}-{% endif %}sg_protocolo">Sigla</a></th>
         <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'nm_protocolo' %}-{% endif %}nm_protocolo">Nome do protocolo</a></th>
         <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'ds_protocolo' %}-{% endif %}ds_protocolo">Descrição/orientação</a></th>
         <th><a href="?q={{ request.GET.q|urlencode }}&ordem={% if request.GET.ordem == 'sn_ativo' %}-{% endif %}sn_ativo">Status</a></th>
@@ -13,21 +14,37 @@
         {% for item in registros %}
           <tr data-editable-row>
             <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
-            <td><input name="name_{{ item.pk }}" value="{{ item.nm_protocolo }}" required></td>
-            <td><input name="description_{{ item.pk }}" value="{{ item.ds_protocolo }}"></td>
+            <td><input name="acronym_{{ item.pk }}" maxlength="8" value="{{ item.sg_protocolo }}" data-uppercase="true"></td>
+            <td><input name="name_{{ item.pk }}" value="{{ item.nm_protocolo }}" required data-protocol-name></td>
+            <td><input name="description_{{ item.pk }}" value="{{ item.ds_protocolo }}" data-protocol-description></td>
             <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
           </tr>
-        {% empty %}<tr><td colspan="4" class="empty-cell">Nenhum dado encontrado.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="5" class="empty-cell">Nenhum dado encontrado.</td></tr>{% endfor %}
       </tbody>
     </table>
     <template data-table-new-row>
       <tr data-editable-row>
         <td><input readonly data-primary-key="true" placeholder="Automático"></td>
-        <td><input name="new_name" required></td>
-        <td><input name="new_description"></td>
+        <td><input name="new_acronym" maxlength="8" data-uppercase="true"></td>
+        <td><input name="new_name" required data-protocol-name></td>
+        <td><input name="new_description" data-protocol-description></td>
         <td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>
       </tr>
     </template>
     {% include "components/table_pager.html" %}
   </form>
+  <script>
+    (() => {
+      const form = document.querySelector("form[data-table='protocolo_senha']");
+      if (!form) return;
+      form.addEventListener("input", (event) => {
+        if (!event.target.matches("[data-protocol-name]")) return;
+        const selectionStart = event.target.selectionStart;
+        event.target.value = event.target.value
+          .toLocaleUpperCase("pt-BR")
+          .replace(/[^A-ZÀ-ÖØ-Ý0-9 /,!.():-]/g, "");
+        event.target.setSelectionRange(selectionStart, selectionStart);
+      });
+    })();
+  </script>
 {% endblock %}
