@@ -1,24 +1,235 @@
 {% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
-  <form class="card table-card" data-editable-table data-table="fluxo_classificacao" method="post">
+  {{ grupos_fluxo|json_script:"flow-groups-data" }}
+  {{ sintomas_fluxo|json_script:"flow-symptoms-data" }}
+  {{ cores_fluxo|json_script:"flow-colors-data" }}
+  <form class="ticket-config-form flow-editor-form" method="post" data-flow-editor data-table="fluxo_classificacao" data-preserve-input autocomplete="off">
     {% csrf_token %}
-    <table class="editable-table">
-      <thead><tr><th>Código</th><th>Grupo</th><th>Fluxo/sintoma</th><th>Orientação</th><th>Cor recomendada</th><th>Ordem</th><th>Status</th></tr></thead>
-      <tbody>
-        {% for item in registros %}
-          <tr data-editable-row>
-            <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
-            <td><input name="group_{{ item.pk }}" value="{{ item.nm_grupo }}" required></td>
-            <td><input name="name_{{ item.pk }}" value="{{ item.nm_fluxo }}" required></td>
-            <td><input name="guidance_{{ item.pk }}" value="{{ item.ds_orientacao }}"></td>
-            <td><select name="color_{{ item.pk }}"><option value="">Sem recomendação</option>{% for cor in cores %}<option value="{{ cor.pk }}" {% if item.cd_cor_recomendada_id == cor.pk %}selected{% endif %}>{{ cor.nm_cor }}</option>{% endfor %}</select></td>
-            <td><input name="order_{{ item.pk }}" type="number" min="0" value="{{ item.nr_ordem }}"></td>
-            <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
-          </tr>
-        {% empty %}<tr><td colspan="7" class="empty-cell">Nenhum fluxo encontrado.</td></tr>{% endfor %}
-      </tbody>
-    </table>
-    <template data-table-new-row><tr data-editable-row><td><input readonly data-primary-key="true" placeholder="Automático"></td><td><input name="new_group" required></td><td><input name="new_name" required></td><td><input name="new_guidance"></td><td><select name="new_color"><option value="">Sem recomendação</option>{% for cor in cores %}<option value="{{ cor.pk }}">{{ cor.nm_cor }}</option>{% endfor %}</select></td><td><input name="new_order" type="number" min="0" value="10"></td><td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td></tr></template>
-    {% include "components/table_pager.html" %}
+    <input type="hidden" name="grupos_json" data-flow-groups-json>
+    <input type="hidden" name="sintomas_json" data-flow-symptoms-json>
+    <input type="hidden" name="grupos_excluidos_json" data-flow-deleted-groups-json>
+    <input type="hidden" name="sintomas_excluidos_json" data-flow-deleted-symptoms-json>
+
+    <section class="flow-editor-tables" data-flow-tables>
+      <div class="scale-editor-table-block" data-scale-table="groups" tabindex="-1">
+        <div class="section-heading"><h3>Grupos</h3></div>
+        <div class="table-card">
+          <table class="editable-table flow-groups-table">
+            <thead><tr><th>Ordem</th><th>Grupo</th><th>Descrição</th><th>Status</th></tr></thead>
+            <tbody data-flow-group-rows></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="scale-editor-table-block" data-scale-table="symptoms" tabindex="-1">
+        <div class="section-heading"><h3>Sintomas do grupo</h3></div>
+        <div class="table-card">
+          <table class="editable-table flow-symptoms-table">
+            <thead><tr><th>Ordem</th><th>Sintoma/fluxo</th><th>Orientação</th><th>Cor recomendada</th><th>Status</th></tr></thead>
+            <tbody data-flow-symptom-rows></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </form>
+
+  <script>
+    (() => {
+      const form = document.querySelector("[data-flow-editor]");
+      if (!form) return;
+      let groups = JSON.parse(document.getElementById("flow-groups-data")?.textContent || "[]");
+      let symptoms = JSON.parse(document.getElementById("flow-symptoms-data")?.textContent || "[]");
+      const colors = JSON.parse(document.getElementById("flow-colors-data")?.textContent || "[]");
+      const deletedGroups = [];
+      const deletedSymptoms = [];
+      let selectedGroupKey = groups[0]?.chave || "";
+      let activeTable = null;
+      let activeRowIndex = -1;
+      let nextKey = 1;
+      const groupsBody = form.querySelector("[data-flow-group-rows]");
+      const symptomsBody = form.querySelector("[data-flow-symptom-rows]");
+      let tableQuerySource = null;
+      const escapeHTML = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[character]));
+      const boolOptions = (active) => `<option value="true" ${active !== false ? "selected" : ""}>Ativo</option><option value="false" ${active === false ? "selected" : ""}>Inativo</option>`;
+      const colorOptions = (selected) => `<option value="">Sem recomendação</option>${colors.map((color) => `<option value="${color.id}" ${String(color.id) === String(selected || "") ? "selected" : ""}>${escapeHTML(color.nome)}</option>`).join("")}`;
+      const colorValue = (selected) => colors.find((color) => String(color.id) === String(selected || ""))?.cor || "transparent";
+      const visibleSymptoms = () => symptoms.map((item, index) => ({item, index})).filter(({item}) => String(item.grupo_chave) === String(selectedGroupKey));
+      const markChanged = () => {
+        form.dataset.dirty = "true";
+        const saveButton = document.querySelector('[data-action="save"]');
+        if (saveButton) saveButton.disabled = false;
+      };
+      const serialize = () => {
+        form.querySelector("[data-flow-groups-json]").value = JSON.stringify(groups);
+        form.querySelector("[data-flow-symptoms-json]").value = JSON.stringify(symptoms);
+        form.querySelector("[data-flow-deleted-groups-json]").value = JSON.stringify(deletedGroups);
+        form.querySelector("[data-flow-deleted-symptoms-json]").value = JSON.stringify(deletedSymptoms);
+      };
+      const renderGroups = () => {
+        groupsBody.innerHTML = groups.map((group, index) => `<tr data-group-index="${index}" class="${String(group.chave) === String(selectedGroupKey) ? "selected" : ""}"><td><input type="number" min="0" value="${escapeHTML(group.ordem ?? (index + 1) * 10)}" data-group-field="ordem"></td><td><input value="${escapeHTML(group.nome)}" maxlength="100" required data-group-field="nome"></td><td><input value="${escapeHTML(group.descricao)}" maxlength="300" data-group-field="descricao"></td><td><select data-group-field="ativo">${boolOptions(group.ativo)}</select></td></tr>`).join("") || '<tr><td colspan="4" class="empty-cell">Nenhum grupo configurado.</td></tr>';
+        window.CelerisRenderIcons?.();
+      };
+      const renderSymptoms = () => {
+        const rows = visibleSymptoms();
+        symptomsBody.innerHTML = selectedGroupKey ? rows.map(({item, index}) => `<tr data-symptom-index="${index}" data-scales-url="${escapeHTML(item.escalas_url || "")}" title="Clique duas vezes para configurar as escalas recomendadas"><td><input type="number" min="0" value="${escapeHTML(item.ordem ?? 10)}" data-symptom-field="ordem"></td><td><input value="${escapeHTML(item.nome)}" maxlength="160" required data-symptom-field="nome"></td><td><input value="${escapeHTML(item.orientacao)}" data-symptom-field="orientacao"></td><td><span class="flow-color-picker"><span class="flow-color-swatch" style="--flow-color:${escapeHTML(colorValue(item.cor_id))}"></span><select data-symptom-field="cor_id">${colorOptions(item.cor_id)}</select></span></td><td><select data-symptom-field="ativo">${boolOptions(item.ativo)}</select></td></tr>`).join("") || '<tr><td colspan="5" class="empty-cell">Nenhum sintoma configurado para este grupo.</td></tr>' : '<tr><td colspan="5" class="empty-cell">Selecione ou crie um grupo.</td></tr>';
+        window.CelerisRenderIcons?.();
+      };
+      const selectGroup = (index) => {
+        if (!groups[index]) return;
+        selectedGroupKey = groups[index].chave;
+        groupsBody.querySelectorAll("tr[data-group-index]").forEach((row) => row.classList.toggle("selected", Number(row.dataset.groupIndex) === index));
+        renderSymptoms();
+      };
+      const setActiveTable = (table, row) => {
+        activeTable = table;
+        form.querySelectorAll("[data-scale-table]").forEach((block) => block.classList.toggle("active", block.dataset.scaleTable === table));
+        form.querySelectorAll("tbody tr").forEach((item) => {
+          if (!item.matches(`[data-${table === "groups" ? "group" : "symptom"}-index]`)) return;
+          item.classList.toggle("selected", item === row || (table === "groups" && String(groups[Number(item.dataset.groupIndex)]?.chave) === String(selectedGroupKey)));
+        });
+        activeRowIndex = Number(table === "groups" ? row?.dataset.groupIndex : row?.dataset.symptomIndex);
+        const removeButton = document.querySelector('[data-action="remove"]');
+        if (removeButton) {
+          removeButton.hidden = !Number.isInteger(activeRowIndex);
+          removeButton.disabled = !Number.isInteger(activeRowIndex);
+        }
+      };
+      const queryRows = () => activeTable === "groups"
+        ? groups.map((item, index) => ({item, index}))
+        : visibleSymptoms();
+      const queryBody = () => activeTable === "groups" ? groupsBody : symptomsBody;
+      const normalizeQuery = (value) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+      const beginTableQuery = () => {
+        if (!activeTable) return;
+        tableQuerySource = {table: activeTable};
+        queryBody().innerHTML = activeTable === "groups"
+          ? '<tr data-flow-query-row><td><input type="number" data-flow-query="ordem"></td><td><input data-flow-query="nome"></td><td><input data-flow-query="descricao"></td><td><select data-flow-query="ativo"><option value=""></option><option value="true">Ativo</option><option value="false">Inativo</option></select></td></tr>'
+          : `<tr data-flow-query-row><td><input type="number" data-flow-query="ordem"></td><td><input data-flow-query="nome"></td><td><input data-flow-query="orientacao"></td><td><select data-flow-query="cor_id"><option value=""></option>${colors.map((color) => `<option value="${color.id}">${escapeHTML(color.nome)}</option>`).join("")}</select></td><td><select data-flow-query="ativo"><option value=""></option><option value="true">Ativo</option><option value="false">Inativo</option></select></td></tr>`;
+        activeRowIndex = -1;
+        queryBody().querySelector("input, select")?.focus();
+      };
+      const restoreTableQuery = () => {
+        if (!tableQuerySource) return;
+        const table = tableQuerySource.table;
+        tableQuerySource = null;
+        if (table === "groups") renderGroups();
+        else renderSymptoms();
+      };
+      const executeTableQuery = () => {
+        if (!tableQuerySource) return;
+        const table = tableQuerySource.table;
+        const body = queryBody();
+        const criteria = Array.from(body.querySelectorAll("[data-flow-query]"))
+          .map((field) => [field.dataset.flowQuery, normalizeQuery(field.value)])
+          .filter(([, value]) => value);
+        const matches = queryRows().filter(({item}) => criteria.every(([field, expected]) => {
+          const current = field === "ativo" ? String(item.ativo !== false) : String(item[field] ?? "");
+          return normalizeQuery(current).includes(expected);
+        }));
+        body.innerHTML = matches.map(({item, index}) => table === "groups"
+          ? `<tr data-flow-query-result="${index}" data-flow-query-table="groups"><td>${escapeHTML(item.ordem)}</td><td>${escapeHTML(item.nome)}</td><td>${escapeHTML(item.descricao)}</td><td>${item.ativo !== false ? "Ativo" : "Inativo"}</td></tr>`
+          : `<tr data-flow-query-result="${index}" data-flow-query-table="symptoms"><td>${escapeHTML(item.ordem)}</td><td>${escapeHTML(item.nome)}</td><td>${escapeHTML(item.orientacao)}</td><td>${escapeHTML(colors.find((color) => String(color.id) === String(item.cor_id))?.nome || "Sem recomendação")}</td><td>${item.ativo !== false ? "Ativo" : "Inativo"}</td></tr>`
+        ).join("") || `<tr><td colspan="${table === "groups" ? 4 : 5}" class="empty-cell">Nenhum resultado encontrado.</td></tr>`;
+      };
+      form.addEventListener("celeris:context-table-query-open", (event) => {
+        if (!form.contains(event.detail?.table)) return;
+        event.preventDefault();
+        beginTableQuery();
+      });
+      form.addEventListener("celeris:context-table-query-execute", (event) => {
+        if (!form.contains(event.detail?.table)) return;
+        event.preventDefault();
+        executeTableQuery();
+      });
+      form.addEventListener("celeris:context-table-query-cancel", (event) => {
+        if (!form.contains(event.detail?.table)) return;
+        event.preventDefault();
+        restoreTableQuery();
+      });
+      form.addEventListener("click", (event) => {
+        const result = event.target.closest("[data-flow-query-result]");
+        if (!result) return;
+        const table = result.dataset.flowQueryTable;
+        const index = Number(result.dataset.flowQueryResult);
+        restoreTableQuery();
+        if (table === "groups") {
+          selectGroup(index);
+          setActiveTable("groups", groupsBody.querySelector(`[data-group-index="${index}"]`));
+        } else {
+          setActiveTable("symptoms", symptomsBody.querySelector(`[data-symptom-index="${index}"]`));
+        }
+      });
+      form.addEventListener("pointerdown", (event) => {
+        const block = event.target.closest("[data-scale-table]");
+        if (!block) return;
+        const row = event.target.closest("tbody tr:not(:has(.empty-cell))");
+        setActiveTable(block.dataset.scaleTable, row);
+        if (block.dataset.scaleTable === "groups" && row) selectGroup(Number(row.dataset.groupIndex));
+      });
+      symptomsBody.addEventListener("dblclick", (event) => {
+        const row = event.target.closest("tr[data-scales-url]");
+        if (!row?.dataset.scalesUrl) return;
+        window.location.href = row.dataset.scalesUrl;
+      });
+      groupsBody.addEventListener("input", (event) => {
+        const row = event.target.closest("[data-group-index]");
+        const field = event.target.dataset.groupField;
+        if (!row || !field) return;
+        groups[Number(row.dataset.groupIndex)][field] = field === "ativo" ? event.target.value === "true" : event.target.value;
+        serialize(); markChanged();
+      });
+      symptomsBody.addEventListener("input", (event) => {
+        const row = event.target.closest("[data-symptom-index]");
+        const field = event.target.dataset.symptomField;
+        if (!row || !field) return;
+        symptoms[Number(row.dataset.symptomIndex)][field] = field === "ativo" ? event.target.value === "true" : event.target.value;
+        if (field === "cor_id") row.querySelector(".flow-color-swatch")?.style.setProperty("--flow-color", colorValue(event.target.value));
+        serialize(); markChanged();
+      });
+      document.addEventListener("click", (event) => {
+        const addButton = event.target.closest('[data-action="new"]');
+        if (!addButton || addButton.disabled || !form.isConnected) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (activeTable === "symptoms" && selectedGroupKey) {
+          symptoms.push({id: null, grupo_chave: selectedGroupKey, nome: "", orientacao: "", cor_id: "", ordem: (visibleSymptoms().length + 1) * 10, ativo: true});
+          renderSymptoms();
+          const row = symptomsBody.querySelector("tr:last-child");
+          setActiveTable("symptoms", row);
+          row?.querySelector("input")?.focus();
+        } else {
+          const key = `novo_${nextKey++}`;
+          groups.push({id: null, chave: key, nome: "", descricao: "", ordem: (groups.length + 1) * 10, ativo: true});
+          selectedGroupKey = key;
+          renderGroups(); renderSymptoms();
+          const row = groupsBody.querySelector("tr:last-child");
+          setActiveTable("groups", row);
+          row?.querySelector("input[data-group-field='nome']")?.focus();
+        }
+        serialize(); markChanged();
+      }, true);
+      document.addEventListener("click", (event) => {
+        const removeButton = event.target.closest('[data-action="remove"]');
+        if (!removeButton || removeButton.disabled || !activeTable || !form.isConnected) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (activeTable === "groups" && groups[activeRowIndex]) {
+          const removed = groups.splice(activeRowIndex, 1)[0];
+          if (removed.id) deletedGroups.push(removed.id);
+          symptoms.filter((item) => String(item.grupo_chave) === String(removed.chave)).forEach((item) => { if (item.id) deletedSymptoms.push(item.id); });
+          symptoms = symptoms.filter((item) => String(item.grupo_chave) !== String(removed.chave));
+          selectedGroupKey = groups[Math.max(0, activeRowIndex - 1)]?.chave || "";
+          renderGroups(); renderSymptoms();
+        } else if (activeTable === "symptoms" && symptoms[activeRowIndex]) {
+          const removed = symptoms.splice(activeRowIndex, 1)[0];
+          if (removed.id) deletedSymptoms.push(removed.id);
+          renderSymptoms();
+        }
+        activeRowIndex = -1;
+        removeButton.hidden = true;
+        removeButton.disabled = true;
+        serialize(); markChanged();
+      }, true);
+      form.addEventListener("submit", serialize);
+      renderGroups(); renderSymptoms(); serialize();
+      setActiveTable("groups", null);
+    })();
+  </script>
 {% endblock %}

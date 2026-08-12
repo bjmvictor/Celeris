@@ -1,11 +1,12 @@
-<details class="call-icon-picker" data-call-icon-picker>
-  <summary title="Selecionar ícone">
-    <span class="call-icon-picker-selected" data-call-icon-selected>{% if selected_icon %}{{ selected_icon.ds_svg|safe }}{% endif %}</span>
-  </summary>
-  <div class="call-icon-picker-options">
-    <label title="Sem ícone"><input type="radio" name="{{ input_prefix }}{{ input_suffix }}{{ input_name }}" value="" data-call-icon-option data-icon-svg="" {% if not selected_icon %}checked{% endif %}><span>—</span></label>
-    {% for icone in icones %}
-      <label title="{{ icone.nm_icone }}"><input type="radio" name="{{ input_prefix }}{{ input_suffix }}{{ input_name }}" value="{{ icone.pk }}" data-call-icon-option data-icon-svg="{{ icone.ds_svg|escape }}" {% if selected_icon.pk == icone.pk %}checked{% endif %}><span>{{ icone.ds_svg|safe }}</span></label>
-    {% endfor %}
-  </div>
-</details>
+<span class="call-icon-picker" data-call-icon-picker>
+  <span class="call-icon-picker-selected" data-call-icon-selected aria-hidden="true">{% if selected_icon %}{{ selected_icon.ds_svg|safe }}{% endif %}</span>
+  <details data-call-icon-menu>
+    <summary title="Selecionar ícone"><span data-call-icon-label>{% if selected_icon %}{{ selected_icon.nm_icone }}{% else %}Sem ícone{% endif %}</span><span class="svg-icon" data-nav-icon="chevron-down" aria-hidden="true"></span></summary>
+    <div class="call-icon-picker-options">
+      <label><input type="radio" name="{{ input_prefix }}{{ input_suffix }}{{ input_name }}" value="" data-call-icon-option data-icon-svg="" data-icon-name="Sem ícone" {% if not selected_icon %}checked{% endif %}><span class="call-icon-option-preview">—</span><span>Sem ícone</span></label>
+      {% for icone in icones %}
+        <label><input type="radio" name="{{ input_prefix }}{{ input_suffix }}{{ input_name }}" value="{{ icone.pk }}" data-call-icon-option data-icon-svg="{{ icone.ds_svg|escape }}" data-icon-name="{{ icone.nm_icone }}" {% if selected_icon.pk == icone.pk %}checked{% endif %}><span class="call-icon-option-preview">{{ icone.ds_svg|safe }}</span><span>{{ icone.nm_icone }}</span></label>
+      {% endfor %}
+    </div>
+  </details>
+</span>

@@ -367,7 +367,10 @@ class PrestadorForm(forms.ModelForm):
                 "O contato marcado como principal deve estar preenchido.",
             )
         if cleaned_data.get("sn_permite_atendimento") and not specialties:
-            self.add_error("ds_especialidades", "Informe ao menos uma especialidade para prestadores que realizam atendimento.")
+            self.add_error(
+                "ds_especialidade_principal",
+                "Informe ao menos uma especialidade para prestadores que realizam atendimento.",
+            )
         cpf = cleaned_data.get("nr_cpf")
         if cpf:
             duplicate = Prestador.objects.filter(nr_cpf=cpf)
@@ -836,7 +839,7 @@ class PreAtendimentoForm(forms.ModelForm):
             if empresa
             else Prestador.objects.none()
         )
-        self.fields["cd_prestador_responsavel"].required = True
+        self.fields["cd_prestador_responsavel"].required = False
         aplicar_configuracao_formulario(self, "pre_atendimento", empresa)
 
 

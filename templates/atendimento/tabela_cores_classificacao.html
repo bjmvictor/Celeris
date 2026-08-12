@@ -1,6 +1,6 @@
 {% extends class_base_template|default:"base/layout.html" %}
 {% block content %}
-  <form class="card table-card" data-editable-table data-table="cor_classificacao_risco" method="post">
+  <form class="card table-card classification-color-table" data-editable-table data-table="cor_classificacao_risco" method="post">
     {% csrf_token %}
     <table class="editable-table">
       <thead><tr>
@@ -16,7 +16,7 @@
           <tr data-editable-row>
             <td><input value="{{ item.pk }}" readonly data-primary-key="true"><input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0"></td>
             <td><input name="code_{{ item.pk }}" value="{{ item.cd_cor }}" required></td>
-            <td><input name="name_{{ item.pk }}" value="{{ item.nm_cor }}" required></td>
+            <td><input name="name_{{ item.pk }}" value="{{ item.nm_cor }}" required data-preserve-characters></td>
             <td><input name="hex_{{ item.pk }}" type="color" value="{{ item.ds_cor_hex }}" title="{{ item.ds_cor_hex }}"></td>
             <td><input name="priority_{{ item.pk }}" value="{{ item.nr_prioridade }}" type="number" min="1" required></td>
             <td><select name="active_{{ item.pk }}"><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativo</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativo</option></select></td>
@@ -28,7 +28,7 @@
       <tr data-editable-row>
         <td><input readonly data-primary-key="true" placeholder="Automático"></td>
         <td><input name="new_code" required></td>
-        <td><input name="new_name" required></td>
+        <td><input name="new_name" required data-preserve-characters></td>
         <td><input name="new_hex" type="color" value="#22c55e"></td>
         <td><input name="new_priority" type="number" min="1" value="5" required></td>
         <td><select name="new_active"><option value="true" selected>Ativo</option><option value="false">Inativo</option></select></td>

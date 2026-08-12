@@ -92,7 +92,7 @@
                   <span class="svg-icon" data-nav-icon="clipboard-plus"></span><span class="row-icon-label">Recepcionar paciente</span>
                 </a>
               {% endif %}
-              <a class="row-icon-action labeled" href="{% url 'atendimento:comprovante-agendamento' item.pk %}?pdf=1" title="Reimprimir comprovante">
+              <a class="row-icon-action labeled" href="{% url 'atendimento:comprovante-agendamento' item.pk %}?pdf=1&amp;tela=atendimento:agendamentos-operacionais" title="Reimprimir comprovante">
                 <span class="svg-icon" data-nav-icon="printer"></span><span class="row-icon-label">Reimprimir comprovante</span>
               </a>
               {% if not item.atendimento and item.ds_status != "CANCELADO" %}

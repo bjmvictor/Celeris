@@ -2,7 +2,7 @@
 
 {% block content %}
   <section class="print-toolbar">
-    <a class="button button-primary" href="{% url 'atendimento:comprovante-agendamento' agendamento.pk %}?pdf=1">Abrir PDF do comprovante</a>
+    <a class="button button-primary" href="{% url 'atendimento:comprovante-agendamento' agendamento.pk %}?pdf=1&amp;tela={{ chave_tela_impressao|urlencode }}">Abrir PDF do comprovante</a>
     <a class="button button-secondary" href="{% url 'atendimento:agendamentos-operacionais' %}?data={{ agendamento.dh_agendamento|date:'Y-m-d' }}">Voltar para agendamentos</a>
   </section>
 

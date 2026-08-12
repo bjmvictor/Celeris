@@ -18,7 +18,7 @@
   const signatureRoot = form.querySelector("[data-document-signature-root]");
   const signatureOptions = form.querySelector("[data-document-signature-options]");
   const documentTypeSelect = form.querySelector('[name="tp_documento"]');
-  const layoutOnlyTypes = new Set(["COMPROVANTE_AGENDAMENTO", "FICHA_ATENDIMENTO", "ETIQUETA_ATENDIMENTO"]);
+  const layoutOnlyTypes = new Set(["COMPROVANTE_AGENDAMENTO", "COMPROVANTE_CHAMADO", "FICHA_CLASSIFICACAO", "FICHA_ATENDIMENTO", "ETIQUETA_ATENDIMENTO"]);
   const syncLayoutOnlyOptions = () => {
     const selectedType = documentTypeSelect?.value || "";
     const layoutOnly = selectedType ?layoutOnlyTypes.has(selectedType) : form.dataset.layoutOnly === "true";

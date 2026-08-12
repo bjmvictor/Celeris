@@ -1,199 +1,390 @@
-# Celeris
+<a id="readme-top"></a>
 
-Plataforma integrada para gestão clínica e hospitalar, desenvolvida para centralizar processos administrativos, assistenciais e operacionais em um único ambiente.
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
+[![LinkedIn][linkedin-shield]][linkedin-url]
 
-O Celeris oferece suporte multiempresa, controle de acesso por papéis, prontuário eletrônico, classificação de risco, agendamento, atendimento, estoque, suporte interno e relatórios, com arquitetura modular preparada para evolução contínua.
+<br />
 
-## Visão geral
+<div align="center">
+  <a href="https://github.com/bjmvictor/Celeris">
+    <img src="static/img/logo.png" alt="Celeris" width="96" height="96">
+  </a>
 
-O projeto foi criado para reduzir a fragmentação de informações, padronizar processos e facilitar a rotina de instituições de saúde.
+  <h2 align="center">Celeris</h2>
 
-A plataforma acompanha a jornada do paciente desde o agendamento e recepção até a classificação de risco, atendimento clínico, prescrição, solicitação de exames e alta.
+  <p align="center">
+    <strong>Plataforma modular de gestão clínica e hospitalar</strong>
+    <br />
+    Uma base integrada para processos administrativos, assistenciais e operacionais em instituições de saúde.
+    <br />
+    <br />
+    <a href="https://bjmvictor.github.io/Celeris/"><strong>Acessar documentação »</strong></a>
+    <br />
+    <br />
+    <a href="https://github.com/bjmvictor/Celeris/issues">Reportar problema</a>
+    ·
+    <a href="https://github.com/bjmvictor/Celeris/issues">Solicitar funcionalidade</a>
+  </p>
+</div>
 
-Também contempla processos administrativos como gestão de usuários, unidades, setores, prestadores, convênios, materiais, chamados internos e auditoria.
+---
 
-Documentação completa em: [Biblioteca Celeris](https://bjmvictor.github.io/Celeris/)
+## Sobre o projeto
 
-## Público-alvo
+O **Celeris** é uma plataforma de gestão clínica e hospitalar desenvolvida com foco em modularidade, organização de processos, controle de acesso e evolução contínua.
 
-O Celeris é direcionado a:
+O projeto busca concentrar em uma única solução funcionalidades administrativas e assistenciais que normalmente ficam distribuídas entre sistemas, planilhas e fluxos manuais.
 
-* Hospitais públicos e privados
-* Clínicas e policlínicas
-* Unidades de pronto atendimento
-* Centros médicos e ambulatoriais
-* Redes de saúde com múltiplas unidades
-* Instituições que buscam digitalizar processos assistenciais e administrativos
+Entre os principais objetivos do Celeris estão:
 
-A estrutura multiempresa permite centralizar a gestão de diferentes unidades, mantendo regras de acesso, configurações e operações específicas para cada instituição.
+- centralizar informações e rotinas clinicas e hospitalares;
+- reduzir tarefas manuais e retrabalho;
+- padronizar fluxos operacionais;
+- permitir crescimento por módulos;
+- oferecer controle de acesso por usuário, papel e empresa;
+- disponibilizar uma base preparada para novos recursos assistenciais e integrações.
+
+> O Celeris está em desenvolvimento contínuo. Funcionalidades, fluxos e estruturas podem sofrer alterações entre versões.
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
 
 ## Principais funcionalidades
 
-### Gestão assistencial
+### Gestão e cadastros
 
-* Cadastro completo de pacientes e prestadores
-* Agendamento de consultas e gerenciamento de agendas
-* Recepção de pacientes agendados e demanda espontânea
-* Pré-atendimento e classificação de risco
-* Atendimento médico e de enfermagem
-* Prontuário Eletrônico do Paciente
-* Evoluções, prescrições e solicitações de exames
-* Documentos clínicos personalizados
-* Alta médica e administrativa
-* Histórico clínico centralizado
-* Auditoria de acessos ao prontuário
+- Cadastro e manutenção de pacientes.
+- Cadastro de prestadores e profissionais.
+- Cadastro de usuários.
+- Controle de empresas.
+- Perfis, papéis e permissões.
+- Cadastros de dados auxiliares utilizados pelos demais módulos.
 
-### Gestão operacional
+### Atendimento
 
-* Cadastro de empresas, unidades, setores e salas
-* Gestão de convênios, planos e procedimentos
-* Controle de produtos, materiais e movimentações de estoque
-* Solicitações internas e atendimento de materiais
-* Chamados de suporte e acompanhamento de execução
-* Consultas personalizadas e exportação de relatórios
-* Importação de dados por arquivos CSV
+- Organização do fluxo de atendimento.
+- Geração e acompanhamento de atendimentos.
+- Integração com agendas e prestadores.
+- Estrutura para classificação e acompanhamento assistencial.
 
-### Atendimento e comunicação
+### Prontuário Eletrônico do Paciente
 
-* Totem de autoatendimento para emissão de senhas
-* Painel público para chamada de pacientes
-* Priorização de chamadas por classificação e protocolo
-* Configuração de máquinas, painéis e pontos de atendimento
+- Estrutura de PEP integrada ao atendimento.
+- Evoluções e registros assistenciais.
+- Organização dos documentos do prontuário.
+- Prescrições e informações clínicas.
+- Fluxos de alta e encerramento de atendimento.
 
-### Segurança e governança
+### Agendas
 
-* Controle de acesso baseado em papéis
-* Permissões por funcionalidade, tela e ação
-* Suporte a múltiplas empresas por usuário
-* Expiração de sessão por inatividade
-* Bloqueio por tentativas de autenticação
-* Alteração obrigatória de senha no primeiro acesso
-* Controle de edição simultânea de registros
-* Auditoria de criação e alteração
-* Registro de acessos clínicos
-* Estrutura preparada para adequação à LGPD
+- Cadastro de agendas por prestador.
+- Configuração de especialidades.
+- Controle de horários.
+- Tratamento de dias disponíveis e feriados.
+- Seleção de agenda por data e profissional.
 
-## Ecossistema
+### Enfermagem e indicadores
 
-O Celeris pode ser utilizado como uma plataforma única ou dividido em produtos especializados:
+- Estrutura para indicadores assistenciais.
+- Classificação e coleta de sinais vitais e acompanhamento do paciente
+- Administração de medicação e acompanhamento
+- Relatórios por competência e setor.
+- Evolução contínua de indicadores e relatórios operacionais.
 
-| Produto             | Finalidade                                                    |
-| ------------------- | ------------------------------------------------------------- |
-| **Celeris Central** | Gestão administrativa, operacional e integração dos processos |
-| **Celeris PEP**     | Prontuário eletrônico e atendimento assistencial              |
-| **Celeris Class**   | Pré-atendimento e classificação de risco                      |
-| **Celeris Totem**   | Autoatendimento e geração de senhas                           |
-| **Celeris Painel**  | Chamada pública de pacientes e senhas                         |
-| **Celeris BI**      | Indicadores gerenciais e dashboards                           |
+### Tecnologia da Informação
 
-## Evolução planejada
+- Recursos voltados ao acompanhamento do parque tecnológico.
+- Integrações com agentes e serviços auxiliares.
+- Estrutura para inventário e acompanhamento de equipamentos.
 
-O Celeris está em desenvolvimento contínuo. As próximas etapas têm como objetivo ampliar a cobertura da plataforma e consolidá-la como uma solução completa de gestão em saúde.
+### Relatórios e consultas
 
-Entre as principais implementações planejadas estão:
+- Consultas estruturadas por módulo.
+- Filtros e pesquisa de registros.
+- Exportação e impressão conforme a funcionalidade.
+- Relatórios operacionais e assistenciais.
 
-* Faturamento hospitalar e ambulatorial
-* Gestão de contas e convênios
-* Controle financeiro e fluxo de caixa
-* Contas a pagar e contas a receber
-* Gestão de compras e fornecedores
-* Integração entre estoque, compras e faturamento
-* Gestão contábil e centros de custo
-* Indicadores assistenciais e administrativos
-* Dashboards gerenciais no Celeris BI
-* Gestão de leitos e internações
-* Ampliação dos recursos de enfermagem
-* Protocolos clínicos configuráveis
-* Assinatura eletrônica de documentos
-* Integração com serviços e sistemas externos
-* Aprimoramento dos recursos de privacidade e LGPD
-* Expansão da cobertura de testes automatizados
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
 
-O planejamento detalhado está disponível em [docs/roadmap.md](docs/roadmap.md).
-
-> **Escopo temporariamente pausado:** o desenvolvimento do módulo de **Pesquisas** está pausado. A capacidade existente permanece no código, mas novas evoluções foram postergadas para concentrar o trabalho nos fluxos assistenciais, operacionais e de segurança mais essenciais.
+---
 
 ## Tecnologias
 
-| Camada         | Tecnologia                            |
-| -------------- | ------------------------------------- |
-| Backend        | Python 3.12 e Django 5                |
-| Frontend       | HTML5, CSS3, Bootstrap 5 e JavaScript |
-| Banco de dados | SQLite, PostgreSQL ou MySQL           |
-| Templates      | Django Templates                      |
-| Documentos     | GrapesJS + WeasyPrint                 |
+O Celeris utiliza uma arquitetura web baseada principalmente em:
 
-## Desenvolvimento local
+[![Python][Python]][Python-url]
+[![Django][Django]][Django-url]
+[![HTML5][HTML5]][HTML5-url]
+[![CSS3][CSS3]][CSS3-url]
+[![JavaScript][JavaScript]][JavaScript-url]
 
-Clone o repositório:
+O projeto também possui integrações e componentes auxiliares que podem utilizar outras tecnologias de acordo com cada módulo.
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
+
+## Primeiros passos
+
+### Pré-requisitos
+
+Para executar o projeto localmente, tenha instalado:
+
+- Python 3
+- Git
+- Banco de dados relacional para implantação em produção
+  - Em desenvolvimento e testes locais, o projeto pode utilizar SQLite.
+
+### Instalação
+
+1. Clone o repositório:
 
 ```bash
 git clone https://github.com/bjmvictor/Celeris.git
+```
+
+2. Acesse a pasta do projeto:
+
+```bash
 cd Celeris
 ```
 
-Crie o ambiente virtual:
+3. Crie um ambiente virtual:
 
 ```bash
 python -m venv .venv
 ```
 
-Ative o ambiente:
+4. Ative o ambiente virtual.
+
+**Windows PowerShell**
 
 ```powershell
-# Windows
-.\.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 ```
 
+**Windows CMD**
+
+```cmd
+.venv\Scripts\activate.bat
+```
+
+**Linux/macOS**
+
 ```bash
-# Linux ou macOS
 source .venv/bin/activate
 ```
 
-Instale as dependências:
+5. Instale as dependências:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Configure o ambiente:
+6. Configure as variáveis de ambiente necessárias para sua instalação.
 
-```bash
-cp .env.example .env
-```
-
-Execute as migrações e inicie o servidor:
+7. Execute as migrations:
 
 ```bash
 python manage.py migrate
+```
+
+8. Crie um usuário mestre, necessário para o setup inicial:
+
+```bash
 python manage.py createsuperuser
+```
+
+9. Inicie o servidor:
+
+```bash
 python manage.py runserver
 ```
 
-A aplicação estará disponível em:
+Por padrão, o ambiente de desenvolvimento ficará disponível em:
 
 ```text
-http://localhost:8000
+http://127.0.0.1:8000/
 ```
 
-## Testes
+> Consulte a [documentação oficial do Celeris](https://bjmvictor.github.io/Celeris/) para detalhes de configuração e uso.
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
+
+## Estrutura e filosofia
+
+O projeto é desenvolvido com foco em:
+
+- **Modularidade** — novas áreas podem ser adicionadas sem concentrar toda a regra de negócio em um único módulo.
+- **Multiempresa** — estrutura preparada para utilização por diferentes empresas ou unidades.
+- **Controle de acesso** — permissões baseadas em usuários, papéis, funcionalidades e empresa.
+- **Padronização** — telas e fluxos seguem padrões comuns de navegação e operação.
+- **Evolução incremental** — novas funcionalidades são incorporadas gradualmente conforme a necessidade dos processos.
+- **Integração** — arquitetura preparada para comunicação com sistemas, serviços e bases externas.
+
+---
+
+## Roadmap
+
+O desenvolvimento do Celeris é contínuo. Entre os principais pontos de evolução estão:
+
+- [x] Estrutura multiempresa.
+- [x] Cadastro de pacientes.
+- [x] Cadastro de prestadores.
+- [x] Cadastro e gerenciamento de usuários.
+- [x] Papéis e permissões.
+- [x] Estrutura de agendas.
+- [x] Base do Prontuário Eletrônico do Paciente.
+- [x] Fluxos iniciais de atendimento.
+- [x] Documentação web do projeto.
+- [x] Acolhimento de paciente e coleta de dados.
+- [x] Editor de documentos eletrônicos + impressão de layout.
+- [x] Criação de telas personalizaveis para o fluxo no PEP.
+- [x] Painel de chamada configurável com narração de voz.
+- [x] Estrutura de suporte com solicitação de chamados, acompanhamento e baixa.
+- [ ] Expansão dos recursos do PEP.
+- [ ] Implementação de indicadores assistenciais.
+- [ ] Evolução dos relatórios gerenciais, operacionais, administrativos e assistenciais.
+- [ ] Novas integrações com sistemas hospitalares(HL7, MWL, MPPS).
+- [ ] Expansão dos recursos de auditoria e rastreabilidade.
+- [ ] Aprimoramento de notificações e automações.
+- [ ] Novos módulos administrativos e assistenciais.
+
+Veja as [issues abertas](https://github.com/bjmvictor/Celeris/issues) para acompanhar melhorias, correções e funcionalidades propostas.
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
+
+## Contribuindo
+
+Contribuições são bem-vindas.
+
+Se quiser propor uma melhoria:
+
+1. Faça um fork do projeto.
+2. Crie uma branch para sua alteração:
 
 ```bash
-python manage.py test
-python manage.py check
-python manage.py makemigrations --check --dry-run
+git checkout -b feature/minha-funcionalidade
 ```
 
-O projeto possui mais de 111 testes automatizados, com cobertura das principais regras de autenticação, permissões, cadastros e processos assistenciais.
+3. Faça suas alterações.
+4. Crie um commit:
 
-## Status do projeto
+```bash
+git commit -m "Adiciona nova funcionalidade"
+```
 
-O Celeris está em desenvolvimento ativo.
+5. Envie sua branch:
 
-As funcionalidades centrais de cadastro, agendamento, atendimento, prontuário eletrônico, classificação de risco, estoque, chamados, relatórios, totem e painel de chamadas já possuem implementação funcional.
+```bash
+git push origin feature/minha-funcionalidade
+```
 
-Novos recursos estão sendo adicionados de forma progressiva, priorizando segurança, estabilidade, usabilidade e integração entre os processos.
+6. Abra um Pull Request.
+
+Para sugestões, bugs ou melhorias, também é possível utilizar as [issues do projeto](https://github.com/bjmvictor/Celeris/issues).
+
+### Contribuidores
+
+<a href="https://github.com/bjmvictor/Celeris/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=bjmvictor/Celeris" alt="Contribuidores do Celeris" />
+</a>
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
 
 ## Licença
 
-Este projeto está disponível sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE) para mais informações.
+Distribuído sob a licença **MIT**.
+
+Consulte o arquivo [`LICENSE`](LICENSE) para mais informações.
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
+
+## Contato
+
+**Benjamin Victor**
+
+[![LinkedIn][linkedin-shield]][linkedin-url]
+[![Instagram][instagram-shield]][instagram-url]
+[![WhatsApp][whatsapp-shield]][whatsapp-url]
+[![E-mail][gmail-shield]][gmail-url]
+
+
+Projeto: [github.com/bjmvictor/Celeris](https://github.com/bjmvictor/Celeris)
+
+Documentação: [bjmvictor.github.io/Celeris](https://bjmvictor.github.io/Celeris/)
+
+<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+
+---
+
+## Referências e recursos
+
+- [Django](https://www.djangoproject.com/)
+- [Python](https://www.python.org/)
+- [Shields.io](https://shields.io/)
+- [GitHub Pages](https://pages.github.com/)
+- [Font Awesome](https://fontawesome.com/)
+- [Lucide](https://lucide.dev/)
+
+---
+
+<!-- MARKDOWN LINKS & IMAGES -->
+
+[contributors-shield]: https://img.shields.io/github/contributors/bjmvictor/Celeris.svg?style=for-the-badge
+[contributors-url]: https://github.com/bjmvictor/Celeris/graphs/contributors
+
+[forks-shield]: https://img.shields.io/github/forks/bjmvictor/Celeris.svg?style=for-the-badge
+[forks-url]: https://github.com/bjmvictor/Celeris/network/members
+
+[linkedin-shield]: https://img.shields.io/badge/LinkedIn-Perfil-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white
+[linkedin-url]: https://www.linkedin.com/in/bjmvictor/
+
+[instagram-shield]: https://img.shields.io/badge/Instagram-@bjm.victor-E4405F?style=for-the-badge&logo=instagram&logoColor=white
+[instagram-url]: https://www.instagram.com/bjm.victor/
+
+[whatsapp-shield]: https://img.shields.io/badge/WhatsApp-Contato-25D366?style=for-the-badge&logo=whatsapp&logoColor=white
+[whatsapp-url]: https://wa.me/5581992138687
+
+[gmail-shield]: https://img.shields.io/badge/E--mail-bjm.victor@gmail.com-EA4335?style=for-the-badge&logo=gmail&logoColor=white
+[gmail-url]: mailto:bjm.victor@gmail.com
+
+[stars-shield]: https://img.shields.io/github/stars/bjmvictor/Celeris.svg?style=for-the-badge
+[stars-url]: https://github.com/bjmvictor/Celeris/stargazers
+
+[issues-shield]: https://img.shields.io/github/issues/bjmvictor/Celeris.svg?style=for-the-badge
+[issues-url]: https://github.com/bjmvictor/Celeris/issues
+
+[license-shield]: https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge
+[license-url]: https://github.com/bjmvictor/Celeris/blob/main/LICENSE
+
+[linkedin-shield]: https://img.shields.io/badge/LinkedIn-Perfil-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white
+[linkedin-url]: https://www.linkedin.com/in/bjmvictor/
+
+[Python]: https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white
+[Python-url]: https://www.python.org/
+
+[Django]: https://img.shields.io/badge/Django-092E20?style=for-the-badge&logo=django&logoColor=white
+[Django-url]: https://www.djangoproject.com/
+
+[HTML5]: https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white
+[HTML5-url]: https://developer.mozilla.org/docs/Web/HTML
+
+[CSS3]: https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white
+[CSS3-url]: https://developer.mozilla.org/docs/Web/CSS
+
+[JavaScript]: https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=000
+[JavaScript-url]: https://developer.mozilla.org/docs/Web/JavaScript

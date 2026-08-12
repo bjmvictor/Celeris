@@ -86,7 +86,12 @@
     "certificate-check": '<path d="M7 3h10a2 2 0 0 1 2 2v15l-4-2-3 2-3-2-4 2V5a2 2 0 0 1 2-2Z"/><path d="m8.2 11.7 2.5 2.4 5.1-5.6"/>',
     "badge-check": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-badge-check-icon lucide-badge-check"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    "graph-level": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chart-no-axes-combined-icon lucide-chart-no-axes-combined"><path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/></svg>',
+    palette: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-palette-icon lucide-palette"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>',
     "arrow-left": '<path d="m15 18-6-6 6-6"/>',
+    "message-square-warning": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square-warning-icon lucide-message-square-warning"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 15h.01"/><path d="M12 7v4"/></svg>',
+    flow: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-waypoints-icon lucide-waypoints"><path d="m10.586 5.414-5.172 5.172"/><path d="m18.586 13.414-5.172 5.172"/><path d="M6 12h12"/><circle cx="12" cy="20" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="4" cy="12" r="2"/></svg>',
+    question: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-circle-question-mark-icon lucide-message-circle-question-mark"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
     "chevrons-left": '<path d="M5 5v14"/><path d="m17 18-6-6 6-6"/>',
     "corner-up-left": '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
     "corner-up-right": '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
@@ -96,12 +101,16 @@
     "arrow-right": '<path d="m9 18 6-6-6-6"/>',
     "arrow-right-to-line": '<path d="M5 12h13"/><path d="m12 5 7 7-7 7"/><path d="M21 5v14"/>',
     "chevrons-right": '<path d="M19 5v14"/><path d="m7 18 6-6-6-6"/>',
-    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    x: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     check: '<path d="m20 6-11 11-5-5"/>',
     help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4"/><path d="M12 17h.01"/>',
     plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
     minus: '<path d="M5 12h14"/>',
+    "chevron-left": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-left-icon lucide-chevron-left"><path d="m15 18-6-6 6-6"/></svg>',
+    "chevron-right": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right-icon lucide-chevron-right"><path d="m9 18 6-6-6-6"/></svg>',
     "ban": '<circle cx="12" cy="12" r="9"/><path d="m7 17 10-10"/>',
+    redo: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-cw-icon lucide-rotate-cw"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>',
+    undo: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw-icon lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>'
   };
 
   let systemIconSvgs = {};
@@ -264,10 +273,27 @@
     }
   }
 
+  function getActiveContextTable() {
+    return document.querySelector("[data-context-table].active, [data-scale-table].active");
+  }
+
+  function dispatchContextTableAction(action, detail = {}) {
+    const table = getActiveContextTable();
+    if (!table) return false;
+    const event = new CustomEvent(`celeris:context-table-${action}`, {
+      bubbles: true,
+      cancelable: true,
+      detail: { table, ...detail },
+    });
+    table.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
   function clearScreenData() {
     const form = getPrimaryForm();
     if (!form) return;
     clearValidationErrors(form);
+    form.dispatchEvent(new CustomEvent("celeris:clear-screen", { bubbles: true }));
     if (form.method?.toLowerCase() === "get") {
       window.location.href = window.location.pathname;
       return;
@@ -985,7 +1011,9 @@
 
   function removeEditableTableRow(form) {
     const row = getActiveEditableRow();
-    if (!form || !row) return false;
+    if (!form || !row || !form.contains(row)) return false;
+    const visibleRows = Array.from(form.querySelectorAll("tbody tr[data-editable-row]:not([hidden])"));
+    const removedIndex = Math.max(0, visibleRows.indexOf(row));
     const deleteField = row.querySelector('[data-row-delete]');
     if (deleteField) {
       deleteField.value = "1";
@@ -995,6 +1023,12 @@
     }
     markFormDirty(form);
     updateTablePagerVisibility(form);
+    const remainingRows = Array.from(form.querySelectorAll("tbody tr[data-editable-row]:not([hidden])"));
+    const nextSelectedRow = remainingRows[removedIndex > 0 ? removedIndex - 1 : 0];
+    if (nextSelectedRow) {
+      remainingRows.forEach((item) => item.classList.toggle("selected", item === nextSelectedRow));
+      nextSelectedRow.querySelector("input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])")?.focus();
+    }
     setupActionButtons();
     return true;
   }
@@ -1163,6 +1197,7 @@
       const saveButton = document.querySelector('[data-action="save"]');
       const removeButton = document.querySelector('[data-action="remove"]');
       const form = document.querySelector(".content form");
+      const hasContextTable = Boolean(getActiveContextTable());
       if (!executing) {
         if (formHasActualChanges(form)) {
           const action = await promptUnsavedAction("Existem dados alterados. Deseja salvar antes de abrir consulta?");
@@ -1172,8 +1207,18 @@
             await submitPrimaryForm(form);
             return;
           }
-          await releaseCurrentRecordLock();
-          clearFormFields(form);
+          if (!hasContextTable) {
+            await releaseCurrentRecordLock();
+            clearFormFields(form);
+          }
+        }
+        if (hasContextTable && dispatchContextTableAction("query-open")) {
+          setQueryMode(true);
+          if (saveButton) saveButton.disabled = true;
+          if (removeButton) removeButton.disabled = true;
+          setupActionButtons();
+          renderIcons();
+          return;
         }
         await releaseCurrentRecordLock();
         if (false && form?.dataset.dirty === "true") {
@@ -1209,6 +1254,12 @@
         if (saveButton) saveButton.disabled = true;
         if (removeButton) removeButton.disabled = true;
       } else {
+        if (hasContextTable && dispatchContextTableAction("query-execute")) {
+          setQueryMode(false);
+          setupActionButtons();
+          renderIcons();
+          return;
+        }
         if (form?.method?.toLowerCase() === "get") {
           const queryParameter = form.dataset.queryParameter || "consultar";
           if (queryParameter && !form.elements[queryParameter]) {
@@ -1275,6 +1326,12 @@
 
     const cancelQueryButton = event.target.closest("[data-query-cancel]");
     if (cancelQueryButton) {
+      if (dispatchContextTableAction("query-cancel")) {
+        setQueryMode(false);
+        setupActionButtons();
+        renderIcons();
+        return;
+      }
       await releaseCurrentRecordLock();
       clearFormFields(getPrimaryForm());
       setupActionButtons();
@@ -1439,6 +1496,11 @@
           await submitPrimaryForm(form);
           return;
         }
+      }
+      if (dispatchContextTableAction("clear")) {
+        setupActionButtons();
+        renderIcons();
+        return;
       }
       await releaseCurrentRecordLock();
       clearScreenData();
@@ -1611,7 +1673,8 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     if (activeFloatingSelect?.dataset.fieldId === select.id && activeFloatingSelect.isConnected) {
-      positionFloatingSelect(activeFloatingSelect, select);
+      closeFloatingSelect();
+      select.focus({ preventScroll: true });
       return;
     }
     openFloatingSelect(select);
@@ -2065,7 +2128,7 @@
 
   function normalizeInputValue(field) {
     if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
-    if (field.dataset.mask || field.matches("[data-svg-source], [data-preserve-characters]")) return;
+    if (field.dataset.mask || field.matches("[data-svg-source], [data-preserve-characters]") || field.closest("[data-preserve-input]")) return;
     if (field.closest(".generated-clinical-form, [data-document-fill-form]")) return;
     const type = field.type || "";
     if (["password", "email", "url", "number", "date", "time", "datetime-local", "month", "week", "color"].includes(type)) return;
@@ -2923,7 +2986,9 @@
       const headers = Array.from(table.querySelectorAll("thead th"));
       headers.forEach((header, columnIndex) => {
         if (
-          header.matches("[data-sort-field]")
+          header.matches("[data-no-sort]")
+          || header.closest("table")?.matches("[data-no-sort]")
+          || header.matches("[data-sort-field]")
           || header.querySelector("a")
           || /^(ação|ações)$/i.test(header.textContent.trim())
         ) return;
@@ -3013,27 +3078,29 @@
           event.stopPropagation();
           const startX = event.clientX;
           const widths = headers.map((item) => item.getBoundingClientRect().width);
+          const totalWidth = widths.reduce((total, width) => total + width, 0);
           const startWidth = widths[index];
+          const adjacentStartWidth = widths[index + 1];
           const col = colgroup.children[index];
+          const adjacentCol = colgroup.children[index + 1];
           widths.forEach((width, columnIndex) => {
             const currentCol = colgroup.children[columnIndex];
             if (!currentCol) return;
-            currentCol.style.width = `${width}px`;
-            currentCol.style.minWidth = `${width}px`;
+            currentCol.style.width = `${(width / totalWidth) * 100}%`;
+            currentCol.style.minWidth = "0";
           });
-          table.style.width = `${widths.reduce((total, width) => total + width, 0)}px`;
-          table.style.minWidth = table.style.width;
+          table.style.width = "100%";
+          table.style.minWidth = "100%";
+          table.style.maxWidth = "100%";
+          table.style.tableLayout = "fixed";
           handle.setPointerCapture?.(event.pointerId);
           document.body.classList.add("column-resizing");
           const resize = (moveEvent) => {
-            const nextWidth = Math.max(64, startWidth + moveEvent.clientX - startX);
-            if (col) {
-              col.style.width = `${nextWidth}px`;
-              col.style.minWidth = `${nextWidth}px`;
-              table.style.width = `${widths.reduce((total, width, columnIndex) => (
-                total + (columnIndex === index ?nextWidth : width)
-              ), 0)}px`;
-              table.style.minWidth = table.style.width;
+            const requestedDelta = moveEvent.clientX - startX;
+            const delta = Math.max(64 - startWidth, Math.min(adjacentStartWidth - 64, requestedDelta));
+            if (col && adjacentCol) {
+              col.style.width = `${((startWidth + delta) / totalWidth) * 100}%`;
+              adjacentCol.style.width = `${((adjacentStartWidth - delta) / totalWidth) * 100}%`;
             }
           };
           const stop = () => {
@@ -3144,6 +3211,8 @@
     const tableForm = getEditableTableForm();
     const contextualRemoveTarget = document.querySelector("[data-toolbar-remove-target].selected");
     const hasContextualRemoveTargets = Boolean(document.querySelector("[data-toolbar-remove-target]"));
+    const selectedScaleRow = document.querySelector("[data-scale-table].active tbody tr.selected");
+    const hasScaleRows = Boolean(document.querySelector("[data-scale-table] tbody tr:not(:has(.empty-cell))"));
     const isHome = document.body.dataset.tabUrl === "/";
     const isQueryMode = document.body.classList.contains("screen-query-mode");
 
@@ -3210,12 +3279,14 @@
       continueButton.hidden = !document.body.dataset.continueUrl;
       continueButton.disabled = isQueryMode || !document.body.dataset.continueUrl;
     }
-    if (removeButton) removeButton.disabled = isQueryMode || (hasContextualRemoveTargets
-      ? !contextualRemoveTarget
-      : tableForm
-        ? !hasSelectedPersistedRow(tableForm)
-        : !(document.body.dataset.canRemove === "true" && hasLoadedRecord()));
-    if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm || hasContextualRemoveTargets);
+    if (removeButton) removeButton.disabled = isQueryMode || (hasScaleRows
+      ? !selectedScaleRow
+      : hasContextualRemoveTargets
+        ? !contextualRemoveTarget
+        : tableForm
+          ? !hasSelectedPersistedRow(tableForm)
+          : !(document.body.dataset.canRemove === "true" && hasLoadedRecord()));
+    if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm || hasContextualRemoveTargets || hasScaleRows);
     const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
     if (toggleActiveButton) {
       const rowActiveField = getSelectedRowActiveField(tableForm);
@@ -3243,18 +3314,14 @@
       printButton.hidden = !(document.body.dataset.printUrl || hasSelectablePrintTarget);
       printButton.disabled = !document.body.dataset.printUrl;
     }
-    if (previousButton) {
-      previousButton.disabled = !document.body.dataset.previousUrl;
-    }
-    if (nextButton) {
-      nextButton.disabled = !document.body.dataset.nextUrl;
-    }
-    if (firstButton) {
-      firstButton.disabled = !document.body.dataset.firstUrl;
-    }
-    if (lastButton) {
-      lastButton.disabled = !document.body.dataset.lastUrl;
-    }
+    const activeScaleRows = selectedScaleRow
+      ? Array.from(selectedScaleRow.closest("tbody")?.querySelectorAll("tr") || []).filter((row) => !row.querySelector(".empty-cell"))
+      : [];
+    const activeScaleIndex = selectedScaleRow ? activeScaleRows.indexOf(selectedScaleRow) : -1;
+    if (previousButton) previousButton.disabled = selectedScaleRow ? activeScaleIndex <= 0 : !document.body.dataset.previousUrl;
+    if (nextButton) nextButton.disabled = selectedScaleRow ? activeScaleIndex >= activeScaleRows.length - 1 : !document.body.dataset.nextUrl;
+    if (firstButton) firstButton.disabled = selectedScaleRow ? activeScaleIndex <= 0 : !document.body.dataset.firstUrl;
+    if (lastButton) lastButton.disabled = selectedScaleRow ? activeScaleIndex >= activeScaleRows.length - 1 : !document.body.dataset.lastUrl;
     if (closeButton && isHome) closeButton.disabled = true;
     if (cancelQueryIcon) cancelQueryIcon.setAttribute("data-nav-icon", "ban");
     const closeButtonIcon = document.querySelector('[data-action="close"] [data-nav-icon]');

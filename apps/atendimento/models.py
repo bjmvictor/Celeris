@@ -1117,9 +1117,34 @@ class PerguntaClassificacao(AuditoriaModel):
         return self.nm_pergunta
 
 
+class GrupoFluxoClassificacao(AuditoriaModel):
+    cd_grupo_fluxo_classificacao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    nm_grupo = models.CharField(max_length=100)
+    ds_descricao = models.CharField(max_length=300, blank=True)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "grupo_fluxo_classificacao"
+        ordering = ("nr_ordem", "nm_grupo")
+        unique_together = ("cd_empresa", "nm_grupo")
+
+    def __str__(self):
+        return self.nm_grupo
+
+
 class FluxoClassificacao(AuditoriaModel):
     cd_fluxo_classificacao = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_grupo = models.ForeignKey(
+        GrupoFluxoClassificacao,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        db_column="cd_grupo_fluxo_classificacao",
+        related_name="sintomas",
+    )
     nm_grupo = models.CharField(max_length=100)
     nm_fluxo = models.CharField(max_length=160)
     ds_orientacao = models.TextField(blank=True)
@@ -1140,6 +1165,18 @@ class FluxoClassificacao(AuditoriaModel):
 
     def __str__(self):
         return f"{self.nm_grupo} > {self.nm_fluxo}"
+
+    def save(self, *args, **kwargs):
+        if self.cd_grupo_id:
+            self.nm_grupo = self.cd_grupo.nm_grupo
+        elif self.cd_empresa_id and self.nm_grupo:
+            self.cd_grupo, _ = GrupoFluxoClassificacao.objects.get_or_create(
+                cd_empresa_id=self.cd_empresa_id,
+                nm_grupo=self.nm_grupo.strip(),
+                defaults={"nr_ordem": self.nr_ordem, "sn_ativo": True},
+            )
+            self.nm_grupo = self.cd_grupo.nm_grupo
+        super().save(*args, **kwargs)
 
 
 class AtendimentoFluxo(models.Model):
@@ -1315,6 +1352,7 @@ class ModeloDocumento(AuditoriaModel):
     TIPOS = [
         ("COMPROVANTE_AGENDAMENTO", "Comprovante de agendamento"),
         ("COMPROVANTE_CHAMADO", "Comprovante de chamado"),
+        ("FICHA_CLASSIFICACAO", "Ficha de classificação"),
         ("FICHA_ATENDIMENTO", "Ficha de atendimento"),
         ("ETIQUETA_ATENDIMENTO", "Etiqueta de atendimento"),
         ("PRESCRICAO", "Prescrição"),
@@ -1744,6 +1782,7 @@ class EscalaClinica(AuditoriaModel):
     ds_descricao = models.CharField(max_length=500, blank=True)
     tp_calculo = models.CharField(max_length=10, choices=METODOS, default="SOMA")
     ds_expressao_calculo = models.CharField(max_length=1000, blank=True)
+    ds_condicoes_calculo = models.JSONField(default=list, blank=True)
     ds_perguntas = models.JSONField(default=list)
     ds_faixas_resultado = models.JSONField(default=list)
     nr_versao = models.PositiveIntegerField(default=1)
@@ -1756,6 +1795,35 @@ class EscalaClinica(AuditoriaModel):
             models.UniqueConstraint(
                 fields=("cd_empresa", "nm_escala", "nr_versao"),
                 name="escala_clinica_versao_unica",
+            ),
+        ]
+
+
+class FluxoClassificacaoEscala(AuditoriaModel):
+    cd_fluxo_classificacao_escala = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_fluxo_classificacao = models.ForeignKey(
+        FluxoClassificacao,
+        on_delete=models.CASCADE,
+        db_column="cd_fluxo_classificacao",
+        related_name="escalas_recomendadas",
+    )
+    cd_escala_clinica = models.ForeignKey(
+        EscalaClinica,
+        on_delete=models.PROTECT,
+        db_column="cd_escala_clinica",
+        related_name="fluxos_recomendados",
+    )
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "fluxo_classificacao_escala"
+        ordering = ("nr_ordem", "cd_fluxo_classificacao_escala")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_fluxo_classificacao", "cd_escala_clinica"),
+                name="fluxo_classificacao_escala_unica",
             ),
         ]
 

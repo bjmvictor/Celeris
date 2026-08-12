@@ -17,6 +17,7 @@ urlpatterns = [
     path("class/senhas/<int:cd_tipo>/", atendimento_views.configurar_senhas_standalone, name="class_senha_editar"),
     path("class/perguntas/", atendimento_views.perguntas_classificacao_standalone, name="class_perguntas"),
     path("class/fluxos/", atendimento_views.fluxos_classificacao_standalone, name="class_fluxos"),
+    path("class/fluxos/<int:cd_fluxo>/escalas/", atendimento_views.fluxo_escalas_classificacao_standalone, name="class_fluxo_escalas"),
     path("class/cores/", atendimento_views.cores_classificacao_standalone, name="class_cores"),
     path("class/escalas/", atendimento_views.escalas_classificacao_standalone, name="class_escalas"),
     path("class/escalas/<int:cd_escala>/", atendimento_views.escalas_classificacao_standalone, name="class_escala_editar"),

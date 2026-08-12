@@ -88,9 +88,28 @@
         if (!radio) return;
         const picker = radio.closest("[data-call-icon-picker]");
         const preview = picker?.querySelector("[data-call-icon-selected]");
+        const label = picker?.querySelector("[data-call-icon-label]");
         if (preview) preview.innerHTML = radio.dataset.iconSvg || "";
-        picker?.removeAttribute("open");
+        if (label) label.textContent = radio.dataset.iconName || "Sem ícone";
+        picker?.querySelector("[data-call-icon-menu]")?.removeAttribute("open");
       });
+      const positionIconOptions = (menu) => {
+        const options = menu?.querySelector(".call-icon-picker-options");
+        const summary = menu?.querySelector("summary");
+        if (!options || !summary || !menu.open) return;
+        const rect = summary.getBoundingClientRect();
+        const width = Math.min(Math.max(rect.width, 250), window.innerWidth - 16);
+        const maxHeight = Math.min(280, window.innerHeight - 16);
+        options.style.width = `${width}px`;
+        options.style.maxHeight = `${maxHeight}px`;
+        options.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+        options.style.top = `${Math.max(8, Math.min(rect.bottom + 3, window.innerHeight - Math.min(maxHeight, options.scrollHeight) - 8))}px`;
+      };
+      document.addEventListener("toggle", (event) => {
+        const menu = event.target.closest?.("[data-call-icon-menu]");
+        if (menu?.open) requestAnimationFrame(() => positionIconOptions(menu));
+      }, true);
+      window.addEventListener("resize", () => document.querySelectorAll("[data-call-icon-menu][open]").forEach(positionIconOptions));
     })();
   </script>
 {% endblock %}

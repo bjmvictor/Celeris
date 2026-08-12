@@ -8,11 +8,10 @@
           {% for item in modelos %}<option value="{{ item.pk }}" {% if modelo.pk == item.pk %}selected{% endif %}>{{ item.nm_modelo }} · {{ item.get_tp_documento_display }}</option>{% endfor %}
         </select>
       </label>
-      <label class="pep-submit-field"><span>&nbsp;</span><button class="button button-primary" type="submit">Executar consulta</button></label>
     </form>
   </section>
   {% if modelo %}
-    <form class="card table-card" method="post" data-document-screen-map data-primary-form>
+    <form class="card table-card" method="post" data-document-screen-map data-primary-form data-editable-table data-table="modelo_documento_tela_impressao">
       {% csrf_token %}<input type="hidden" name="modelo" value="{{ modelo.pk }}">
       <div class="form-grid document-screen-map-summary">
         <label class="field-xs">Código<input value="{{ modelo.pk }}" readonly></label>
@@ -20,10 +19,67 @@
         <label class="field-md">Tipo<input value="{{ modelo.get_tp_documento_display }}" readonly></label>
         <label class="field-xs">Versão<input value="{{ modelo.nr_versao }}" readonly></label>
       </div>
-      <div class="section-heading"><div><h2>Telas habilitadas</h2><small>Marque onde este documento poderá ser impresso.</small></div></div>
-      <table class="editable-table"><thead><tr><th>Imprimir</th><th>Tela</th><th>Chave de acesso</th></tr></thead><tbody>
-        {% for tela in telas %}<tr><td><input type="checkbox" name="tela" value="{{ tela.pk }}" {% if tela.pk in telas_selecionadas %}checked{% endif %}></td><td><span class="table-text">{{ tela.caminho_impressao }}</span></td><td><span class="table-text">{{ tela.access_key }}</span></td></tr>{% endfor %}
+      <div class="section-heading"><div><h2>Telas habilitadas</h2><small>Somente as telas adicionadas abaixo poderão imprimir este documento.</small></div></div>
+      <table class="editable-table"><thead><tr><th>Módulo</th><th>Tela</th></tr></thead><tbody>
+        {% for vinculo in vinculos %}
+          <tr data-editable-row>
+            <td>
+              <input value="{{ vinculo.pk }}" readonly data-primary-key="true" hidden>
+              <input name="excluir" value="0" type="hidden" data-row-delete>
+              <select name="modulo" data-document-screen-module required>
+                <option value=""></option>
+                {% for modulo in modulos %}<option value="{{ modulo.pk }}" {% if modulo.pk == vinculo.cd_tela.module_id %}selected{% endif %}>{{ modulo.title }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><select name="tela" data-document-screen-select data-selected="{{ vinculo.cd_tela_id }}" required><option value=""></option></select></td>
+          </tr>
+        {% empty %}
+          <tr data-editable-row>
+            <td><input value="novo" readonly data-primary-key="true" hidden><input name="excluir" value="0" type="hidden" data-row-delete><select name="modulo" data-document-screen-module required><option value=""></option>{% for modulo in modulos %}<option value="{{ modulo.pk }}">{{ modulo.title }}</option>{% endfor %}</select></td>
+            <td><select name="tela" data-document-screen-select required><option value=""></option></select></td>
+          </tr>
+        {% endfor %}
       </tbody></table>
+      <template data-table-new-row>
+        <tr data-editable-row>
+          <td><input value="novo" readonly data-primary-key="true" hidden><input name="excluir" value="0" type="hidden" data-row-delete><select name="modulo" data-document-screen-module required><option value=""></option>{% for modulo in modulos %}<option value="{{ modulo.pk }}">{{ modulo.title }}</option>{% endfor %}</select></td>
+          <td><select name="tela" data-document-screen-select required><option value=""></option></select></td>
+        </tr>
+      </template>
     </form>
+    {{ telas_por_modulo|json_script:"document-screen-options" }}
+    <script>
+      (() => {
+        const form = document.querySelector("[data-document-screen-map]");
+        const source = document.getElementById("document-screen-options");
+        if (!form || !source) return;
+        const optionsByModule = JSON.parse(source.textContent || "{}");
+        const syncScreenOptions = (moduleSelect) => {
+          const row = moduleSelect.closest("tr");
+          const screenSelect = row?.querySelector("[data-document-screen-select]");
+          if (!screenSelect) return;
+          const selected = screenSelect.dataset.selected || screenSelect.value;
+          const options = optionsByModule[moduleSelect.value] || [];
+          screenSelect.innerHTML = '<option value=""></option>' + options.map((item) =>
+            `<option value="${item.id}">${item.titulo}</option>`
+          ).join("");
+          if (options.some((item) => String(item.id) === String(selected))) screenSelect.value = selected;
+          screenSelect.dataset.selected = "";
+        };
+        form.querySelectorAll("[data-document-screen-module]").forEach(syncScreenOptions);
+        form.addEventListener("change", (event) => {
+          const moduleSelect = event.target.closest("[data-document-screen-module]");
+          if (moduleSelect) syncScreenOptions(moduleSelect);
+        });
+        const observer = new MutationObserver(() => {
+          form.querySelectorAll("[data-document-screen-module]").forEach((field) => {
+            if (field.dataset.optionsReady === "true") return;
+            field.dataset.optionsReady = "true";
+            syncScreenOptions(field);
+          });
+        });
+        observer.observe(form.querySelector("tbody"), {childList: true});
+      })();
+    </script>
   {% endif %}
 {% endblock %}
