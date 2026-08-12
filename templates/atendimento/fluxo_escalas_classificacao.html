@@ -1,0 +1,38 @@
+{% extends class_base_template|default:"base/layout.html" %}
+{% block content %}
+  <form class="card table-card" method="post" data-editable-table data-table="fluxo_classificacao_escala">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead><tr><th>Escala recomendada</th><th>Ordem</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for vinculo in vinculos %}
+          <tr data-editable-row>
+            <td>
+              <input type="hidden" name="link_id" value="{{ vinculo.pk }}">
+              <input type="hidden" name="delete" value="0" data-row-delete>
+              <select name="scale_id" required>
+                <option value=""></option>
+                {% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}" {% if vinculo.cd_escala_clinica_id == escala.pk %}selected{% endif %}>{{ escala.nm_escala }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input type="number" name="order" min="0" value="{{ vinculo.nr_ordem }}"></td>
+            <td><select name="active"><option value="true" {% if vinculo.sn_ativo %}selected{% endif %}>Ativa</option><option value="false" {% if not vinculo.sn_ativo %}selected{% endif %}>Inativa</option></select></td>
+          </tr>
+        {% empty %}
+          <tr data-editable-row>
+            <td><input type="hidden" name="link_id"><input type="hidden" name="delete" value="0" data-row-delete><select name="scale_id" required><option value=""></option>{% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}">{{ escala.nm_escala }}</option>{% endfor %}</select></td>
+            <td><input type="number" name="order" min="0" value="10"></td>
+            <td><select name="active"><option value="true" selected>Ativa</option><option value="false">Inativa</option></select></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input type="hidden" name="link_id"><input type="hidden" name="delete" value="0" data-row-delete><select name="scale_id" required><option value=""></option>{% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}">{{ escala.nm_escala }}</option>{% endfor %}</select></td>
+        <td><input type="number" name="order" min="0" value="10"></td>
+        <td><select name="active"><option value="true" selected>Ativa</option><option value="false">Inativa</option></select></td>
+      </tr>
+    </template>
+  </form>
+{% endblock %}

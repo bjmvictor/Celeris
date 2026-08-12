@@ -1,0 +1,100 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Celeris Class</title>
+    <link rel="icon" href="{% static 'img/logo.png' %}" type="image/png">
+    <script>if(localStorage.getItem("celeris-theme")==="dark")document.documentElement.classList.add("dark");</script>
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/celeris.css' %}?v=20260811-7">
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}" defer></script>
+    {{ system_icon_svgs|json_script:"system-icon-svgs" }}
+    <script src="{% static 'js/celeris.js' %}?v=20260811-2" defer></script>
+  </head>
+  <body class="class-standalone-shell class-sidebar-collapsed" data-tab-title="{{ current_tab_title }}" data-tab-url="{{ request.path }}" data-username="{{ request.user.username }}" data-can-query="{{ current_can_query|yesno:'true,false' }}" data-can-save="{{ current_can_save|yesno:'true,false' }}" data-can-remove="{{ current_can_remove|yesno:'true,false' }}" data-new-url="{{ current_new_url }}" data-first-url="{{ current_first_url }}" data-previous-url="{{ current_previous_url }}" data-next-url="{{ current_next_url }}" data-last-url="{{ current_last_url }}" data-print-url="{{ current_print_url }}" data-start-query="{{ current_start_query|yesno:'true,false' }}" data-close-mode="back" data-close-url="{% if class_close_url %}{{ class_close_url }}{% elif classification_list_url %}{{ classification_list_url }}{% else %}{% url 'classificacao_standalone' %}{% endif %}">
+    <header class="topbar class-standalone-topbar">
+      <div class="brand">
+        <button class="icon-button sidebar-toggle" data-class-sidebar-toggle type="button" title="Expandir/recolher menu"><span class="svg-icon" data-nav-icon="layout-panel-left"></span></button>
+        <a class="pep-standalone-brand" href="{% url 'classificacao_standalone' %}"><img src="{% static 'img/logo.png' %}" alt="Celeris"><div class="brand-text"><strong>Celeris Class</strong><span>Classificação de risco</span></div></a>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-button" data-theme-toggle type="button" title="Alternar tema"><span class="svg-icon" data-nav-icon="theme"></span></button>
+        <button class="icon-button" data-notifications-toggle type="button" title="Notificações"><span class="svg-icon" data-nav-icon="bell"></span>{% if messages %}<span class="notification-badge">{{ messages|length }}</span>{% endif %}</button>
+        <div class="notifications-panel" data-notifications-panel hidden>
+          <div class="notifications-header"><span>Notificações</span><button class="button button-ghost notification-clear-button" data-notifications-clear type="button">Limpar</button></div>
+          <div class="notifications-list">
+            {% for message in messages %}
+              <button class="notification-item {{ message.tags }}" data-notification-item data-server-notification type="button"><span class="notification-time" data-notification-time></span><span class="notification-text">{{ message }}</span></button>
+            {% empty %}<div class="notification-empty">Nenhuma notificação.</div>{% endfor %}
+          </div>
+        </div>
+        <div class="blocking-notification" data-blocking-notification hidden>
+          <div class="blocking-notification-backdrop" aria-hidden="true"></div>
+          <section class="blocking-notification-card" role="dialog" aria-modal="true" aria-labelledby="classBlockingNotificationTitle">
+            <strong id="classBlockingNotificationTitle" data-blocking-title>Notificação</strong><p data-blocking-message></p><div class="blocking-notification-extra" data-blocking-extra></div>
+            <div class="blocking-notification-actions"><button class="toolbar-button" data-blocking-cancel type="button">Cancelar</button><button class="toolbar-button" data-blocking-confirm type="button">OK</button></div>
+          </section>
+        </div>
+        <div class="dropdown">
+          <button class="user-menu-button dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button" aria-expanded="false"><span class="svg-icon" data-nav-icon="user"></span><span class="user-chip">{{ current_user_short_name|default:request.user.username }}</span></button>
+          <div class="dropdown-menu dropdown-menu-end celeris-dropdown">
+            <div class="dropdown-header user-company-header"><strong>{{ request.user.display_name|default:request.user.username }}</strong><span>{% if current_empresa %}{{ current_empresa.nm_empresa }}{% else %}Empresa não selecionada{% endif %}</span></div>
+            <a class="dropdown-item" href="{% url 'password_change' %}?next={{ request.get_full_path|urlencode }}"><span class="svg-icon" data-nav-icon="key"></span>Alterar senha</a>
+            <details class="dropdown-product-selector">
+              <summary class="dropdown-item"><span class="svg-icon" data-nav-icon="monitor-config"></span>Acessar sistema</summary>
+              <div class="dropdown-product-list">
+                <a class="dropdown-item" href="{% url 'core:home' %}"><span class="svg-icon" data-nav-icon="app-window"></span>Celeris</a>
+                <a class="dropdown-item" href="{% url 'pep_standalone' %}"><span class="svg-icon" data-nav-icon="clipboard-plus"></span>Celeris PEP</a>
+                <a class="dropdown-item" href="/painel/"><span class="svg-icon" data-nav-icon="presentation"></span>Painel</a>
+                <a class="dropdown-item" href="/totem/"><span class="svg-icon" data-nav-icon="ticket"></span>Totem</a>
+              </div>
+            </details>
+            <form action="{% url 'logout' %}" data-clear-tabs method="post">{% csrf_token %}<button class="dropdown-item" type="submit"><span class="svg-icon" data-nav-icon="logout"></span>Sair</button></form>
+          </div>
+        </div>
+      </div>
+    </header>
+    <aside class="class-standalone-sidebar" data-class-sidebar>
+      <a class="{% if request.resolver_match.url_name == 'classificacao_standalone' %}active{% endif %}" href="{% url 'classificacao_standalone' %}"><span class="svg-icon" data-nav-icon="clipboard-plus"></span><span>Classificar</span></a>
+      {% if class_can_configure %}
+        <a class="{% if request.resolver_match.url_name == 'class_senhas' or request.resolver_match.url_name == 'class_senha_editar' %}active{% endif %}" href="{% url 'class_senhas' %}"><span class="svg-icon" data-nav-icon="settings"></span><span>Configurar senhas</span></a>
+        <a class="{% if request.resolver_match.url_name == 'class_perguntas' %}active{% endif %}" href="{% url 'class_perguntas' %}"><span class="svg-icon" data-nav-icon="question"></span><span>Perguntas</span></a>
+        <a class="{% if request.resolver_match.url_name == 'class_fluxos' %}active{% endif %}" href="{% url 'class_fluxos' %}"><span class="svg-icon" data-nav-icon="flow"></span><span>Fluxos</span></a>
+        <a class="{% if request.resolver_match.url_name == 'class_cores' %}active{% endif %}" href="{% url 'class_cores' %}"><span class="svg-icon" data-nav-icon="palette"></span><span>Cores</span></a>
+        <a class="{% if request.resolver_match.url_name == 'class_escalas' or request.resolver_match.url_name == 'class_escala_editar' %}active{% endif %}" href="{% url 'class_escalas' %}"><span class="svg-icon" data-nav-icon="graph-level"></span><span>Escalas</span></a>
+        <a class="{% if request.resolver_match.url_name == 'class_protocolos' %}active{% endif %}" href="{% url 'class_protocolos' %}"><span class="svg-icon" data-nav-icon="message-square-warning"></span><span>Protocolos</span></a>
+        <a class="{% if request.resolver_match.url_name == 'class_icones' %}active{% endif %}" href="{% url 'class_icones' %}"><span class="svg-icon" data-nav-icon="image"></span><span>Ícones</span></a>
+      {% endif %}
+    </aside>
+    <main class="class-standalone-main content">
+      {% if class_show_action_toolbar or not class_hide_action_toolbar and current_can_query or not class_hide_action_toolbar and current_new_url %}
+        <div class="action-toolbar class-action-toolbar"><span class="toolbar-title">{{ current_tab_title }}</span><div class="toolbar-actions">
+          <button class="toolbar-button" data-query-toggle type="button" title="Abrir consulta"><span class="svg-icon" data-nav-icon="search"></span></button>
+          <button class="toolbar-button" data-query-cancel type="button" title="Cancelar consulta" hidden><span class="svg-icon" data-nav-icon="x"></span></button>
+          <button class="toolbar-button" data-action="clear" type="button" title="Limpar"><span class="svg-icon" data-nav-icon="eraser"></span></button>
+          <button class="toolbar-button" data-action="print" type="button" title="Imprimir" hidden disabled><span class="svg-icon" data-nav-icon="printer"></span></button>
+          <button class="toolbar-button" data-action="save" type="button" title="Salvar" disabled><span class="svg-icon" data-nav-icon="save"></span></button>
+          <button class="toolbar-button" data-action="new" type="button" title="Adicionar ou novo" disabled><span class="svg-icon" data-nav-icon="plus"></span></button>
+          {% if class_show_undo_redo %}<button class="toolbar-button" data-action="undo" type="button" title="Desfazer" disabled><span class="svg-icon" data-nav-icon="undo"></span></button><button class="toolbar-button" data-action="redo" type="button" title="Refazer" disabled><span class="svg-icon" data-nav-icon="redo"></span></button>{% endif %}
+          <button class="toolbar-button danger" data-action="remove" type="button" title="Remover" hidden disabled><span class="svg-icon" data-nav-icon="trash"></span></button>
+          <button class="toolbar-button" data-action="first" type="button" title="Primeiro" disabled><span class="svg-icon" data-nav-icon="chevrons-left"></span></button>
+          <button class="toolbar-button" data-action="previous" type="button" title="Anterior" disabled><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
+          <button class="toolbar-button" data-action="next" type="button" title="Próximo" disabled><span class="svg-icon" data-nav-icon="arrow-right"></span></button>
+          <button class="toolbar-button" data-action="last" type="button" title="Último" disabled><span class="svg-icon" data-nav-icon="chevrons-right"></span></button>
+          <button class="toolbar-button" data-action="close" type="button" title="Sair"><span class="svg-icon" data-nav-icon="x"></span></button>
+        </div></div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="pep-standalone-statusbar class-statusbar">
+      <span class="status-screen" data-action-status>EDIÇÃO</span>
+      <span class="status-record" data-record-status data-general-record-status="{{ current_record_status }}">{{ current_record_status }}</span>
+      <span class="status-field" data-field-status></span>
+      <span class="status-module">Celeris Class</span>
+      <time data-pep-live-clock></time>
+    </footer>
+    <script>(()=>{const button=document.querySelector("[data-class-sidebar-toggle]");button?.addEventListener("click",()=>document.body.classList.toggle("class-sidebar-collapsed"));const clock=document.querySelector("[data-pep-live-clock]");const tick=()=>{if(clock)clock.textContent=new Intl.DateTimeFormat("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date());};tick();setInterval(tick,1000);})();</script>
+  </body>
+</html>

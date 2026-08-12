@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <title>Documentos — Atendimento {{ atendimento.pk }}</title>
+    {% for item in apresentacoes %}
+      {% if item.apresentacao.css %}<style>{{ item.apresentacao.css }}</style>{% endif %}
+    {% endfor %}
+    <style>
+      @page { size: A4; margin: 4mm; }
+      body { margin: 0; color: #111; background: #fff; font: 12px Arial, sans-serif; }
+      .print-actions { padding: 8px; }
+      .attendance-print-document { break-after: page; page-break-after: always; }
+      .attendance-print-document:last-child { break-after: auto; page-break-after: auto; }
+      .document-print-table { width: 100%; min-height: 289mm; border-collapse: collapse; table-layout: fixed; }
+      .document-print-table td { padding: 0; vertical-align: top; }
+      .document-print-table thead { display: table-header-group; }
+      .document-print-table tfoot { display: table-footer-group; }
+      @media print { .print-actions { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="print-actions"><button type="button" onclick="window.print()">Imprimir documentos</button></div>
+    {% for item in apresentacoes %}
+      <section class="attendance-print-document" data-document-model="{{ item.modelo.pk }}">
+        <table class="document-print-table">
+          <thead><tr><td>{{ item.apresentacao.cabecalho }}</td></tr></thead>
+          <tbody><tr><td class="document-content">{{ item.apresentacao.conteudo }}</td></tr></tbody>
+          <tfoot><tr><td>{{ item.apresentacao.rodape }}</td></tr></tfoot>
+        </table>
+      </section>
+    {% endfor %}
+  </body>
+</html>

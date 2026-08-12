@@ -1,25 +1,30 @@
 {% extends "base/layout.html" %}
 {% block content %}
-  {% url 'atendimento:recepcao' as reception_url %}
   <section class="card reception-classified-list">
     <div class="section-heading">
       <h2>Pacientes classificados</h2>
     </div>
-    <div class="reception-classified-grid">
-      {% for senha in senhas_classificadas %}
-        <article class="classified-ticket">
-          <strong>{{ senha.ds_senha }}</strong>
-          <span>{{ senha.cd_tipo_senha.nm_tipo_senha }} · {{ senha.cd_classe_senha.nm_classe_senha }}</span>
-          <small>Classificada em {{ senha.dh_classificacao|date:"H:i" }}</small>
-          {% if senha.cd_paciente_id %}
-            <a class="button button-secondary" href="{% url 'atendimento:recepcao-revisar-paciente' senha.cd_paciente_id %}?senha={{ senha.pk }}">Recepcionar senha</a>
-          {% else %}
-            <a class="button button-secondary" href="{% url 'atendimento:cadastro-paciente-agendamento' %}?recepcao_direta=1&senha={{ senha.pk }}&return_to={{ reception_url|urlencode }}">Completar cadastro</a>
-          {% endif %}
-        </article>
-      {% empty %}
-        <div class="empty-state">Nenhum paciente classificado aguardando recepção.</div>
-      {% endfor %}
+    <div class="table-card reception-classified-table">
+      <table class="data-table">
+        <thead>
+          <tr><th>Prioridade</th><th>Senha</th><th>Paciente</th><th>Nome da mãe</th><th>Nascimento</th><th>Classificação</th><th>Espera</th></tr>
+        </thead>
+        <tbody>
+          {% for senha in senhas_classificadas %}
+            <tr data-row-url="{{ senha.url_recepcao }}" tabindex="0" style="--classification-color:{% if senha.cd_cor_classificacao %}{{ senha.cd_cor_classificacao.ds_cor_hex }}{% elif senha.cd_classe_senha.cd_cor_classificacao %}{{ senha.cd_classe_senha.cd_cor_classificacao.ds_cor_hex }}{% else %}#94a3b8{% endif %}" aria-label="Recepcionar {{ senha.nome_exibicao }}">
+              <td class="reception-priority-cell"><strong>{{ senha.cd_tipo_senha.nm_tipo_senha }}</strong><small>{{ senha.cd_classe_senha.nm_classe_senha }}</small></td>
+              <td><strong>{{ senha.ds_senha }}</strong></td>
+              <td>{{ senha.nome_exibicao }}</td>
+              <td>{{ senha.nome_mae_exibicao|default:"-" }}</td>
+              <td>{{ senha.nascimento_exibicao|date:"d/m/Y"|default:"-" }}</td>
+              <td>{{ senha.dh_classificacao|date:"d/m/Y H:i"|default:"-" }}</td>
+              <td data-reception-wait data-started-at="{{ senha.dh_classificacao|default:senha.dh_criacao|date:'c' }}">{{ senha.tempo_espera_recepcao }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="empty-cell">Nenhum paciente classificado aguardando recepção.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -68,6 +73,28 @@
     </table>
   </section>
   <script>
+    document.querySelectorAll("[data-row-url]").forEach((row) => {
+      const open = () => { window.location.href = row.dataset.rowUrl; };
+      row.addEventListener("click", (event) => {
+        if (!event.target.closest("button, a, input, select, textarea")) open();
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      });
+    });
+    const updateReceptionWaits = () => {
+      document.querySelectorAll("[data-reception-wait]").forEach((cell) => {
+        const startedAt = new Date(cell.dataset.startedAt);
+        if (Number.isNaN(startedAt.getTime())) return;
+        const seconds = Math.max(Math.floor((Date.now() - startedAt.getTime()) / 1000), 0);
+        cell.textContent = `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}`;
+      });
+    };
+    updateReceptionWaits();
+    window.setInterval(updateReceptionWaits, 30000);
     document.querySelectorAll("[data-social-name]").forEach((wrapper) => {
       const text = wrapper.querySelector("[data-social-name-text]");
       const button = wrapper.querySelector(".social-name-info");

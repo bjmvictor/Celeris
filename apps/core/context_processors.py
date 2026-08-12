@@ -351,4 +351,11 @@ def navigation(request):
             request.user.is_authenticated
             and getattr(request.user, "pode_visualizar_auditoria", False)
         ),
+        "class_can_configure": bool(
+            request.user.is_authenticated
+            and (
+                request.user.is_superuser
+                or request.user.groups.filter(name="TI", papel__sn_ativo=True).exists()
+            )
+        ),
     }

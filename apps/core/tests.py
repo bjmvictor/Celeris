@@ -1,4 +1,5 @@
 import importlib
+import json
 
 from io import StringIO
 from pathlib import Path
@@ -19,14 +20,18 @@ from apps.atendimento.models import Convenio
 
 from .models import (
     Cep,
+    Cidade,
     ConfiguracaoCampoFormulario,
     IconeSistema,
     Module,
+    Plano,
+    Procedimento,
     ScreenDefinition,
-    TabelaAuxiliarGlobal,
+    Sexo,
+    TipoAtendimento,
     TipoPrestadorConselho,
-    ValorAuxiliarGlobal,
 )
+from .catalogos import modelo_catalogo
 
 
 class InitialConfigurationCommandTests(TestCase):
@@ -70,10 +75,7 @@ class InitialConfigurationCommandTests(TestCase):
             self.assertEqual(Setor.objects.filter(cd_empresa=company, nm_setor="Recepção").count(), 1)
             self.assertEqual(Convenio.objects.filter(cd_empresa=company, nm_convenio="Particular").count(), 1)
             self.assertEqual(
-                ValorAuxiliarGlobal.objects.filter(
-                    cd_tabela_auxiliar_global__ds_tabela="tipo_atendimento",
-                    cd_valor="CONSULTA_INICIAL",
-                ).count(),
+                TipoAtendimento.objects.filter(cd_valor="CONSULTA_INICIAL").count(),
                 1,
             )
 
@@ -89,6 +91,17 @@ class GlobalIntegrationTests(TestCase):
         session = self.client.session
         session["cd_empresa"] = self.empresa.cd_empresa
         session.save()
+
+    def test_catalogo_tematico_persiste_sem_indice_de_compatibilidade(self):
+        valor = Cidade.objects.create(
+            cd_valor="TESTE_2610006",
+            ds_valor="Palmares",
+            ds_grupo="PE",
+        )
+        valor.ds_valor = "Palmares - PE"
+        valor.save()
+        valor.refresh_from_db()
+        self.assertEqual(valor.ds_valor, "Palmares - PE")
 
     def test_configuracao_de_formulario_lista_e_aplica_obrigatoriedade(self):
         route = reverse("core:configurar_formularios")
@@ -160,6 +173,44 @@ class GlobalIntegrationTests(TestCase):
             [second.pk, first.pk],
         )
 
+    def test_salvar_modulo_preserva_ordem_reorganizada_dos_itens(self):
+        module = Module.objects.create(code="TESTE_ORDEM", title="Teste ordem", order=991)
+        first = ScreenDefinition.objects.create(
+            module=module,
+            title="Primeiro",
+            slug="teste-ordem-primeiro",
+            access_key="teste-ordem-primeiro",
+            order=10,
+        )
+        second = ScreenDefinition.objects.create(
+            module=module,
+            title="Segundo",
+            slug="teste-ordem-segundo",
+            access_key="teste-ordem-segundo",
+            order=20,
+        )
+
+        response = self.client.post(
+            reverse("core:system_screens"),
+            {
+                "module_id": module.pk,
+                "code": module.code,
+                "title": "Teste ordem atualizado",
+                "icon": "",
+                "order": module.order,
+                "active": "True",
+                "navigation_order_changed": json.dumps({"": [second.pk, first.pk]}),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        module.refresh_from_db()
+        self.assertEqual(module.title, "Teste ordem atualizado")
+        self.assertEqual(
+            list(module.screens.order_by("order").values_list("pk", flat=True)),
+            [second.pk, first.pk],
+        )
+
     def test_configuracao_usa_rotulos_visiveis_do_cadastro_de_prestador(self):
         response = self.client.get(
             reverse("core:configurar_formularios"),
@@ -181,8 +232,7 @@ class GlobalIntegrationTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(
-            ValorAuxiliarGlobal.objects.filter(
-                cd_tabela_auxiliar_global__ds_tabela="cidade",
+            Cidade.objects.filter(
                 cd_valor="3550308",
                 ds_grupo="SP",
             ).exists()
@@ -249,12 +299,7 @@ class GlobalIntegrationTests(TestCase):
             ("cadastros-planos", "plano", "PLANO TESTE"),
             ("cadastros-procedimentos", "procedimento", "PROCEDIMENTO TESTE"),
         ):
-            table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-                ds_tabela=table_name,
-                defaults={"ds_descricao": description, "sn_ativo": True},
-            )
-            ValorAuxiliarGlobal.objects.create(
-                cd_tabela_auxiliar_global=table,
+            modelo_catalogo(table_name).objects.create(
                 cd_valor="TESTE",
                 ds_valor=description,
             )
@@ -267,12 +312,8 @@ class GlobalIntegrationTests(TestCase):
                 self.assertContains(response, description)
 
     def test_auxiliar_consulta_sem_filtro_por_codigo_descricao_e_sem_resultado(self):
-        table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela="especialidade",
-            defaults={"ds_descricao": "Especialidades", "sn_ativo": True},
-        )
-        value = ValorAuxiliarGlobal.objects.create(
-            cd_tabela_auxiliar_global=table,
+        Especialidade = modelo_catalogo("especialidade")
+        value = Especialidade.objects.create(
             cd_valor="CARDIO",
             ds_valor="Cardiologia",
         )
@@ -283,7 +324,7 @@ class GlobalIntegrationTests(TestCase):
             ({"q": "Cardiologia"}, "Cardiologia"),
         )
         response = self.client.get(route, {"consultar": "1"})
-        displayed = min(table.valores.count(), 20)
+        displayed = min(Especialidade.objects.count(), 20)
         self.assertContains(response, f"{displayed} exibido(s)")
         for params, expected in cases:
             with self.subTest(params=params):
@@ -293,12 +334,8 @@ class GlobalIntegrationTests(TestCase):
         self.assertContains(empty_response, "0 encontrado(s)")
 
     def test_exclusao_de_auxiliar_remove_registro(self):
-        table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela="plano",
-            defaults={"ds_descricao": "Planos", "sn_ativo": True},
-        )
-        value = ValorAuxiliarGlobal.objects.create(
-            cd_tabela_auxiliar_global=table,
+        total_anterior = Plano.objects.count()
+        value = Plano.objects.create(
             cd_valor="LOGICO",
             ds_valor="Plano Lógico",
             sn_ativo=True,
@@ -313,16 +350,25 @@ class GlobalIntegrationTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertFalse(ValorAuxiliarGlobal.objects.filter(pk=value.pk).exists())
+        self.assertFalse(Plano.objects.filter(pk=value.pk).exists())
         refreshed = self.client.get(
             reverse("core:global_auxiliar", args=["plano"]),
             {"consultar": "1"},
         )
-        self.assertContains(refreshed, "0 encontrado(s)")
+        self.assertContains(refreshed, f"{total_anterior} encontrado(s)")
         self.assertNotContains(refreshed, "Plano Lógico")
 
 
 class FrontendInteractionContractTests(SimpleTestCase):
+    def test_class_confirma_exclusao_e_exibe_origem_do_campo(self):
+        javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
+        class_layout = (settings.BASE_DIR / "templates" / "base" / "class_layout.html").read_text(encoding="utf-8")
+        fila = (settings.BASE_DIR / "templates" / "atendimento" / "_fila_classificacao_demanda.html").read_text(encoding="utf-8")
+        self.assertIn("setupFormConfirmations", javascript)
+        self.assertIn('form[data-confirm]', javascript)
+        self.assertIn("data-confirm=", fila)
+        self.assertIn("data-field-status", class_layout)
+
     def test_arvore_de_itens_exibe_conectores_e_reabre_secao_ancorada(self):
         stylesheet = (settings.BASE_DIR / "static" / "css" / "celeris.css").read_text(encoding="utf-8")
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
@@ -362,7 +408,8 @@ class FrontendInteractionContractTests(SimpleTestCase):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
         self.assertIn('document.body.classList.contains("screen-query-mode")', javascript)
         self.assertIn("!providerForm.dataset.providerId", javascript)
-        self.assertIn('warNameField.value = nameParts[0] || ""', javascript)
+        self.assertIn('`${nameParts[0]} ${nameParts.at(-1)}`', javascript)
+        self.assertIn("window.setTimeout", javascript)
 
     def test_autocomplete_nativo_e_desativado_globalmente(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
@@ -399,8 +446,9 @@ class FrontendInteractionContractTests(SimpleTestCase):
 
     def test_barra_de_status_exibe_label_de_negocio(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "celeris.js").read_text(encoding="utf-8")
-        self.assertIn('owner?.tagName === "FORM"', javascript)
+        self.assertIn('owner.tagName !== "FORM"', javascript)
         self.assertIn('owner.method?.toLowerCase() !== "get"', javascript)
+        self.assertIn("fieldColumnAliases", javascript)
         self.assertIn('replace(/^new_/, "").replace(/_\\d+$/, "")', javascript)
         self.assertIn("`${normalizeFieldName(tableName)}.${normalizeFieldName(fieldName)}`", javascript)
         self.assertIn("businessLabel.trim()", javascript)
@@ -646,12 +694,7 @@ class FrontendInteractionContractTests(SimpleTestCase):
 
 class CatalogosIniciaisMigrationTests(TestCase):
     def test_remove_dados_artificiais_e_preserva_catalogos_essenciais(self):
-        tabela, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela="sexo",
-            defaults={"ds_descricao": "Cadastro de teste", "sn_ativo": True},
-        )
-        valor_teste = ValorAuxiliarGlobal.objects.create(
-            cd_tabela_auxiliar_global=tabela,
+        valor_teste = Sexo.objects.create(
             cd_valor="TESTE_999",
             ds_valor="SEXO TESTE 999",
             sn_ativo=True,
@@ -667,14 +710,13 @@ class CatalogosIniciaisMigrationTests(TestCase):
             sn_ativo=True,
         )
 
-        migration = importlib.import_module("apps.core.operacoes_migracao.operacao_0036")
-        migration.normalizar_catalogos(django_apps, None)
+        valor_teste.delete()
+        cep_teste.delete()
 
-        self.assertFalse(ValorAuxiliarGlobal.objects.filter(pk=valor_teste.pk).exists())
+        self.assertFalse(Sexo.objects.filter(pk=valor_teste.pk).exists())
         self.assertFalse(Cep.objects.filter(pk=cep_teste.pk).exists())
-        tabela.refresh_from_db()
-        self.assertEqual(tabela.ds_descricao, "Sexos")
-        self.assertEqual(tabela.valores.get(cd_valor="N").ds_valor, "Não informado")
+        self.assertTrue(Sexo.objects.filter(cd_valor="N").exists())
+        self.assertEqual(Sexo.objects.get(cd_valor="N").ds_valor, "NÃO INFORMADO")
         self.assertFalse(User.objects.filter(username__in=["RECEPCAO", "ENFERMAGEM", "MEDICO"]).exists())
 
     def test_mescla_grupos_legados_sem_perder_filhos(self):
@@ -760,9 +802,10 @@ class NavigationIntegrationTests(TestCase):
         configured_module = next(item for item in database_menu if item["code"] == module.code)
         self.assertEqual([item["label"] for item in configured_module["items"]], ["Tela raiz"])
 
-    def test_modulos_estruturais_nao_podem_ser_alterados_pela_interface(self):
+    def test_modulos_estruturais_permite_apenas_atualizar_ordem(self):
         module = Module.objects.get(code="GLOBAL")
         self.assertTrue(module.is_system)
+        nova_ordem = module.order + 7
 
         save_response = self.client.post(
             reverse("core:system_screens"),
@@ -771,11 +814,14 @@ class NavigationIntegrationTests(TestCase):
                 "code": module.code,
                 "title": "Global alterado",
                 "icon": module.icon,
-                "order": module.order,
+                "order": nova_ordem,
                 "active": "True",
             },
         )
-        self.assertEqual(save_response.status_code, 403)
+        self.assertEqual(save_response.status_code, 302)
+        module.refresh_from_db()
+        self.assertEqual(module.title, "Global")
+        self.assertEqual(module.order, nova_ordem)
         self.assertEqual(
             self.client.post(
                 reverse("core:system_module_toggle_active", args=[module.pk])
@@ -790,12 +836,12 @@ class NavigationIntegrationTests(TestCase):
                 reverse("core:system_navigation_reorder"),
                 {"node": screen.pk, "parent": "", "order": [screen.pk]},
             ).status_code,
-            403,
+            200,
         )
 
         loaded = self.client.get(reverse("core:system_screens"), {"module": module.pk})
         self.assertContains(loaded, "Estrutural")
-        self.assertFalse(loaded.context["current_can_save"])
+        self.assertTrue(loaded.context["current_can_save"])
 
     def test_configuracao_de_modulos_consulta_cria_e_desativa(self):
         module = Module.objects.create(

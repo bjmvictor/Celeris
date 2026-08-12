@@ -7,7 +7,7 @@ from django.db import transaction
 
 from apps.accounts.models import Empresa, Setor
 from apps.atendimento.models import Convenio
-from apps.core.models import TabelaAuxiliarGlobal, ValorAuxiliarGlobal
+from apps.core.catalogos import atualizar_item_catalogo, modelo_catalogo
 
 
 class Command(BaseCommand):
@@ -109,22 +109,15 @@ class Command(BaseCommand):
             for _, document in catalog_documents:
                 if not document["habilitado"]:
                     continue
-                table, _ = TabelaAuxiliarGlobal.objects.update_or_create(
-                    ds_tabela=document["tabela"].strip(),
-                    defaults={
-                        "ds_descricao": document["descricao"].strip(),
-                        "sn_ativo": True,
-                    },
-                )
+                tema = document["tabela"].strip()
+                modelo_catalogo(tema)
                 for record in document["registros"]:
-                    ValorAuxiliarGlobal.objects.update_or_create(
-                        cd_tabela_auxiliar_global=table,
-                        cd_valor=record["codigo"].strip(),
-                        defaults={
-                            "ds_valor": record["descricao"].strip(),
-                            "ds_grupo": record.get("grupo", "").strip(),
-                            "sn_ativo": record.get("ativo", True),
-                        },
+                    atualizar_item_catalogo(
+                        tema,
+                        record["codigo"].strip(),
+                        ds_valor=record["descricao"].strip(),
+                        ds_grupo=record.get("grupo", "").strip(),
+                        sn_ativo=record.get("ativo", True),
                     )
                     counters["catalogos"] += 1
 

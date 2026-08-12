@@ -12,7 +12,7 @@ def seed_setores(apps, schema_editor):
         ("Recepção", "EMPRESA"),
         ("Triagem", "ATENDIMENTO"),
         ("Consultório Clínico", "ATENDIMENTO"),
-        ("Medicação", "ATENDIMENTO"),
+        ("Sala de medicação", "ATENDIMENTO"),
         ("Observação", "ATENDIMENTO"),
         ("Coleta", "ATENDIMENTO"),
     ]

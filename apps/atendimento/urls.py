@@ -1,5 +1,8 @@
 from django.urls import path
 
+from apps.accounts.models import Setor
+from apps.core import views as core_views
+
 from . import views
 from .views_painel import painel_chamada_publico
 
@@ -45,6 +48,8 @@ urlpatterns = [
     path("classificacao/tabelas/cores/", views.cores_classificacao, name="cores-classificacao"),
     path("paineis-chamada/tabelas/icones/", views.icones_chamada, name="icones-chamada"),
     path("paineis-chamada/tabelas/maquinas/", views.maquinas_chamada, name="maquinas-chamada"),
+    path("classificacao/configuracao/perguntas/", views.perguntas_classificacao, name="perguntas-classificacao"),
+    path("classificacao/configuracao/fluxos/", views.fluxos_classificacao, name="fluxos-classificacao"),
     path("totem-senhas/configurar/", views.configurar_senhas, name="configurar-senhas-legado"),
     path("totem-senhas/configurar/<int:cd_tipo>/", views.configurar_senhas, name="editar-configuracao-senha-legado"),
     path("totem-senhas/configurar/<int:cd_tipo>/alternar-status/", views.alternar_status_configuracao_senha, name="alternar-status-configuracao-senha-legado"),
@@ -53,7 +58,9 @@ urlpatterns = [
     path("totem-senhas/gerar/", views.gerar_senha_totem, name="gerar-senha-totem"),
     path("totem-senhas/<int:cd_senha>/imprimir/", views.imprimir_senha_totem, name="imprimir-senha-totem"),
     path("totem-senhas/<int:cd_senha>/<str:acao>/", views.acao_senha_classificacao, name="acao-senha-classificacao"),
+    path("classificacao/agendamentos/<int:cd_agendamento>/chamar/", views.chamar_agendamento_classificacao, name="chamar-agendamento-classificacao"),
     path("classificacao/", views.fila_classificacao, name="fila-classificacao"),
+    path("classificacao/imprimir/", views.imprimir_classificacao, name="imprimir-classificacao"),
     path("consultas/", views.fila_medica, name="fila-medica"),
     path("consultas/<int:cd_atendimento>/abrir/", views.abrir_consulta, name="abrir-consulta"),
     path("agendamento/<int:cd_agendamento>/pre-atendimento/", views.iniciar_pre_atendimento, name="pre-atendimento"),
@@ -71,11 +78,15 @@ urlpatterns = [
     path("documentos/modelos/rascunho/", views.rascunho_editor_documento, name="rascunho-editor-documento"),
     path("documentos/modelos/preview-pdf/", views.preview_pdf_modelo_documento, name="preview-pdf-modelo-documento"),
     path("documentos/modelos/testar-variavel/", views.testar_variavel_documento, name="testar-variavel-documento"),
+    path("documentos/configuracao/telas-impressao/", views.documentos_telas_impressao, name="documentos-telas-impressao"),
     path("documentos/modelos/<int:cd_modelo>/", views.modelos_documento, name="editar-modelo-documento"),
     path("configuracao/perfis-assistenciais/", views.perfis_assistenciais, name="perfis-assistenciais"),
     path("configuracao/perfis-assistenciais/<int:cd_perfil>/itens/", views.perfil_assistencial_itens_api, name="perfil-assistencial-itens-api"),
     path("configuracao/perfis-assistenciais/<int:cd_perfil>/publicar/", views.publicar_perfil_assistencial_api, name="publicar-perfil-assistencial-api"),
     path("configuracao/escalas-clinicas/testar/", views.testar_escala_clinica, name="testar-escala-clinica"),
+    path("classificacao/configuracao/escalas/", views.escalas_classificacao_standalone, name="escalas-classificacao"),
+    path("classificacao/configuracao/escalas/<int:cd_escala>/", views.escalas_classificacao_standalone, name="editar-escala-classificacao"),
+    path("classificacao/configuracao/fluxos/<int:cd_fluxo>/escalas/", views.fluxo_escalas_classificacao, name="fluxo-escalas-classificacao"),
     path("documentos/<int:cd_documento>/imprimir/", views.imprimir_documento_clinico, name="imprimir-documento-clinico"),
     path("documentos/<int:cd_documento>/copiar/", views.copiar_documento_clinico, name="copiar-documento-clinico"),
     path("documentos/<int:cd_documento>/assumir/", views.assumir_documento_clinico, name="assumir-documento-clinico"),
@@ -97,6 +108,16 @@ urlpatterns = [
     path("agendamento/tabelas/convenios/", views.screen, {"screen": "convenios-agendamento"}, name="convenios-agendamento"),
     path("agendamento/tabelas/tipos-atendimento/", views.screen, {"screen": "tipos-atendimento-agendamento"}, name="tipos-atendimento-agendamento"),
     path("agendamento/tabelas/especialidades/", views.screen, {"screen": "especialidades-agendamento"}, name="especialidades-agendamento"),
+    path(
+        "agendamento/tabelas/setores-atendimento/",
+        core_views.setores,
+        {
+            "tipo": Setor.TipoSetor.ATENDIMENTO,
+            "tab_title": "Atendimento > Agendamento > Tabelas > Setores de Atendimento",
+            "module_title": "Atendimento",
+        },
+        name="setores-atendimento-agendamento",
+    ),
     path("atendimento/", views.screen, {"screen": "atendimento"}, name="atendimento"),
     path("atendimento/demanda-espontanea/", views.demanda_espontanea, name="demanda-espontanea"),
     path("atendimento/consultar/", views.screen, {"screen": "consulta-atendimento"}, name="consulta-atendimento"),

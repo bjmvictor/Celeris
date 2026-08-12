@@ -1,5 +1,5 @@
 <div class="navigation-tree-item" data-navigation-item="{{ node.pk }}">
-  <div class="navigation-tree-node{% if not node.active %} is-inactive{% endif %}" style="--tree-level: {{ level }}" data-navigation-node="{{ node.pk }}"{% if not protected %} draggable="true"{% endif %}>
+  <div class="navigation-tree-node{% if not node.active %} is-inactive{% endif %}" style="--tree-level: {{ level }}" data-navigation-node="{{ node.pk }}" draggable="true">
     <span class="navigation-tree-branch"></span>
     {% if node.icon %}
       <span class="svg-icon" data-nav-icon="{{ node.icon }}"></span>

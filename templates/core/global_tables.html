@@ -9,10 +9,10 @@
       <tbody>
         {% for table in tables %}
           <tr>
-            <td>{{ table.cd_tabela_auxiliar_global }}</td>
+            <td>{{ table.codigo }}</td>
             <td>{{ table.ds_tabela }}</td>
             <td>{{ table.ds_descricao|default:table.ds_tabela }}</td>
-            <td>{{ table.valores.count }}</td>
+            <td>{{ table.quantidade }}</td>
             <td><a class="button button-secondary" href="{% url 'core:global_auxiliar' table.ds_tabela %}">Abrir</a></td>
           </tr>
         {% empty %}

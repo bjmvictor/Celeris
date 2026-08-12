@@ -3,7 +3,7 @@
 from django.db import migrations
 
 
-MODULOS_NAO_IMPLEMENTADOS = {"COMPRAS", "FINANCEIRO", "RH"}
+MODULOS_NAO_IMPLEMENTADOS = {"COMPRAS", "FINANCEIRO", "RH", "FATURAMENTO", "BI"}
 
 
 def desativar_modulos(apps, schema_editor):

@@ -32,7 +32,11 @@ class Migration(migrations.Migration):
             reverse_code=migracao_0028.reativar_telas,
         ),
         migrations.RunPython(
-            code=migracao_0029.seed_discharge_auxiliaries,
+            code=migracao_0029.seed_cids,
+            reverse_code=django.db.migrations.operations.special.RunPython.noop,
+        ),
+        migrations.RunPython(
+            code=migracao_0029.seed_motivos_alta,
             reverse_code=django.db.migrations.operations.special.RunPython.noop,
         ),
     ]

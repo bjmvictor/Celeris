@@ -4,6 +4,7 @@
   <form class="navigation-config-form ticket-config-form" data-table="core_module" data-primary-form data-query-url="{% url 'core:system_screens' %}" data-has-errors="{{ form.errors|yesno:'true,false' }}" method="post" autocomplete="off">
     {% csrf_token %}
     <input type="hidden" name="module_id" value="{{ module.pk|default:'' }}" data-primary-key="true">
+    <input type="hidden" name="navigation_order_changed" value="" data-navigation-order-dirty>
     {{ form.non_field_errors }}
 
     <details class="card form-section" open>

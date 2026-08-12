@@ -1,0 +1,24 @@
+{% extends class_base_template|default:"base/layout.html" %}
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="pergunta_classificacao" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead><tr><th>Código</th><th>Pergunta</th><th>Resposta</th><th>Ordem</th><th>Obrigatória</th><th>Origem</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for item in registros %}
+          <tr data-editable-row>
+            <td><input value="{{ item.pk }}" readonly data-primary-key="true">{% if not item.sn_padrao %}<input data-row-delete name="delete_{{ item.pk }}" type="hidden" value="0">{% endif %}</td>
+            <td><input name="name_{{ item.pk }}" value="{{ item.nm_pergunta }}" data-preserve-characters {% if item.sn_padrao %}readonly{% endif %} required></td>
+            <td><select name="type_{{ item.pk }}" {% if item.sn_padrao %}disabled{% endif %}><option value="SIM_NAO" {% if item.tp_resposta == 'SIM_NAO' %}selected{% endif %}>Sim/Não</option><option value="TEXTO" {% if item.tp_resposta == 'TEXTO' %}selected{% endif %}>Texto</option><option value="NUMERO" {% if item.tp_resposta == 'NUMERO' %}selected{% endif %}>Número</option></select></td>
+            <td><input name="order_{{ item.pk }}" type="number" min="0" value="{{ item.nr_ordem }}" {% if item.sn_padrao %}readonly{% endif %}></td>
+            <td><select name="required_{{ item.pk }}" {% if item.sn_padrao %}disabled{% endif %}><option value="false" {% if not item.sn_obrigatoria %}selected{% endif %}>Não</option><option value="true" {% if item.sn_obrigatoria %}selected{% endif %}>Sim</option></select></td>
+            <td class="table-origin-cell"><span class="table-text">{% if item.sn_padrao %}Padrão do sistema{% else %}Personalizada{% endif %}</span></td>
+            <td><select name="active_{{ item.pk }}" {% if item.sn_padrao %}disabled{% endif %}><option value="true" {% if item.sn_ativo %}selected{% endif %}>Ativa</option><option value="false" {% if not item.sn_ativo %}selected{% endif %}>Inativa</option></select></td>
+          </tr>
+        {% empty %}<tr><td colspan="7" class="empty-cell">Nenhuma pergunta encontrada.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row><tr data-editable-row><td><input readonly data-primary-key="true" placeholder="Automático"></td><td><input name="new_name" data-preserve-characters required></td><td><select name="new_type"><option value="SIM_NAO">Sim/Não</option><option value="TEXTO">Texto</option><option value="NUMERO">Número</option></select></td><td><input name="new_order" type="number" min="0" value="10"></td><td><select name="new_required"><option value="false" selected>Não</option><option value="true">Sim</option></select></td><td class="table-origin-cell"><span class="table-text">Personalizada</span></td><td><select name="new_active"><option value="true" selected>Ativa</option><option value="false">Inativa</option></select></td></tr></template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

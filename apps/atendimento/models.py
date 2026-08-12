@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.utils.deconstruct import deconstructible
 
 from apps.accounts.models import Empresa, Setor
-from apps.core.models import Cep, ValorAuxiliarGlobal
+from apps.core.models import Cep, Especialidade, MotivoAlteracao, ScreenDefinition
 from apps.core.validators import validate_cpf
 
 
@@ -77,6 +77,7 @@ class Prestador(AuditoriaModel):
     ds_nacionalidade = models.CharField(max_length=40, blank=True)
     ds_naturalidade = models.CharField(max_length=40, blank=True)
     tp_prestador = models.CharField(max_length=60, blank=True)
+    cd_cbo = models.CharField(max_length=20, blank=True)
     tp_sexo = models.CharField(max_length=20, blank=True)
     ds_cor_raca = models.CharField(max_length=40, blank=True)
     ds_orgao_emissor = models.CharField(max_length=40, blank=True)
@@ -161,10 +162,7 @@ class Prestador(AuditoriaModel):
     def nm_especialidade(self):
         codes = self.ds_especialidades or ([self.ds_especialidade] if self.ds_especialidade else [])
         descriptions = list(
-            ValorAuxiliarGlobal.objects.filter(
-                cd_tabela_auxiliar_global__ds_tabela="especialidade",
-                cd_valor__in=codes,
-            )
+            Especialidade.objects.filter(cd_valor__in=codes)
             .order_by("ds_valor")
             .values_list("ds_valor", flat=True)
         )
@@ -268,10 +266,7 @@ class AgendaProfissional(AuditoriaModel):
         if not self.ds_especialidade:
             return ""
         return (
-            ValorAuxiliarGlobal.objects.filter(
-                cd_tabela_auxiliar_global__ds_tabela="especialidade",
-                cd_valor=self.ds_especialidade,
-            )
+            Especialidade.objects.filter(cd_valor=self.ds_especialidade)
             .values_list("ds_valor", flat=True)
             .first()
             or self.ds_especialidade.replace("_", " ").title()
@@ -378,6 +373,7 @@ class Paciente(AuditoriaModel):
     dt_nascimento = models.DateField(null=True, blank=True)
     tp_sexo = models.CharField(max_length=20, blank=True)
     tp_genero = models.CharField(max_length=40, blank=True)
+    ds_orientacao_sexual = models.CharField(max_length=40, blank=True)
     ds_cor_raca = models.CharField(max_length=40, blank=True)
     tp_estado_civil = models.CharField(max_length=40, blank=True)
     tp_sanguineo = models.CharField(max_length=5, blank=True)
@@ -396,6 +392,9 @@ class Paciente(AuditoriaModel):
     nm_conjuge = models.CharField(max_length=180, blank=True)
     ds_naturalidade = models.CharField(max_length=120, blank=True)
     ds_nacionalidade = models.CharField(max_length=120, blank=True)
+    ds_pais_nascimento = models.CharField(max_length=40, blank=True)
+    sg_uf_nascimento = models.CharField(max_length=2, blank=True)
+    ds_municipio_nascimento = models.CharField(max_length=120, blank=True)
     ds_profissao = models.CharField(max_length=120, blank=True)
     ds_orgao_emissor = models.CharField(max_length=40, blank=True)
     dt_expedicao = models.DateField(null=True, blank=True)
@@ -432,7 +431,7 @@ class HistoricoAlteracaoPaciente(models.Model):
     cd_paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE, db_column="cd_paciente")
     cd_usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, db_column="cd_usuario")
     cd_motivo_alteracao = models.ForeignKey(
-        ValorAuxiliarGlobal,
+        MotivoAlteracao,
         null=True,
         blank=True,
         on_delete=models.PROTECT,
@@ -532,6 +531,7 @@ class PreAtendimento(AuditoriaModel):
     nr_peso = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     nr_altura = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     ds_observacao = models.TextField(blank=True)
+    ds_dados_classificacao = models.JSONField(default=dict, blank=True)
     dh_inicio = models.DateTimeField(default=timezone.now)
     dh_fim = models.DateTimeField(null=True, blank=True)
     dh_classificacao = models.DateTimeField(auto_now_add=True)
@@ -700,7 +700,7 @@ class HistoricoAlteracaoAtendimento(models.Model):
         db_column="cd_usuario",
     )
     cd_motivo_alteracao = models.ForeignKey(
-        ValorAuxiliarGlobal,
+        MotivoAlteracao,
         null=True,
         blank=True,
         on_delete=models.PROTECT,
@@ -829,6 +829,14 @@ class ChamadaPainel(AuditoriaModel):
         db_column="cd_atendimento",
         related_name="chamadas_painel",
     )
+    cd_agendamento = models.ForeignKey(
+        Agendamento,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_agendamento",
+        related_name="chamadas_painel",
+    )
     cd_setor = models.ForeignKey(Setor, null=True, blank=True, on_delete=models.PROTECT, db_column="cd_setor")
     cd_senha_atendimento = models.ForeignKey(
         "SenhaAtendimento",
@@ -948,6 +956,7 @@ class ClasseSenhaAtendimento(AuditoriaModel):
 class ProtocoloSenhaAtendimento(AuditoriaModel):
     cd_protocolo_senha = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    sg_protocolo = models.CharField(max_length=8, blank=True)
     nm_protocolo = models.CharField(max_length=120)
     ds_protocolo = models.CharField(max_length=500, blank=True)
     sn_ativo = models.BooleanField(default=True)
@@ -976,10 +985,28 @@ class RegraSubdivisaoSenha(AuditoriaModel):
         on_delete=models.PROTECT,
         db_column="cd_classe_senha",
     )
+    sg_regra = models.CharField(max_length=4, blank=True)
     nr_prioridade = models.PositiveSmallIntegerField(default=5)
     nr_idade_minima = models.PositiveSmallIntegerField(null=True, blank=True)
     nr_idade_maxima = models.PositiveSmallIntegerField(null=True, blank=True)
     ds_icone = models.CharField(max_length=40, blank=True)
+    cd_icone_chamada = models.ForeignKey(
+        IconeChamada,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_icone_chamada",
+        related_name="regras_subdivisao",
+    )
+    cd_protocolo = models.ForeignKey(
+        ProtocoloSenhaAtendimento,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_protocolo",
+        related_name="regras_subdivisao",
+    )
+    nr_tempo_limite = models.PositiveSmallIntegerField(default=30)
     sn_ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -1020,6 +1047,14 @@ class SenhaAtendimento(AuditoriaModel):
         db_column="cd_pre_atendimento",
         related_name="senhas_atendimento",
     )
+    cd_atendimento = models.ForeignKey(
+        Atendimento,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_atendimento",
+        related_name="senhas_classificacao",
+    )
     cd_cor_classificacao = models.ForeignKey(
         CorClassificacaoRisco,
         null=True,
@@ -1031,12 +1066,14 @@ class SenhaAtendimento(AuditoriaModel):
     nm_pre_cadastro = models.CharField(max_length=160, blank=True)
     dt_nascimento_pre_cadastro = models.DateField(null=True, blank=True)
     nm_mae_pre_cadastro = models.CharField(max_length=160, blank=True)
+    tp_sexo_pre_cadastro = models.CharField(max_length=30, blank=True)
     ds_dados_classificacao = models.JSONField(default=dict, blank=True)
     dt_senha = models.DateField(default=timezone.localdate)
     nr_senha = models.PositiveIntegerField()
     ds_senha = models.CharField(max_length=16)
     nr_prioridade = models.PositiveSmallIntegerField(default=5)
     nr_tempo_limite = models.PositiveSmallIntegerField(default=30)
+    nr_chamadas = models.PositiveSmallIntegerField(default=0)
     ds_status = models.CharField(max_length=24, choices=STATUS, default="AGUARDANDO")
     dh_chamada = models.DateTimeField(null=True, blank=True)
     dh_recepcao = models.DateTimeField(null=True, blank=True)
@@ -1054,6 +1091,94 @@ class SenhaAtendimento(AuditoriaModel):
     def tempo_excedido(self):
         limite = self.dh_criacao + timedelta(minutes=self.nr_tempo_limite)
         return self.ds_status in {"AGUARDANDO", "CHAMADA"} and timezone.now() > limite
+
+
+class PerguntaClassificacao(AuditoriaModel):
+    TIPOS_RESPOSTA = [
+        ("SIM_NAO", "Sim/Não"),
+        ("TEXTO", "Texto"),
+        ("NUMERO", "Número"),
+    ]
+    cd_pergunta_classificacao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    nm_pergunta = models.CharField(max_length=240)
+    tp_resposta = models.CharField(max_length=20, choices=TIPOS_RESPOSTA, default="SIM_NAO")
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_padrao = models.BooleanField(default=False)
+    sn_editavel = models.BooleanField(default=True)
+    sn_obrigatoria = models.BooleanField(default=False)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "pergunta_classificacao"
+        ordering = ("nr_ordem", "nm_pergunta")
+
+    def __str__(self):
+        return self.nm_pergunta
+
+
+class GrupoFluxoClassificacao(AuditoriaModel):
+    cd_grupo_fluxo_classificacao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    nm_grupo = models.CharField(max_length=100)
+    ds_descricao = models.CharField(max_length=300, blank=True)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "grupo_fluxo_classificacao"
+        ordering = ("nr_ordem", "nm_grupo")
+        unique_together = ("cd_empresa", "nm_grupo")
+
+    def __str__(self):
+        return self.nm_grupo
+
+
+class FluxoClassificacao(AuditoriaModel):
+    cd_fluxo_classificacao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_grupo = models.ForeignKey(
+        GrupoFluxoClassificacao,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        db_column="cd_grupo_fluxo_classificacao",
+        related_name="sintomas",
+    )
+    nm_grupo = models.CharField(max_length=100)
+    nm_fluxo = models.CharField(max_length=160)
+    ds_orientacao = models.TextField(blank=True)
+    cd_cor_recomendada = models.ForeignKey(
+        CorClassificacaoRisco,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_cor_recomendada",
+    )
+    ds_configuracao = models.JSONField(default=dict, blank=True)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "fluxo_classificacao"
+        ordering = ("nm_grupo", "nr_ordem", "nm_fluxo")
+
+    def __str__(self):
+        return f"{self.nm_grupo} > {self.nm_fluxo}"
+
+    def save(self, *args, **kwargs):
+        if self.cd_grupo_id:
+            self.nm_grupo = self.cd_grupo.nm_grupo
+        elif self.cd_empresa_id and self.nm_grupo:
+            self.cd_grupo, _ = GrupoFluxoClassificacao.objects.get_or_create(
+                cd_empresa_id=self.cd_empresa_id,
+                nm_grupo=self.nm_grupo.strip(),
+                defaults={"nr_ordem": self.nr_ordem, "sn_ativo": True},
+            )
+            self.nm_grupo = self.cd_grupo.nm_grupo
+        super().save(*args, **kwargs)
+
+
 class AtendimentoFluxo(models.Model):
     cd_atendimento_fluxo = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
@@ -1227,6 +1352,7 @@ class ModeloDocumento(AuditoriaModel):
     TIPOS = [
         ("COMPROVANTE_AGENDAMENTO", "Comprovante de agendamento"),
         ("COMPROVANTE_CHAMADO", "Comprovante de chamado"),
+        ("FICHA_CLASSIFICACAO", "Ficha de classificação"),
         ("FICHA_ATENDIMENTO", "Ficha de atendimento"),
         ("ETIQUETA_ATENDIMENTO", "Etiqueta de atendimento"),
         ("PRESCRICAO", "Prescrição"),
@@ -1292,6 +1418,37 @@ class ModeloDocumento(AuditoriaModel):
 
     def __str__(self):
         return self.nm_modelo
+
+
+class ModeloDocumentoTelaImpressao(AuditoriaModel):
+    cd_modelo_documento_tela = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_modelo_documento = models.ForeignKey(
+        ModeloDocumento,
+        on_delete=models.CASCADE,
+        db_column="cd_modelo_documento",
+        related_name="telas_impressao",
+    )
+    cd_tela = models.ForeignKey(
+        ScreenDefinition,
+        on_delete=models.PROTECT,
+        db_column="cd_tela",
+        related_name="modelos_documento_impressao",
+    )
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "modelo_documento_tela_impressao"
+        ordering = ("cd_tela__module__order", "cd_tela__order", "cd_tela__title")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_modelo_documento", "cd_tela"),
+                name="modelo_documento_tela_impressao_unica",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.cd_modelo_documento} - {self.cd_tela}"
 
 
 class PerfilAssistencial(AuditoriaModel):
@@ -1625,6 +1782,7 @@ class EscalaClinica(AuditoriaModel):
     ds_descricao = models.CharField(max_length=500, blank=True)
     tp_calculo = models.CharField(max_length=10, choices=METODOS, default="SOMA")
     ds_expressao_calculo = models.CharField(max_length=1000, blank=True)
+    ds_condicoes_calculo = models.JSONField(default=list, blank=True)
     ds_perguntas = models.JSONField(default=list)
     ds_faixas_resultado = models.JSONField(default=list)
     nr_versao = models.PositiveIntegerField(default=1)
@@ -1637,6 +1795,35 @@ class EscalaClinica(AuditoriaModel):
             models.UniqueConstraint(
                 fields=("cd_empresa", "nm_escala", "nr_versao"),
                 name="escala_clinica_versao_unica",
+            ),
+        ]
+
+
+class FluxoClassificacaoEscala(AuditoriaModel):
+    cd_fluxo_classificacao_escala = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_fluxo_classificacao = models.ForeignKey(
+        FluxoClassificacao,
+        on_delete=models.CASCADE,
+        db_column="cd_fluxo_classificacao",
+        related_name="escalas_recomendadas",
+    )
+    cd_escala_clinica = models.ForeignKey(
+        EscalaClinica,
+        on_delete=models.PROTECT,
+        db_column="cd_escala_clinica",
+        related_name="fluxos_recomendados",
+    )
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "fluxo_classificacao_escala"
+        ordering = ("nr_ordem", "cd_fluxo_classificacao_escala")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_fluxo_classificacao", "cd_escala_clinica"),
+                name="fluxo_classificacao_escala_unica",
             ),
         ]
 

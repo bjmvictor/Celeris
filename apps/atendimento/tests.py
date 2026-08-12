@@ -2,20 +2,25 @@ from datetime import date, datetime, time, timedelta
 import gzip
 import json
 import sys
+import tempfile
 import types
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.test import Client, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.http import HttpResponse
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
-from apps.core.models import Cep, TabelaAuxiliarGlobal, ValorAuxiliarGlobal
+from apps.core.catalogos import modelo_catalogo
+from apps.core.models import Cep, Especialidade, Feriado, Module, MotivoAlteracao, ScreenDefinition, TipoPrestador
 
-from .forms import EscalaForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, HistoricoAlteracaoAtendimento, HorarioAgenda, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
+from .forms import EscalaForm, PacienteForm, PrestadorForm
+from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
 
 
@@ -165,12 +170,7 @@ class ConsultaAtendimentosTests(TestCase):
         )
 
     def test_alteracao_exige_motivo_e_preserva_campos_estruturais(self):
-        tabela, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela="motivo_alteracao",
-            defaults={"ds_descricao": "Motivos de alteração", "sn_ativo": True},
-        )
-        motivo = ValorAuxiliarGlobal.objects.create(
-            cd_tabela_auxiliar_global=tabela,
+        motivo = MotivoAlteracao.objects.create(
             cd_valor="CORRECAO",
             ds_valor="Correção administrativa",
         )
@@ -297,6 +297,41 @@ class PainelChamadaStandaloneTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Configurar painel")
 
+    def test_midia_enviada_e_servida_pela_rota_publica_do_painel(self):
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                f"/painel/?maquina={self.maquina.nm_maquina}",
+                {
+                    "empresa": self.empresa.pk,
+                    "layout": "classico",
+                    "tamanho": "medio",
+                    "cor": "azul",
+                    "chamar_paciente": "1",
+                    "habilitar_midia": "1",
+                    "mostrar_nome": "1",
+                    "mostrar_senha": "1",
+                    "mostrar_ultimas": "1",
+                    "quantidade_ultimas": "5",
+                    "tempo_exibicao": "10",
+                    "repeticoes": "1",
+                    "midia_arquivo": SimpleUploadedFile(
+                        "painel.jpg",
+                        b"imagem-de-teste",
+                        content_type="image/jpeg",
+                    ),
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+            painel = PainelChamada.objects.get(cd_empresa=self.empresa, nm_maquina=self.maquina.nm_maquina)
+
+            pagina = self.client.get("/painel/", {"maquina": self.maquina.nm_maquina})
+            self.assertContains(pagina, reverse("painel_chamada_midia", args=[painel.pk]))
+
+            midia = self.client.get(reverse("painel_chamada_midia", args=[painel.pk]))
+            self.assertEqual(midia.status_code, 200)
+            self.assertEqual(midia["Content-Type"], "image/jpeg")
+            midia.close()
+
     def test_acesso_sem_identificador_cria_identificador_persistente(self):
         response = self.client.get("/painel/")
         self.assertEqual(response.status_code, 200)
@@ -420,17 +455,12 @@ class PainelChamadaStandaloneTests(TestCase):
 class EscalaEspecialidadesTests(TestCase):
     def setUp(self):
         self.empresa = Empresa.objects.create(cd_empresa=702, nm_empresa="Empresa Escalas", sn_ativo=True)
-        tabela, _created = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela="especialidade",
-            defaults={"ds_descricao": "Especialidades", "sn_ativo": True},
-        )
         for code, label in (
             ("CARDIOLOGIA", "Cardiologia"),
             ("CLINICA_GERAL", "Clínica Geral"),
             ("PEDIATRIA", "Pediatria"),
         ):
-            ValorAuxiliarGlobal.objects.update_or_create(
-                cd_tabela_auxiliar_global=tabela,
+            Especialidade.objects.update_or_create(
                 cd_valor=code,
                 defaults={"ds_valor": label, "sn_ativo": True},
             )
@@ -673,12 +703,34 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(Atendimento.objects.filter(cd_agendamento=self.agendamento).count(), 1)
 
     def test_cadastro_atendimento_grava_responsavel_e_oferece_impressao(self):
+        screen = ScreenDefinition.objects.get(access_key="atendimento:recepcao")
         modelo = ModeloDocumento.objects.create(
             cd_empresa=self.empresa,
             nm_modelo="Ficha configurada",
             tp_documento="FICHA_ATENDIMENTO",
             tp_elemento="DOCUMENTO",
             ds_html_impressao="<strong>FICHA CONFIGURADA {{ atendimento.codigo }}</strong>",
+        )
+        etiqueta = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Etiqueta configurada",
+            tp_documento="ETIQUETA_ATENDIMENTO",
+            tp_elemento="DOCUMENTO",
+            ds_html_impressao="<strong>ETIQUETA CONFIGURADA {{ atendimento.codigo }}</strong>",
+        )
+        ModeloDocumentoTelaImpressao.objects.bulk_create(
+            [
+                ModeloDocumentoTelaImpressao(
+                    cd_empresa=self.empresa,
+                    cd_modelo_documento=modelo,
+                    cd_tela=screen,
+                ),
+                ModeloDocumentoTelaImpressao(
+                    cd_empresa=self.empresa,
+                    cd_modelo_documento=etiqueta,
+                    cd_tela=screen,
+                ),
+            ]
         )
         self.login_as(self.recepcionista)
         response = self.client.post(
@@ -706,6 +758,8 @@ class FluxoHomologacaoTests(TestCase):
         self.assertContains(confirmation, "data-attendance-documents-open")
         self.assertContains(confirmation, "Documentos do atendimento")
         self.assertContains(confirmation, "Ficha configurada")
+        self.assertContains(confirmation, "Etiqueta configurada")
+        self.assertContains(confirmation, "data-attendance-documents-print-selected")
         self.assertContains(confirmation, "Código")
         self.assertContains(confirmation, reverse("atendimento:imprimir-atendimento", args=[atendimento.pk]))
         configured = self.client.get(
@@ -714,6 +768,13 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.assertContains(configured, f"FICHA CONFIGURADA {atendimento.pk}")
         self.assertEqual(configured.headers["X-Frame-Options"], "SAMEORIGIN")
+        multiple = self.client.get(
+            reverse("atendimento:imprimir-atendimento", args=[atendimento.pk]),
+            {"modelos": f"{modelo.pk},{etiqueta.pk}"},
+        )
+        self.assertContains(multiple, f"FICHA CONFIGURADA {atendimento.pk}")
+        self.assertContains(multiple, f"ETIQUETA CONFIGURADA {atendimento.pk}")
+        self.assertEqual(multiple.content.count(b'class="attendance-print-document"'), 2)
 
     def test_dados_de_outra_empresa_nao_entram_na_recepcao(self):
         outra_empresa = Empresa.objects.create(cd_empresa=100, nm_empresa="Outra empresa", sn_ativo=True)
@@ -786,7 +847,90 @@ class FluxoHomologacaoTests(TestCase):
         self.assertContains(detail, f"Atendimento {atendimento.pk}")
         self.assertContains(detail, "Cefaleia")
 
+    def test_pep_abre_paciente_sem_atendimento_e_consulta_nome_social(self):
+        paciente = Paciente.objects.create(
+            cd_empresa=self.empresa,
+            nm_paciente="NOME DE REGISTRO SEM ATENDIMENTO",
+            nm_social="NOME SOCIAL LOCALIZAVEL",
+        )
+        self.login_as(self.medico_user)
+
+        resultado = self.client.get(
+            reverse("atendimento:pep"),
+            {"aba": "todos", "q": "SOCIAL LOCALIZAVEL"},
+        )
+        self.assertContains(resultado, "NOME SOCIAL LOCALIZAVEL")
+
+        prontuario = self.client.get(
+            reverse("atendimento:pep-prontuario-paciente", args=[paciente.pk]),
+            {"modo": "consulta"},
+        )
+        self.assertEqual(prontuario.status_code, 200)
+        self.assertContains(prontuario, "Este paciente ainda não possui atendimentos registrados.")
+        self.assertContains(prontuario, "NOME SOCIAL LOCALIZAVEL")
+
+    def test_documento_pode_ser_vinculado_a_tela_de_impressao(self):
+        module = Module.objects.create(code="IMPRESSAO_TESTE", title="Impressão teste", order=997)
+        screen = ScreenDefinition.objects.create(
+            module=module,
+            title="Cadastro de atendimento",
+            slug="impressao-cadastro-atendimento",
+            access_key="atendimento:cadastro-atendimento",
+            order=10,
+        )
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Ficha configurada por tela",
+            tp_documento="FICHA_ATENDIMENTO",
+            tp_elemento="DOCUMENTO",
+            sn_versao_atual=True,
+            sn_ativo=True,
+        )
+        self.login_as(self.ti_user)
+
+        pagina = self.client.get(
+            reverse("atendimento:documentos-telas-impressao"),
+            {"modelo": modelo.pk},
+        )
+        self.assertContains(pagina, "Ficha configurada por tela")
+        self.assertContains(pagina, 'data-document-screen-module')
+        self.assertContains(pagina, 'data-document-screen-select')
+        self.assertContains(pagina, f'value="{module.pk}"')
+        self.assertContains(pagina, 'value="Ficha configurada por tela" readonly')
+
+        saved = self.client.post(
+            reverse("atendimento:documentos-telas-impressao"),
+            {
+                "modelo": modelo.pk,
+                "modulo": [module.pk],
+                "tela": [screen.pk],
+                "excluir": ["0"],
+            },
+        )
+        self.assertRedirects(
+            saved,
+            f"{reverse('atendimento:documentos-telas-impressao')}?modelo={modelo.pk}",
+        )
+        self.assertTrue(
+            ModeloDocumentoTelaImpressao.objects.filter(
+                cd_empresa=self.empresa,
+                cd_modelo_documento=modelo,
+                cd_tela=screen,
+                sn_ativo=True,
+            ).exists()
+        )
+
     def test_agendamentos_operacionais_exibe_calendario_e_comprovante(self):
+        screen = ScreenDefinition.objects.filter(access_key="atendimento:agendar").first()
+        if not screen:
+            module = Module.objects.create(code="AGENDAMENTO_IMPRESSAO", title="Agendamento", order=996)
+            screen = ScreenDefinition.objects.create(
+                module=module,
+                title="Agendar",
+                slug="agendar-impressao-teste",
+                access_key="atendimento:agendar",
+                order=10,
+            )
         modelo = ModeloDocumento.objects.create(
             cd_empresa=self.empresa,
             nm_modelo="Comprovante configurado",
@@ -794,6 +938,11 @@ class FluxoHomologacaoTests(TestCase):
             tp_elemento="DOCUMENTO",
             ds_html_impressao="<strong>COMPROVANTE EDITÁVEL {{ agendamento.codigo }}</strong>",
             sn_exibe_assinatura=False,
+        )
+        ModeloDocumentoTelaImpressao.objects.create(
+            cd_empresa=self.empresa,
+            cd_modelo_documento=modelo,
+            cd_tela=screen,
         )
         self.login_as(self.recepcionista)
         response = self.client.get(reverse("atendimento:agendamentos-operacionais"))
@@ -817,6 +966,64 @@ class FluxoHomologacaoTests(TestCase):
         self.assertContains(embed, f"COMPROVANTE EDITÁVEL {self.agendamento.pk}")
         self.assertEqual(embed.context["modelo"], modelo)
 
+    def test_comprovante_sem_modelo_exibe_orientacao_amigavel(self):
+        self.login_as(self.recepcionista)
+
+        response = self.client.get(
+            reverse("atendimento:comprovante-agendamento", args=[self.agendamento.pk]),
+            {"pdf": "1", "tela": "atendimento:agendar"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "atendimento/impressao_indisponivel.html")
+        self.assertContains(response, "Comprovante não configurado")
+        self.assertContains(response, "Documentos × telas de impressão")
+
+    def test_cores_preservam_caixa_do_nome_e_rejeitam_chave_duplicada(self):
+        primeira = CorClassificacaoRisco.objects.create(
+            cd_empresa=self.empresa,
+            cd_cor="VERDE",
+            nm_cor="Verde",
+            ds_cor_hex="#22c55e",
+            nr_prioridade=1,
+        )
+        segunda = CorClassificacaoRisco.objects.create(
+            cd_empresa=self.empresa,
+            cd_cor="AZUL",
+            nm_cor="Azul",
+            ds_cor_hex="#3b82f6",
+            nr_prioridade=2,
+        )
+        self.login_as(self.ti_user)
+        url = reverse("class_cores")
+        dados = {
+            f"code_{primeira.pk}": "VERDE",
+            f"name_{primeira.pk}": "Verde claro",
+            f"hex_{primeira.pk}": "#22c55e",
+            f"priority_{primeira.pk}": "1",
+            f"active_{primeira.pk}": "true",
+            f"code_{segunda.pk}": "AZUL",
+            f"name_{segunda.pk}": "Azul profundo",
+            f"hex_{segunda.pk}": "#3b82f6",
+            f"priority_{segunda.pk}": "2",
+            f"active_{segunda.pk}": "true",
+        }
+
+        response = self.client.post(f"{url}?consultar=1", dados)
+
+        self.assertRedirects(response, f"{url}?consultar=1")
+        primeira.refresh_from_db()
+        segunda.refresh_from_db()
+        self.assertEqual(primeira.nm_cor, "Verde claro")
+        self.assertEqual(segunda.nm_cor, "Azul profundo")
+
+        dados[f"code_{primeira.pk}"] = "AZUL"
+        response = self.client.post(f"{url}?consultar=1", dados, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "já está sendo utilizada por outra cor")
+        primeira.refresh_from_db()
+        self.assertEqual(primeira.cd_cor, "VERDE")
+
     def test_cancelar_agendamento_preserva_filtros_da_listagem(self):
         self.login_as(self.recepcionista)
         return_to = (
@@ -836,7 +1043,7 @@ class FluxoHomologacaoTests(TestCase):
         response = self.client.get(reverse("atendimento:selecionar-agenda", args=[self.paciente.pk]))
         self.assertContains(response, "calendar-day")
         self.assertContains(response, "data-schedule-patient-header")
-        self.assertContains(response, f'window.location.assign("{reverse("atendimento:agendar")}")')
+        self.assertNotContains(response, f'window.location.assign("{reverse("atendimento:agendar")}")')
         self.assertNotContains(response, "Confirmar agendamento")
         horario = response.context["horarios"][0]
         selected = self.client.get(
@@ -859,10 +1066,7 @@ class FluxoHomologacaoTests(TestCase):
         )
         first = self.client.post(confirmation_url, {"ds_tipo_atendimento": "CONSULTA"})
         agendamento = Agendamento.objects.latest("pk")
-        expected = (
-            f"{reverse('atendimento:selecionar-agenda', args=[self.paciente.pk])}"
-            f"?comprovante={agendamento.pk}"
-        )
+        expected = f"{reverse('atendimento:agendar')}?comprovante={agendamento.pk}"
         self.assertRedirects(first, expected)
         modal = self.client.get(first.url)
         self.assertContains(modal, "data-appointment-receipt-modal")
@@ -953,9 +1157,7 @@ class FluxoHomologacaoTests(TestCase):
         self.agenda.ds_dias_semana = [data.weekday()]
         self.agenda.sn_atende_feriado = False
         self.agenda.save()
-        tabela, _ = TabelaAuxiliarGlobal.objects.get_or_create(ds_tabela="feriado", defaults={"ds_descricao": "Feriados"})
-        ValorAuxiliarGlobal.objects.create(
-            cd_tabela_auxiliar_global=tabela,
+        Feriado.objects.create(
             cd_valor=data.isoformat(),
             ds_valor=data.isoformat(),
         )
@@ -992,9 +1194,7 @@ class FluxoHomologacaoTests(TestCase):
             ("especialidade", "CLINICA_GERAL", "Clínica geral"),
             ("tipo_atendimento", "PRIMEIRA_CONSULTA", "Primeira consulta"),
         ):
-            tabela, _ = TabelaAuxiliarGlobal.objects.get_or_create(ds_tabela=tabela_nome, defaults={"ds_descricao": descricao})
-            valor, _ = ValorAuxiliarGlobal.objects.get_or_create(
-                cd_tabela_auxiliar_global=tabela,
+            valor, _ = modelo_catalogo(tabela_nome).objects.get_or_create(
                 cd_valor=codigo,
                 defaults={"ds_valor": descricao},
             )
@@ -1027,7 +1227,8 @@ class FluxoHomologacaoTests(TestCase):
 
         cadastro = self.client.get(reverse("atendimento:cadastro-escala", args=[escala.pk]))
         self.assertContains(cadastro, "Visualizar horários da escala")
-        self.assertContains(cadastro, "Ajustar escala automaticamente")
+        self.assertNotContains(cadastro, "Ajustar escala automaticamente")
+        self.assertContains(cadastro, "Os horários serão gerados conforme a quantidade")
         self.assertContains(cadastro, "data-scale-weekdays")
         consulta = self.client.get(
             reverse("atendimento:escalas"),
@@ -1224,12 +1425,12 @@ class FluxoHomologacaoTests(TestCase):
                 "nr_prioridade_classe": "4",
             },
         )
-        tipo = TipoSenhaAtendimento.objects.get(nm_tipo_senha="Adulto")
+        tipo = TipoSenhaAtendimento.objects.get(cd_empresa=self.empresa, nm_tipo_senha="Adulto")
         self.assertRedirects(
             configured,
             reverse("atendimento:editar-configuracao-senha", args=[tipo.pk]),
         )
-        classe = ClasseSenhaAtendimento.objects.get(nm_classe_senha="Normal")
+        classe = ClasseSenhaAtendimento.objects.get(cd_empresa=self.empresa, nm_classe_senha="Normal")
         generated = self.client.post(reverse("atendimento:gerar-senha-totem"), {"classe": classe.pk})
         self.assertEqual(generated.status_code, 200)
         senha = SenhaAtendimento.objects.get()
@@ -1277,8 +1478,28 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.login_as(self.enfermeiro)
 
+        standalone = self.client.get(
+            reverse("classificacao_standalone"),
+            {"aba": "demanda", "senha": senha.pk},
+        )
+        self.assertContains(standalone, "1. Identificação")
+        self.assertContains(standalone, "6. Resumo")
+        self.assertContains(standalone, "for (let position = 0; position < index; position += 1)")
+        self.assertContains(standalone, "validateStage(position)")
+        called = self.client.post(
+            reverse("atendimento:acao-senha-classificacao", args=[senha.pk, "chamar"]),
+            {"return_to": f"{reverse('classificacao_standalone')}?aba=demanda"},
+        )
+        self.assertRedirects(
+            called,
+            f"{reverse('classificacao_standalone')}?aba=demanda",
+            fetch_redirect_response=False,
+        )
+
+        data_atual = timezone.localdate().isoformat()
+        filtros_retorno = f"data={data_atual}&filtro=agendados&filtro=nao_classificados&q=DN"
         response = self.client.post(
-            reverse("atendimento:fila-classificacao"),
+            f"{reverse('classificacao_standalone')}?{filtros_retorno}",
             {
                 "acao": "finalizar",
                 "senha_id": senha.pk,
@@ -1292,13 +1513,575 @@ class FluxoHomologacaoTests(TestCase):
 
         self.assertRedirects(
             response,
-            f"{reverse('atendimento:fila-classificacao')}?aba=demanda&data={timezone.localdate().isoformat()}",
+            f"{reverse('classificacao_standalone')}?{filtros_retorno}",
         )
         senha.refresh_from_db()
         self.assertEqual(senha.ds_status, "CLASSIFICADA")
         self.assertEqual(senha.cd_paciente, self.paciente)
         self.assertIsNotNone(senha.cd_pre_atendimento_id)
         self.assertEqual(senha.cd_pre_atendimento.ds_cor_prioridade, "AMARELO")
+
+    def test_classificacao_permite_salvar_rascunho_incompleto(self):
+        tipo = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            nm_tipo_senha="Demanda em rascunho",
+            sg_tipo_senha="DR",
+        )
+        classe = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            nm_classe_senha="Normal",
+            sg_classe_senha="N",
+        )
+        senha = SenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            cd_classe_senha=classe,
+            nr_senha=1,
+            ds_senha="DRN 01",
+        )
+        self.login_as(self.enfermeiro)
+
+        response = self.client.post(
+            reverse("atendimento:fila-classificacao"),
+            {
+                "acao": "salvar_rascunho",
+                "senha_id": senha.pk,
+                "etapa_atual": "abordagem",
+                "nm_pre_cadastro": "PACIENTE PARCIAL",
+                "ds_queixa_principal": "Queixa ainda incompleta",
+                "alergia_substancia": ["Dipirona"],
+                "alergia_observacao": ["Reação leve: coceira, náusea e ½ comprimido."],
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        senha.refresh_from_db()
+        self.assertEqual(senha.ds_status, "EM_CLASSIFICACAO")
+        self.assertEqual(senha.nm_pre_cadastro, "PACIENTE PARCIAL")
+        self.assertEqual(senha.ds_dados_classificacao["etapa_atual"], "abordagem")
+        self.assertEqual(senha.ds_dados_classificacao["ds_queixa_principal"], "Queixa ainda incompleta")
+        self.assertEqual(
+            senha.ds_dados_classificacao["alergias_itens"][0]["observacao"],
+            "Reação leve: coceira, náusea e ½ comprimido.",
+        )
+
+    def test_classificacao_imprime_modelo_habilitado_com_variaveis_da_ficha(self):
+        tipo = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            nm_tipo_senha="Demanda para impressão",
+            sg_tipo_senha="DI",
+        )
+        classe = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            nm_classe_senha="Normal",
+            sg_classe_senha="N",
+        )
+        senha = SenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            cd_classe_senha=classe,
+            cd_paciente=self.paciente,
+            nr_senha=1,
+            ds_senha="DIN 01",
+            ds_dados_classificacao={
+                "ds_queixa_principal": "Dor abdominal",
+                "alergias_itens": [
+                    {"substancia": "Dipirona", "observacao": "Reação com náusea e coceira."}
+                ],
+            },
+        )
+        tela = ScreenDefinition.objects.get(access_key="atendimento:fila-classificacao")
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Ficha de classificação configurável",
+            tp_documento="FICHA_CLASSIFICACAO",
+            tp_elemento="DOCUMENTO",
+            ds_html_impressao="{{ classificacao.senha }} - {{ classificacao.alergias }}",
+        )
+        ModeloDocumentoTelaImpressao.objects.create(
+            cd_empresa=self.empresa,
+            cd_modelo_documento=modelo,
+            cd_tela=tela,
+        )
+        self.login_as(self.enfermeiro)
+
+        with patch(
+            "apps.atendimento.views._resposta_pdf_documento",
+            return_value=HttpResponse("documento-renderizado"),
+        ) as resposta_pdf:
+            response = self.client.get(
+                reverse("atendimento:imprimir-classificacao"),
+                {"senha": senha.pk},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        documento = resposta_pdf.call_args.args[1]
+        self.assertEqual(documento.cd_modelo_documento, modelo)
+        self.assertEqual(documento._variaveis_adicionais["classificacao.senha"], "DIN 01")
+        self.assertEqual(
+            documento._variaveis_adicionais["classificacao.alergias"],
+            "Dipirona - Reação com náusea e coceira.",
+        )
+
+    def test_class_standalone_unifica_fila_e_oculta_acoes_antes_da_classificacao(self):
+        tipo = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            nm_tipo_senha="Demanda Class",
+            sg_tipo_senha="DC",
+        )
+        classe = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            nm_classe_senha="Normal",
+            sg_classe_senha="N",
+        )
+        senha = SenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            cd_classe_senha=classe,
+            nr_senha=1,
+            ds_senha="DCN 01",
+        )
+        senha_antiga = SenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_tipo_senha=tipo,
+            cd_classe_senha=classe,
+            nr_senha=2,
+            ds_senha="DCN 02",
+            ds_status="CLASSIFICADA",
+        )
+        SenhaAtendimento.objects.filter(pk=senha_antiga.pk).update(
+            dt_senha=timezone.localdate() - timedelta(days=3)
+        )
+        self.login_as(self.enfermeiro)
+
+        response = self.client.get(reverse("classificacao_standalone"))
+
+        self.assertContains(response, "Agendados")
+        self.assertContains(response, "Classificados")
+        self.assertContains(response, "Não classificados")
+        self.assertContains(response, senha.ds_senha)
+        self.assertContains(response, senha_antiga.ds_senha)
+        self.assertContains(response, self.paciente.nm_paciente)
+        self.assertContains(response, "data-classification-search-clear")
+        self.assertContains(response, "data-classification-unified-queue")
+        self.assertContains(response, "data-classification-wait")
+        self.assertContains(response, "contentSignature")
+        self.assertContains(response, "CelerisRenderIcons")
+        self.assertContains(response, "data-notifications-panel")
+        self.assertContains(response, "Acessar sistema")
+        self.assertNotContains(response, '> Todos</label>')
+        self.assertNotContains(response, 'class="messages"')
+        self.assertNotContains(response, 'class="card classification-tabs"')
+        self.assertNotContains(response, ">Consultar</button>")
+        self.assertNotContains(response, "class-action-toolbar")
+        self.assertEqual(
+            response.context["classification_list_url"],
+            f"{reverse('classificacao_standalone')}?data={timezone.localdate().isoformat()}&filtro=agendados&filtro=classificados&filtro=nao_classificados",
+        )
+        self.assertContains(response, "has-both-queues")
+
+        data_sem_agendamentos = timezone.localdate() + timedelta(days=45)
+        without_scheduled = self.client.get(
+            reverse("classificacao_standalone"),
+            {"data": data_sem_agendamentos.isoformat()},
+        )
+        self.assertEqual(
+            without_scheduled.context["filtros_fila"],
+            ["classificados", "nao_classificados"],
+        )
+        self.assertFalse(without_scheduled.context["mostrar_agendados"])
+        self.assertTrue(without_scheduled.context["mostrar_demanda"])
+        self.assertContains(without_scheduled, 'class="classification-unified-queue"')
+        self.assertNotContains(without_scheduled, 'class="classification-unified-queue has-both-queues"')
+
+        only_classified = self.client.get(reverse("classificacao_standalone"), {"filtro": "classificados"})
+        self.assertFalse(only_classified.context["mostrar_agendados"])
+        self.assertTrue(only_classified.context["mostrar_demanda"])
+        self.assertEqual([item.pk for item in only_classified.context["senhas"]], [senha_antiga.pk])
+        only_unclassified = self.client.get(
+            reverse("classificacao_standalone"), {"filtro": "nao_classificados"}
+        )
+        self.assertEqual([item.pk for item in only_unclassified.context["senhas"]], [senha.pk])
+        only_scheduled = self.client.get(reverse("classificacao_standalone"), {"filtro": "agendados"})
+        self.assertTrue(only_scheduled.context["mostrar_agendados"])
+        self.assertFalse(only_scheduled.context["mostrar_demanda"])
+        self.assertEqual(only_scheduled.context["senhas"], [])
+        only_scheduled_uppercase = self.client.get(
+            reverse("classificacao_standalone"),
+            {"filtro": "AGENDADOS", "parcial": "fila_unificada"},
+        )
+        self.assertContains(only_scheduled_uppercase, "data-classification-scheduled-section")
+        self.assertContains(only_scheduled_uppercase, "data-classification-demand-section hidden")
+        self.assertNotContains(only_scheduled_uppercase, senha.ds_senha)
+
+        all_queues = self.client.get(
+            reverse("classificacao_standalone"),
+            {"filtro": ["agendados", "classificados", "nao_classificados"], "parcial": "fila_unificada"},
+        )
+        self.assertContains(all_queues, "data-classification-scheduled-section")
+        self.assertContains(all_queues, "data-classification-demand-section")
+        self.assertContains(all_queues, senha_antiga.ds_senha)
+
+        escala_configurada = EscalaClinica.objects.create(
+            cd_empresa=self.empresa,
+            nm_escala="Escala sem rotulo legado",
+            ds_perguntas=[
+                {
+                    "chave": "ocular",
+                    "texto": "Abertura ocular",
+                    "opcoes": [{"valor": "1", "descricao": "Ausente", "pontos": 1}],
+                }
+            ],
+        )
+        EscalaClinica.objects.create(
+            cd_empresa=self.empresa,
+            nm_escala="Escala vazia que não deve aparecer",
+            ds_perguntas=[],
+        )
+        fluxo = FluxoClassificacao.objects.create(
+            cd_empresa=self.empresa,
+            nm_grupo="Clínica geral",
+            nm_fluxo="Mal-estar geral",
+            nr_ordem=10,
+        )
+        FluxoClassificacaoEscala.objects.create(
+            cd_empresa=self.empresa,
+            cd_fluxo_classificacao=fluxo,
+            cd_escala_clinica=escala_configurada,
+        )
+        modelo_catalogo("raca_cor").objects.update_or_create(
+            cd_valor="03",
+            defaults={"ds_valor": "Parda", "sn_ativo": True},
+        )
+        self.paciente.ds_cor_raca = "03"
+        self.paciente.save(update_fields=["ds_cor_raca"])
+        senha.cd_paciente = self.paciente
+        senha.save(update_fields=["cd_paciente"])
+        editor = self.client.get(reverse("classificacao_standalone"), {"senha": senha.pk})
+        self.assertEqual(editor.status_code, 200)
+        self.assertContains(editor, "Abertura ocular")
+        self.assertNotContains(editor, "Escala vazia que não deve aparecer")
+        self.assertContains(editor, f'data-flow-scales="{escala_configurada.pk}"')
+        self.assertContains(editor, "class-action-toolbar")
+        self.assertContains(editor, "data-classification-editor")
+        self.assertContains(editor, "data-classification-patient-search")
+        self.assertContains(editor, "data-classification-pre-registration")
+        self.assertContains(editor, "data-scale-dialog")
+        self.assertContains(editor, "executePatientSearch")
+        self.assertContains(editor, "data-classification-colors")
+        self.assertContains(editor, "<b>Raça/cor</b>Parda", html=True)
+        self.assertContains(editor, "data-questions-dialog")
+        self.assertContains(editor, "data-allergy-add")
+        self.assertContains(editor, "data-no-sort")
+        self.assertContains(editor, "classification-flow-options")
+        self.assertNotContains(
+            editor,
+            '<form class="card classification-queue-filters classification-unified-filters"',
+        )
+        self.assertNotContains(editor, '<div class="classification-unified-queue"')
+
+    def test_perguntas_icones_e_escalas_recomendadas_do_fluxo(self):
+        self.login_as(self.ti_user)
+        pergunta = "Paciente está com dor torácica, náusea/vômito ou febre (≥ 38°C)?"
+        resposta = self.client.post(
+            reverse("class_perguntas"),
+            {
+                "new_name": pergunta,
+                "new_type": "SIM_NAO",
+                "new_order": "10",
+                "new_required": "true",
+                "new_active": "true",
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(PerguntaClassificacao.objects.filter(cd_empresa=self.empresa, nm_pergunta=pergunta).exists())
+
+        icone = IconeChamada.objects.create(
+            cd_empresa=self.empresa,
+            nm_icone="Prioridade clínica",
+            ds_svg='<svg viewBox="0 0 24 24"><path d="M12 2v20"/></svg>',
+        )
+        seletor = self.client.get(reverse("class_senhas"))
+        self.assertContains(seletor, "data-call-icon-label")
+        self.assertContains(seletor, icone.nm_icone)
+
+        cor = CorClassificacaoRisco.objects.create(
+            cd_empresa=self.empresa,
+            nm_cor="Laranja",
+            cd_cor="LARANJA",
+            ds_cor_hex="#f97316",
+            nr_prioridade=2,
+        )
+        fluxo = FluxoClassificacao.objects.create(
+            cd_empresa=self.empresa,
+            nm_grupo="Dor",
+            nm_fluxo="Dor torácica",
+            ds_orientacao="Aplicar escala recomendada.",
+            cd_cor_recomendada=cor,
+        )
+        escala = EscalaClinica.objects.create(
+            cd_empresa=self.empresa,
+            nm_escala="Escala de dor torácica",
+            ds_perguntas=[{"chave": "intensidade", "texto": "Intensidade", "opcoes": []}],
+        )
+        pagina = self.client.get(reverse("class_fluxos"))
+        self.assertContains(pagina, reverse("class_fluxo_escalas", args=[fluxo.pk]))
+        self.assertContains(pagina, "#f97316")
+
+        salvar = self.client.post(
+            reverse("class_fluxo_escalas", args=[fluxo.pk]),
+            {
+                "link_id": "",
+                "scale_id": str(escala.pk),
+                "order": "10",
+                "active": "true",
+                "delete": "0",
+            },
+        )
+        self.assertEqual(salvar.status_code, 302)
+        self.assertTrue(
+            FluxoClassificacaoEscala.objects.filter(
+                cd_fluxo_classificacao=fluxo,
+                cd_escala_clinica=escala,
+            ).exists()
+        )
+
+    def test_class_configura_escala_com_perguntas_formula_e_resultados(self):
+        self.login_as(self.ti_user)
+        pagina = self.client.get(reverse("class_escalas"))
+        self.assertEqual(pagina.status_code, 200)
+        self.assertContains(pagina, "Perguntas e respostas")
+        self.assertContains(pagina, "Fórmula de cálculo")
+        self.assertContains(pagina, "Faixas de resultado")
+
+        resposta = self.client.post(
+            reverse("class_escalas"),
+            {
+                "nm_escala": "Escala de dor configurável",
+                "ds_descricao": "Calcula o grau de dor do paciente.",
+                "tp_calculo": "SOMA",
+                "sn_ativo": "true",
+                "perguntas_json": json.dumps([
+                    {
+                        "chave": "careta",
+                        "texto": "Paciente faz careta?",
+                        "ativo": True,
+                        "opcoes": [
+                            {"valor": "sim", "descricao": "Sim", "pontos": 1, "ativo": True},
+                            {"valor": "nao", "descricao": "Não", "pontos": 0, "ativo": True},
+                        ],
+                    },
+                    {
+                        "chave": "choro",
+                        "texto": "Paciente chora?",
+                        "ativo": True,
+                        "opcoes": [{"valor": "sim", "descricao": "Sim", "pontos": 2, "ativo": True}],
+                    },
+                ]),
+                "formula_json": json.dumps([
+                    {"tipo": "PERGUNTA", "valor": "careta"},
+                    {"tipo": "OPERADOR", "valor": "+"},
+                    {"tipo": "PERGUNTA", "valor": "choro"},
+                    {
+                        "tipo": "CONDICAO",
+                        "variavel": "paciente.idade",
+                        "comparador": ">",
+                        "referencia": 70,
+                        "acrescimo": 1,
+                    },
+                ]),
+                "faixas_json": json.dumps([
+                    {"min": 0, "max": 1, "descricao": "Dor leve", "cor": "#22c55e"},
+                    {"min": 2, "max": 3, "descricao": "Dor moderada"},
+                ]),
+            },
+        )
+        escala = EscalaClinica.objects.get(cd_empresa=self.empresa, nm_escala="Escala de dor configurável")
+        self.assertRedirects(resposta, reverse("class_escala_editar", args=[escala.pk]))
+        self.assertEqual(escala.ds_expressao_calculo, "{{careta}} + {{choro}}")
+        self.assertEqual(escala.ds_condicoes_calculo[0]["variavel"], "paciente.idade")
+        self.assertEqual(escala.ds_condicoes_calculo[0]["acrescimo"], 1)
+        self.assertEqual(len(escala.ds_perguntas), 2)
+        self.assertEqual(escala.ds_perguntas[0]["opcoes"][0]["valor"], "1")
+        self.assertEqual(escala.ds_perguntas[0]["opcoes"][0]["pontos"], 1)
+        self.assertEqual(escala.ds_faixas_resultado[0]["cor"], "#22c55e")
+        self.assertEqual(escala.ds_faixas_resultado[1]["descricao"], "Dor moderada")
+
+        edicao = self.client.get(reverse("class_escala_editar", args=[escala.pk]))
+        self.assertContains(edicao, "Paciente faz careta?")
+        self.assertContains(edicao, "Dor moderada")
+        self.assertContains(edicao, "data-scale-editor")
+        self.assertContains(edicao, "Condição")
+        self.assertContains(edicao, "Idade do paciente")
+        self.assertContains(edicao, 'data-action="undo"')
+        self.assertContains(edicao, 'data-action="redo"')
+        self.assertContains(edicao, "data-record-status")
+        self.assertContains(edicao, "data-general-record-status")
+        self.assertContains(edicao, "activateTableRow")
+
+    def test_class_exige_nova_validacao_somente_quando_formula_muda(self):
+        self.login_as(self.ti_user)
+        escala = EscalaClinica.objects.create(
+            cd_empresa=self.empresa,
+            nm_escala="Escala com validação",
+            ds_perguntas=[
+                {
+                    "chave": "dor",
+                    "texto": "Dor",
+                    "ativo": True,
+                    "opcoes": [{"valor": "1", "descricao": "Sim", "pontos": 1, "ativo": True}],
+                }
+            ],
+            ds_expressao_calculo="{{dor}}",
+        )
+        dados_base = {
+            "nm_escala": escala.nm_escala,
+            "ds_descricao": "Descrição atualizada",
+            "tp_calculo": "SOMA",
+            "sn_ativo": "true",
+            "perguntas_json": json.dumps(escala.ds_perguntas),
+            "formula_json": json.dumps([{"tipo": "PERGUNTA", "valor": "dor"}]),
+            "faixas_json": "[]",
+            "formula_validada": "false",
+        }
+
+        apenas_descricao = self.client.post(reverse("class_escala_editar", args=[escala.pk]), dados_base)
+        self.assertRedirects(apenas_descricao, reverse("class_escala_editar", args=[escala.pk]))
+        escala.refresh_from_db()
+        self.assertEqual(escala.ds_descricao, "Descrição atualizada")
+
+        dados_base["formula_json"] = json.dumps([{"tipo": "NUMERO", "valor": "2"}])
+        formula_alterada = self.client.post(reverse("class_escala_editar", args=[escala.pk]), dados_base)
+        self.assertEqual(formula_alterada.status_code, 200)
+        self.assertContains(formula_alterada, "A fórmula foi alterada e ainda não foi validada")
+        self.assertContains(formula_alterada, 'class="scale-formula-status invalid"')
+        escala.refresh_from_db()
+        self.assertEqual(escala.ds_expressao_calculo, "{{dor}}")
+
+    def test_tabelas_class_permit_em_consulta_e_usam_layout_padrao(self):
+        pergunta = PerguntaClassificacao.objects.create(
+            cd_empresa=self.empresa,
+            nm_pergunta="Pergunta exclusiva da homologacao",
+            tp_resposta="SIM_NAO",
+            nr_ordem=1,
+        )
+        fluxo = FluxoClassificacao.objects.create(
+            cd_empresa=self.empresa,
+            nm_grupo="Grupo homologacao",
+            nm_fluxo="Fluxo exclusivo da homologacao",
+            nr_ordem=1,
+        )
+        self.login_as(self.ti_user)
+
+        perguntas = self.client.get(reverse("class_perguntas"), {"q": "exclusiva"})
+        self.assertEqual(perguntas.status_code, 200)
+        self.assertContains(perguntas, pergunta.nm_pergunta)
+        self.assertContains(perguntas, "Obrigatória")
+        self.assertContains(perguntas, 'class="class-standalone-main content"')
+
+        fluxos = self.client.get(reverse("class_fluxos"), {"q": "exclusivo"})
+        self.assertEqual(fluxos.status_code, 200)
+        self.assertContains(fluxos, "Fluxo exclusivo da homologacao")
+        self.assertContains(fluxos, 'data-scale-table="groups"')
+        self.assertContains(fluxos, 'data-scale-table="symptoms"')
+        self.assertNotContains(fluxos, "Pesquisar grupos e sintomas")
+        self.assertContains(fluxos, "celeris:context-table-query-open")
+
+        salvo = self.client.post(
+            reverse("class_fluxos"),
+            {
+                "grupos_json": json.dumps([
+                    {
+                        "id": fluxo.cd_grupo_id,
+                        "chave": str(fluxo.cd_grupo_id),
+                        "nome": "Grupo homologacao",
+                        "descricao": "Grupo principal",
+                        "ordem": 10,
+                        "ativo": True,
+                    },
+                    {
+                        "id": None,
+                        "chave": "novo_1",
+                        "nome": "Traumas",
+                        "descricao": "Sintomas traumáticos",
+                        "ordem": 20,
+                        "ativo": True,
+                    },
+                ]),
+                "sintomas_json": json.dumps([
+                    {
+                        "id": fluxo.pk,
+                        "grupo_chave": str(fluxo.cd_grupo_id),
+                        "nome": fluxo.nm_fluxo,
+                        "orientacao": "Orientação atualizada",
+                        "cor_id": "",
+                        "ordem": 10,
+                        "ativo": True,
+                    },
+                    {
+                        "id": None,
+                        "grupo_chave": "novo_1",
+                        "nome": "Queda",
+                        "orientacao": "Avaliar trauma",
+                        "cor_id": "",
+                        "ordem": 10,
+                        "ativo": True,
+                    },
+                ]),
+                "grupos_excluidos_json": "[]",
+                "sintomas_excluidos_json": "[]",
+            },
+        )
+        self.assertRedirects(salvo, reverse("class_fluxos"))
+        queda = FluxoClassificacao.objects.get(cd_empresa=self.empresa, nm_fluxo="Queda")
+        self.assertEqual(queda.cd_grupo.nm_grupo, "Traumas")
+        self.assertEqual(queda.nm_grupo, "Traumas")
+
+    def test_configuracao_senha_aplica_protocolo_e_tempo_na_subdivisao(self):
+        protocolo = ProtocoloSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            sg_protocolo="PREF",
+            nm_protocolo="Atendimento preferencial",
+            ds_protocolo="Priorizar conforme condição clínica.",
+        )
+        self.login_as(self.ti_user)
+        page = self.client.get(f"{reverse('class_senhas')}?novo=1")
+        self.assertContains(page, 'name="new_rule_protocol"')
+        self.assertContains(page, 'data-password-rules-section')
+        self.assertNotContains(page, "Adicionar subdivisão")
+        self.assertNotContains(page, 'name="cd_protocolo"')
+
+        saved = self.client.post(
+            reverse("class_senhas"),
+            {
+                "nm_tipo_senha": "Adulto preferencial",
+                "sg_tipo_senha": "AP",
+                "new_rule_name": "Idoso",
+                "new_rule_acronym": "I",
+                "new_rule_priority": "2",
+                "new_rule_min_age": "75",
+                "new_rule_max_age": "",
+                "new_rule_protocol": str(protocolo.pk),
+                "new_rule_timeout": "20",
+                "new_rule_icon": "",
+                "new_rule_active": "true",
+            },
+        )
+        tipo = TipoSenhaAtendimento.objects.get(cd_empresa=self.empresa, sg_tipo_senha="AP")
+        self.assertRedirects(saved, reverse("class_senha_editar", args=[tipo.pk]))
+        regra = RegraSubdivisaoSenha.objects.get(cd_tipo_senha=tipo)
+        self.assertEqual(regra.cd_protocolo, protocolo)
+        self.assertEqual(regra.nr_tempo_limite, 20)
+
+        generated = self.client.post(reverse("atendimento:gerar-senha-totem"), {"regra": regra.pk})
+        self.assertEqual(generated.status_code, 200)
+        senha = SenhaAtendimento.objects.get(cd_tipo_senha=tipo)
+        self.assertEqual(senha.nr_tempo_limite, 20)
 
     def test_classificacao_demanda_pre_cadastra_e_prefill_na_recepcao(self):
         tipo = TipoSenhaAtendimento.objects.create(
@@ -1336,6 +2119,7 @@ class FluxoHomologacaoTests(TestCase):
                 "nm_pre_cadastro": "PACIENTE PRÉ-CADASTRADO",
                 "dt_nascimento_pre_cadastro": "2001-02-03",
                 "nm_mae_pre_cadastro": "MÃE DO PACIENTE",
+                "tp_sexo_pre_cadastro": "F",
                 "nr_prioridade": "4",
                 "ds_queixa_principal": "Queixa de demanda",
                 "cd_prestador_responsavel": self.prestador.pk,
@@ -1348,7 +2132,12 @@ class FluxoHomologacaoTests(TestCase):
 
         self.login_as(self.recepcionista)
         reception = self.client.get(reverse("atendimento:recepcao"))
-        self.assertContains(reception, "Completar cadastro")
+        self.assertContains(reception, senha.nm_pre_cadastro)
+        self.assertContains(reception, senha.nm_mae_pre_cadastro)
+        self.assertContains(reception, "03/02/2001")
+        self.assertContains(reception, "data-reception-wait")
+        self.assertNotContains(reception, "Completar cadastro")
+        self.assertNotContains(reception, "Recepcionar senha")
         cadastro_url = (
             f"{reverse('atendimento:cadastro-paciente-agendamento')}?recepcao_direta=1&senha={senha.pk}"
         )
@@ -2157,6 +2946,31 @@ class FluxoHomologacaoTests(TestCase):
         self.assertTrue(provider.sn_permite_atendimento)
         self.assertTrue(provider.sn_permite_prescricao)
 
+    def test_catalogos_sociodemograficos_e_cbo_sao_independentes(self):
+        modelo_catalogo("nacionalidade").objects.update_or_create(
+            cd_valor="BRASILEIRA_TESTE",
+            defaults={"ds_valor": "Brasileira teste", "sn_ativo": True},
+        )
+        modelo_catalogo("pais").objects.update_or_create(
+            cd_valor="BR_TESTE",
+            defaults={"ds_valor": "Brasil teste", "sn_ativo": True},
+        )
+        modelo_catalogo("cbo").objects.update_or_create(
+            cd_valor="225125_TESTE",
+            defaults={"ds_valor": "Médico clínico teste", "sn_ativo": True},
+        )
+
+        patient_form = PacienteForm(empresa=self.empresa)
+        self.assertIn(("BRASILEIRA_TESTE", "Brasileira teste"), patient_form.fields["ds_nacionalidade"].choices)
+        self.assertNotIn(("BR_TESTE", "Brasil teste"), patient_form.fields["ds_nacionalidade"].choices)
+        self.assertIn(("BR_TESTE", "Brasil teste"), patient_form.fields["ds_pais_nascimento"].choices)
+
+        provider_form = PrestadorForm(empresa=self.empresa)
+        self.assertIn(("225125_TESTE", "Médico clínico teste"), provider_form.fields["cd_cbo"].widget.choices)
+        self.assertIn("ds_conselho", provider_form.fields)
+        self.assertIn("nr_conselho", provider_form.fields)
+        self.assertIn("sg_conselho", provider_form.fields)
+
     def test_menu_de_prestadores_abre_cadastro_integrado(self):
         self.login_as(self.ti_user)
         response = self.client.get(reverse("atendimento:profissionais"))
@@ -2340,9 +3154,7 @@ class FluxoHomologacaoTests(TestCase):
         self.assertTrue(Prestador.objects.filter(pk=self.prestador.pk).exists())
 
     def test_tipo_sem_conselho_apenas_alerta_e_nao_bloqueia(self):
-        table = TabelaAuxiliarGlobal.objects.get(ds_tabela="tipo_prestador")
-        ValorAuxiliarGlobal.objects.create(
-            cd_tabela_auxiliar_global=table,
+        TipoPrestador.objects.create(
             cd_valor="ADMINISTRATIVO",
             ds_valor="ADMINISTRATIVO",
         )
@@ -2569,13 +3381,14 @@ class FluxoHomologacaoTests(TestCase):
         inactive = self.client.get(reverse("atendimento:cadastro-profissional", args=[self.prestador.pk]))
         self.assertEqual(inactive.context["current_toggle_active_label"], "Ativar")
 
-    def test_links_auxiliares_abrem_em_overlay(self):
+    def test_cadastro_prestador_orienta_tabelas_vazias_sem_links_de_gerenciamento(self):
         self.login_as(self.ti_user)
         provider_response = self.client.get(reverse("atendimento:cadastro-profissional-novo"))
         patient_response = self.client.get(reverse("atendimento:cadastro-paciente-novo"))
-        self.assertContains(provider_response, "data-screen-overlay-link", count=2)
-        self.assertContains(patient_response, "data-screen-overlay-link", count=1)
-        self.assertNotContains(provider_response, "Especialidades <a")
+        self.assertNotContains(provider_response, "data-screen-overlay-link")
+        self.assertNotContains(patient_response, "data-screen-overlay-link")
+        self.assertContains(provider_response, "Atendimento > Cadastros > Tabelas > Tipos de prestador")
+        self.assertContains(provider_response, "Atendimento > Agendamento > Tabelas > Especialidades")
         self.assertNotContains(patient_response, "Convênio <a")
         self.assertContains(patient_response, "Nenhum convênio cadastrado.")
         overlay_response = self.client.get(reverse("core:global_ceps"), {"overlay": "1"})
@@ -2589,12 +3402,36 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(response.context["current_close_url"], reverse("atendimento:agendar"))
         self.assertEqual(response.context["current_tab_root_title"], "Cadastro de paciente")
 
+    def test_agendar_seleciona_paciente_pela_linha_sem_botao(self):
+        self.login_as(self.recepcionista)
+        response = self.client.get(reverse("atendimento:agendar"), {"termo": self.paciente.nm_paciente})
+        destination = reverse("atendimento:revisar-paciente-agendamento", args=[self.paciente.pk])
+        self.assertContains(response, f'data-row-url="{destination}"')
+        self.assertNotContains(response, ">Selecionar</a>")
+
     def test_telas_de_especialidade_e_convenio_abrem(self):
         self.login_as(self.ti_user)
-        for route in ("atendimento:especialidades", "atendimento:convenios"):
+        for route in ("atendimento:especialidades", "atendimento:convenios", "atendimento:escalas-classificacao"):
             with self.subTest(route=route):
                 response = self.client.get(reverse(route))
                 self.assertEqual(response.status_code, 200)
+                if route == "atendimento:escalas-classificacao":
+                    self.assertContains(response, f'data-query-url="{reverse(route)}"')
+
+    def test_classificacao_operacional_fica_oculta_e_configuracoes_permanecem_no_celeris(self):
+        fila = ScreenDefinition.objects.select_related("parent").get(
+            access_key="atendimento:fila-classificacao"
+        )
+        self.assertTrue(fila.active)
+        self.assertIsNotNone(fila.parent)
+        self.assertFalse(fila.parent.active)
+        self.assertTrue(
+            ScreenDefinition.objects.filter(
+                access_key="atendimento:escalas-classificacao",
+                active=True,
+                parent__slug="atendimento-classificacao-configuracao",
+            ).exists()
+        )
 
     def test_convenios_consulta_em_branco_lista_todos(self):
         self.login_as(self.ti_user)
@@ -2960,6 +3797,37 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(response.json()["resultado"], 5)
         self.assertEqual(response.json()["classificacao"], "Alto")
         self.assertTrue(response.json()["negrito"])
+
+    def test_escala_clinica_aplica_condicao_segura_por_idade(self):
+        self.paciente.dt_nascimento = date(1940, 1, 1)
+        self.paciente.save(update_fields=["dt_nascimento"])
+        escala = EscalaClinica.objects.create(
+            cd_empresa=self.empresa,
+            nm_escala="Condição por idade",
+            ds_perguntas=[{
+                "chave": "risco",
+                "texto": "Risco",
+                "opcoes": [{"valor": "sim", "descricao": "Sim", "pontos": 2}],
+            }],
+            ds_condicoes_calculo=[{
+                "variavel": "paciente.idade",
+                "comparador": ">",
+                "referencia": 70,
+                "acrescimo": 1,
+            }],
+        )
+        self.login_as(self.ti_user)
+        response = self.client.post(
+            reverse("atendimento:testar-escala-clinica"),
+            data=json.dumps({
+                "escala": escala.pk,
+                "paciente": self.paciente.pk,
+                "respostas": {"risco": "sim"},
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["resultado"], 3)
 
     def test_copia_perfil_preserva_estrutura_sem_tipos_prestador(self):
         perfil = PerfilAssistencial.objects.create(

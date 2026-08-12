@@ -74,6 +74,7 @@
         </section>
         <section id="pep-topic-atendimento">
           <h3>Atendimento atual</h3>
+          {% if atendimento %}
           <div class="summary-grid">
             <span><strong>Código:</strong> {{ atendimento.pk }}</span>
             <span><strong>Status:</strong> {{ atendimento.get_ds_status_display }}</span>
@@ -81,9 +82,12 @@
             <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
             <span><strong>Setor:</strong> {{ atendimento.cd_setor_atual.nm_setor|default:"-" }}</span>
             <span><strong>Especialidade:</strong> {{ atendimento.ds_especialidade|default:"-" }}</span>
-            <span><strong>Diagnóstico:</strong> {{ atendimento.ds_diagnostico|default:atendimento.ds_hipotese_diagnostica|default:"-" }}</span>
+            <span><strong>Diagnóstico:</strong> {% if atendimento.ds_diagnostico %}{{ atendimento.ds_diagnostico }}{% elif atendimento.ds_hipotese_diagnostica %}{{ atendimento.ds_hipotese_diagnostica }}{% else %}-{% endif %}</span>
             <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
           </div>
+          {% else %}
+            <p class="empty-state">Este paciente ainda não possui atendimentos registrados.</p>
+          {% endif %}
         </section>
         <section id="pep-topic-sinais">
           <h3>Sinais vitais</h3>
@@ -98,6 +102,7 @@
         </section>
         <section id="pep-topic-exames">
           <h3>Exames</h3>
+          {% if atendimento %}
           <ul>
             {% for exame in atendimento.solicitacoes_exames.all %}
               <li>{{ exame.ds_exame }} — {{ exame.get_ds_status_display }}{% if exame.resultado %} · Resultado: {{ exame.resultado.dh_resultado|date:"d/m/Y H:i"|default:"-" }}{% endif %}</li>
@@ -105,13 +110,16 @@
               <li>Nenhum exame registrado.</li>
             {% endfor %}
           </ul>
+          {% else %}<p class="empty-state">Nenhum atendimento disponível para consultar exames.</p>{% endif %}
         </section>
         <section id="pep-topic-pendencias">
           <h3>Pendências</h3>
+          {% if atendimento %}
           <ul>
             {% for item in atendimento.prescricoes.all %}<li>Prescrição: {{ item.ds_prescricao|truncatechars:140 }}</li>{% empty %}<li>Nenhuma prescrição pendente registrada.</li>{% endfor %}
             {% for documento in atendimento.documentos.all %}{% if documento.ds_status == "ABERTO" or documento.ds_status == "RASCUNHO" %}<li>Documento em aberto: {{ documento.ds_titulo }}</li>{% endif %}{% endfor %}
           </ul>
+          {% else %}<p class="empty-state">Nenhuma pendência clínica registrada.</p>{% endif %}
         </section>
       </div>
     </div>
@@ -162,7 +170,7 @@
             <span><strong>Origem:</strong> {{ atendimento.get_ds_origem_display }}</span>
             <span><strong>Prestador:</strong> {{ atendimento.cd_prestador.nm_prestador|default:"-" }}</span>
             <span><strong>Setor:</strong> {{ atendimento.cd_setor_atual.nm_setor|default:"-" }}</span>
-            <span><strong>Diagnóstico:</strong> {{ atendimento.ds_diagnostico|default:atendimento.ds_hipotese_diagnostica|default:"-" }}</span>
+            <span><strong>Diagnóstico:</strong> {% if atendimento.ds_diagnostico %}{{ atendimento.ds_diagnostico }}{% elif atendimento.ds_hipotese_diagnostica %}{{ atendimento.ds_hipotese_diagnostica }}{% else %}-{% endif %}</span>
             <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
           </div>
         </details>

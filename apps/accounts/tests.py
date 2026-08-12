@@ -35,6 +35,23 @@ class LoginBrandingTests(TestCase):
         self.assertEqual(favicon.status_code, 302)
         self.assertEqual(favicon["Location"], "/static/img/logo.png")
 
+    def test_login_retorna_ao_produto_informado_no_next(self):
+        empresa = Empresa.objects.create(cd_empresa=902, nm_empresa="Empresa Login", sn_ativo=True)
+        usuario = User.objects.create_user(username="USUARIOCLASS", password="senha-segura")
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_padrao=True, sn_ativo=True)
+
+        response = self.client.post(
+            reverse("login"),
+            {
+                "username": usuario.username,
+                "password": "senha-segura",
+                "empresa": empresa.pk,
+                "next": reverse("classificacao_standalone"),
+            },
+        )
+
+        self.assertRedirects(response, reverse("classificacao_standalone"), fetch_redirect_response=False)
+
 
 class PerfilFieldReferenceTests(TestCase):
     def test_campos_declaram_tabela_e_coluna_reais(self):
@@ -457,7 +474,7 @@ class PapelAcessoTests(TestCase):
             "Empresas",
             "Setores",
             "Setores de Atendimento",
-            "Painel de Chamada",
+            "Painéis de Chamada",
             "Cópia de usuário",
             "Sessões e travas",
         ):

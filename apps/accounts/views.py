@@ -1,4 +1,5 @@
 from django.contrib.auth import views as auth_views
+from django.contrib.auth import get_user
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
@@ -11,6 +12,8 @@ from django.urls import reverse
 from django.urls import reverse_lazy
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 import logging
 import hashlib
 from urllib.parse import urlencode
@@ -34,12 +37,13 @@ def _safe_return_url(request):
     return ""
 
 
+@method_decorator(never_cache, name="dispatch")
 class EmpresaLoginView(auth_views.LoginView):
     authentication_form = EmpresaAuthenticationForm
     template_name = "accounts/login.html"
 
     def get_success_url(self):
-        return reverse("core:home")
+        return super().get_success_url()
 
     def _rate_limit_key(self):
         remote_address = self.request.META.get("REMOTE_ADDR", "")
@@ -66,6 +70,16 @@ class EmpresaLoginView(auth_views.LoginView):
         key = self._rate_limit_key()
         cache.set(key, cache.get(key, 0) + 1, timeout=300)
         return super().form_invalid(form)
+
+
+def csrf_failure(request, reason=""):
+    """Renova o fluxo após expiração da sessão sem deixar o usuário preso no 403."""
+    candidate = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/"
+    if not url_has_allowed_host_and_scheme(candidate, allowed_hosts={request.get_host()}):
+        candidate = "/"
+    if get_user(request).is_authenticated:
+        return redirect(candidate)
+    return redirect(f"{reverse('login')}?{urlencode({'next': candidate})}")
 
 
 class EmpresaLogoutView(auth_views.LogoutView):

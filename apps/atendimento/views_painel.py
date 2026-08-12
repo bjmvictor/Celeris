@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import mimetypes
 from pathlib import Path
 from uuid import uuid4
 
 from django.db import transaction
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Empresa
-from apps.core.models import TabelaAuxiliarGlobal
+from apps.core.catalogos import catalogo_queryset
 
 from .models import AgendaProfissional, Atendimento, ChamadaPainel, CorClassificacaoRisco, MaquinaChamada, PainelChamada, Prestador, SenhaAtendimento
 
@@ -30,7 +32,6 @@ DEFAULT_CONFIG = {
     "mostrar_especialidade": True,
     "mostrar_fila": False,
     "mostrar_direcao": True,
-    "controle_salas": True,
     "som_chamada": True,
     "voz_chamada": True,
     "ler_nome": True,
@@ -62,10 +63,7 @@ def _configuracao_painel(painel: PainelChamada | None) -> dict:
 
 
 def _rotulos_auxiliares(tabela: str) -> dict[str, str]:
-    catalogo = TabelaAuxiliarGlobal.objects.filter(ds_tabela=tabela, sn_ativo=True).first()
-    if not catalogo:
-        return {}
-    return dict(catalogo.valores.filter(sn_ativo=True).values_list("cd_valor", "ds_valor"))
+    return dict(catalogo_queryset(tabela, ativos=True).values_list("cd_valor", "ds_valor"))
 
 
 def _catalogo_empresa(empresa: Empresa) -> dict[str, list[dict[str, str]]]:
@@ -149,6 +147,23 @@ def paineis_compativeis_atendimento(atendimento: Atendimento, setor_id: int | No
     return compativeis
 
 
+def paineis_compativeis_agendamento(agendamento: Agendamento):
+    paineis = PainelChamada.objects.filter(cd_empresa=agendamento.cd_empresa, sn_ativo=True).prefetch_related("setores")
+    compativeis = []
+    for painel in paineis:
+        configuracao = _configuracao_painel(painel)
+        if not configuracao.get("chamar_paciente", True):
+            continue
+        especialidades = configuracao.get("especialidades") or []
+        if especialidades and agendamento.ds_especialidade not in especialidades:
+            continue
+        tipos = configuracao.get("tipos_atendimento") or []
+        if tipos and agendamento.ds_tipo_atendimento not in tipos:
+            continue
+        compativeis.append(painel)
+    return compativeis
+
+
 def paineis_compativeis_senha(senha: SenhaAtendimento):
     paineis = PainelChamada.objects.filter(cd_empresa=senha.cd_empresa, sn_ativo=True).prefetch_related("setores")
     setor_id = senha.cd_tipo_senha.cd_setor_atendimento_id
@@ -175,7 +190,11 @@ def paineis_compativeis_senha(senha: SenhaAtendimento):
 def _tipo_midia(painel: PainelChamada | None) -> tuple[str, str]:
     if not painel:
         return "", ""
-    origem = painel.ds_midia_arquivo.url if painel.ds_midia_arquivo else painel.ds_midia_url
+    origem = (
+        reverse("painel_chamada_midia", args=[painel.pk])
+        if painel.ds_midia_arquivo
+        else painel.ds_midia_url
+    )
     extensao = Path(origem.split("?", 1)[0]).suffix.lower()
     if extensao in {".mp4", ".webm", ".ogg", ".mov"}:
         return "video", origem
@@ -184,10 +203,36 @@ def _tipo_midia(painel: PainelChamada | None) -> tuple[str, str]:
     return ("imagem", origem) if origem else ("", "")
 
 
+def midia_painel_publica(request: HttpRequest, cd_painel: int) -> FileResponse:
+    """Entrega a mídia configurada sem depender do servidor de arquivos do DEBUG."""
+    painel = get_object_or_404(PainelChamada, pk=cd_painel, sn_ativo=True)
+    arquivo = painel.ds_midia_arquivo
+    if not arquivo:
+        raise Http404("Mídia não configurada.")
+    try:
+        stream = arquivo.open("rb")
+    except (FileNotFoundError, OSError, ValueError) as error:
+        raise Http404("Arquivo de mídia não encontrado.") from error
+    content_type = mimetypes.guess_type(arquivo.name)[0] or "application/octet-stream"
+    response = FileResponse(stream, content_type=content_type)
+    response["Content-Disposition"] = f'inline; filename="{Path(arquivo.name).name}"'
+    response["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
 def _dados_chamada(chamada: ChamadaPainel) -> dict[str, str | int]:
     atendimento = chamada.cd_atendimento
     senha_atendimento = chamada.cd_senha_atendimento
-    paciente = atendimento.cd_paciente if atendimento else None
+    agendamento = chamada.cd_agendamento
+    paciente = (
+        atendimento.cd_paciente
+        if atendimento
+        else (
+            agendamento.cd_paciente
+            if agendamento
+            else (senha_atendimento.cd_paciente if senha_atendimento else None)
+        )
+    )
     nome = "Paciente de teste"
     senha = "TESTE 001"
     especialidade = ""
@@ -196,6 +241,9 @@ def _dados_chamada(chamada: ChamadaPainel) -> dict[str, str | int]:
     if atendimento:
         senha = atendimento.nr_senha_chamada or str(atendimento.pk)
         especialidade = atendimento.ds_especialidade
+    elif agendamento:
+        senha = str(agendamento.pk)
+        especialidade = agendamento.ds_especialidade
     elif senha_atendimento:
         senha = senha_atendimento.ds_senha
     setor = chamada.cd_setor.nm_setor if chamada.cd_setor_id else ""
@@ -278,7 +326,6 @@ def painel_chamada_publico(request: HttpRequest) -> HttpResponse:
                 "mostrar_especialidade": _booleano_post(request, "mostrar_especialidade"),
                 "mostrar_fila": _booleano_post(request, "mostrar_fila"),
                 "mostrar_direcao": _booleano_post(request, "mostrar_direcao"),
-                "controle_salas": _booleano_post(request, "controle_salas"),
                 "som_chamada": _booleano_post(request, "som_chamada"),
                 "voz_chamada": _booleano_post(request, "voz_chamada"),
                 "ler_nome": _booleano_post(request, "ler_nome"),
@@ -359,6 +406,7 @@ def painel_chamada_publico(request: HttpRequest) -> HttpResponse:
         chamadas = ChamadaPainel.objects.select_related(
             "cd_atendimento__cd_paciente",
             "cd_atendimento__cd_pre_atendimento",
+            "cd_agendamento__cd_paciente",
             "cd_senha_atendimento",
             "cd_setor",
         ).filter(cd_empresa=painel.cd_empresa, cd_painel_chamada=painel).exclude(ds_status="CANCELADO")
@@ -377,6 +425,13 @@ def painel_chamada_publico(request: HttpRequest) -> HttpResponse:
     media_kind, media_source = _tipo_midia(painel)
     chamada_atual_dados = _dados_chamada(chamada_atual) if chamada_atual else None
     historico_chamadas_dados = [_dados_chamada(chamada) for chamada in historico_chamadas]
+    estado_painel = {
+        "chamada": chamada_atual_dados,
+        "historico": historico_chamadas_dados,
+        "midia": media_source,
+    }
+    if request.GET.get("estado") == "1":
+        return JsonResponse(estado_painel)
     show_config = bool(not painel or request.GET.get("configurar") == "1" or erro_configuracao)
     response = render(
         request,
@@ -399,6 +454,7 @@ def painel_chamada_publico(request: HttpRequest) -> HttpResponse:
             "erro_configuracao": erro_configuracao,
             "media_kind": media_kind,
             "media_source": media_source,
+            "estado_painel": estado_painel,
         },
     )
     response.set_cookie("celeris_maquina_chamada", machine_name, max_age=31_536_000, samesite="Lax")

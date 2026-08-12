@@ -51,7 +51,7 @@
     <details class="card form-section" data-provider-section="2">
       <summary>2. Informações profissionais</summary>
       <div class="form-grid">
-        <div class="field-fluid specialty-manager" data-assignment-manager data-provider-type-assignment data-assignment-empty="Nenhum tipo de prestador adicionado.">
+        <div class="field-fluid specialty-manager" data-assignment-manager data-provider-type-assignment data-assignment-empty="Nenhum tipo de prestador adicionado." data-empty-options-message="Lista sem valores. Adicione valores em Atendimento > Cadastros > Tabelas > Tipos de prestador para selecionar um item.">
           <strong>Tipos de prestador *</strong>
           <div class="specialty-toolbar">
             <div class="specialty-chips" data-assignment-chips></div>
@@ -64,15 +64,12 @@
           {{ form.tipos_prestador.errors }}
         </div>
         <label class="field-md">Tipo principal * {{ form.tp_prestador }} {{ form.tp_prestador.errors }}</label>
+        <label class="field-xl">CBO {{ form.cd_cbo }} {{ form.cd_cbo.errors }}</label>
         <label class="field-sm">Conselho {{ form.ds_conselho }}</label>
         <label class="field-md">Número do Conselho {{ form.nr_conselho }} {{ form.nr_conselho.errors }}</label>
         <label class="field-xs">UF do Conselho {{ form.sg_conselho }}</label>
-        <div class="field-fluid specialty-manager" data-specialty-manager>
+        <div class="field-fluid specialty-manager" data-specialty-manager data-empty-options-message="Lista sem valores. Adicione valores em Atendimento > Agendamento > Tabelas > Especialidades para selecionar um item.">
           <span>Especialidades</span>
-          <div class="field-auxiliary-actions">
-            <a class="button button-secondary" href="{% url 'atendimento:especialidades' %}?overlay=1" data-screen-overlay-link data-overlay-title="Especialidades">Gerenciar especialidades</a>
-            <a class="button button-secondary" href="{% url 'core:tipo_prestador_conselho' %}?overlay=1" data-screen-overlay-link data-overlay-title="Tipos de prestador e conselhos">Tipos e conselhos</a>
-          </div>
           <div class="specialty-toolbar">
             <div class="specialty-chips" data-specialty-chips></div>
             <button class="button button-secondary specialty-open-button" data-specialty-open type="button">+ Adicionar especialidade</button>

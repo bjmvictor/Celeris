@@ -4,7 +4,6 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {% if painel and not show_config %}<meta http-equiv="refresh" content="4">{% endif %}
   <title>Celeris Painel</title>
   <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
 </head>
@@ -123,7 +122,6 @@
               <label class="checkbox-field"><input type="checkbox" name="mostrar_especialidade" value="1" {% if config.mostrar_especialidade %}checked{% endif %}> Mostrar especialidade</label>
               <label class="checkbox-field"><input type="checkbox" name="mostrar_fila" value="1" {% if config.mostrar_fila %}checked{% endif %}> Mostrar fila</label>
               <label class="checkbox-field"><input type="checkbox" name="mostrar_direcao" value="1" {% if config.mostrar_direcao %}checked{% endif %}> Mostrar direção</label>
-              <label class="checkbox-field"><input type="checkbox" name="controle_salas" value="1" {% if config.controle_salas %}checked{% endif %}> Utilizar controle de salas</label>
             </fieldset>
             <fieldset>
               <legend>Som e voz</legend>
@@ -205,6 +203,8 @@
   {% if show_config %}
     {{ catalogos_empresas|json_script:"panel-company-catalogs" }}
     {{ config|json_script:"panel-current-config" }}
+  {% else %}
+    {{ estado_painel|json_script:"panel-current-state" }}
   {% endif %}
   <script>
     (() => {
@@ -214,6 +214,27 @@
       };
       updateClock();
       setInterval(updateClock, 1000);
+
+      const currentStateElement = document.getElementById("panel-current-state");
+      if (currentStateElement) {
+        let currentState = JSON.stringify(JSON.parse(currentStateElement.textContent || "{}"));
+        const stateUrl = new URL(window.location.href);
+        stateUrl.searchParams.delete("configurar");
+        stateUrl.searchParams.set("estado", "1");
+        window.setInterval(async () => {
+          if (document.hidden) return;
+          try {
+            const response = await fetch(stateUrl, { headers: { "X-Requested-With": "XMLHttpRequest" }, cache: "no-store" });
+            if (!response.ok) return;
+            const state = await response.json();
+            const serializedState = JSON.stringify(state);
+            if (serializedState !== currentState) {
+              currentState = serializedState;
+              window.location.reload();
+            }
+          } catch (_error) {}
+        }, 2000);
+      }
 
       const header = document.querySelector("[data-panel-config-url]");
       const openSettings = () => { if (header?.dataset.panelConfigUrl) window.location.href = header.dataset.panelConfigUrl; };

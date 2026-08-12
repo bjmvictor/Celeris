@@ -17,6 +17,9 @@ TABLES = {
             ("CRO", "CRO"),
             ("CREA", "CREA"),
             ("OAB", "OAB"),
+            ("CRN","CRN"),
+            ("CRESS","CRESS"),
+            ("CRTR", "CRTR")
         ],
     ),
     "orgao_emissor": (

@@ -72,10 +72,10 @@
         <label class="field-sm">Intervalo (minutos) {{ form.nr_intervalo }}</label>
         <label class="field-sm">Quantidade de horários * {{ form.qt_horarios_dia }}</label>
         <label class="field-sm">Quantidade de encaixes {{ form.qt_encaixes }}</label>
-        <label class="field-md provider-checkbox">{{ form.sn_atende_feriado }} <span>Atende em feriados</span></label>
+        <label class="field-lg provider-checkbox scale-holiday-field">{{ form.sn_atende_feriado }} <span>Atende em feriados</span></label>
         <div class="field-fluid scale-preview-action">
-          <button class="button button-primary" type="button" data-scale-auto-adjust>Ajustar escala automaticamente</button>
           <button class="button button-secondary" type="button" data-scale-preview-button>Visualizar horários da escala</button>
+          <small>Os horários serão gerados conforme a quantidade, o intervalo e a duração do atendimento.</small>
         </div>
         <section class="field-fluid scale-preview" data-scale-preview-panel hidden>
           <div>
@@ -156,7 +156,6 @@
 
       const form = document.querySelector(".scale-form");
       const previewButton = form.querySelector("[data-scale-preview-button]");
-      const autoAdjustButton = form.querySelector("[data-scale-auto-adjust]");
       const previewPanel = form.querySelector("[data-scale-preview-panel]");
       const previewSlots = form.querySelector("[data-scale-preview-slots]");
       const previewDescription = form.querySelector("[data-scale-preview-description]");
@@ -166,24 +165,6 @@
         return hour * 60 + minute;
       };
       const format = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
-      autoAdjustButton.addEventListener("click", () => {
-        const start = minutes(form.elements.hr_inicio.value);
-        const end = minutes(form.elements.hr_fim.value);
-        const interval = Number(form.elements.nr_intervalo.value || 0);
-        const quantity = Number(form.elements.qt_horarios_dia.value || 0);
-        const available = start === null || end === null ? 0 : end - start - interval * Math.max(quantity - 1, 0);
-        const duration = quantity > 0 ? Math.floor(available / quantity) : 0;
-        if (start === null || end === null || end <= start || quantity <= 0 || interval < 0 || duration < 1) {
-          previewDescription.textContent = "Não foi possível ajustar. Revise início, fim, intervalo e quantidade.";
-          previewPanel.hidden = false;
-          return;
-        }
-        form.elements.nr_tempo_atendimento.value = duration;
-        form.elements.nr_tempo_atendimento.dispatchEvent(new Event("input", { bubbles: true }));
-        const used = duration * quantity + interval * Math.max(quantity - 1, 0);
-        previewDescription.textContent = `Duração ajustada para ${duration} minuto(s). Sobra final: ${end - start - used} minuto(s).`;
-        previewButton.click();
-      });
       previewButton.addEventListener("click", () => {
         const start = minutes(form.elements.hr_inicio.value);
         const end = minutes(form.elements.hr_fim.value);

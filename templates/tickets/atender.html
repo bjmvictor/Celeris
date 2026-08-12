@@ -91,7 +91,7 @@
     </thead>
     <tbody>
       {% for ticket in tickets %}
-        <tr class="{{ ticket.support_row_class }}" data-toolbar-print-url="{% url 'tickets:imprimir_chamado' ticket.pk %}" title="Clique para selecionar o chamado para impressão">
+        <tr class="{{ ticket.support_row_class }}" data-toolbar-print-url="{% url 'tickets:imprimir_chamado' ticket.pk %}?tela=tickets:atender" title="Clique para selecionar o chamado para impressão">
           <td class="ticket-date-cell">
             <div class="ticket-date-stack">
               <strong>{{ ticket.pk }}</strong>
@@ -115,7 +115,7 @@
           </td>
           <td class="ticket-actions-cell">
             <div class="ticket-actions-wrap">
-              <a class="icon-button" href="{% url 'tickets:imprimir_chamado' ticket.pk %}" target="_blank" rel="noopener" title="Imprimir comprovante">
+              <a class="icon-button" href="{% url 'tickets:imprimir_chamado' ticket.pk %}?tela=tickets:atender" target="_blank" rel="noopener" title="Imprimir comprovante">
                 <span class="svg-icon" data-nav-icon="printer"></span>
               </a>
               {% if ticket.status == "open" %}

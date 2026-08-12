@@ -24,7 +24,8 @@
         <label class="field-lg">Nome Social {{ form.nm_social }}</label>
         <label class="field-sm">Data de Nascimento * {{ form.dt_nascimento }}</label>
         <label class="field-sm">Sexo {{ form.tp_sexo }}</label>
-        <label class="field-md">Gênero {{ form.tp_genero }}</label>
+        <label class="field-md">Identidade de gênero {{ form.tp_genero }}</label>
+        <label class="field-md">Orientação sexual {{ form.ds_orientacao_sexual }}</label>
         <label class="field-md">Cor/Raça {{ form.ds_cor_raca }}</label>
         <label class="field-md">Estado Civil {{ form.tp_estado_civil }}</label>
         <label class="field-sm">Tipo Sanguíneo {{ form.tp_sanguineo }}</label>
@@ -41,9 +42,6 @@
         <label class="field-sm">Data de Expedição {{ form.dt_expedicao }}</label>
         <label class="field-md">Cartão SUS {{ form.nr_cartao_sus }}</label>
         <label class="field-lg">Convênio {{ form.cd_convenio }}</label>
-        <div class="field-auxiliary-actions">
-          <a class="button button-secondary" href="{% url 'atendimento:convenios' %}?overlay=1" data-screen-overlay-link data-overlay-title="Convênios">Gerenciar convênios</a>
-        </div>
         <label class="field-md">Número do Convênio {{ form.nr_convenio }}</label>
       </div>
       {% if not form.cd_convenio.field.queryset.exists %}
@@ -60,8 +58,10 @@
         <label class="field-xl">Nome do Pai {{ form.nm_pai }}</label>
         <label class="field-xl">Nome do Cônjuge {{ form.nm_conjuge }}</label>
         <label class="field-md">Nacionalidade {{ form.ds_nacionalidade }}</label>
-        <label class="field-md">Naturalidade {{ form.ds_naturalidade }}</label>
-        <label class="field-lg">Profissão {{ form.ds_profissao }}</label>
+        <label class="field-md">País de nascimento {{ form.ds_pais_nascimento }}</label>
+        <label class="field-sm">UF de nascimento {{ form.sg_uf_nascimento }}</label>
+        <label class="field-sm">Município de nascimento {{ form.ds_municipio_nascimento }}</label>
+        <label class="field-xl">Profissão {{ form.ds_profissao }}</label>
       </div>
     </details>
 

@@ -5,7 +5,8 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.atendimento.models import Prestador
-from apps.core.models import Module, ScreenDefinition, ValorAuxiliarGlobal
+from apps.core.catalogos import opcoes_catalogo
+from apps.core.models import Module, ScreenDefinition
 
 from .models import Empresa, Papel, PapelModulo, PapelTela, Setor, User, UsuarioEmpresa, normalize_identifier
 
@@ -228,11 +229,7 @@ class UsuarioForm(UserCreationForm):
         return user
 
     def _choices_for(self, table_name):
-        values = ValorAuxiliarGlobal.objects.filter(
-            cd_tabela_auxiliar_global__ds_tabela=table_name,
-            sn_ativo=True,
-        ).order_by("ds_valor")
-        return [("", "")] + [(value.cd_valor, value.ds_valor) for value in values]
+        return opcoes_catalogo(table_name)
 
 
 class UsuarioPasswordForm(SetPasswordForm):

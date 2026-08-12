@@ -11,13 +11,13 @@
   </form>
 
   <section class="card table-card">
-    <table>
+    <table class="data-table">
       <thead>
-        <tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Cidade/UF</th><th>Data de nascimento</th><th>Mãe</th><th>Celular</th><th></th></tr>
+        <tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>CNS</th><th>Cidade/UF</th><th>Data de nascimento</th><th>Mãe</th><th>Celular</th></tr>
       </thead>
       <tbody>
         {% for paciente in pacientes %}
-          <tr>
+          <tr data-row-url="{% url 'atendimento:revisar-paciente-agendamento' paciente.cd_paciente %}" tabindex="0" aria-label="Selecionar {{ paciente.nm_social|default:paciente.nm_paciente }}">
             <td>{{ paciente.cd_paciente }}</td>
             <td>
               {% if paciente.nm_social %}
@@ -37,14 +37,31 @@
             <td>{{ paciente.dt_nascimento|date:"d/m/Y"|default:"-" }}</td>
             <td>{{ paciente.nm_mae|default:"-" }}</td>
             <td>{{ paciente.nr_celular|default:"-" }}</td>
-            <td><a class="button button-secondary" href="{% url 'atendimento:revisar-paciente-agendamento' paciente.cd_paciente %}">Selecionar</a></td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="empty-cell">Pesquise pelos dados principais do paciente ou execute a consulta em branco para listar todos.</td></tr>
+          <tr><td colspan="8" class="empty-cell">Pesquise pelos dados principais do paciente ou execute a consulta em branco para listar todos.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
+  {% if comprovante %}
+    <section class="document-preview-modal appointment-receipt-modal" data-appointment-receipt-modal>
+      <div class="document-preview-backdrop" data-appointment-receipt-close></div>
+      <div class="document-preview-card">
+        <header>
+          <div><strong>Comprovante de agendamento</strong><small>Agendamento {{ comprovante.pk }}</small></div>
+          <button class="toolbar-button" type="button" data-appointment-receipt-close title="Fechar">×</button>
+        </header>
+        <div class="document-preview-body">
+          <iframe class="appointment-receipt-frame" data-appointment-receipt-frame src="{% url 'atendimento:comprovante-agendamento' comprovante.pk %}?pdf=1&amp;tela=atendimento:agendar" title="Comprovante de agendamento"></iframe>
+        </div>
+        <footer>
+          <button class="button button-secondary" type="button" data-appointment-receipt-close>Fechar</button>
+          <button class="button button-primary" type="button" data-appointment-receipt-print><span class="svg-icon" data-nav-icon="printer"></span> Imprimir</button>
+        </footer>
+      </div>
+    </section>
+  {% endif %}
   <script>
     document.querySelectorAll("[data-social-name]").forEach((wrapper) => {
       const text = wrapper.querySelector("[data-social-name-text]");
@@ -56,9 +73,38 @@
         showingSocial = !showingSocial;
         text.textContent = showingSocial ? wrapper.dataset.social : wrapper.dataset.register;
         button.title = showingSocial
-           `Nome de registro: ${wrapper.dataset.register}`
+          ? `Nome de registro: ${wrapper.dataset.register}`
           : `Nome social: ${wrapper.dataset.social}`;
       });
     });
+    document.querySelectorAll("[data-row-url]").forEach((row) => {
+      const open = () => { window.location.href = row.dataset.rowUrl; };
+      row.addEventListener("click", (event) => {
+        if (!event.target.closest("button, a, input, select, textarea")) open();
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      });
+    });
+    (() => {
+      const modal = document.querySelector("[data-appointment-receipt-modal]");
+      if (!modal) return;
+      const close = () => {
+        modal.hidden = true;
+        const url = new URL(window.location.href);
+        url.searchParams.delete("comprovante");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+      };
+      modal.querySelectorAll("[data-appointment-receipt-close]").forEach((button) => button.addEventListener("click", close));
+      modal.querySelector("[data-appointment-receipt-print]")?.addEventListener("click", () => {
+        const frameWindow = modal.querySelector("[data-appointment-receipt-frame]")?.contentWindow;
+        if (!frameWindow) return;
+        frameWindow.focus();
+        frameWindow.print();
+      });
+    })();
   </script>
 {% endblock %}

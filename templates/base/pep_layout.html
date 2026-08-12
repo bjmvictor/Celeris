@@ -13,10 +13,10 @@
       }
     </script>
     <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
-    <link rel="stylesheet" href="{% static 'css/celeris.css' %}">
+    <link rel="stylesheet" href="{% static 'css/celeris.css' %}?v=20260811-7">
     {% block extra_head %}{% endblock %}
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}" defer></script>
-    <script src="{% static 'js/celeris.js' %}?v=20260730" defer></script>
+    <script src="{% static 'js/celeris.js' %}?v=20260811-2" defer></script>
   </head>
   <body class="pep-standalone-shell{% block body_class_extra %}{% endblock %}" data-can-query="false" data-can-save="false" data-can-remove="false" data-username="{{ request.user.username|default:'' }}">
     <header class="topbar pep-standalone-topbar">
@@ -101,6 +101,10 @@
                 <a class="dropdown-item" href="/totem/">
                   <span class="svg-icon" data-nav-icon="ticket"></span>
                   Totem
+                </a>
+                <a class="dropdown-item" href="{% url 'classificacao_standalone' %}">
+                  <span class="svg-icon" data-nav-icon="heart-hands"></span>
+                  Celeris Class
                 </a>
               </div>
             </details>

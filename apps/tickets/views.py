@@ -386,7 +386,9 @@ def solicitar(request):
     if request.GET.get("id"):
         instance = get_object_or_404(registros, pk=request.GET["id"])
     if instance:
-        request.current_print_url = reverse("tickets:imprimir_chamado", args=[instance.pk])
+        request.current_print_url = (
+            f'{reverse("tickets:imprimir_chamado", args=[instance.pk])}?tela=tickets:solicitar'
+        )
     if request.GET.get("sem_resultados") == "1":
         request.current_start_query = True
     _prepare_navigation(request, instance, session_key)
@@ -423,8 +425,12 @@ def solicitar(request):
 @role_required("Suporte")
 @xframe_options_sameorigin
 def imprimir_chamado(request, cd_ticket):
-    from apps.atendimento.models import DocumentoClinico, ModeloDocumento
-    from apps.atendimento.views import _renderizar_documento, _resposta_pdf_documento
+    from apps.atendimento.models import DocumentoClinico
+    from apps.atendimento.views import (
+        _modelos_documento_por_tela,
+        _renderizar_documento,
+        _resposta_pdf_documento,
+    )
 
     empresa = _empresa_logada(request)
     ticket = get_object_or_404(
@@ -443,12 +449,13 @@ def imprimir_chamado(request, cd_ticket):
     )
     if not _usuario_pode_acessar_ticket(request, ticket, empresa):
         return HttpResponse("Usuário sem acesso a este chamado.", status=403, content_type="text/plain; charset=utf-8")
-    modelo = ModeloDocumento.objects.filter(
-        Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
-        tp_elemento="DOCUMENTO",
-        tp_documento="COMPROVANTE_CHAMADO",
-        sn_versao_atual=True,
-        sn_ativo=True,
+    chave_tela = request.GET.get("tela", "tickets:solicitar")
+    if chave_tela not in {"tickets:solicitar", "tickets:atender"}:
+        chave_tela = "tickets:solicitar"
+    modelo = _modelos_documento_por_tela(
+        empresa,
+        chave_tela,
+        {"COMPROVANTE_CHAMADO"},
     ).order_by("-cd_empresa_id", "nm_modelo").first()
     if not modelo:
         return HttpResponse(

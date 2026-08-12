@@ -3,7 +3,8 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.core.models import TabelaAuxiliarGlobal, ValorAuxiliarGlobal
+from apps.core.catalogos import atualizar_item_catalogo, modelo_catalogo
+from apps.core.models import Cep
 
 
 class Command(BaseCommand):
@@ -18,10 +19,9 @@ class Command(BaseCommand):
         path = Path(options["arquivo"])
         if not path.exists():
             raise CommandError(f"Arquivo não encontrado: {path}")
-        table, _ = TabelaAuxiliarGlobal.objects.get_or_create(
-            ds_tabela=options["tabela"],
-            defaults={"ds_descricao": options["tabela"].replace("_", " ").upper(), "sn_ativo": True},
-        )
+        tema = options["tabela"]
+        if tema != "cep":
+            modelo_catalogo(tema)
         imported = 0
         with path.open("r", encoding="utf-8-sig", newline="") as source:
             reader = csv.DictReader(source, delimiter=options["separador"])
@@ -33,14 +33,19 @@ class Command(BaseCommand):
                 description = (row.get("descricao") or "").strip()[:160]
                 if not code or not description:
                     continue
-                ValorAuxiliarGlobal.objects.update_or_create(
-                    cd_tabela_auxiliar_global=table,
-                    cd_valor=code,
-                    defaults={
-                        "ds_valor": description,
-                        "ds_grupo": (row.get("grupo") or "").strip()[:40],
-                        "sn_ativo": True,
-                    },
-                )
+                grupo = (row.get("grupo") or "").strip()[:40]
+                if tema == "cep":
+                    Cep.objects.update_or_create(
+                        nr_cep="".join(character for character in code if character.isdigit())[:8],
+                        defaults={"ds_logradouro": description, "ds_cidade": grupo, "sn_ativo": True},
+                    )
+                else:
+                    atualizar_item_catalogo(
+                        tema,
+                        code,
+                        ds_valor=description,
+                        ds_grupo=grupo,
+                        sn_ativo=True,
+                    )
                 imported += 1
         self.stdout.write(self.style.SUCCESS(f"{imported} registro(s) importado(s) em {options['tabela']}."))

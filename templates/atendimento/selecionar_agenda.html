@@ -114,7 +114,7 @@
           <button class="toolbar-button" type="button" data-appointment-receipt-close title="Fechar">×</button>
         </header>
         <div class="document-preview-body">
-          <iframe class="appointment-receipt-frame" data-appointment-receipt-frame src="{% url 'atendimento:comprovante-agendamento' comprovante.pk %}?pdf=1" title="Comprovante de agendamento"></iframe>
+          <iframe class="appointment-receipt-frame" data-appointment-receipt-frame src="{% url 'atendimento:comprovante-agendamento' comprovante.pk %}?pdf=1&amp;tela=atendimento:agendar" title="Comprovante de agendamento"></iframe>
         </div>
         <footer>
           <button class="button button-secondary" type="button" data-appointment-receipt-close>Fechar</button>
@@ -181,7 +181,6 @@
         if (!frameWindow) return;
         frameWindow.focus();
         frameWindow.print();
-        window.location.assign("{% url 'atendimento:agendar' %}");
       });
     })();
     (() => {

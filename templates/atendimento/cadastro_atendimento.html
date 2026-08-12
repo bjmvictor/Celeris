@@ -26,9 +26,6 @@
         <span>{{ agendamento.dh_agendamento|date:"d/m/Y H:i" }}</span>
         <span>{{ agendamento.ds_profissional|default:agendamento.cd_agenda_profissional.cd_prestador.nm_prestador }}</span>
         <span>{{ agendamento.ds_especialidade|default:"Especialidade não informada" }}</span>
-        {% if atendimento %}
-          <button class="button button-secondary" type="button" data-attendance-documents-open><span class="svg-icon" data-nav-icon="printer"></span> Imprimir</button>
-        {% endif %}
       </section>
     {% endif %}
 
@@ -99,24 +96,34 @@
   </form>
 
   {% if atendimento %}
-    <section class="document-move-modal attendance-documents-modal" data-attendance-documents-modal hidden>
+    <section class="document-move-modal attendance-documents-modal" data-attendance-documents-modal data-document-count="{{ modelos_documentos_atendimento|length }}" data-attendance-print-base-url="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}" hidden>
       <div class="card">
         <header class="section-heading">
           <div><h2>Documentos do atendimento</h2><small>Selecione o documento que deseja imprimir.</small></div>
           <button class="toolbar-button" type="button" data-attendance-documents-close title="Fechar">×</button>
         </header>
         <div class="attendance-document-list">
-          <button class="button button-secondary" type="button" data-attendance-document-preview-url="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}">
-            <span class="svg-icon" data-nav-icon="file-text"></span> Ficha padrão do sistema
-          </button>
           {% for modelo in modelos_documentos_atendimento %}
-            <button class="button button-secondary" type="button" data-attendance-document-preview-url="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}?modelo={{ modelo.pk }}">
-              <span class="svg-icon" data-nav-icon="{% if modelo.tp_documento == 'ETIQUETA_ATENDIMENTO' %}table{% else %}file-text{% endif %}"></span> {{ modelo.nm_modelo }}
-            </button>
+            <div class="attendance-document-option">
+              <label class="checkbox-option">
+                <input type="checkbox" value="{{ modelo.pk }}" data-attendance-document-checkbox>
+                <span>{{ modelo.nm_modelo }}</span>
+              </label>
+              <button class="button button-secondary" type="button" data-attendance-document-preview-url="{% url 'atendimento:imprimir-atendimento' atendimento.pk %}?modelo={{ modelo.pk }}" title="Visualizar e imprimir somente este documento">
+                <span class="svg-icon" data-nav-icon="{% if modelo.tp_documento == 'ETIQUETA_ATENDIMENTO' %}table{% else %}file-text{% endif %}"></span> Imprimir
+              </button>
+            </div>
           {% empty %}
             <span class="empty-state">Nenhum modelo adicional configurado no Editor de documentos.</span>
           {% endfor %}
         </div>
+        {% if modelos_documentos_atendimento %}
+          <footer class="attendance-document-actions">
+            <button class="button button-primary" type="button" data-attendance-documents-print-selected disabled>
+              <span class="svg-icon" data-nav-icon="printer"></span> Imprimir selecionados
+            </button>
+          </footer>
+        {% endif %}
       </div>
     </section>
     <section class="document-preview-modal appointment-receipt-modal" data-attendance-print-preview hidden>
@@ -142,12 +149,12 @@
   <script>
     (() => {
       const form = document.querySelector(".attendance-registration-form");
-      const checkbox = form.querySelector("[data-responsible-same-address]");
-      if (!form || !checkbox) return;
+      const checkbox = form?.querySelector("[data-responsible-same-address]");
+      if (!form) return;
       let address = {};
       try { address = JSON.parse(form.dataset.patientAddress || "{}"); } catch {}
       const copyAddress = () => {
-        if (!checkbox.checked) return;
+        if (!checkbox?.checked) return;
         Object.entries(address).forEach(([name, value]) => {
           const field = form.elements[`responsavel-${name}`];
           if (!field) return;
@@ -158,10 +165,24 @@
           field.dispatchEvent(new Event("change", { bubbles: true }));
         });
       };
-      checkbox.addEventListener("change", copyAddress);
+      checkbox?.addEventListener("change", copyAddress);
       copyAddress();
       const documentsModal = document.querySelector("[data-attendance-documents-modal]");
-      document.querySelector("[data-attendance-documents-open]").addEventListener("click", () => {
+      const toolbarPrint = document.querySelector('[data-action="print"]');
+      if (toolbarPrint && documentsModal) {
+        const documentButtons = [...documentsModal.querySelectorAll("[data-attendance-document-preview-url]")];
+        toolbarPrint.hidden = documentButtons.length === 0;
+        toolbarPrint.disabled = documentButtons.length === 0;
+        toolbarPrint.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (documentButtons.length === 1) {
+            documentButtons[0].click();
+          } else if (documentButtons.length > 1) {
+            documentsModal.hidden = false;
+          }
+        });
+      }
+      document.querySelector("[data-attendance-documents-open]")?.addEventListener("click", () => {
         documentsModal.hidden = false;
       });
       document.querySelectorAll("[data-attendance-documents-close]").forEach((button) => {
@@ -169,12 +190,28 @@
       });
       const printPreview = document.querySelector("[data-attendance-print-preview]");
       const printFrame = printPreview.querySelector("[data-attendance-print-frame]");
+      const openPrintPreview = (url) => {
+        printFrame.src = url;
+        documentsModal.hidden = true;
+        printPreview.hidden = false;
+      };
       document.querySelectorAll("[data-attendance-document-preview-url]").forEach((button) => {
         button.addEventListener("click", () => {
-          printFrame.src = button.dataset.attendanceDocumentPreviewUrl;
-          documentsModal.hidden = true;
-          printPreview.hidden = false;
+          openPrintPreview(button.dataset.attendanceDocumentPreviewUrl);
         });
+      });
+      const documentCheckboxes = [...documentsModal.querySelectorAll("[data-attendance-document-checkbox]")];
+      const printSelected = documentsModal.querySelector("[data-attendance-documents-print-selected]");
+      const refreshPrintSelected = () => {
+        if (printSelected) printSelected.disabled = !documentCheckboxes.some((field) => field.checked);
+      };
+      documentCheckboxes.forEach((field) => field.addEventListener("change", refreshPrintSelected));
+      printSelected?.addEventListener("click", () => {
+        const selected = documentCheckboxes.filter((field) => field.checked).map((field) => field.value);
+        if (!selected.length) return;
+        const url = new URL(documentsModal.dataset.attendancePrintBaseUrl, window.location.origin);
+        url.searchParams.set("modelos", selected.join(","));
+        openPrintPreview(url.toString());
       });
       printPreview.querySelectorAll("[data-attendance-print-close]").forEach((button) => {
         button.addEventListener("click", () => {
