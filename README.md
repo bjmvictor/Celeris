@@ -4,7 +4,7 @@
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+[![CCL-1.0 License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
 
 <br />
@@ -305,7 +305,7 @@ Para sugestões, bugs ou melhorias, também é possível utilizar as [issues do 
 
 ## Licença
 
-Distribuído sob a licença **MIT**.
+Distribuído sob a licença **CCL-1.0**.
 
 Consulte o arquivo [`LICENSE`](LICENSE) para mais informações.
 
@@ -368,7 +368,7 @@ Documentação: [bjmvictor.github.io/Celeris](https://bjmvictor.github.io/Celeri
 [issues-shield]: https://img.shields.io/github/issues/bjmvictor/Celeris.svg?style=for-the-badge
 [issues-url]: https://github.com/bjmvictor/Celeris/issues
 
-[license-shield]: https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge
+[license-shield]: https://img.shields.io/badge/License-CCL--1.0-yellow?style=for-the-badge
 [license-url]: https://github.com/bjmvictor/Celeris/blob/main/LICENSE
 
 [linkedin-shield]: https://img.shields.io/badge/LinkedIn-Perfil-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white
