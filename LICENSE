@@ -1,21 +1,419 @@
-MIT License
+# CELERIS COMMUNITY LICENSE
 
-Copyright (c) 2026 Benjamin Victor
+## Versão 1.0 — Agosto de 2026
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Copyright © 2026 Celeris. Todos os direitos reservados.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Esta licença regula o uso, acesso, modificação e distribuição do software **Celeris**, incluindo seu código-fonte, código compilado, interfaces, componentes próprios, documentação e demais materiais distribuídos como parte do projeto, salvo quando expressamente indicado de outra forma.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Ao utilizar, copiar, instalar, executar, acessar ou modificar o Celeris, você concorda com os termos desta licença.
+
+---
+
+## 1. Definições
+
+Para os fins desta licença:
+
+**“Celeris”** ou **“Software”** significa o software Celeris disponibilizado pelo titular dos direitos autorais, incluindo seu código-fonte e componentes próprios.
+
+**“Titular”** significa o proprietário dos direitos autorais do Celeris ou pessoa física ou jurídica que posteriormente venha a deter legalmente esses direitos.
+
+**“Usuário”** significa qualquer pessoa física ou jurídica que utilize o Software nos termos desta licença.
+
+**“Modificação”** significa qualquer alteração, adaptação, extensão, correção, integração ou transformação realizada diretamente sobre o código do Celeris.
+
+**“Software Derivado”** significa qualquer software que incorpore, modifique ou seja baseado substancialmente no código-fonte do Celeris.
+
+**“Distribuição”** significa fornecer, publicar, vender, sublicenciar, transferir, disponibilizar para download, entregar cópia ou tornar o Software ou Software Derivado disponível a terceiros.
+
+**“Uso Interno”** significa a utilização do Software dentro da própria pessoa física ou organização que realizou sua instalação, sem disponibilização do Software ou de Software Derivado como produto ou serviço de software para terceiros.
+
+---
+
+# 2. Concessão de licença
+
+Observados os termos desta licença, o Titular concede ao Usuário uma licença:
+
+* gratuita;
+* não exclusiva;
+* não transferível;
+* não sublicenciável;
+* revogável nas hipóteses previstas nesta licença;
+
+para utilizar o Celeris para fins pessoais, educacionais, institucionais, empresariais, assistenciais ou administrativos.
+
+Nenhuma taxa de licença é exigida pelo simples uso do Celeris sob estes termos.
+
+---
+
+# 3. Uso gratuito
+
+É permitido instalar e utilizar gratuitamente o Celeris em computadores, servidores, máquinas virtuais ou infraestrutura de nuvem pertencentes ou contratados pelo Usuário.
+
+Hospitais, clínicas, instituições de saúde, instituições educacionais, organizações públicas, organizações privadas e demais entidades podem utilizar o Celeris gratuitamente para suas próprias operações internas.
+
+O uso do Celeris dentro de uma organização não caracteriza redistribuição.
+
+---
+
+# 4. Acesso ao código-fonte
+
+O código-fonte do Celeris poderá ser disponibilizado publicamente pelo Titular.
+
+A disponibilidade pública do código-fonte:
+
+* não transfere sua propriedade;
+* não coloca o Software em domínio público;
+* não concede direitos além daqueles expressamente previstos nesta licença;
+* não autoriza automaticamente sua redistribuição;
+* não transforma esta licença em uma licença Open Source reconhecida pela Open Source Initiative.
+
+Todos os direitos não expressamente concedidos permanecem reservados ao Titular.
+
+---
+
+# 5. Modificação para uso próprio
+
+O Usuário poderá modificar o código-fonte do Celeris para:
+
+* adequá-lo às necessidades de sua própria organização;
+* desenvolver integrações internas;
+* corrigir erros;
+* desenvolver funcionalidades adicionais;
+* realizar testes;
+* realizar pesquisas;
+* estudar seu funcionamento;
+* realizar auditorias técnicas ou de segurança;
+* adaptar o Software à infraestrutura da organização.
+
+Essas modificações poderão ser utilizadas internamente sem necessidade de autorização adicional do Titular.
+
+---
+
+# 6. Contribuições ao projeto oficial
+
+Usuários poderão propor modificações ao projeto oficial por meio de Pull Requests, patches ou outros mecanismos aceitos pelo projeto.
+
+O envio voluntário de uma contribuição ao projeto oficial representa autorização para que o Titular:
+
+* analise;
+* modifique;
+* adapte;
+* incorpore;
+* publique;
+* distribua;
+* relicencie;
+
+a contribuição como parte do Celeris.
+
+O Titular não possui obrigação de aceitar qualquer contribuição.
+
+Contribuições significativas poderão ser submetidas a termos adicionais ou a um acordo específico de contribuição.
+
+---
+
+# 7. Proibição de redistribuição não autorizada
+
+Sem autorização prévia e expressa do Titular, é proibido distribuir a terceiros:
+
+* cópias completas do Celeris;
+* versões compiladas do Celeris;
+* versões modificadas do Celeris;
+* forks públicos destinados à distribuição;
+* Software Derivado;
+* produtos substancialmente baseados no Celeris;
+* instaladores ou pacotes contendo o Celeris;
+* versões renomeadas ou reidentificadas do Celeris.
+
+A disponibilização pública de um fork contendo código protegido pelo Celeris é considerada distribuição.
+
+Forks privados utilizados exclusivamente para desenvolvimento ou Uso Interno são permitidos.
+
+---
+
+# 8. Proibição de comercialização do Software
+
+Sem autorização expressa do Titular, é proibido:
+
+* vender cópias do Celeris;
+* vender Software Derivado;
+* cobrar pelo direito de acesso ao código-fonte do Celeris;
+* sublicenciar o Celeris;
+* comercializar versões modificadas do Celeris;
+* incorporar substancialmente o Celeris em outro produto destinado à venda ou licenciamento.
+
+Esta cláusula não impede que uma organização utilize gratuitamente o Celeris em atividades comerciais próprias.
+
+Também não impede, por si só, a contratação de profissionais ou empresas para serviços de instalação, configuração, integração, treinamento, infraestrutura ou suporte técnico relacionados à instalação do Celeris pertencente ao próprio contratante, desde que isso não envolva distribuição, sublicenciamento ou comercialização não autorizizada do Software.
+
+---
+
+# 9. Software como serviço
+
+A utilização do Celeris para fornecer a terceiros uma plataforma hospedada, SaaS, serviço gerenciado ou serviço equivalente baseado substancialmente no Software depende de autorização prévia e expressa do Titular.
+
+Esta restrição não se aplica ao uso normal do Celeris pelos usuários, funcionários, profissionais, pacientes ou colaboradores da própria organização que o instalou para suas operações.
+
+---
+
+# 10. Integrações e interoperabilidade
+
+É permitido desenvolver software independente que se comunique com o Celeris através de APIs, protocolos, banco de dados, arquivos, filas, serviços web ou outros mecanismos de integração disponíveis.
+
+Um software independente não será considerado Software Derivado apenas por interoperar com o Celeris.
+
+Esta permissão não autoriza copiar ou incorporar código-fonte protegido do Celeris ao software independente.
+
+---
+
+# 11. Marca Celeris
+
+Esta licença não concede direitos sobre:
+
+* o nome **Celeris**;
+* logotipos do Celeris;
+* identidade visual oficial;
+* nomes de produtos oficiais;
+* marcas registradas ou não registradas associadas ao projeto.
+
+Nenhuma pessoa poderá utilizar esses elementos de maneira que indique falsamente que um produto, serviço ou versão modificada é oficial, homologada, certificada ou mantida pelo projeto Celeris.
+
+A autorização de uso do Software não implica autorização de uso comercial da marca.
+
+---
+
+# 12. Avisos de autoria
+
+Os avisos de copyright, autoria e licença existentes no código-fonte não poderão ser removidos ou alterados de maneira que atribua falsamente a autoria original a terceiros.
+
+Modificações internas poderão conter avisos adicionais identificando seus respectivos autores.
+
+---
+
+# 13. Componentes de terceiros
+
+O Celeris poderá utilizar bibliotecas, frameworks, ícones, fontes, ferramentas ou outros componentes desenvolvidos por terceiros.
+
+Esses componentes permanecem sujeitos às suas respectivas licenças.
+
+Esta licença aplica-se somente às partes do projeto sobre as quais o Titular possui direitos suficientes para aplicar estes termos.
+
+Em caso de conflito envolvendo um componente de terceiro, prevalecerá a licença aplicável àquele componente.
+
+---
+
+# 14. Dados processados pelo Software
+
+Esta licença regula o Software e não transfere ao Titular propriedade sobre dados inseridos ou processados pelo Usuário.
+
+A organização responsável pela instalação do Celeris permanece responsável pela utilização, armazenamento, segurança, tratamento, retenção e proteção dos dados processados através de sua instalação.
+
+O uso do Celeris não transfere automaticamente dados ao Titular.
+
+---
+
+# 15. Privacidade e legislação aplicável
+
+O Usuário é responsável por configurar e utilizar sua instalação do Celeris de acordo com a legislação aplicável à sua atividade, incluindo, quando pertinente, regras relacionadas à privacidade, proteção de dados pessoais, segurança da informação e informações de saúde.
+
+A disponibilização do Software não representa garantia de conformidade automática com qualquer legislação ou regulamentação específica.
+
+---
+
+# 16. Ausência de garantia
+
+O CELERIS É FORNECIDO “NO ESTADO EM QUE SE ENCONTRA”, SEM GARANTIAS EXPRESSAS OU IMPLÍCITAS, NA EXTENSÃO PERMITIDA PELA LEGISLAÇÃO APLICÁVEL.
+
+O Titular não garante que o Software:
+
+* funcionará sem interrupções;
+* estará livre de erros;
+* atenderá a todas as necessidades de determinada organização;
+* será adequado a determinada finalidade;
+* estará livre de vulnerabilidades;
+* será compatível com todos os sistemas ou ambientes.
+
+O Usuário é responsável por avaliar o Software antes de utilizá-lo em ambientes críticos.
+
+---
+
+# 17. Uso em ambiente de saúde
+
+O Celeris poderá possuir funcionalidades destinadas a ambientes hospitalares, clínicos ou assistenciais.
+
+Salvo quando expressamente certificado ou homologado para determinada finalidade, o Software não deve ser interpretado como substituto da avaliação, decisão ou responsabilidade de profissionais legalmente habilitados.
+
+A organização que utilizar o Celeris é responsável por validar sua configuração, integrações, fluxos e adequação aos processos assistenciais antes de colocá-lo em produção.
+
+---
+
+# 18. Limitação de responsabilidade
+
+Na máxima extensão permitida pela legislação aplicável, o Titular não será responsável por danos indiretos, incidentais, especiais ou consequenciais decorrentes do uso ou impossibilidade de uso do Software.
+
+Isso inclui, sem limitação, perda de dados, indisponibilidade, interrupção operacional, perda de receita ou danos decorrentes de configuração, modificação ou integração realizada por terceiros.
+
+Nenhuma disposição desta licença exclui responsabilidade que não possa ser legalmente excluída.
+
+---
+
+# 19. Violação da licença
+
+Os direitos concedidos por esta licença poderão ser suspensos ou encerrados caso o Usuário viole seus termos.
+
+Quando a violação puder ser corrigida, o Titular poderá permitir prazo razoável para regularização antes de adotar outras medidas.
+
+A utilização, distribuição ou comercialização do Software fora das permissões desta licença poderá constituir violação dos direitos autorais e demais direitos do Titular.
+
+---
+
+# 20. Autorizações adicionais
+
+O Titular poderá conceder autorizações adicionais através de contrato ou autorização escrita.
+
+Isso poderá incluir, entre outros:
+
+* autorização para redistribuição;
+* licença comercial;
+* criação de versões derivadas;
+* distribuição integrada a outros produtos;
+* fornecimento de SaaS;
+* sublicenciamento;
+* utilização especial da marca Celeris.
+
+Uma autorização concedida a determinada pessoa ou organização não modifica automaticamente esta licença para os demais Usuários.
+
+---
+
+# 21. Licenciamento comercial
+
+O Titular poderá disponibilizar o Celeris simultaneamente sob outros modelos de licenciamento.
+
+A existência desta licença gratuita não impede a criação de:
+
+* edições comerciais;
+* serviços oficiais;
+* suporte contratado;
+* implantação;
+* hospedagem;
+* versões empresariais;
+* módulos adicionais;
+* contratos de manutenção;
+* outras modalidades comerciais.
+
+O Titular poderá conceder licenças diferentes para terceiros mediante acordo específico.
+
+---
+
+# 22. Revisões futuras desta licença
+
+O Titular poderá publicar novas versões da **Celeris Community License**.
+
+Cada versão deverá possuir número de versão claramente identificado.
+
+Uma nova versão da licença não altera retroativamente os termos aplicáveis a uma versão do Celeris que tenha sido disponibilizada anteriormente sob esta licença, salvo quando permitido pela legislação ou mediante concordância das partes envolvidas.
+
+Versões futuras do Celeris poderão ser distribuídas sob versões posteriores desta licença ou sob outros termos definidos pelo Titular.
+
+O recebimento de uma versão futura do Software poderá estar condicionado à aceitação da licença aplicável àquela versão.
+
+---
+
+# 23. Alteração do modelo de licenciamento
+
+O Titular reserva-se o direito de alterar o modelo de licenciamento de futuras versões do Celeris.
+
+O projeto poderá futuramente adotar licença:
+
+* mais permissiva;
+* mais restritiva;
+* comercial;
+* Open Source;
+* dual-license;
+* source-available;
+* ou outro modelo juridicamente permitido.
+
+Essa alteração não revoga automaticamente direitos já concedidos sobre cópias anteriormente recebidas sob uma licença válida.
+
+---
+
+# 24. Continuidade das versões anteriores
+
+Caso uma versão futura do Celeris seja disponibilizada sob termos diferentes, cópias legitimamente obtidas de versões anteriores poderão continuar sendo utilizadas de acordo com a licença que acompanhava aquela versão, salvo disposição legal em contrário.
+
+O direito de receber atualizações, novas versões ou novos recursos não é garantido por esta licença.
+
+---
+
+# 25. Ausência de obrigação de manutenção
+
+O Titular não possui obrigação, em razão desta licença gratuita, de fornecer:
+
+* suporte técnico;
+* atualizações;
+* correções;
+* novas funcionalidades;
+* treinamento;
+* hospedagem;
+* implantação;
+* manutenção.
+
+Esses serviços poderão ser disponibilizados separadamente.
+
+---
+
+# 26. Transferência dos direitos do projeto
+
+Os direitos autorais e demais direitos relacionados ao Celeris poderão ser transferidos pelo Titular a outra pessoa física ou jurídica.
+
+Nesse caso, o sucessor legal poderá exercer os direitos atribuídos ao Titular por esta licença, respeitados os direitos previamente concedidos aos Usuários.
+
+---
+
+# 27. Independência das cláusulas
+
+Caso qualquer disposição desta licença seja considerada inválida, ilegal ou inexequível, as demais disposições permanecerão em vigor na máxima extensão permitida pela legislação aplicável.
+
+---
+
+# 28. Ausência de renúncia
+
+A eventual tolerância do Titular em relação ao descumprimento de determinada cláusula não constitui renúncia permanente ao direito de exigir seu cumprimento posteriormente.
+
+---
+
+# 29. Lei aplicável
+
+Esta licença será interpretada de acordo com a legislação da República Federativa do Brasil.
+
+Questões relacionadas a direitos autorais, proteção de dados, contratos e propriedade intelectual serão interpretadas conforme a legislação brasileira aplicável.
+
+---
+
+# 30. Aceitação
+
+Ao instalar, executar, utilizar, modificar ou acessar o código-fonte do Celeris nos termos desta licença, o Usuário declara ter lido e aceitado suas condições.
+
+Caso não concorde com estes termos, não deverá exercer os direitos adicionais concedidos por esta licença.
+
+---
+
+# 31. Identificação da licença
+
+Esta licença poderá ser identificada como:
+
+**Celeris Community License 1.0**
+
+ou, de forma abreviada:
+
+**CCL-1.0-Celeris**
+
+Esta licença é específica do projeto Celeris e não possui relação com as licenças Creative Commons.
+
+---
+
+## Copyright
+
+Copyright © 2026 Celeris.
+
+Todos os direitos não expressamente concedidos nesta licença são reservados.
