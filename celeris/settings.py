@@ -46,7 +46,34 @@ if not SECRET_KEY:
     if not DEBUG:
         raise ImproperlyConfigured("Defina DJANGO_SECRET_KEY no ambiente antes de iniciar o Celeris.")
     SECRET_KEY = get_random_secret_key()
-ALLOWED_HOSTS = [item.strip() for item in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if item.strip()]
+ALLOWED_HOSTS = [item.strip() for item in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,*",).split(",") if item.strip()]
+
+_default_csrf_trusted_origins = []
+if DEBUG:
+    _default_csrf_trusted_origins.extend(
+        [
+            "http://localhost:8000",
+            "https://localhost:8000",
+            "http://127.0.0.1:8000",
+            "https://127.0.0.1:8000",
+        ]
+    )
+
+_codespace_name = os.getenv("CODESPACE_NAME", "").strip()
+if _codespace_name:
+    _codespace_port = os.getenv("CELERIS_CODESPACE_PORT", "8000").strip()
+    _codespace_domain = os.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev").strip()
+    _default_csrf_trusted_origins.append(
+        f"https://{_codespace_name}-{_codespace_port}.{_codespace_domain}"
+    )
+
+CSRF_TRUSTED_ORIGINS = [
+    item.strip()
+    for item in os.getenv(
+        "DJANGO_CSRF_TRUSTED_ORIGINS", ",".join(_default_csrf_trusted_origins)
+    ).split(",")
+    if item.strip()
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
