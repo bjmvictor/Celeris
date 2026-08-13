@@ -1948,10 +1948,12 @@
     panel.innerHTML = options.map((option, index) => {
       const isEmpty = !option.value && !(option.text || "").trim();
       const optionIcon = option.dataset.iconKey;
+      const optionColor = option.dataset.color;
+      const optionLabel = option.text || option.value || "EM BRANCO";
       return `
-      <button type="button" data-select-index="${index}" ${isEmpty ?'data-empty-option="true"' : ""} class="${option.selected ?"active" : ""}${optionIcon ?" has-icon" : ""}">
+      <button type="button" data-select-index="${index}" ${isEmpty ?'data-empty-option="true"' : ""} class="${option.selected ?"active" : ""}${optionIcon ?" has-icon" : ""}${optionColor ?" has-color-option" : ""}" aria-label="${escapeHTML(optionLabel)}" title="${escapeHTML(optionLabel)}">
         ${optionIcon ?`<span class="floating-select-icon" aria-hidden="true">${iconMarkup(optionIcon)}</span>` : ""}
-        <span>${escapeHTML(option.text || option.value || "EM BRANCO")}</span>
+        ${optionColor ?`<span class="floating-select-color-option" style="--option-color:${escapeHTML(optionColor)}" aria-hidden="true"></span><span class="visually-hidden">${escapeHTML(optionLabel)}</span>` : `<span>${escapeHTML(optionLabel)}</span>`}
       </button>
     `;
     }).join("");

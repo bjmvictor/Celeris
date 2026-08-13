@@ -2,26 +2,28 @@
 {% block content %}
   <form class="card table-card" method="post" data-editable-table data-table="fluxo_classificacao_escala">
     {% csrf_token %}
-    <table class="editable-table">
-      <thead><tr><th>Escala recomendada</th><th>Ordem</th><th>Status</th></tr></thead>
+    <table class="editable-table flow-recommended-scales-table">
+      <thead><tr><th>Ordem</th><th>Escala recomendada</th><th>Status</th></tr></thead>
       <tbody>
         {% for vinculo in vinculos %}
           <tr data-editable-row>
             <td>
-              <input type="hidden" name="link_id" value="{{ vinculo.pk }}">
+              <input type="hidden" name="link_id" value="{{ vinculo.pk }}" data-primary-key="true">
               <input type="hidden" name="delete" value="0" data-row-delete>
+              <input type="number" name="order" min="0" value="{{ vinculo.nr_ordem }}">
+            </td>
+            <td>
               <select name="scale_id" required>
                 <option value=""></option>
                 {% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}" {% if vinculo.cd_escala_clinica_id == escala.pk %}selected{% endif %}>{{ escala.nm_escala }}</option>{% endfor %}
               </select>
             </td>
-            <td><input type="number" name="order" min="0" value="{{ vinculo.nr_ordem }}"></td>
             <td><select name="active"><option value="true" {% if vinculo.sn_ativo %}selected{% endif %}>Ativa</option><option value="false" {% if not vinculo.sn_ativo %}selected{% endif %}>Inativa</option></select></td>
           </tr>
         {% empty %}
           <tr data-editable-row>
-            <td><input type="hidden" name="link_id"><input type="hidden" name="delete" value="0" data-row-delete><select name="scale_id" required><option value=""></option>{% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}">{{ escala.nm_escala }}</option>{% endfor %}</select></td>
-            <td><input type="number" name="order" min="0" value="10"></td>
+            <td><input type="hidden" name="link_id" data-primary-key="true"><input type="hidden" name="delete" value="0" data-row-delete><input type="number" name="order" min="1" value="1"></td>
+            <td><select name="scale_id" required><option value=""></option>{% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}">{{ escala.nm_escala }}</option>{% endfor %}</select></td>
             <td><select name="active"><option value="true" selected>Ativa</option><option value="false">Inativa</option></select></td>
           </tr>
         {% endfor %}
@@ -29,10 +31,35 @@
     </table>
     <template data-table-new-row>
       <tr data-editable-row>
-        <td><input type="hidden" name="link_id"><input type="hidden" name="delete" value="0" data-row-delete><select name="scale_id" required><option value=""></option>{% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}">{{ escala.nm_escala }}</option>{% endfor %}</select></td>
-        <td><input type="number" name="order" min="0" value="10"></td>
+        <td><input type="hidden" name="link_id" data-primary-key="true"><input type="hidden" name="delete" value="0" data-row-delete><input type="number" name="order" min="1" value="1"></td>
+        <td><select name="scale_id" required><option value=""></option>{% for escala in escalas_disponiveis %}<option value="{{ escala.pk }}">{{ escala.nm_escala }}</option>{% endfor %}</select></td>
         <td><select name="active"><option value="true" selected>Ativa</option><option value="false">Inativa</option></select></td>
       </tr>
     </template>
   </form>
+  <script>
+    (() => {
+      const form = document.querySelector('form[data-table="fluxo_classificacao_escala"]');
+      const body = form?.querySelector("tbody");
+      if (!body) return;
+
+      const applyNextOrder = (row) => {
+        if (!row?.matches("tr[data-editable-row]") || row.querySelector('[name="link_id"]')?.value) return;
+        const orderField = row.querySelector('[name="order"]');
+        if (!orderField) return;
+        const maxOrder = Math.max(0, ...Array.from(body.querySelectorAll('tr[data-editable-row]:not([hidden])'))
+          .filter((item) => item !== row)
+          .map((item) => Number.parseInt(item.querySelector('[name="order"]')?.value || "0", 10))
+          .filter(Number.isFinite));
+        orderField.value = String(maxOrder + 1);
+      };
+
+      new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+          if (node instanceof HTMLTableRowElement) applyNextOrder(node);
+          node.querySelectorAll?.("tr[data-editable-row]").forEach(applyNextOrder);
+        }));
+      }).observe(body, { childList: true });
+    })();
+  </script>
 {% endblock %}
