@@ -1017,6 +1017,20 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(primeira.nm_cor, "Verde claro")
         self.assertEqual(segunda.nm_cor, "Azul profundo")
 
+        dados[f"priority_{primeira.pk}"] = "4"
+        dados[f"priority_{segunda.pk}"] = "1"
+        response = self.client.post(f"{url}?consultar=1", dados)
+        self.assertRedirects(response, f"{url}?consultar=1")
+        primeira.refresh_from_db()
+        segunda.refresh_from_db()
+        self.assertEqual(primeira.nr_prioridade, 4)
+        self.assertEqual(segunda.nr_prioridade, 1)
+        consulta_ordenada = self.client.get(url, {"consultar": "1"})
+        self.assertEqual(
+            [item.pk for item in consulta_ordenada.context["registros"].object_list],
+            [segunda.pk, primeira.pk],
+        )
+
         dados[f"code_{primeira.pk}"] = "AZUL"
         response = self.client.post(f"{url}?consultar=1", dados, follow=True)
         self.assertEqual(response.status_code, 200)
@@ -1657,6 +1671,21 @@ class FluxoHomologacaoTests(TestCase):
         SenhaAtendimento.objects.filter(pk=senha_antiga.pk).update(
             dt_senha=timezone.localdate() - timedelta(days=3)
         )
+        agendamento_classificado = Agendamento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_agenda_profissional=self.agenda,
+            dh_agendamento=timezone.now() + timedelta(minutes=15),
+            ds_status="AGENDADO",
+            ds_especialidade="CLINICA_GERAL",
+            ds_profissional=self.prestador.nm_prestador,
+        )
+        PreAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_agendamento=agendamento_classificado,
+            ds_queixa_principal="Paciente classificado",
+        )
         self.login_as(self.enfermeiro)
 
         response = self.client.get(reverse("classificacao_standalone"))
@@ -1684,6 +1713,26 @@ class FluxoHomologacaoTests(TestCase):
             f"{reverse('classificacao_standalone')}?data={timezone.localdate().isoformat()}&filtro=agendados&filtro=classificados&filtro=nao_classificados",
         )
         self.assertContains(response, "has-both-queues")
+        self.assertEqual(
+            [item.pk for item in response.context["agendamentos"]],
+            [self.agendamento.pk, agendamento_classificado.pk],
+        )
+        self.assertEqual(
+            [item.pk for item in response.context["senhas"]],
+            [senha.pk, senha_antiga.pk],
+        )
+        self.assertContains(response, "classification-row-completed", count=2)
+        self.assertContains(response, "Paciente já classificado")
+        with patch("apps.atendimento.views_painel.paineis_compativeis_agendamento") as paineis_compativeis:
+            chamada_bloqueada = self.client.post(
+                reverse(
+                    "atendimento:chamar-agendamento-classificacao",
+                    args=[agendamento_classificado.pk],
+                ),
+                {"return_to": reverse("classificacao_standalone")},
+            )
+        self.assertEqual(chamada_bloqueada.status_code, 302)
+        paineis_compativeis.assert_not_called()
 
         data_sem_agendamentos = timezone.localdate() + timedelta(days=45)
         without_scheduled = self.client.get(
@@ -1772,6 +1821,8 @@ class FluxoHomologacaoTests(TestCase):
         self.assertContains(editor, "data-classification-patient-search")
         self.assertContains(editor, "data-classification-pre-registration")
         self.assertContains(editor, "data-scale-dialog")
+        self.assertContains(editor, "Score total:")
+        self.assertContains(editor, "Resultado:")
         self.assertContains(editor, "executePatientSearch")
         self.assertContains(editor, "data-classification-colors")
         self.assertContains(editor, "<b>Raça/cor</b>Parda", html=True)
@@ -1832,6 +1883,21 @@ class FluxoHomologacaoTests(TestCase):
         pagina = self.client.get(reverse("class_fluxos"))
         self.assertContains(pagina, reverse("class_fluxo_escalas", args=[fluxo.pk]))
         self.assertContains(pagina, "#f97316")
+        self.assertContains(pagina, 'class="flow-color-picker"')
+        self.assertContains(pagina, 'data-color="${escapeHTML(color.cor)}"')
+        self.assertContains(pagina, 'fieldMetadata("fluxo_classificacao", "cd_cor_recomendada")')
+        self.assertContains(pagina, "selectActiveRow")
+        self.assertContains(pagina, "groupRowMarkup(item, index, {queryResult: true})")
+        self.assertContains(pagina, 'data-group-field="nome"')
+        self.assertNotContains(pagina, 'class="flow-color-swatch"')
+
+        pagina_escalas = self.client.get(reverse("class_fluxo_escalas", args=[fluxo.pk]))
+        self.assertEqual(pagina_escalas.status_code, 200)
+        self.assertContains(pagina_escalas, "class-action-toolbar")
+        self.assertContains(pagina_escalas, 'data-action="save"')
+        self.assertContains(pagina_escalas, 'data-action="new"')
+        self.assertContains(pagina_escalas, 'data-action="close"')
+        self.assertContains(pagina_escalas, "<th>Ordem</th><th>Escala recomendada</th>", html=True)
 
         salvar = self.client.post(
             reverse("class_fluxo_escalas", args=[fluxo.pk]),
@@ -1849,6 +1915,97 @@ class FluxoHomologacaoTests(TestCase):
                 cd_fluxo_classificacao=fluxo,
                 cd_escala_clinica=escala,
             ).exists()
+        )
+        vinculo_salvo = FluxoClassificacaoEscala.objects.get(
+            cd_fluxo_classificacao=fluxo,
+            cd_escala_clinica=escala,
+        )
+        pagina_reaberta = self.client.get(reverse("class_fluxo_escalas", args=[fluxo.pk]))
+        self.assertContains(pagina_reaberta, f'value="{vinculo_salvo.pk}" data-primary-key="true"')
+        self.assertContains(pagina_reaberta, "MutationObserver")
+        self.assertContains(pagina_reaberta, "maxOrder + 1")
+
+        outro_fluxo = FluxoClassificacao.objects.create(
+            cd_empresa=self.empresa,
+            nm_grupo="Neurologia",
+            nm_fluxo="Cefaleia",
+            ds_orientacao="Aplicar a mesma escala neste outro sintoma.",
+        )
+        salvar_em_outro_fluxo = self.client.post(
+            reverse("class_fluxo_escalas", args=[outro_fluxo.pk]),
+            {
+                "link_id": "",
+                "scale_id": str(escala.pk),
+                "order": "1",
+                "active": "true",
+                "delete": "0",
+            },
+        )
+        self.assertEqual(salvar_em_outro_fluxo.status_code, 302)
+        self.assertEqual(
+            FluxoClassificacaoEscala.objects.filter(cd_escala_clinica=escala).count(),
+            2,
+        )
+
+        duplicada = self.client.post(
+            reverse("class_fluxo_escalas", args=[fluxo.pk]),
+            {
+                "link_id": "",
+                "scale_id": str(escala.pk),
+                "order": "20",
+                "active": "true",
+                "delete": "0",
+            },
+        )
+        self.assertEqual(duplicada.status_code, 200)
+        self.assertContains(duplicada, "já está vinculada a este mesmo sintoma")
+        self.assertEqual(
+            FluxoClassificacaoEscala.objects.filter(
+                cd_fluxo_classificacao=fluxo,
+                cd_escala_clinica=escala,
+            ).count(),
+            1,
+        )
+
+        outra_escala = EscalaClinica.objects.create(
+            cd_empresa=self.empresa,
+            nm_escala="Escala respiratória",
+            ds_perguntas=[{"chave": "respiracao", "texto": "Respiração", "opcoes": []}],
+        )
+        primeiro_vinculo = FluxoClassificacaoEscala.objects.get(
+            cd_fluxo_classificacao=fluxo,
+            cd_escala_clinica=escala,
+        )
+        segundo_vinculo = FluxoClassificacaoEscala.objects.create(
+            cd_empresa=self.empresa,
+            cd_fluxo_classificacao=fluxo,
+            cd_escala_clinica=outra_escala,
+            nr_ordem=20,
+        )
+        troca = self.client.post(
+            reverse("class_fluxo_escalas", args=[fluxo.pk]),
+            {
+                "link_id": [str(primeiro_vinculo.pk), str(segundo_vinculo.pk)],
+                "scale_id": [str(outra_escala.pk), str(escala.pk)],
+                "order": ["10", "20"],
+                "active": ["true", "true"],
+                "delete": ["0", "0"],
+            },
+        )
+        self.assertEqual(troca.status_code, 302)
+        self.assertEqual(
+            FluxoClassificacaoEscala.objects.get(
+                cd_fluxo_classificacao=fluxo,
+                cd_escala_clinica=outra_escala,
+            ).nr_ordem,
+            10,
+        )
+        self.assertEqual(
+            FluxoClassificacaoEscala.objects.get(
+                cd_fluxo_classificacao=fluxo,
+                cd_escala_clinica=escala,
+            ).nr_ordem,
+            20,
         )
 
     def test_class_configura_escala_com_perguntas_formula_e_resultados(self):

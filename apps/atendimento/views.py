@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, RequestDataTooBig, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Max, Prefetch, Q
+from django.db.models import Case, IntegerField, Max, Prefetch, Q, Value, When
 from django import forms
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -8252,8 +8252,8 @@ def cores_classificacao(request):
     registros = paginate_table(
         request,
         registros,
-        {"cd_cor_classificacao", "cd_cor", "nm_cor", "ds_cor_hex", "nr_prioridade", "sn_ativo"},
-        "cd_cor_classificacao",
+        {"cd_cor", "nm_cor", "ds_cor_hex", "nr_prioridade", "sn_ativo"},
+        "nr_prioridade",
     )
     return render(
         request,
@@ -8528,6 +8528,7 @@ def fluxo_escalas_classificacao(request, cd_fluxo):
     request.current_tab_root_title = f"Escalas recomendadas · {fluxo.nm_fluxo}"
     request.current_module_title = "Atendimento"
     request.current_can_query = False
+    request.current_can_save = True
     request.current_can_remove = True
     request.current_new_url = ""
     request.current_close_url = reverse(rota_voltar)
@@ -8570,41 +8571,93 @@ def fluxo_escalas_classificacao(request, cd_fluxo):
                 }
             )
         if len(escalas_informadas) != len(set(escalas_informadas)):
-            messages.error(request, "A mesma escala não pode ser vinculada mais de uma vez ao sintoma.")
+            messages.error(
+                request,
+                "A escala selecionada já está vinculada a este mesmo sintoma. "
+                "Ela pode ser utilizada em outros sintomas, mas não repetida neste.",
+            )
         elif any(escala_id not in escalas_validas for escala_id in escalas_informadas):
             messages.error(request, "Selecione somente escalas ativas desta empresa.")
         else:
-            with transaction.atomic():
-                ids_processados = []
-                for indice, dados in enumerate(linhas, 1):
-                    vinculo = (
-                        FluxoClassificacaoEscala.objects.filter(
-                            cd_empresa=empresa,
-                            cd_fluxo_classificacao=fluxo,
-                            pk=dados["id"],
-                        ).first()
-                        if str(dados["id"]).isdigit()
-                        else None
-                    )
-                    if dados["excluir"]:
-                        if vinculo:
-                            vinculo.delete()
-                        continue
-                    if not dados["escala_id"]:
-                        continue
-                    if vinculo is None:
-                        vinculo = FluxoClassificacaoEscala(
+            erro_persistencia = ""
+            try:
+                with transaction.atomic():
+                    existentes = {
+                        str(vinculo.pk): vinculo
+                        for vinculo in FluxoClassificacaoEscala.objects.select_for_update().filter(
                             cd_empresa=empresa,
                             cd_fluxo_classificacao=fluxo,
                         )
-                    vinculo.cd_escala_clinica = escalas_validas[dados["escala_id"]]
-                    vinculo.nr_ordem = _inteiro_positivo(dados["ordem"], indice * 10)
-                    vinculo.sn_ativo = dados["ativo"] != "false"
-                    _apply_audit(vinculo, request.user)
-                    vinculo.save()
-                    ids_processados.append(vinculo.pk)
-            messages.success(request, "Escalas recomendadas atualizadas com sucesso.")
-            return redirect(rota_edicao, cd_fluxo=fluxo.pk)
+                    }
+                    ids_referenciados = set()
+                    estado_final = []
+                    for indice, dados in enumerate(linhas, 1):
+                        linha_id = str(dados["id"] or "")
+                        vinculo = existentes.get(linha_id) if linha_id.isdigit() else None
+                        if linha_id.isdigit() and vinculo is None:
+                            erro_persistencia = "A configuração foi alterada em outra sessão. Recarregue a tela e tente novamente."
+                            break
+                        if vinculo:
+                            ids_referenciados.add(linha_id)
+                        if dados["excluir"]:
+                            continue
+                        escala_id = dados["escala_id"] or (str(vinculo.cd_escala_clinica_id) if vinculo else "")
+                        if escala_id:
+                            estado_final.append((linha_id or f"nova-{indice}", escala_id))
+
+                    if not erro_persistencia:
+                        estado_final.extend(
+                            (linha_id, str(vinculo.cd_escala_clinica_id))
+                            for linha_id, vinculo in existentes.items()
+                            if linha_id not in ids_referenciados
+                        )
+                        escalas_finais = [escala_id for _, escala_id in estado_final]
+                        if len(escalas_finais) != len(set(escalas_finais)):
+                            erro_persistencia = (
+                                "A escala selecionada já está vinculada a este mesmo sintoma. "
+                                "Ela pode ser utilizada em outros sintomas, mas não repetida neste."
+                            )
+
+                    if not erro_persistencia:
+                        ids_para_recriar = {
+                            str(dados["id"])
+                            for dados in linhas
+                            if str(dados["id"]).isdigit()
+                            and str(dados["id"]) in existentes
+                            and (
+                                dados["excluir"]
+                                or (
+                                    dados["escala_id"]
+                                    and str(existentes[str(dados["id"])].cd_escala_clinica_id) != dados["escala_id"]
+                                )
+                            )
+                        }
+                        if ids_para_recriar:
+                            FluxoClassificacaoEscala.objects.filter(pk__in=ids_para_recriar).delete()
+
+                        for indice, dados in enumerate(linhas, 1):
+                            if dados["excluir"] or not dados["escala_id"]:
+                                continue
+                            linha_id = str(dados["id"] or "")
+                            vinculo = existentes.get(linha_id)
+                            if vinculo is None or linha_id in ids_para_recriar:
+                                vinculo = FluxoClassificacaoEscala(
+                                    cd_empresa=empresa,
+                                    cd_fluxo_classificacao=fluxo,
+                                )
+                            vinculo.cd_escala_clinica = escalas_validas[dados["escala_id"]]
+                            vinculo.nr_ordem = _inteiro_positivo(dados["ordem"], indice)
+                            vinculo.sn_ativo = dados["ativo"] != "false"
+                            _apply_audit(vinculo, request.user)
+                            vinculo.save()
+            except IntegrityError:
+                erro_persistencia = "A mesma escala já está vinculada a este sintoma. Recarregue a tela antes de tentar novamente."
+
+            if erro_persistencia:
+                messages.error(request, erro_persistencia)
+            else:
+                messages.success(request, "Escalas recomendadas atualizadas com sucesso.")
+                return redirect(rota_edicao, cd_fluxo=fluxo.pk)
 
     vinculos = list(
         fluxo.escalas_recomendadas.select_related("cd_escala_clinica").order_by(
@@ -8620,6 +8673,7 @@ def fluxo_escalas_classificacao(request, cd_fluxo):
             "escalas_disponiveis": escalas_disponiveis,
             "class_base_template": "base/class_layout.html" if class_standalone else "base/layout.html",
             "class_close_url": reverse(rota_voltar),
+            "class_show_action_toolbar": class_standalone,
         },
     )
 
@@ -8939,10 +8993,22 @@ def chamar_agendamento_classificacao(request, cd_agendamento):
     if request.method != "POST":
         raise PermissionDenied
     agendamento = get_object_or_404(
-        Agendamento.objects.select_related("cd_paciente", "cd_agenda_profissional__cd_setor_atendimento"),
+        Agendamento.objects.select_related(
+            "cd_paciente",
+            "cd_agenda_profissional__cd_setor_atendimento",
+            "pre_atendimento",
+        ),
         cd_empresa=_empresa_logada(request),
         pk=cd_agendamento,
     )
+    destino = _safe_return_url(request)
+    if getattr(agendamento, "pre_atendimento", None):
+        messages.warning(request, "Paciente já classificado; uma nova chamada não foi realizada.")
+        if destino:
+            return redirect(destino)
+        return redirect(
+            f"{reverse('atendimento:fila-classificacao')}?aba=agendados&data={agendamento.dh_agendamento:%Y-%m-%d}"
+        )
     from .views_painel import paineis_compativeis_agendamento
 
     setor = getattr(agendamento.cd_agenda_profissional, "cd_setor_atendimento", None)
@@ -8957,7 +9023,6 @@ def chamar_agendamento_classificacao(request, cd_agendamento):
             cd_usuario_atualizacao=request.user,
         )
     messages.success(request, "Paciente chamado no painel.")
-    destino = _safe_return_url(request)
     if destino:
         return redirect(destino)
     return redirect(f"{reverse('atendimento:fila-classificacao')}?aba=agendados&data={agendamento.dh_agendamento:%Y-%m-%d}")
@@ -9403,7 +9468,14 @@ def fila_classificacao(request):
         )
         .filter(cd_empresa=empresa, dh_agendamento__date=data_selecionada)
         .exclude(ds_status__in={"CANCELADO", "FINALIZADO", "FALTOU"})
-        .order_by("dh_agendamento", "cd_agendamento")
+        .annotate(
+            ordem_classificacao=Case(
+                When(pre_atendimento__isnull=True, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("ordem_classificacao", "dh_agendamento", "cd_agendamento")
     )
     senhas_queryset = SenhaAtendimento.objects.select_related(
         "cd_tipo_senha__cd_setor_atendimento",
@@ -9471,7 +9543,15 @@ def fila_classificacao(request):
     mostrar_demanda = not class_standalone or "todos" in filtros_fila or any(
         filtro in filtros_fila for filtro in ("classificados", "nao_classificados")
     )
-    senhas = list(senhas_queryset.order_by("nr_prioridade", "dh_criacao")[:200])
+    senhas = list(
+        senhas_queryset.annotate(
+            ordem_classificacao=Case(
+                When(ds_status="CLASSIFICADA", then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        ).order_by("ordem_classificacao", "nr_prioridade", "dh_criacao")[:200]
+    )
     regras_fila = {
         (regra.cd_tipo_senha_id, regra.cd_classe_senha_id): regra
         for regra in RegraSubdivisaoSenha.objects.select_related("cd_protocolo").filter(
@@ -9663,6 +9743,8 @@ def fila_classificacao(request):
     escalas_iniciais = initial.get("escalas", {}) if isinstance(initial, dict) else {}
     for escala in escalas_classificacao:
         valores_escala = escalas_iniciais.get(str(escala.pk), {})
+        escala.resultado_total = str(valores_escala.get("resultado_total", ""))
+        escala.resultado_classificacao = str(valores_escala.get("resultado_classificacao", ""))
         perguntas_render = []
         for pergunta in escala.ds_perguntas or []:
             if isinstance(pergunta, dict) and pergunta.get("ativo") is False:

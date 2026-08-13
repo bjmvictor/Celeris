@@ -146,8 +146,10 @@
             {% for escala in escalas_classificacao %}
               <article class="classification-scale-item" data-classification-scale data-scale-id="{{ escala.pk }}">
                 <button class="classification-scale-open" type="button" data-scale-open><strong>{{ escala.nm_escala }}</strong>{% if escala.ds_descricao %}<small>{{ escala.ds_descricao }}</small>{% endif %}</button>
-                <output class="classification-scale-result" data-scale-result hidden></output>
-                <button class="icon-button danger" type="button" data-scale-clear title="Remover avaliação" hidden><span class="svg-icon" data-nav-icon="trash"></span></button>
+                <input type="hidden" name="escala_{{ escala.pk }}_resultado_total" value="{{ escala.resultado_total }}" data-scale-score>
+                <input type="hidden" name="escala_{{ escala.pk }}_resultado_classificacao" value="{{ escala.resultado_classificacao }}" data-scale-classification>
+                <output class="classification-scale-result" data-scale-result {% if not escala.resultado_total and not escala.resultado_classificacao %}hidden{% endif %}>{% if escala.resultado_total or escala.resultado_classificacao %}{{ escala.resultado_total }} · {{ escala.resultado_classificacao }}{% endif %}</output>
+                <button class="icon-button danger" type="button" data-scale-clear title="Remover avaliação" {% if not escala.resultado_total and not escala.resultado_classificacao %}hidden{% endif %}><span class="svg-icon" data-nav-icon="trash"></span></button>
                 <dialog class="celeris-modal classification-scale-dialog" data-scale-dialog>
                   <div class="celeris-modal-header"><div><h3>{{ escala.nm_escala }}</h3>{% if escala.ds_descricao %}<p>{{ escala.ds_descricao }}</p>{% endif %}</div><button class="icon-button" type="button" data-scale-close title="Fechar"><span class="svg-icon" data-nav-icon="x"></span></button></div>
                   <div class="celeris-modal-body form-grid">
@@ -307,6 +309,8 @@
       editor.querySelectorAll("[data-classification-scale]").forEach((scale) => {
         const fields = [...scale.querySelectorAll("[data-scale-value]")];
         const output = scale.querySelector("[data-scale-result]");
+        const scoreField = scale.querySelector("[data-scale-score]");
+        const classificationField = scale.querySelector("[data-scale-classification]");
         const clear = scale.querySelector("[data-scale-clear]");
         const dialog = scale.querySelector("[data-scale-dialog]");
         scale.querySelector("[data-scale-open]")?.addEventListener("click", () => dialog?.showModal());
@@ -340,10 +344,13 @@
           }
           output.classList.remove("error");
           output.textContent = `${payload.resultado} · ${payload.classificacao}`;
+          if (scoreField) scoreField.value = String(payload.resultado ?? "");
+          if (classificationField) classificationField.value = String(payload.classificacao ?? "");
           output.hidden = false;
           clear.hidden = false;
           dialog.close();
           renderSelectedFlow();
+          scheduleAutosave();
         });
         clear?.addEventListener("click", () => {
           fields.forEach((field) => {
@@ -352,8 +359,11 @@
           });
           output.hidden = true;
           output.textContent = "";
+          if (scoreField) scoreField.value = "";
+          if (classificationField) classificationField.value = "";
           clear.hidden = true;
           renderSelectedFlow();
+          scheduleAutosave();
         });
       });
       const allergyRows = editor.querySelector("[data-allergy-rows]");
@@ -505,7 +515,12 @@
           if (!scale) return "";
           const name = scale.querySelector("[data-scale-open] strong")?.textContent || "Escala recomendada";
           const completed = scaleCompleted(scale);
-          return `<button class="button button-secondary ${completed ? "completed" : ""}" type="button" data-selected-flow-scale="${scaleId}">${completed ? "✓ " : ""}${escapeFlowHTML(name)}</button>`;
+          const score = scale.querySelector("[data-scale-score]")?.value || "";
+          const classification = scale.querySelector("[data-scale-classification]")?.value || "";
+          const details = completed && (score || classification)
+            ? `<small>Score total: ${escapeFlowHTML(score || "—")} · Resultado: ${escapeFlowHTML(classification || "—")}</small>`
+            : "";
+          return `<button class="button button-secondary ${completed ? "completed" : ""}" type="button" data-selected-flow-scale="${scaleId}"><span>${completed ? "✓ " : ""}${escapeFlowHTML(name)}</span>${details}</button>`;
         }).join("");
         scalesContainer.hidden = !scalesContainer.children.length;
         showColorByValue(option.dataset.flowColor);
