@@ -136,6 +136,204 @@ button, input, select, textarea { font: inherit; }
 @media (max-width: 720px) {
   .integration-form { grid-template-columns: 1fr; }
 }
+
+.certificate-admin-card,
+.certificate-table-card {
+  min-width: 0;
+}
+
+.certificate-submit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.certificate-submit-button .svg-icon {
+  flex: 0 0 auto;
+}
+
+.certificate-purpose-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 8px);
+  margin-top: var(--space-sm, 8px);
+}
+
+.certificate-purpose-grid .provider-checkbox {
+  flex: 1 1 240px;
+  max-width: none;
+}
+
+.certificate-purpose-form {
+  display: grid;
+  gap: var(--space-sm, 8px);
+  margin-top: var(--space-sm, 8px);
+}
+
+.certificate-purpose-form > .button,
+.certificate-purpose-form > .toolbar-button {
+  justify-self: end;
+}
+
+.certificate-table-card {
+  margin-top: var(--space-sm, 8px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.certificate-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.certificate-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.certificate-table th,
+.certificate-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.certificate-table-row {
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+
+.certificate-table-row:hover,
+.certificate-table-row:focus-visible,
+.certificate-table-row[aria-expanded="true"] {
+  background: var(--primary-soft);
+  outline: none;
+}
+
+.certificate-table-row.is-expiring {
+  box-shadow: inset 3px 0 0 var(--warning, #f59e0b);
+}
+
+.certificate-table-row.is-expired {
+  box-shadow: inset 3px 0 0 var(--danger, #dc2626);
+  opacity: .82;
+}
+
+.certificate-name-cell,
+.certificate-purpose-summary,
+.certificate-detail-footer,
+.certificate-icon-actions {
+  display: flex;
+  align-items: center;
+}
+
+.certificate-name-cell {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.certificate-row-chevron {
+  flex: 0 0 auto;
+  transition: transform .15s ease;
+}
+
+.certificate-table-row[aria-expanded="true"] .certificate-row-chevron {
+  transform: rotate(180deg);
+}
+
+.certificate-purpose-summary {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.certificate-purpose-summary span:not(:last-child)::after {
+  content: "·";
+  margin-left: 10px;
+  color: var(--muted);
+}
+
+.certificate-detail-row > td {
+  padding: 0;
+  background: color-mix(in srgb, var(--panel-soft), var(--panel) 45%);
+}
+
+.certificate-detail-row[hidden] {
+  display: none;
+}
+
+.certificate-detail-content {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.certificate-detail-footer {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.certificate-detail-footer .certificate-purpose-form {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.certificate-icon-actions {
+  align-self: end;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.certificate-icon-actions form {
+  display: contents;
+}
+
+.document-signature-metadata {
+  display: grid;
+  gap: 4px;
+  margin-top: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px);
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-muted, #f8fafc);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.document-signature-metadata code {
+  font-size: inherit;
+}
+
+.certificate-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.certificate-metadata > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.3fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.certificate-metadata dt {
+  font-weight: 700;
+}
+
+.certificate-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .certificate-metadata { grid-template-columns: 1fr; }
+  .certificate-detail-footer { align-items: stretch; flex-direction: column; }
+  .certificate-icon-actions { align-self: stretch; }
+}
 .status-badge { display: inline-block; color: var(--primary-dark); padding: 3px 8px; font-size: 12px; font-weight: 700; }
 .specialty-manager { display: inline-grid; gap: 6px; width: fit-content; max-width: 100%; align-self: start; color: var(--muted); }
 .specialty-manager.field-fluid { width: 100%; }
@@ -2072,6 +2270,16 @@ body:has(.profile-config-layout) .content { padding-bottom: var(--space-sm) !imp
         var(--panel-soft) 50%
     );
 }
+.certificate-admin-card .section-heading { margin: 0px; padding: 0px;}
+
+.certificate-admin-card .section-heading h2 {
+    margin: 0;
+    z-index: 2;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+}
+.certificate-admin-card .section-heading p { margin-top: 0px; color: var(--muted)}
 .section-heading .button {
   position: absolute;
   right: var(--space-xs2);

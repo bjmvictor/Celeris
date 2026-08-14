@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import Group
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpResponse
@@ -18,9 +19,12 @@ from django.utils import timezone
 from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
 from apps.core.catalogos import modelo_catalogo
 from apps.core.models import Cep, Especialidade, Feriado, Module, MotivoAlteracao, ScreenDefinition, TipoPrestador
+from apps.core.services.assinatura_pdf import ErroAssinaturaPdf
+from apps.core.services.certificados_digitais import cadastrar_certificado
+from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs12_teste
 
 from .forms import EscalaForm, PacienteForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
+from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento, VersaoDocumentoClinico
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
 
 
@@ -3787,12 +3791,142 @@ class FluxoHomologacaoTests(TestCase):
         documento.refresh_from_db()
         self.assertEqual(documento.ds_status, "FECHADO")
         self.assertEqual(len(documento.ds_hash_conteudo), 64)
+        versao_final = VersaoDocumentoClinico.objects.get(cd_documento_clinico=documento)
+        self.assertTrue(bytes(versao_final.arquivo_pdf).startswith(b"%PDF"))
+        self.assertEqual(versao_final.ds_status, "FINALIZADO")
+        self.assertEqual(versao_final.nr_tamanho_bytes, len(bytes(versao_final.arquivo_pdf)))
+        resposta_pdf = self.client.get(
+            reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+            {"modo": "impressao", "pdf": "1"},
+        )
+        self.assertEqual(resposta_pdf.status_code, 200)
+        self.assertEqual(resposta_pdf.content, bytes(versao_final.arquivo_pdf))
+        resposta_modo_impressao = self.client.get(
+            reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+            {"modo": "impressao"},
+        )
+        self.assertEqual(resposta_modo_impressao.status_code, 200)
+        self.assertEqual(resposta_modo_impressao.content, bytes(versao_final.arquivo_pdf))
+        versao_final.ds_motivo_versao = "Tentativa de sobrescrita"
+        with self.assertRaises(ValidationError):
+            versao_final.save()
         self.assertTrue(
             EventoDocumentoClinico.objects.filter(
                 cd_documento_clinico=documento,
                 tp_evento="FECHADO",
             ).exists()
         )
+
+    def test_falha_na_geracao_final_mantem_documento_aberto_e_audita(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        documento = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            tp_documento="EVOLUCAO",
+            ds_titulo="Documento com falha",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.medico_user,
+            cd_usuario_responsavel=self.medico_user,
+        )
+        self.login_as(self.medico_user)
+        with patch(
+            "apps.atendimento.views._gerar_pdf_final_documento",
+            side_effect=ErroAssinaturaPdf("Falha de geração controlada."),
+        ):
+            response = self.client.post(
+                reverse("atendimento:fechar-documento-clinico", args=[documento.pk]),
+            )
+        self.assertEqual(response.status_code, 302)
+        documento.refresh_from_db()
+        self.assertEqual(documento.ds_status, "ABERTO")
+        self.assertFalse(VersaoDocumentoClinico.objects.filter(cd_documento_clinico=documento).exists())
+        self.assertTrue(
+            AuditoriaAssinaturaDigital.objects.filter(
+                cd_documento_clinico=documento,
+                ds_status="FALHA",
+            ).exists()
+        )
+
+    def test_copia_fechada_cria_nova_versao_sem_alterar_a_anterior(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        original = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            tp_documento="EVOLUCAO",
+            ds_titulo="Versão original",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.medico_user,
+            cd_usuario_responsavel=self.medico_user,
+        )
+        self.login_as(self.medico_user)
+        self.client.post(reverse("atendimento:fechar-documento-clinico", args=[original.pk]))
+        versao_1 = VersaoDocumentoClinico.objects.get(cd_documento_clinico=original)
+        self.client.get(reverse("atendimento:copiar-documento-clinico", args=[original.pk]))
+        copia = DocumentoClinico.objects.get(cd_documento_origem=original)
+        copia.ds_conteudo = "Conteúdo retificado"
+        copia.save(update_fields=("ds_conteudo",))
+        self.client.post(reverse("atendimento:fechar-documento-clinico", args=[copia.pk]))
+        versao_2 = VersaoDocumentoClinico.objects.get(cd_documento_clinico=copia)
+        self.assertEqual(versao_1.nr_versao, 1)
+        self.assertEqual(versao_2.nr_versao, 2)
+        self.assertEqual(versao_2.cd_versao_anterior, versao_1)
+        self.assertTrue(VersaoDocumentoClinico.objects.filter(pk=versao_1.pk).exists())
+
+    @override_settings(
+        CELERIS_CERTIFICATE_MASTER_KEY=CHAVE_MESTRA_TESTE,
+        CELERIS_CERTIFICATE_MASTER_KEY_VERSION="teste-v1",
+        CELERIS_CERTIFICATE_MAX_UPLOAD_SIZE=10 * 1024 * 1024,
+    )
+    def test_fechamento_com_certificado_persiste_pdf_assinado(self):
+        senha = "senha-segura"
+        certificado = cadastrar_certificado(
+            empresa=self.empresa,
+            usuario=self.ti_user,
+            nome="A1 fechamento",
+            tipo="INSTITUCIONAL",
+            arquivo_nome="a1.pfx",
+            conteudo=gerar_pkcs12_teste(senha=senha),
+            senha=senha,
+            assina_medicos=True,
+        )
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        documento = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            tp_documento="EVOLUCAO",
+            ds_titulo="Documento assinado",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.medico_user,
+            cd_usuario_responsavel=self.medico_user,
+        )
+        self.login_as(self.medico_user)
+        response = self.client.post(
+            reverse("atendimento:fechar-documento-clinico", args=[documento.pk]),
+        )
+        self.assertEqual(response.status_code, 302)
+        documento.refresh_from_db()
+        self.assertEqual(documento.ds_status, "ASSINADO")
+        versao = VersaoDocumentoClinico.objects.get(cd_documento_clinico=documento)
+        assinatura = AssinaturaDigitalDocumento.objects.get(cd_versao_documento=versao)
+        self.assertEqual(versao.ds_status, "ASSINADO")
+        self.assertEqual(assinatura.cd_certificado_digital, certificado)
+        self.assertEqual(assinatura.ds_hash_pdf_assinado, versao.ds_hash_sha256)
+        self.assertIn(b"CelerisSignature", bytes(versao.arquivo_pdf))
 
     def test_escala_clinica_calcula_e_salva_documento_fechado(self):
         self.medico_user.cd_prestador = self.prestador

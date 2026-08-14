@@ -1,5 +1,7 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class TimeStampedModel(models.Model):
@@ -43,6 +45,140 @@ class IconeSistema(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.nm_icone
+
+
+class CertificadoDigitalEmpresa(TimeStampedModel):
+    TIPO_INSTITUCIONAL = "INSTITUCIONAL"
+    TIPO_PROFISSIONAL = "PROFISSIONAL"
+    TIPOS = (
+        (TIPO_INSTITUCIONAL, "Institucional"),
+        (TIPO_PROFISSIONAL, "Profissional"),
+    )
+
+    cd_certificado_digital = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(
+        "accounts.Empresa",
+        related_name="certificados_digitais",
+        on_delete=models.PROTECT,
+        db_column="cd_empresa",
+    )
+    cd_usuario_profissional = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="certificados_digitais_profissionais",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_usuario_profissional",
+    )
+    nm_certificado = models.CharField(max_length=160)
+    tp_certificado = models.CharField(max_length=20, choices=TIPOS, default=TIPO_INSTITUCIONAL)
+    arquivo_criptografado = models.BinaryField()
+    arquivo_nonce = models.BinaryField(max_length=12)
+    senha_criptografada = models.BinaryField()
+    senha_nonce = models.BinaryField(max_length=12)
+    versao_chave = models.CharField(max_length=40, default="v1")
+    ds_sujeito = models.CharField(max_length=500)
+    ds_emissor = models.CharField(max_length=500)
+    nr_serie = models.CharField(max_length=160)
+    ds_fingerprint_sha256 = models.CharField(max_length=95, db_index=True)
+    nr_cpf_cnpj = models.CharField(max_length=18, blank=True)
+    dh_inicio_validade = models.DateTimeField()
+    dh_fim_validade = models.DateTimeField(db_index=True)
+    sn_assina_documentos_medicos = models.BooleanField(default=False)
+    sn_assina_documentos_administrativos = models.BooleanField(default=False)
+    sn_assina_outros_documentos = models.BooleanField(default=False)
+    sn_ativo = models.BooleanField(default=True, db_index=True)
+    dh_ultima_validacao = models.DateTimeField(null=True, blank=True)
+    ds_ultima_validacao = models.CharField(max_length=500, blank=True)
+    cd_usuario_criacao = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="certificados_digitais_criados",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario_criacao",
+    )
+    cd_usuario_atualizacao = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="certificados_digitais_atualizados",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario_atualizacao",
+    )
+
+    class Meta:
+        db_table = "certificado_digital_empresa"
+        ordering = ("-sn_ativo", "dh_fim_validade", "nm_certificado")
+        permissions = (
+            ("gerenciar_certificados_digitais", "Pode gerenciar certificados digitais"),
+            ("testar_certificados_digitais", "Pode testar certificados digitais"),
+            ("consultar_auditoria_assinaturas", "Pode consultar auditoria de assinaturas"),
+        )
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "ds_fingerprint_sha256"),
+                name="certificado_digital_fingerprint_empresa_unico",
+            ),
+        ]
+
+    def clean(self):
+        if self.tp_certificado == self.TIPO_PROFISSIONAL and not self.cd_usuario_profissional_id:
+            raise ValidationError({"cd_usuario_profissional": "Informe o profissional titular do certificado."})
+        if self.tp_certificado == self.TIPO_INSTITUCIONAL:
+            self.cd_usuario_profissional = None
+        if (
+            self.cd_usuario_profissional_id
+            and self.cd_empresa_id
+            and not self.cd_usuario_profissional.empresas.filter(pk=self.cd_empresa_id).exists()
+        ):
+            raise ValidationError({"cd_usuario_profissional": "O profissional não pertence à empresa do certificado."})
+        if not any(
+            (
+                self.sn_assina_documentos_medicos,
+                self.sn_assina_documentos_administrativos,
+                self.sn_assina_outros_documentos,
+            )
+        ):
+            raise ValidationError("Habilite ao menos uma finalidade de assinatura para o certificado.")
+
+    def __str__(self) -> str:
+        return self.nm_certificado
+
+
+class AuditoriaCertificadoDigital(models.Model):
+    cd_auditoria_certificado = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(
+        "accounts.Empresa",
+        on_delete=models.PROTECT,
+        db_column="cd_empresa",
+        related_name="auditorias_certificados_digitais",
+    )
+    cd_certificado_digital = models.ForeignKey(
+        CertificadoDigitalEmpresa,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_certificado_digital",
+        related_name="auditorias_administrativas",
+    )
+    cd_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario",
+    )
+    tp_evento = models.CharField(max_length=40)
+    ds_resultado = models.CharField(max_length=20)
+    ds_mensagem = models.CharField(max_length=500, blank=True)
+    ds_ip = models.GenericIPAddressField(null=True, blank=True)
+    ds_user_agent = models.CharField(max_length=500, blank=True)
+    dh_evento = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        db_table = "auditoria_certificado_digital"
+        ordering = ("-dh_evento",)
 
 
 class UserModule(TimeStampedModel):

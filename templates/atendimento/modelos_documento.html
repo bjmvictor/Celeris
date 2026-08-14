@@ -118,6 +118,7 @@
           {% if elemento_editor == "DOCUMENTO" %}
             <label>Elemento {{ form.tp_elemento }}</label>
             <label>Tipo {{ form.tp_documento }}</label>
+            <label>Finalidade da assinatura {{ form.tp_finalidade_assinatura }}</label>
             <label>Cabeçalho reutilizável {{ form.cd_cabecalho }}</label>
             <label>Rodapé reutilizável {{ form.cd_rodape }}</label>
             <label class="provider-checkbox" data-document-signature-root><input type="hidden" name="sn_exibe_assinatura" value="0">{{ form.sn_exibe_assinatura }}<span>Exibir assinatura do prestador</span></label>
@@ -133,6 +134,7 @@
             {{ form.sn_exibe_assinatura.as_hidden }}
             {{ form.tp_alinhamento_assinatura.as_hidden }}
             {{ form.sn_exibe_conselho_assinatura.as_hidden }}
+            {{ form.tp_finalidade_assinatura.as_hidden }}
             <label>Elemento <input value="{{ elemento_editor|title }}" readonly></label>
           {% endif %}
           <label class="field-xl">Descrição obrigatória da versão {{ form.ds_alteracoes_versao }} {{ form.ds_alteracoes_versao.errors }}</label>
@@ -291,7 +293,7 @@
             <a href="{% url 'atendimento:editar-modelo-documento' versao.pk %}" class="{% if versao.pk == modelo.pk %}selected{% endif %}">
               <strong>v{{ versao.nr_versao }}</strong>
               <span>{{ versao.dh_criacao|date:"d/m/Y H:i" }}</span>
-              <span>{{ versao.cd_usuario_criacao.display_name|default:versao.cd_usuario_criacao.username|default:"Usuário não identificado" }}</span>
+              <span>{% if versao.cd_usuario_criacao %}{{ versao.cd_usuario_criacao.display_name|default:versao.cd_usuario_criacao.username }}{% else %}Usuário não identificado{% endif %}</span>
               <small>{{ versao.ds_alteracoes_versao|default:"Sem descrição" }}</small>
             </a>
           {% endfor %}

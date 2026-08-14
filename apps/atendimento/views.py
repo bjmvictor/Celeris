@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied, RequestDataTooBig, ValidationError
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied, RequestDataTooBig, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Case, IntegerField, Max, Prefetch, Q, Value, When
@@ -51,11 +51,15 @@ from apps.core.locks import (
 )
 from apps.core.models import Module, ScreenDefinition
 from apps.core.permissions import role_required
+from apps.core.services.assinatura_pdf import ErroAssinaturaPdf, assinar_pdf_pades
+from apps.core.services.certificados_digitais import ErroCertificadoDigital, certificado_ativo_para
 from apps.core.table_utils import paginate_table
 
 from .forms import AgendamentoForm, AlteracaoAtendimentoForm, AtendimentoForm, CadastroAtendimentoForm, EscalaForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm
 from .models import (
     AcessoClinicoAuditado,
+    AuditoriaAssinaturaDigital,
+    AssinaturaDigitalDocumento,
     AnexoClinico,
     Atendimento,
     AtendimentoFluxo,
@@ -104,6 +108,7 @@ from .models import (
     SolicitacaoExame,
     SenhaAtendimento,
     TipoSenhaAtendimento,
+    VersaoDocumentoClinico,
 )
 
 
@@ -1217,6 +1222,7 @@ class ModeloDocumentoForm(forms.ModelForm):
             "sn_exibe_assinatura",
             "tp_alinhamento_assinatura",
             "sn_exibe_conselho_assinatura",
+            "tp_finalidade_assinatura",
             "sn_ativo",
         )
 
@@ -1234,9 +1240,31 @@ class ModeloDocumentoForm(forms.ModelForm):
         self.fields["cd_rodape"].required = False
         self.fields["ds_alteracoes_versao"].required = True
         self.fields["tp_alinhamento_assinatura"].required = False
+        self.fields["tp_finalidade_assinatura"].required = False
 
     def clean(self):
         cleaned_data = super().clean()
+        tipos_administrativos = {
+            "ADMINISTRATIVO",
+            "COMPROVANTE_AGENDAMENTO",
+            "COMPROVANTE_CHAMADO",
+            "FICHA_ATENDIMENTO",
+            "ETIQUETA_ATENDIMENTO",
+        }
+        if not cleaned_data.get("tp_finalidade_assinatura"):
+            finalidade_atual = (
+                self.instance.tp_finalidade_assinatura
+                if self.instance and self.instance.pk
+                else ""
+            )
+            cleaned_data["tp_finalidade_assinatura"] = (
+                finalidade_atual
+                or (
+                    "ADMINISTRATIVO"
+                    if cleaned_data.get("tp_documento") in tipos_administrativos
+                    else "MEDICO"
+                )
+            )
         documentos_sem_assinatura = {
             "COMPROVANTE_AGENDAMENTO",
             "COMPROVANTE_CHAMADO",
@@ -4065,6 +4093,7 @@ def _resposta_modelos_documento(request, empresa, modelo):
                     sn_exibe_assinatura=item.sn_exibe_assinatura,
                     tp_alinhamento_assinatura=item.tp_alinhamento_assinatura,
                     sn_exibe_conselho_assinatura=item.sn_exibe_conselho_assinatura,
+                    tp_finalidade_assinatura=item.tp_finalidade_assinatura,
                     sn_versao_atual=True,
                     sn_sistema=False,
                     sn_editavel=True,
@@ -4187,7 +4216,7 @@ def _resposta_modelos_documento(request, empresa, modelo):
             campos = (
                 "nm_modelo", "tp_documento", "tp_elemento", "cd_cabecalho_id", "cd_rodape_id",
                 "sn_ativo", "sn_exibe_assinatura", "tp_alinhamento_assinatura",
-                "sn_exibe_conselho_assinatura", "ds_html_tela", "ds_css_tela", "ds_projeto_tela",
+                "sn_exibe_conselho_assinatura", "tp_finalidade_assinatura", "ds_html_tela", "ds_css_tela", "ds_projeto_tela",
                 "ds_html_impressao", "ds_css_impressao", "ds_projeto_impressao",
             )
             if all(getattr(saved, campo) == getattr(modelo, campo) for campo in campos) and saved.cd_pasta_id == modelo.cd_pasta_id:
@@ -5431,7 +5460,7 @@ def _resposta_pdf_documento(request, documento, empresa, apresentacao=None, apen
                 "pagina_no_rodape": pagina_no_rodape,
                 "apenas_layout": apenas_layout,
                 "tipo_layout": tipo_layout,
-                "rascunho": documento.ds_status not in {"FECHADO", "FINALIZADO", "CANCELADO", "ABANDONADO"},
+                "rascunho": documento.ds_status not in {"FECHADO", "FINALIZADO", "ASSINADO", "CANCELADO", "ABANDONADO"},
                 "cancelado": documento.ds_status == "CANCELADO",
                 "marca_dagua_rascunho": _marca_dagua_rascunho_png_data_uri(),
                 "margem_superior_pdf_mm": margem_superior_pdf_mm,
@@ -5459,6 +5488,93 @@ def _resposta_pdf_documento(request, documento, empresa, apresentacao=None, apen
     response["X-Frame-Options"] = "SAMEORIGIN"
     response["X-Celeris-Pdf-Pages"] = str(page_count)
     return response
+
+
+def _gerar_pdf_final_documento(request, documento, empresa, apresentacao=None):
+    resposta = _resposta_pdf_documento(request, documento, empresa, apresentacao)
+    if resposta.status_code != 200 or resposta.get("Content-Type", "").split(";", 1)[0] != "application/pdf":
+        detalhe = resposta.content.decode("utf-8", errors="replace")[:500]
+        raise ErroAssinaturaPdf(detalhe or "Não foi possível gerar o PDF final do documento.")
+    return bytes(resposta.content), int(resposta.get("X-Celeris-Pdf-Pages", "1") or 1)
+
+
+def _resposta_versao_pdf(documento, versao):
+    pdf = bytes(versao.arquivo_pdf)
+    if hashlib.sha256(pdf).hexdigest() != versao.ds_hash_sha256:
+        logger.error("Falha de integridade ao ler a versão final do documento %s.", documento.pk)
+        return HttpResponse("Falha de integridade no arquivo permanente.", status=409, content_type="text/plain")
+    response = HttpResponse(pdf, content_type=versao.ds_mime_type or "application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{_nome_arquivo_pdf_documento(documento)}"'
+    response["X-Frame-Options"] = "SAMEORIGIN"
+    response["X-Celeris-Pdf-Pages"] = str(versao.nr_paginas)
+    response["ETag"] = f'"{versao.ds_hash_sha256}"'
+    response["Cache-Control"] = "private, no-store, max-age=0"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _obter_ou_persistir_versao_legada(request, documento, empresa):
+    versao = documento.versoes_finais.order_by("-nr_versao").first()
+    if versao:
+        return versao
+    apresentacao = _renderizar_documento(documento, True)
+    pdf, paginas = _gerar_pdf_final_documento(request, documento, empresa, apresentacao)
+    with transaction.atomic():
+        bloqueado = DocumentoClinico.objects.select_for_update().get(pk=documento.pk)
+        existente = bloqueado.versoes_finais.order_by("-nr_versao").first()
+        if existente:
+            return existente
+        hash_pdf = hashlib.sha256(pdf).hexdigest()
+        versao = VersaoDocumentoClinico.objects.create(
+            cd_empresa=empresa,
+            cd_documento_clinico=bloqueado,
+            nr_versao=1,
+            ds_status="FINALIZADO",
+            arquivo_pdf=pdf,
+            ds_hash_sha256=hash_pdf,
+            nr_tamanho_bytes=len(pdf),
+            nr_paginas=paginas,
+            ds_motivo_versao="Migração automática de documento fechado antes do armazenamento permanente.",
+            cd_usuario_criacao=request.user,
+        )
+        AuditoriaAssinaturaDigital.objects.create(
+            cd_empresa=empresa,
+            cd_documento_clinico=bloqueado,
+            cd_usuario=request.user,
+            tp_evento="PDF_LEGADO_PERSISTIDO",
+            ds_status="SUCESSO",
+            ds_hash_pdf=hash_pdf,
+            ds_ip=request.META.get("REMOTE_ADDR") or None,
+            ds_user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:500],
+        )
+        return versao
+
+
+def _versoes_cadeia_documento(documento, empresa):
+    raiz = documento
+    visitados = set()
+    while raiz.cd_documento_origem_id and raiz.pk not in visitados:
+        visitados.add(raiz.pk)
+        raiz = raiz.cd_documento_origem
+    ids_documentos = {raiz.pk}
+    fronteira = {raiz.pk}
+    while fronteira:
+        descendentes = set(
+            DocumentoClinico.objects.filter(
+                cd_empresa=empresa,
+                cd_documento_origem_id__in=fronteira,
+            ).values_list("pk", flat=True)
+        ) - ids_documentos
+        ids_documentos.update(descendentes)
+        fronteira = descendentes
+    return VersaoDocumentoClinico.objects.filter(
+        cd_empresa=empresa,
+        cd_documento_clinico_id__in=ids_documentos,
+    ).select_related(
+        "cd_documento_clinico",
+        "cd_usuario_criacao",
+        "assinatura_digital__cd_certificado_digital",
+    ).order_by("-nr_versao")
 
 
 @login_required
@@ -5650,7 +5766,24 @@ def imprimir_documento_clinico(request, cd_documento):
     embed = request.GET.get("embed") == "1"
     if modo_impressao and documento.cd_item_menu_assistencial and not documento.cd_item_menu_assistencial.sn_imprimivel:
         raise PermissionDenied("A impressão foi desativada na configuração desta tela.")
-    apresentacao = _renderizar_documento(documento, modo_impressao)
+    documento_final = documento.ds_status in {"FECHADO", "FINALIZADO", "ASSINADO", "CANCELADO"}
+    versao_final = None
+    if documento_final:
+        try:
+            versao_final = _obter_ou_persistir_versao_legada(request, documento, empresa)
+        except (ErroAssinaturaPdf, ErroCertificadoDigital) as exc:
+            logger.exception("Falha ao recuperar a versão permanente do documento %s.", documento.pk)
+            return HttpResponse(str(exc), status=409, content_type="text/plain; charset=utf-8")
+    if modo_impressao and versao_final:
+        _registrar_evento_documento(documento, request.user, "IMPRESSO", dados={"versao": versao_final.nr_versao})
+        return _resposta_versao_pdf(documento, versao_final)
+    apresentacao = None if documento_final else _renderizar_documento(documento, modo_impressao)
+    assinatura_final = None
+    if versao_final:
+        try:
+            assinatura_final = versao_final.assinatura_digital
+        except AssinaturaDigitalDocumento.DoesNotExist:
+            assinatura_final = None
     if modo_impressao and request.GET.get("pdf") == "1":
         return _resposta_pdf_documento(request, documento, empresa, apresentacao)
     return render(
@@ -5666,6 +5799,9 @@ def imprimir_documento_clinico(request, cd_documento):
             "somente_consulta": somente_consulta,
             "pode_imprimir": not documento.cd_item_menu_assistencial or documento.cd_item_menu_assistencial.sn_imprimivel,
             "apresentacao": apresentacao,
+            "versao_final": versao_final,
+            "assinatura_final": assinatura_final,
+            "versoes_documento": _versoes_cadeia_documento(documento, empresa) if documento_final else (),
             "historico_mesmo_tipo": DocumentoClinico.objects.filter(
                 cd_empresa=empresa,
                 cd_atendimento__cd_paciente=documento.cd_atendimento.cd_paciente,
@@ -5677,7 +5813,7 @@ def imprimir_documento_clinico(request, cd_documento):
                 not documento.cd_item_menu_assistencial
                 or documento.cd_item_menu_assistencial.sn_permite_abandonar
             ),
-            "pode_cancelar": not somente_consulta and documento.ds_status == "FECHADO" and bool(
+            "pode_cancelar": not somente_consulta and documento.ds_status in {"FECHADO", "FINALIZADO", "ASSINADO"} and bool(
                 documento.cd_item_menu_assistencial
                 and documento.cd_item_menu_assistencial.sn_permite_cancelar
             ),
@@ -5802,7 +5938,16 @@ def fechar_documento_clinico(request, cd_documento):
     with transaction.atomic():
         documento = (
             DocumentoClinico.objects.select_for_update()
-            .select_related("cd_modelo_documento", "cd_usuario_responsavel")
+            .select_related(
+                "cd_modelo_documento__cd_cabecalho",
+                "cd_modelo_documento__cd_rodape",
+                "cd_documento_origem",
+                "cd_usuario_responsavel",
+                "cd_usuario_emissor",
+                "cd_atendimento__cd_paciente",
+                "cd_atendimento__cd_prestador",
+                "cd_atendimento__cd_convenio",
+            )
             .filter(cd_empresa=empresa, pk=cd_documento)
             .first()
         )
@@ -5867,6 +6012,52 @@ def fechar_documento_clinico(request, cd_documento):
             **(documento.ds_campos_bloqueados or {}),
             "assinatura": assinatura,
         }
+        finalidade = (
+            getattr(documento.cd_modelo_documento, "tp_finalidade_assinatura", "MEDICO")
+            if documento.cd_modelo_documento_id
+            else "MEDICO"
+        )
+        certificado = None
+        try:
+            certificado = certificado_ativo_para(empresa, finalidade, request.user)
+            apresentacao_final = _renderizar_documento(documento, True)
+            pdf_final, total_paginas = _gerar_pdf_final_documento(
+                request,
+                documento,
+                empresa,
+                apresentacao_final,
+            )
+            campo_assinatura = ""
+            timestamp_aplicado = False
+            if certificado:
+                resultado_assinatura = assinar_pdf_pades(
+                    pdf_final,
+                    certificado,
+                    empresa=empresa,
+                    finalidade=finalidade,
+                    motivo=f"Fechamento do documento clínico {documento.pk}",
+                    localizacao=empresa.nm_empresa,
+                )
+                pdf_final = resultado_assinatura.pdf
+                campo_assinatura = resultado_assinatura.campo_assinatura
+                timestamp_aplicado = resultado_assinatura.timestamp_aplicado
+                documento.ds_status = "ASSINADO"
+        except (ErroAssinaturaPdf, ErroCertificadoDigital, ImproperlyConfigured) as exc:
+            AuditoriaAssinaturaDigital.objects.create(
+                cd_empresa=empresa,
+                cd_documento_clinico=documento,
+                cd_certificado_digital=certificado,
+                cd_usuario=request.user,
+                tp_evento="FECHAMENTO_DOCUMENTO",
+                ds_status="FALHA",
+                ds_mensagem=str(exc)[:500],
+                ds_ip=request.META.get("REMOTE_ADDR") or None,
+                ds_user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:500],
+                ds_dados={"finalidade": finalidade},
+            )
+            messages.error(request, f"O documento não foi fechado: {exc}")
+            return _redirect_documento_clinico(request, documento)
+        hash_pdf = hashlib.sha256(pdf_final).hexdigest()
         _apply_audit(documento, request.user)
         documento.save(update_fields=[
             "ds_status",
@@ -5880,14 +6071,75 @@ def fechar_documento_clinico(request, cd_documento):
             "dh_atualizacao",
             "cd_usuario_atualizacao",
         ])
+        versao_anterior = documento.versoes_finais.order_by("-nr_versao").first()
+        if not versao_anterior and documento.cd_documento_origem_id:
+            versao_anterior = documento.cd_documento_origem.versoes_finais.order_by("-nr_versao").first()
+        versao_final = VersaoDocumentoClinico.objects.create(
+            cd_empresa=empresa,
+            cd_documento_clinico=documento,
+            nr_versao=(versao_anterior.nr_versao + 1) if versao_anterior else 1,
+            ds_status="ASSINADO" if certificado else "FINALIZADO",
+            arquivo_pdf=pdf_final,
+            ds_hash_sha256=hash_pdf,
+            nr_tamanho_bytes=len(pdf_final),
+            nr_paginas=total_paginas,
+            ds_motivo_versao=(
+                "Nova versão derivada de documento anterior."
+                if versao_anterior
+                else "Fechamento definitivo do documento."
+            ),
+            cd_versao_anterior=versao_anterior,
+            cd_usuario_criacao=request.user,
+        )
+        if certificado:
+            AssinaturaDigitalDocumento.objects.create(
+                cd_empresa=empresa,
+                cd_versao_documento=versao_final,
+                cd_certificado_digital=certificado,
+                cd_usuario_solicitante=request.user,
+                tp_finalidade=finalidade,
+                ds_status="VALIDA",
+                ds_sujeito=certificado.ds_sujeito,
+                ds_emissor=certificado.ds_emissor,
+                nr_serie=certificado.nr_serie,
+                ds_fingerprint_sha256=certificado.ds_fingerprint_sha256,
+                ds_hash_pdf_assinado=hash_pdf,
+                ds_ip=request.META.get("REMOTE_ADDR") or None,
+                ds_user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:500],
+                ds_detalhes={
+                    "campo_assinatura": campo_assinatura,
+                    "algoritmo_hash": "SHA-256",
+                    "timestamp_tsa": timestamp_aplicado,
+                },
+            )
+        AuditoriaAssinaturaDigital.objects.create(
+            cd_empresa=empresa,
+            cd_documento_clinico=documento,
+            cd_certificado_digital=certificado,
+            cd_usuario=request.user,
+            tp_evento="FECHAMENTO_DOCUMENTO",
+            ds_status="ASSINADO" if certificado else "FINALIZADO_SEM_ASSINATURA",
+            ds_hash_pdf=hash_pdf,
+            ds_ip=request.META.get("REMOTE_ADDR") or None,
+            ds_user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:500],
+            ds_dados={"finalidade": finalidade, "versao": versao_final.nr_versao},
+        )
         _registrar_evento_documento(
             documento,
             request.user,
             "FECHADO",
-            dados={"hash": documento.ds_hash_conteudo, "assinatura": assinatura},
+            dados={
+                "hash_conteudo": documento.ds_hash_conteudo,
+                "hash_pdf": hash_pdf,
+                "versao": versao_final.nr_versao,
+                "assinatura_digital": bool(certificado),
+            },
         )
         _liberar_trava_documento(documento, request.user, "Liberada ao fechar documento.")
-    messages.success(request, "Documento fechado e assinado eletronicamente.")
+    if certificado:
+        messages.success(request, "Documento fechado, assinado digitalmente e armazenado em versão imutável.")
+    else:
+        messages.success(request, "Documento fechado e armazenado em versão imutável, sem assinatura digital configurada para esta finalidade.")
     return _redirect_documento_clinico(request, documento)
 
 
@@ -5936,7 +6188,7 @@ def cancelar_documento_clinico(request, cd_documento):
             DocumentoClinico.objects.select_for_update(),
             cd_empresa=empresa,
             pk=cd_documento,
-            ds_status="FECHADO",
+            ds_status__in={"FECHADO", "FINALIZADO", "ASSINADO"},
         )
         if not _usuario_pode_operar_documento(request.user, documento):
             raise PermissionDenied
@@ -6365,7 +6617,7 @@ def historico_documentos_assistencial(request, cd_atendimento, cd_item):
 def copiar_documento_clinico(request, cd_documento):
     empresa = _empresa_logada(request)
     origem = get_object_or_404(DocumentoClinico, cd_empresa=empresa, cd_documento_clinico=cd_documento)
-    if origem.ds_status not in {"FECHADO", "CANCELADO"}:
+    if origem.ds_status not in {"FECHADO", "FINALIZADO", "ASSINADO", "CANCELADO"}:
         raise PermissionDenied("Somente documentos fechados ou cancelados podem ser copiados.")
     if not _usuario_pode_visualizar_documento(request.user, origem):
         raise PermissionDenied
@@ -7477,13 +7729,13 @@ def pep_prontuario_paciente(request, cd_paciente):
             )
             pode_cancelar_documento_item = bool(
                 not somente_consulta
-                and ultimo_documento_item.ds_status == "FECHADO"
+                and ultimo_documento_item.ds_status in {"FECHADO", "FINALIZADO", "ASSINADO"}
                 and item_selecionado.sn_permite_cancelar
                 and _usuario_pode_operar_documento(request.user, ultimo_documento_item)
             )
             pode_copiar_documento_item = bool(
                 not somente_consulta
-                and ultimo_documento_item.ds_status in {"FECHADO", "CANCELADO"}
+                and ultimo_documento_item.ds_status in {"FECHADO", "FINALIZADO", "ASSINADO", "CANCELADO"}
                 and _usuario_pode_visualizar_documento(request.user, ultimo_documento_item)
             )
             if ultimo_documento_item.ds_status in {"ABERTO", "RASCUNHO"}:
@@ -7510,7 +7762,11 @@ def pep_prontuario_paciente(request, cd_paciente):
                             "Não é possível assumir enquanto a trava estiver ativa."
                         )
             documento_modo_impressao_item = not documento_editavel_item
-            apresentacao_documento_item = _renderizar_documento(ultimo_documento_item, documento_modo_impressao_item)
+            apresentacao_documento_item = (
+                _renderizar_documento(ultimo_documento_item, False)
+                if documento_editavel_item
+                else None
+            )
             pep_documento_next_url = (
                 f"{reverse(pep_patient_route, args=[paciente.pk])}?"
                 f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item_selecionado.pk, 'documento': ultimo_documento_item.pk, 'return_to': return_to})}"

@@ -1,9 +1,10 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 
 from apps.accounts.models import Empresa
 
-from .models import IconeSistema, Module, ScreenDefinition, ScreenField
+from .models import CertificadoDigitalEmpresa, IconeSistema, Module, ScreenDefinition, ScreenField
 
 
 class SystemIconSelect(forms.Select):
@@ -234,3 +235,56 @@ class EmpresaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["nr_cnes"].widget.attrs.update({"inputmode": "numeric", "maxlength": "7", "data-validate-cnes": "true"})
         self.fields["ds_email"].widget.attrs["data-validate-email"] = "true"
+
+
+class CertificadoDigitalEmpresaForm(forms.Form):
+    nm_certificado = forms.CharField(label="Nome de identificação", max_length=160)
+    tp_certificado = forms.ChoiceField(
+        label="Tipo",
+        choices=CertificadoDigitalEmpresa.TIPOS,
+        initial=CertificadoDigitalEmpresa.TIPO_INSTITUCIONAL,
+    )
+    cd_usuario_profissional = forms.ModelChoiceField(
+        label="Profissional titular",
+        queryset=get_user_model().objects.none(),
+        required=False,
+        empty_label="Selecione o profissional",
+    )
+    arquivo = forms.FileField(
+        label="Certificado A1",
+        widget=forms.ClearableFileInput(attrs={"accept": ".pfx,.p12"}),
+    )
+    senha = forms.CharField(label="Senha do certificado", widget=forms.PasswordInput(render_value=False))
+    sn_assina_documentos_medicos = forms.BooleanField(label="Assina documentos médicos", required=False)
+    sn_assina_documentos_administrativos = forms.BooleanField(
+        label="Assina documentos administrativos",
+        required=False,
+    )
+    sn_assina_outros_documentos = forms.BooleanField(label="Assina outros documentos", required=False)
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if empresa:
+            self.fields["cd_usuario_profissional"].queryset = (
+                get_user_model().objects.filter(empresas=empresa, is_active=True)
+                .distinct()
+                .order_by("full_name", "username")
+            )
+
+    def clean(self):
+        dados = super().clean()
+        if (
+            dados.get("tp_certificado") == CertificadoDigitalEmpresa.TIPO_PROFISSIONAL
+            and not dados.get("cd_usuario_profissional")
+        ):
+            self.add_error("cd_usuario_profissional", "Informe o profissional titular do certificado.")
+        if not any(
+            dados.get(campo)
+            for campo in (
+                "sn_assina_documentos_medicos",
+                "sn_assina_documentos_administrativos",
+                "sn_assina_outros_documentos",
+            )
+        ):
+            raise forms.ValidationError("Selecione ao menos uma finalidade de assinatura.")
+        return dados

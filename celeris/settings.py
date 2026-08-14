@@ -157,6 +157,22 @@ SECURE_HSTS_PRELOAD = env_bool("CELERIS_SECURE_HSTS_PRELOAD", not DEBUG)
 if env_bool("CELERIS_TRUST_PROXY_SSL_HEADER", False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("CELERIS_DATA_UPLOAD_MAX_MEMORY_SIZE", "25000000"))
+CELERIS_CERTIFICATE_MASTER_KEY = os.getenv("CELERIS_CERTIFICATE_MASTER_KEY", "")
+CELERIS_CERTIFICATE_MASTER_KEY_VERSION = os.getenv("CELERIS_CERTIFICATE_MASTER_KEY_VERSION", "v1")
+CELERIS_CERTIFICATE_MAX_UPLOAD_SIZE = int(os.getenv("CELERIS_CERTIFICATE_MAX_UPLOAD_SIZE", "10485760"))
+CELERIS_CERTIFICATE_EXPIRY_WARNING_DAYS = int(os.getenv("CELERIS_CERTIFICATE_EXPIRY_WARNING_DAYS", "30"))
+CELERIS_CERTIFICATE_EXPIRY_WARNING_LEVELS = tuple(
+    sorted(
+        {
+            int(value)
+            for value in os.getenv("CELERIS_CERTIFICATE_EXPIRY_WARNING_LEVELS", "60,30,15,7,1").split(",")
+            if value.strip().isdigit()
+        },
+        reverse=True,
+    )
+)
+CELERIS_TSA_URL = os.getenv("CELERIS_TSA_URL", "").strip()
+CELERIS_TSA_TIMEOUT = int(os.getenv("CELERIS_TSA_TIMEOUT", "10"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

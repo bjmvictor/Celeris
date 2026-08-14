@@ -1,14 +1,17 @@
 from django.db import OperationalError, ProgrammingError, connection
 from django.db.models import Q
 from django.core.cache import cache
+from django.conf import settings
 from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
+from datetime import timedelta
 from urllib.parse import urlencode
 import unicodedata
 
 from apps.accounts.models import Empresa
 from apps.accounts.access import request_access_key_candidates, user_access_keys
 
-from .models import IconeSistema, Module, ScreenDefinition
+from .models import CertificadoDigitalEmpresa, IconeSistema, Module, ScreenDefinition
 from .navigation import item
 from .navigation_cache import (
     NAVIGATION_CACHE_KEY,
@@ -314,6 +317,38 @@ def navigation(request):
     if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
         separator = "&" if "?" in current_new_url else "?"
         current_new_url = f"{current_new_url}{separator}{urlencode({'return_to': request.get_full_path()})}"
+    certificate_notifications = []
+    if (
+        current_empresa
+        and request.user.is_authenticated
+        and (request.user.is_superuser or request.user.groups.filter(name="TI").exists())
+    ):
+        try:
+            niveis = settings.CELERIS_CERTIFICATE_EXPIRY_WARNING_LEVELS or (
+                settings.CELERIS_CERTIFICATE_EXPIRY_WARNING_DAYS,
+            )
+            limite = timezone.now() + timedelta(days=max(niveis))
+            certificados_alerta = CertificadoDigitalEmpresa.objects.filter(
+                cd_empresa=current_empresa,
+                sn_ativo=True,
+                dh_fim_validade__lte=limite,
+            ).only("nm_certificado", "dh_fim_validade")
+            for certificado in certificados_alerta:
+                vencido = certificado.dh_fim_validade <= timezone.now()
+                dias_restantes = max(0, (certificado.dh_fim_validade.date() - timezone.localdate()).days)
+                certificate_notifications.append(
+                    {
+                        "level": "error" if vencido else "warning",
+                        "text": (
+                            f"Certificado digital {certificado.nm_certificado} vencido."
+                            if vencido
+                            else f"Certificado digital {certificado.nm_certificado} vence em "
+                            f"{dias_restantes} dia(s), em {certificado.dh_fim_validade:%d/%m/%Y}."
+                        ),
+                    }
+                )
+        except (OperationalError, ProgrammingError):
+            certificate_notifications = []
     return {
         "modules_menu": _filter_menu_for_user(
             _merge_configured_menu(),
@@ -358,4 +393,5 @@ def navigation(request):
                 or request.user.groups.filter(name="TI", papel__sn_ativo=True).exists()
             )
         ),
+        "certificate_notifications": certificate_notifications,
     }

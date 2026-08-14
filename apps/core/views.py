@@ -1,9 +1,10 @@
 from django.contrib import messages
 from django.apps import apps
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.sessions.models import Session
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied, ValidationError
 from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
@@ -13,6 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from io import BytesIO, StringIO
+from datetime import timedelta
 from urllib.parse import urlencode
 import csv
 import json
@@ -35,18 +37,27 @@ from .catalogos import (
 )
 from .permissions import role_required
 
-from .forms import EmpresaForm, ModuleForm, ScreenDefinitionForm, ScreenFieldForm
+from .forms import CertificadoDigitalEmpresaForm, EmpresaForm, ModuleForm, ScreenDefinitionForm, ScreenFieldForm
 from .locks import adquirir_trava_edicao, liberar_trava_edicao
 from .navigation_cache import invalidate_navigation_cache
 from .models import (
     Cep,
     ConfiguracaoCampoFormulario,
+    AuditoriaCertificadoDigital,
+    CertificadoDigitalEmpresa,
     IconeSistema,
     Module,
     ScreenDefinition,
     ScreenField,
     TipoPrestadorConselho,
     TravaEdicao,
+)
+from .services.certificados_digitais import (
+    ErroCertificadoDigital,
+    cadastrar_certificado,
+    chave_mestra_configurada,
+    status_certificado,
+    testar_certificado,
 )
 from .table_utils import paginate_table
 
@@ -807,6 +818,160 @@ def system_company_edit(request, pk=None):
         messages.success(request, "Empresa salva com sucesso.")
         return redirect("core:system_company_edit", pk=saved_empresa.pk)
     return render(request, "core/system_company_form.html", {"form": form, "empresa": empresa})
+
+
+@login_required
+@role_required("TI")
+def certificados_digitais(request):
+    empresa = _empresa_atual(request)
+    request.current_tab_title = "Global > Empresa > Certificados digitais"
+    request.current_tab_root_title = "Certificados digitais"
+    request.current_module_title = "Global"
+    request.current_can_query = False
+    request.current_can_insert = False
+    request.current_can_save = False
+    request.current_can_remove = False
+    form = CertificadoDigitalEmpresaForm(request.POST or None, request.FILES or None, empresa=empresa)
+
+    def auditar(evento, resultado, mensagem="", certificado=None):
+        AuditoriaCertificadoDigital.objects.create(
+            cd_empresa=empresa,
+            cd_certificado_digital=certificado,
+            cd_usuario=request.user,
+            tp_evento=evento,
+            ds_resultado=resultado,
+            ds_mensagem=mensagem[:500],
+            ds_ip=request.META.get("REMOTE_ADDR") or None,
+            ds_user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:500],
+        )
+
+    if request.method == "POST":
+        acao = request.POST.get("acao", "cadastrar")
+        certificado_id = request.POST.get("certificado_id", "")
+        certificado = CertificadoDigitalEmpresa.objects.filter(
+            cd_empresa=empresa,
+            pk=certificado_id if certificado_id.isdigit() else None,
+        ).first()
+        if acao == "finalidades" and certificado:
+            finalidades = {
+                "sn_assina_documentos_medicos": request.POST.get("sn_assina_documentos_medicos") == "on",
+                "sn_assina_documentos_administrativos": request.POST.get("sn_assina_documentos_administrativos") == "on",
+                "sn_assina_outros_documentos": request.POST.get("sn_assina_outros_documentos") == "on",
+            }
+            if not any(finalidades.values()):
+                messages.error(request, "Mantenha ao menos uma finalidade ou desative o certificado.")
+                return redirect("core:certificados_digitais")
+            with transaction.atomic():
+                for campo, valor in finalidades.items():
+                    setattr(certificado, campo, valor)
+                certificado.cd_usuario_atualizacao = request.user
+                certificado.full_clean()
+                certificado.save(
+                    update_fields=(
+                        *finalidades.keys(),
+                        "cd_usuario_atualizacao",
+                        "updated_at",
+                    )
+                )
+                auditar("FINALIDADES_ATUALIZADAS", "SUCESSO", certificado=certificado)
+            messages.success(request, "Finalidades de assinatura atualizadas com sucesso.")
+            return redirect("core:certificados_digitais")
+        if acao == "desativar" and certificado:
+            with transaction.atomic():
+                certificado.sn_ativo = False
+                certificado.cd_usuario_atualizacao = request.user
+                certificado.save(update_fields=("sn_ativo", "cd_usuario_atualizacao", "updated_at"))
+                auditar("DESATIVADO", "SUCESSO", certificado=certificado)
+            messages.success(request, "Certificado desativado. Documentos já assinados permanecem íntegros.")
+            return redirect("core:certificados_digitais")
+        if acao == "testar" and certificado:
+            try:
+                testar_certificado(certificado)
+            except (ErroCertificadoDigital, ImproperlyConfigured) as exc:
+                auditar("TESTADO", "FALHA", str(exc), certificado)
+                messages.error(request, str(exc))
+            else:
+                auditar("TESTADO", "SUCESSO", certificado=certificado)
+                messages.success(request, "Certificado, senha e validade conferidos com sucesso.")
+            return redirect("core:certificados_digitais")
+        if acao == "cadastrar" and form.is_valid():
+            arquivo = form.cleaned_data["arquivo"]
+            substituir_id = request.POST.get("substituir_id", "")
+            certificado_substituido = CertificadoDigitalEmpresa.objects.filter(
+                cd_empresa=empresa,
+                pk=substituir_id if substituir_id.isdigit() else None,
+                sn_ativo=True,
+            ).first()
+            try:
+                with transaction.atomic():
+                    novo_certificado = cadastrar_certificado(
+                        empresa=empresa,
+                        usuario=request.user,
+                        nome=form.cleaned_data["nm_certificado"],
+                        tipo=form.cleaned_data["tp_certificado"],
+                        arquivo_nome=arquivo.name,
+                        conteudo=arquivo.read(),
+                        senha=form.cleaned_data["senha"],
+                        usuario_profissional=form.cleaned_data["cd_usuario_profissional"],
+                        assina_medicos=form.cleaned_data["sn_assina_documentos_medicos"],
+                        assina_administrativos=form.cleaned_data["sn_assina_documentos_administrativos"],
+                        assina_outros=form.cleaned_data["sn_assina_outros_documentos"],
+                    )
+                    if certificado_substituido:
+                        certificado_substituido.sn_ativo = False
+                        certificado_substituido.cd_usuario_atualizacao = request.user
+                        certificado_substituido.save(
+                            update_fields=("sn_ativo", "cd_usuario_atualizacao", "updated_at")
+                        )
+                    auditar(
+                        "SUBSTITUIDO" if certificado_substituido else "CADASTRADO",
+                        "SUCESSO",
+                        certificado=novo_certificado,
+                    )
+            except (ErroCertificadoDigital, ImproperlyConfigured, ValidationError) as exc:
+                auditar("CADASTRADO", "FALHA", str(exc))
+                form.add_error(None, str(exc))
+                messages.error(request, str(exc))
+            else:
+                messages.success(
+                    request,
+                    "Certificado validado, criptografado e substituído com sucesso."
+                    if certificado_substituido
+                    else "Certificado validado, criptografado e cadastrado com sucesso.",
+                )
+                return redirect("core:certificados_digitais")
+        elif acao == "cadastrar":
+            detalhes = " ".join(
+                str(erro)
+                for erros in form.errors.values()
+                for erro in erros
+            )
+            mensagem = detalhes or "Revise os dados do certificado e tente novamente."
+            auditar("CADASTRADO", "FALHA", mensagem)
+            messages.error(request, f"O certificado não foi cadastrado. {mensagem}")
+    aviso_dias = max(
+        settings.CELERIS_CERTIFICATE_EXPIRY_WARNING_LEVELS
+        or (settings.CELERIS_CERTIFICATE_EXPIRY_WARNING_DAYS,)
+    )
+    limite_aviso = timezone.now() + timedelta(days=aviso_dias)
+    certificados = CertificadoDigitalEmpresa.objects.filter(cd_empresa=empresa).select_related(
+        "cd_usuario_profissional",
+        "cd_usuario_atualizacao",
+    )
+    for certificado in certificados:
+        certificado.proximo_vencimento = certificado.sn_ativo and certificado.dh_fim_validade <= limite_aviso
+        certificado.vencido = certificado.dh_fim_validade <= timezone.now()
+        certificado.status_publico = status_certificado(certificado, aviso_dias=aviso_dias)
+    return render(
+        request,
+        "core/certificados_digitais.html",
+        {
+            "form": form,
+            "certificados": certificados,
+            "aviso_dias": aviso_dias,
+            "chave_mestra_configurada": chave_mestra_configurada(),
+        },
+    )
 
 
 @login_required

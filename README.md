@@ -79,6 +79,9 @@ Entre os principais objetivos do Celeris estão:
 - Organização dos documentos do prontuário.
 - Prescrições e informações clínicas.
 - Fluxos de alta e encerramento de atendimento.
+- PDFs finais imutáveis e assinatura digital PAdES com certificado A1, quando configurada.
+
+Configuração operacional: [`docs/assinatura-digital.md`](docs/assinatura-digital.md).
 
 ### Agendas
 

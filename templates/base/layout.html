@@ -40,7 +40,7 @@
         </button>
         <button class="icon-button" data-notifications-toggle type="button" title="Notificações">
           <span class="svg-icon" data-nav-icon="bell"></span>
-          {% if messages %}<span class="notification-badge">{{ messages|length }}</span>{% endif %}
+          {% if messages or certificate_notifications %}<span class="notification-badge">{% if messages %}{{ messages|length }}{% else %}{{ certificate_notifications|length }}{% endif %}</span>{% endif %}
         </button>
         <div class="notifications-panel" data-notifications-panel hidden>
           <div class="notifications-header">
@@ -48,12 +48,18 @@
             <button class="button button-ghost notification-clear-button" data-notifications-clear type="button">Limpar</button>
           </div>
           <div class="notifications-list">
-            {% if messages %}
+            {% if messages or certificate_notifications %}
               {% for message in messages %}
                 <button class="notification-item {{ message.tags }}" data-notification-item data-server-notification type="button">
                   <span class="notification-time" data-notification-time></span>
                   <span class="notification-text">{{ message }}</span>
                 </button>
+              {% endfor %}
+              {% for notification in certificate_notifications %}
+                <a class="notification-item {{ notification.level }}" data-notification-item href="{% url 'core:certificados_digitais' %}">
+                  <span class="notification-time">Certificado</span>
+                  <span class="notification-text">{{ notification.text }}</span>
+                </a>
               {% endfor %}
             {% else %}
               <div class="notification-empty">Nenhuma notificação.</div>

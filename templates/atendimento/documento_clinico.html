@@ -109,6 +109,33 @@
             <button class="button button-primary" type="submit">Salvar preenchimento</button>
           </div>
         </form>
+      {% elif versao_final %}
+        <iframe
+          class="pep-document-print-frame"
+          title="Documento final armazenado"
+          src="?modo=impressao&amp;pdf=1#toolbar=0&amp;navpanes=0&amp;scrollbar=1&amp;page=1&amp;zoom=100"
+        ></iframe>
+        <section class="document-signature-metadata" aria-label="Integridade do documento">
+          <strong>Versão {{ versao_final.nr_versao }} · {{ versao_final.get_ds_status_display }}</strong>
+          <span>SHA-256: <code>{{ versao_final.ds_hash_sha256 }}</code></span>
+          {% if assinatura_final %}
+            <span>Assinado em {{ assinatura_final.dh_assinatura|date:"d/m/Y H:i:s" }}</span>
+            <span>Certificado: {{ assinatura_final.ds_sujeito }}</span>
+            <span>Série: {{ assinatura_final.nr_serie }} · Fingerprint: {{ assinatura_final.ds_fingerprint_sha256 }}</span>
+          {% else %}
+            <span>Versão final imutável sem assinatura digital configurada.</span>
+          {% endif %}
+          {% if versoes_documento|length > 1 %}
+            <details>
+              <summary>Histórico de versões</summary>
+              {% for versao in versoes_documento %}
+                <a href="{% url 'atendimento:imprimir-documento-clinico' versao.cd_documento_clinico_id %}">
+                  v{{ versao.nr_versao }} · {{ versao.get_ds_status_display }} · {{ versao.dh_criacao|date:"d/m/Y H:i:s" }} · {{ versao.cd_usuario_criacao|default:"Sistema" }}
+                </a>
+              {% endfor %}
+            </details>
+          {% endif %}
+        </section>
       {% else %}
         <section class="document-section document-content">{{ apresentacao.conteudo }}</section>
       {% endif %}

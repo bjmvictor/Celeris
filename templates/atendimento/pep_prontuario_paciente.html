@@ -221,7 +221,7 @@
                 {% endif %}
               </div>
             </header>
-            {% if ultimo_documento_item and apresentacao_documento_item %}
+            {% if ultimo_documento_item %}
               {% if apresentacao_documento_item.css %}<style>{{ apresentacao_documento_item.css }}</style>{% endif %}
               <div class="pep-document-workarea">
                 {% if documento_editavel_item %}
@@ -344,8 +344,8 @@
             </header>
             <div class="pep-document-history-list">
               {% for documento in historico_documentos_item %}
-                <a class="pep-document-history-item{% if forloop.counter > 5 %} is-hidden{% endif %}{% if ultimo_documento_item.pk == documento.pk %} active{% endif %}{% if documento.pep_status_inativo %} inactive{% endif %}{% if documento.pep_travado_por_outro %} is-locked-by-other{% endif %}{% if documento.ds_status == 'FECHADO' or documento.ds_status == 'FINALIZADO' %} is-closed{% elif documento.ds_status == 'CANCELADO' %} is-canceled{% endif %}" data-pep-history-item href="{{ pep_patient_url|default:request.path }}?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ atendimento.pk }}&item={{ item_selecionado.pk }}&documento={{ documento.pk }}&return_to={{ return_to|urlencode }}">
-                  {% if documento.ds_status == "FECHADO" or documento.ds_status == "FINALIZADO" %}
+                <a class="pep-document-history-item{% if forloop.counter > 5 %} is-hidden{% endif %}{% if ultimo_documento_item.pk == documento.pk %} active{% endif %}{% if documento.pep_status_inativo %} inactive{% endif %}{% if documento.pep_travado_por_outro %} is-locked-by-other{% endif %}{% if documento.ds_status == 'FECHADO' or documento.ds_status == 'FINALIZADO' or documento.ds_status == 'ASSINADO' %} is-closed{% elif documento.ds_status == 'CANCELADO' %} is-canceled{% endif %}" data-pep-history-item href="{{ pep_patient_url|default:request.path }}?modo={% if somente_consulta %}consulta{% else %}atendimento{% endif %}&atendimento={{ atendimento.pk }}&item={{ item_selecionado.pk }}&documento={{ documento.pk }}&return_to={{ return_to|urlencode }}">
+                  {% if documento.ds_status == "FECHADO" or documento.ds_status == "FINALIZADO" or documento.ds_status == "ASSINADO" %}
                     <span class="pep-history-status-icon" aria-label="Documento fechado">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-badge-check-icon lucide-badge-check"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
                     </span>

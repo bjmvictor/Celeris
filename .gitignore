@@ -23,6 +23,10 @@ __pycache__/
 logs/
 *.session.sql
 .tmp/
+*.pfx
+*.p12
+*.key
+*.pem
 
 # Arquivos locais de ferramentas e sistema operacional.
 .coverage
