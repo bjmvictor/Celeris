@@ -7933,7 +7933,13 @@ def pep_chamar(request, cd_atendimento):
 
     paineis = paineis_compativeis_atendimento(atendimento, setor.pk)
     if not paineis:
-        messages.warning(request, "Nenhum painel ativo é compatível com este atendimento e setor.")
+        if PainelChamada.objects.filter(cd_empresa=empresa, sn_ativo=True).exists():
+            messages.warning(
+                request,
+                "Há painel ativo, mas ele não está vinculado a este setor ou aos filtros deste atendimento.",
+            )
+        else:
+            messages.warning(request, "Nenhum painel de chamada ativo está cadastrado para esta empresa.")
     else:
         for painel in paineis:
             ChamadaPainel.objects.create(
@@ -9806,8 +9812,18 @@ def fila_classificacao(request):
                 default=Value(0),
                 output_field=IntegerField(),
             )
-        ).order_by("ordem_classificacao", "nr_prioridade", "dh_criacao")[:200]
+        ).order_by("ordem_classificacao", "dh_criacao", "nr_prioridade", "cd_senha_atendimento")
     )
+    senhas.sort(
+        key=lambda senha: (
+            senha.ordem_classificacao,
+            0 if senha.tempo_excedido else 1,
+            senha.dh_criacao,
+            senha.nr_prioridade,
+            senha.pk,
+        )
+    )
+    senhas = senhas[:200]
     regras_fila = {
         (regra.cd_tipo_senha_id, regra.cd_classe_senha_id): regra
         for regra in RegraSubdivisaoSenha.objects.select_related("cd_protocolo").filter(
@@ -10177,6 +10193,7 @@ def fila_classificacao(request):
             "class_show_action_toolbar": class_standalone and bool(senha_selecionada or agendamento_selecionado),
             "classification_list_url": classification_list_url,
             "class_base_template": "base/class_layout.html" if class_standalone else "base/layout.html",
+            "class_close_url": classification_list_url if class_standalone else "",
             "perguntas_classificacao": perguntas_classificacao,
             "fluxos_classificacao": fluxos_classificacao,
             "escalas_classificacao": escalas_classificacao,

@@ -314,6 +314,13 @@ def navigation(request):
         else:
             cache.set(SYSTEM_ICONS_CACHE_KEY, system_icon_svgs, NAVIGATION_CACHE_TIMEOUT)
     current_new_url = getattr(request, "current_new_url", new_url_by_route.get(route_name, ""))
+    user_is_authenticated = request.user.is_authenticated
+    user_is_superuser = bool(user_is_authenticated and request.user.is_superuser)
+    active_product_roles = set()
+    if user_is_authenticated and not user_is_superuser:
+        active_product_roles = set(
+            request.user.groups.filter(papel__sn_ativo=True).values_list("name", flat=True)
+        )
     if route_name in {"perfis", "atendimento:profissionais"} and current_new_url:
         separator = "&" if "?" in current_new_url else "?"
         current_new_url = f"{current_new_url}{separator}{urlencode({'return_to': request.get_full_path()})}"
@@ -387,11 +394,18 @@ def navigation(request):
             and getattr(request.user, "pode_visualizar_auditoria", False)
         ),
         "class_can_configure": bool(
-            request.user.is_authenticated
+            user_is_authenticated
             and (
-                request.user.is_superuser
-                or request.user.groups.filter(name="TI", papel__sn_ativo=True).exists()
+                user_is_superuser
+                or "TI" in active_product_roles
             )
+        ),
+        "can_access_class": bool(
+            user_is_authenticated
+            and (user_is_superuser or bool(active_product_roles.intersection({"TI", "Enfermeiro"})))
+        ),
+        "can_access_pep": bool(
+            user_is_authenticated and getattr(request.user, "cd_prestador_id", None)
         ),
         "certificate_notifications": certificate_notifications,
     }

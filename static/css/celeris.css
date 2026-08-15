@@ -978,7 +978,7 @@ textarea { width: min(680px, 100%); resize: vertical; }
 .pep-attendance-data > summary { cursor: pointer; font-size: 16px; font-weight: 800; }
 .pep-attendance-data > .summary-grid { margin-top: 10px; }
 .content .card h2, .content .card h3, .content .section-heading h2 { font-size: 16px; line-height: 1.25; }
-.patient-summary-name { display: grid; align-content: center; gap: 4px; padding-right: 20px; border-right: 1px solid var(--line); }
+.patient-summary-name { display: grid; align-content: center; gap: 4px; padding-right: 50px; border-right: 1px solid var(--line); }
 .patient-summary-name small, .patient-summary-detailed dt { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .patient-summary-detailed dl { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px 18px; width: 100%; margin: 0; }
 .patient-summary-detailed dl div { min-width: 0; }
@@ -1950,7 +1950,7 @@ html.pep-sidebar-collapsed .pep-standalone-shell.pep-has-sidebar .pep-standalone
 .pep-standalone-shell .pep-standalone-sidebar .nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pep-standalone-shell .patient-summary-detailed { position: sticky; top: 0; z-index: 120; margin-bottom: 4px; }
 .pep-standalone-shell .patient-summary-detailed.is-compact { display: grid; grid-template-columns: clamp(220px, 34vw, 350px) minmax(0, 1fr); align-items: center; min-height: 48px; padding: 4px 42px 4px 68px; gap: 4px 10px; }
-.pep-standalone-shell .patient-summary-detailed.is-compact .patient-summary-name { display: grid; gap: 1px; min-width: 0; max-width: 100%; padding-right: 10px; }
+.pep-standalone-shell .patient-summary-detailed.is-compact .patient-summary-name { display: grid; gap: 1px; min-width: 0; max-width: 100%; padding-right: 50px; }
 .pep-standalone-shell .patient-summary-detailed.is-compact dl { display: grid; gap: 4px 8px; min-width: 0; }
 .pep-standalone-shell .patient-summary-detailed.is-compact dl div { display: inline-flex; align-items: baseline; gap: 4px; min-width: auto; }
 .pep-standalone-shell .patient-summary-detailed.is-compact dt, .pep-standalone-shell .patient-summary-detailed.is-compact dd { display: inline; }
@@ -2301,3 +2301,29 @@ body:has(.profile-config-layout) .content { padding-bottom: var(--space-sm) !imp
     border-top: 1px solid var(--primary);
     border-bottom: 1px solid var(--primary)
 }
+/* Páginas de erro funcionam sem depender do layout autenticado. */
+.error-page-shell {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, var(--primary-soft), var(--bg) 58%);
+  color: var(--text);
+}
+
+.error-page-card {
+  width: min(100%, 520px);
+  padding: clamp(28px, 6vw, 52px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.error-page-card img { width: 68px; height: 68px; margin-bottom: 18px; }
+.error-page-code { display: block; color: var(--primary); font-size: .85rem; font-weight: 800; letter-spacing: .18em; }
+.error-page-card h1 { margin: 8px 0 10px; font-size: clamp(1.8rem, 5vw, 2.6rem); }
+.error-page-card p { margin: 0 auto 28px; color: var(--muted); }
+.error-page-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }

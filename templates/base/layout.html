@@ -99,18 +99,18 @@
                 Acessar sistema
               </summary>
               <div class="dropdown-product-list">
-                <a class="dropdown-item" href="/PEP/">
+                {% if can_access_pep %}<a class="dropdown-item" href="/PEP/">
                   <span class="svg-icon" data-nav-icon="clipboard-plus"></span>
                   Celeris PEP
-                </a>
+                </a>{% endif %}
                 <a class="dropdown-item" href="/painel/">
                   <span class="svg-icon" data-nav-icon="presentation"></span>
                   Painel
                 </a>
-                <a class="dropdown-item" href="{% url 'classificacao_standalone' %}">
+                {% if can_access_class %}<a class="dropdown-item" href="{% url 'classificacao_standalone' %}">
                   <span class="svg-icon" data-nav-icon="heart-hands"></span>
                   Celeris Class
-                </a>
+                </a>{% endif %}
                 {% if request.path != "/totem/" %}
                   <a class="dropdown-item" href="/totem/">
                     <span class="svg-icon" data-nav-icon="ticket"></span>

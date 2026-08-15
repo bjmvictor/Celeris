@@ -48,6 +48,28 @@ if not SECRET_KEY:
     SECRET_KEY = get_random_secret_key()
 ALLOWED_HOSTS = [item.strip() for item in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if item.strip()]
 
+# O Codespaces publica o servidor de desenvolvimento por meio de um proxy HTTPS.
+# Além do host, a origem externa precisa ser autorizada para requisições POST.
+CSRF_TRUSTED_ORIGINS = [
+    item.strip().rstrip("/")
+    for item in os.getenv(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        "http://localhost:8000,https://localhost:8000,"
+        "http://127.0.0.1:8000,https://127.0.0.1:8000",
+    ).split(",")
+    if item.strip()
+]
+
+CODESPACE_NAME = os.getenv("CODESPACE_NAME", "").strip()
+CODESPACES_DOMAIN = os.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev").strip()
+if CODESPACE_NAME:
+    codespaces_host = f"{CODESPACE_NAME}-8000.{CODESPACES_DOMAIN}"
+    if codespaces_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(codespaces_host)
+    codespaces_origin = f"https://{codespaces_host}"
+    if codespaces_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(codespaces_origin)
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

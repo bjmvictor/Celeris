@@ -102,10 +102,10 @@
                   <span class="svg-icon" data-nav-icon="ticket"></span>
                   Totem
                 </a>
-                <a class="dropdown-item" href="{% url 'classificacao_standalone' %}">
+                {% if can_access_class %}<a class="dropdown-item" href="{% url 'classificacao_standalone' %}">
                   <span class="svg-icon" data-nav-icon="heart-hands"></span>
                   Celeris Class
-                </a>
+                </a>{% endif %}
               </div>
             </details>
             <form action="{% url 'logout' %}" method="post">

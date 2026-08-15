@@ -209,6 +209,22 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+### Dados fictícios para teste e homologação
+
+Para criar uma empresa demonstrativa já em uso, com setores, convênios, papéis,
+prestadores, usuários, pacientes, fila de classificação e atendimentos em vários
+estágios, execute:
+
+```bash
+python manage.py populate
+```
+
+O comando é idempotente e pode ser executado novamente sem duplicar o cenário do
+dia. Os usuários `ADMINDEMO`, `RECEPCAODEMO`, `ENFERMAGEMDEMO`, `MEDICODEMO` e
+`AUDITORDEMO` são criados com a senha inicial `Celeris@123`. Para escolher outra
+senha, use `--senha-padrao`. Quando `DEBUG=False`, é necessário confirmar o uso em
+homologação com `--permitir-fora-debug`.
+
 Por padrão, o ambiente de desenvolvimento ficará disponível em:
 
 ```text

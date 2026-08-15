@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import mimetypes
 from pathlib import Path
+import unicodedata
 from uuid import uuid4
 
 from django.db import transaction
@@ -60,6 +61,21 @@ def _configuracao_painel(painel: PainelChamada | None) -> dict:
     if painel and isinstance(painel.ds_configuracao, dict):
         configuracao.update(painel.ds_configuracao)
     return configuracao
+
+
+def _normalizar_filtro_painel(valor) -> str:
+    """Compara códigos de catálogo e rótulos sem depender de acentos/separadores."""
+    texto = unicodedata.normalize("NFKD", str(valor or ""))
+    return "".join(caractere for caractere in texto if caractere.isalnum()).casefold()
+
+
+def _filtro_painel_aceita(valor_atendimento, valores_configurados) -> bool:
+    configurados = {
+        normalizado
+        for valor in (valores_configurados or [])
+        if (normalizado := _normalizar_filtro_painel(valor))
+    }
+    return not configurados or _normalizar_filtro_painel(valor_atendimento) in configurados
 
 
 def _rotulos_auxiliares(tabela: str) -> dict[str, str]:
@@ -134,11 +150,9 @@ def paineis_compativeis_atendimento(atendimento: Atendimento, setor_id: int | No
         setores = {setor.pk for setor in painel.setores.all()}
         if setores and setor_id not in setores:
             continue
-        especialidades = configuracao.get("especialidades") or []
-        if especialidades and atendimento.ds_especialidade not in especialidades:
+        if not _filtro_painel_aceita(atendimento.ds_especialidade, configuracao.get("especialidades")):
             continue
-        tipos = configuracao.get("tipos_atendimento") or []
-        if tipos and atendimento.ds_tipo_atendimento not in tipos:
+        if not _filtro_painel_aceita(atendimento.ds_tipo_atendimento, configuracao.get("tipos_atendimento")):
             continue
         cores = {str(cor).upper() for cor in configuracao.get("cores_classificacao") or []}
         if cores and cor_classificacao not in cores:
@@ -154,11 +168,9 @@ def paineis_compativeis_agendamento(agendamento: Agendamento):
         configuracao = _configuracao_painel(painel)
         if not configuracao.get("chamar_paciente", True):
             continue
-        especialidades = configuracao.get("especialidades") or []
-        if especialidades and agendamento.ds_especialidade not in especialidades:
+        if not _filtro_painel_aceita(agendamento.ds_especialidade, configuracao.get("especialidades")):
             continue
-        tipos = configuracao.get("tipos_atendimento") or []
-        if tipos and agendamento.ds_tipo_atendimento not in tipos:
+        if not _filtro_painel_aceita(agendamento.ds_tipo_atendimento, configuracao.get("tipos_atendimento")):
             continue
         compativeis.append(painel)
     return compativeis

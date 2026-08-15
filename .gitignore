@@ -2,8 +2,11 @@
 .venv/
 
 # Ambiente virtual criado na raiz do workspace.
+/bin/
 /Include/
 /Lib/
+/lib/
+/lib64
 /Scripts/
 /share/
 /pyvenv.cfg
