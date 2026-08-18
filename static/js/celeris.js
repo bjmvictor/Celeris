@@ -676,6 +676,7 @@
     if (persist) persistNotification(message, type);
     return item;
   }
+  window.CelerisNotify = (message, type = "info") => addNotificationToHistory(message, type, false);
 
   function getPersistedNotifications() {
     try {
@@ -1099,6 +1100,14 @@
   }
 
   document.addEventListener("click", async function (event) {
+    const contextTable = event.target.closest("[data-context-table]");
+    if (contextTable) {
+      document.querySelectorAll("[data-context-table].active, [data-scale-table].active").forEach((table) => {
+        if (table !== contextTable) table.classList.remove("active");
+      });
+      contextTable.classList.add("active");
+      setupActionButtons();
+    }
     const receptionPatientSelect = event.target.closest("[data-reception-patient-select]");
     if (receptionPatientSelect && !event.defaultPrevented) {
       event.preventDefault();
@@ -1348,6 +1357,7 @@
 
     const saveAction = event.target.closest('[data-action="save"]');
     if (saveAction && !saveAction.disabled) {
+      if (dispatchContextTableAction("save")) return;
       const form = getPrimaryForm();
       if (form) {
         storeCurrentListPosition();
@@ -1358,6 +1368,7 @@
 
     const newAction = event.target.closest('[data-action="new"]');
     if (newAction && !newAction.disabled) {
+      if (dispatchContextTableAction("new")) return;
       const tableForm = getEditableTableForm();
       if (tableForm && addEditableTableRow(tableForm)) return;
       if (addInlineFormsetRow()) return;
@@ -1396,6 +1407,7 @@
 
     const removeAction = event.target.closest('[data-action="remove"]');
     if (removeAction && !removeAction.disabled) {
+      if (dispatchContextTableAction("remove")) return;
       const contextualTarget = document.querySelector("[data-toolbar-remove-target].selected");
       if (contextualTarget) {
         const removeFormId = contextualTarget.dataset.removeForm;
@@ -3210,6 +3222,11 @@
     const saveButton = document.querySelector('[data-action="save"]');
     const reloadButton = document.querySelector('[data-action="reload"]');
     const printButton = document.querySelector('[data-action="print"]');
+    const activeContextTable = getActiveContextTable();
+    const contextCanQuery = Boolean(activeContextTable && activeContextTable.dataset.contextQuery !== "false");
+    const contextCanCreate = Boolean(activeContextTable && activeContextTable.dataset.contextNew !== "false");
+    const contextCanSave = Boolean(activeContextTable && activeContextTable.dataset.contextSave === "true");
+    const contextCanRemove = Boolean(activeContextTable && activeContextTable.dataset.contextRemove === "true");
     const cancelQueryIcon = document.querySelector('[data-query-cancel] [data-nav-icon]');
     const tableForm = getEditableTableForm();
     const contextualRemoveTarget = document.querySelector("[data-toolbar-remove-target].selected");
@@ -3256,17 +3273,20 @@
     }
 
     if (queryButton) {
-      queryButton.hidden = document.body.dataset.canQuery !== "true";
-      queryButton.disabled = document.body.dataset.canQuery !== "true";
+      queryButton.hidden = document.body.dataset.canQuery !== "true" && !contextCanQuery;
+      queryButton.disabled = document.body.dataset.canQuery !== "true" && !contextCanQuery;
     }
     if (isQueryMode) {
       [saveButton, newButton, continueButton, removeButton].forEach((button) => {
         if (button) button.disabled = true;
       });
     }
-    if (saveButton && document.body.dataset.canSave !== "true") {
+    if (saveButton && document.body.dataset.canSave !== "true" && !contextCanSave) {
       saveButton.hidden = true;
       saveButton.disabled = true;
+    } else if (saveButton && contextCanSave) {
+      saveButton.hidden = false;
+      saveButton.disabled = isQueryMode;
     } else if (saveButton && document.querySelector(".content form[data-has-errors='true']")) {
       saveButton.disabled = false;
     }
@@ -3275,21 +3295,23 @@
     }
     if (newButton) {
       const inlineFormsetTable = getInlineFormsetTable();
-      newButton.hidden = !(document.body.dataset.newUrl || tableForm || inlineFormsetTable);
-      newButton.disabled = isQueryMode || !(document.body.dataset.newUrl || tableForm || inlineFormsetTable);
+      newButton.hidden = !(contextCanCreate || document.body.dataset.newUrl || tableForm || inlineFormsetTable);
+      newButton.disabled = isQueryMode || !(contextCanCreate || document.body.dataset.newUrl || tableForm || inlineFormsetTable);
     }
     if (continueButton) {
       continueButton.hidden = !document.body.dataset.continueUrl;
       continueButton.disabled = isQueryMode || !document.body.dataset.continueUrl;
     }
-    if (removeButton) removeButton.disabled = isQueryMode || (hasScaleRows
+    if (removeButton) removeButton.disabled = isQueryMode || (contextCanRemove
+      ? false
+      : hasScaleRows
       ? !selectedScaleRow
       : hasContextualRemoveTargets
         ? !contextualRemoveTarget
         : tableForm
           ? !hasSelectedPersistedRow(tableForm)
           : !(document.body.dataset.canRemove === "true" && hasLoadedRecord()));
-    if (removeButton) removeButton.hidden = !(document.body.dataset.canRemove === "true" || tableForm || hasContextualRemoveTargets || hasScaleRows);
+    if (removeButton) removeButton.hidden = !(contextCanRemove || document.body.dataset.canRemove === "true" || tableForm || hasContextualRemoveTargets || hasScaleRows);
     const toggleActiveButton = document.querySelector('[data-action="toggle-active"]');
     if (toggleActiveButton) {
       const rowActiveField = getSelectedRowActiveField(tableForm);
@@ -3836,6 +3858,102 @@
       && !document.querySelector(".content form[data-editable-table]")
     );
   }
+  window.CelerisSetupActionButtons = setupActionButtons;
+
+  function setupCompactTablePagination(rootElement = document) {
+    const tables = rootElement.matches?.("table")
+      ? [rootElement]
+      : [...rootElement.querySelectorAll?.("table.data-table, table.editable-table") || []];
+    tables.forEach((table) => {
+      if (
+        table.dataset.compactPaginationReady === "true"
+        || table.hasAttribute("data-no-compact-pagination")
+        || table.closest(".document-content, .document-page, .document-preview, [data-no-compact-pagination]")
+        || table.closest("form")?.querySelector("[data-server-table-pager]")
+      ) return;
+      const tbody = table.tBodies[0];
+      if (!tbody) return;
+      table.dataset.compactPaginationReady = "true";
+      const state = { page: 1, limit: Number(table.dataset.pageLimit || 10) || 10 };
+      const footer = document.createElement("div");
+      footer.className = "compact-table-footer compact-table-footer-global";
+      footer.dataset.compactTableFooter = "true";
+      const placement = table.parentElement?.classList.contains("table-scroll")
+        ? table.parentElement
+        : table;
+      placement.insertAdjacentElement("afterend", footer);
+
+      const dataRows = () => [...tbody.rows].filter((row) => !row.hidden && !row.querySelector(".empty-cell") && row.dataset.deleted !== "true");
+      const render = ({ revealSelected = false } = {}) => {
+        const rows = dataRows();
+        if (revealSelected) {
+          const selectedIndex = rows.findIndex((row) => row.classList.contains("selected") || row.contains(document.activeElement));
+          if (selectedIndex >= 0) state.page = Math.floor(selectedIndex / state.limit) + 1;
+        }
+        const pages = Math.max(1, Math.ceil(rows.length / state.limit));
+        state.page = Math.min(Math.max(1, state.page), pages);
+        const firstIndex = (state.page - 1) * state.limit;
+        rows.forEach((row, index) => {
+          row.classList.toggle("compact-pagination-hidden", index < firstIndex || index >= firstIndex + state.limit);
+        });
+        const start = rows.length ? firstIndex + 1 : 0;
+        const end = Math.min(rows.length, firstIndex + state.limit);
+        footer.innerHTML = `
+          <span>Exibindo ${start} a ${end} de ${rows.length} registros</span>
+          <div class="compact-table-pager-controls">
+            <button type="button" class="icon-button" data-compact-page="previous" ${state.page === 1 ? "disabled" : ""} title="Página anterior"><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
+            <input type="number" min="1" max="${pages}" value="${state.page}" data-compact-page-input aria-label="Página atual">
+            <button type="button" class="icon-button" data-compact-page="next" ${state.page === pages ? "disabled" : ""} title="Próxima página"><span class="svg-icon" data-nav-icon="arrow-right"></span></button>
+            <select data-compact-page-limit aria-label="Registros por página">${[10, 20, 40, 50, 100].map((limit) => `<option value="${limit}" ${state.limit === limit ? "selected" : ""}>${limit}</option>`).join("")}</select>
+          </div>`;
+        renderIcons();
+      };
+      footer.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-compact-page]");
+        if (!button) return;
+        const pages = Math.max(1, Math.ceil(dataRows().length / state.limit));
+        if (button.dataset.compactPage === "previous") state.page -= 1;
+        if (button.dataset.compactPage === "next") state.page += 1;
+        render();
+      });
+      footer.addEventListener("change", (event) => {
+        if (event.target.matches("[data-compact-page-limit]")) {
+          state.limit = Number(event.target.value) || 10;
+          state.page = 1;
+        }
+        if (event.target.matches("[data-compact-page-input]")) {
+          const pages = Math.max(1, Math.ceil(dataRows().length / state.limit));
+          state.page = Math.min(pages, Math.max(1, Number(event.target.value) || 1));
+        }
+        render();
+      });
+      tbody.addEventListener("click", () => window.requestAnimationFrame(() => render({ revealSelected: true })));
+      new MutationObserver(() => window.requestAnimationFrame(() => render({ revealSelected: true })))
+        .observe(tbody, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "data-deleted"] });
+      render();
+    });
+  }
+
+  window.CelerisRefreshCompactTablePagination = (container = document) => setupCompactTablePagination(container);
+
+  function setupServerTablePagers() {
+    document.querySelectorAll("[data-server-table-pager]").forEach((pager) => {
+      const navigate = (page, limit) => {
+        const url = new URL(window.location.href);
+        if (page) url.searchParams.set("pagina", page);
+        if (limit) {
+          url.searchParams.set("limite", limit);
+          url.searchParams.set("pagina", "1");
+        }
+        window.location.assign(url.toString());
+      };
+      pager.querySelector("[data-server-page-input]")?.addEventListener("change", (event) => {
+        const maximum = Number(event.target.max || 1);
+        navigate(String(Math.min(maximum, Math.max(1, Number(event.target.value) || 1))), "");
+      });
+      pager.querySelector("[data-server-page-limit]")?.addEventListener("change", (event) => navigate("1", event.target.value));
+    });
+  }
 
   renderTabs();
   setupListContextPreservation();
@@ -3850,6 +3968,8 @@
   setupSystemIconPickers();
   setupSortableTables();
   setupResizableTables();
+  setupCompactTablePagination();
+  setupServerTablePagers();
   setupCepCityDependencies();
   setupInitialEditableRows();
   updateTablePagerVisibility();

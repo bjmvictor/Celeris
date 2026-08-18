@@ -127,7 +127,6 @@
 
   {% if pep_telas_barra and item_selecionado %}
     <nav class="card pep-screen-tabs" data-pep-screen-tabs>
-      {% if pep_grupo_tela_atual %}<strong class="pep-screen-tabs-group">{{ pep_grupo_tela_atual.nm_item }}</strong>{% endif %}
       <button class="icon-button pep-screen-tabs-arrow" type="button" data-pep-tabs-left aria-label="Rolar telas para a esquerda" hidden><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
       <div class="pep-screen-tabs-scroll" data-pep-tabs-scroll>
         {% for tela in pep_telas_barra %}
@@ -138,9 +137,10 @@
     </nav>
   {% endif %}
 
-  <div class="pep-record-layout{% if pep_standalone %} pep-record-layout-standalone{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' %} has-selected-item{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' and historico_documentos_item %} has-history-panel{% endif %}">
-    <main class="pep-record-main">
+  <div class="pep-record-layout{% if pep_standalone %} pep-record-layout-standalone{% endif %}{% if item_selecionado %} has-selected-item{% endif %}{% if item_selecionado and item_selecionado.tp_item == 'DOCUMENTO' and historico_documentos_item %} has-history-panel{% endif %}">
+    <main class="pep-record-main{% if item_selecionado %} has-selected-screen{% endif %}">
       {% if atendimento %}
+        {% if not item_selecionado %}
         <details class="card pep-vital-signs pep-clinical-section" open>
           <summary>Últimos sinais vitais</summary>
           {% if ultimos_sinais_vitais %}
@@ -174,6 +174,7 @@
             <span><strong>Conduta:</strong> {{ atendimento.ds_conduta|default:"-" }}</span>
           </div>
         </details>
+        {% endif %}
         {% if item_selecionado %}
           <section class="card pep-selected-screen">
             <header class="section-heading">
@@ -314,14 +315,48 @@
                 {% else %}
                   <span class="empty-state">Clique em + para registrar uma nova alta médica.</span>
                 {% endif %}
-              {% else %}
-                <div class="empty-state">
-                  Esta tela está selecionada no PEP. A execução completa deste tipo será carregada aqui, sem sair para o Celeris.
+              {% elif item_selecionado.ds_acao == "SINAIS_VITAIS" %}
+                <div class="pep-document-workarea pep-system-action-content">
+                  {% if ultimos_sinais_vitais %}
+                    <div class="summary-grid">
+                      <span><strong>PA:</strong> {{ ultimos_sinais_vitais.nr_pressao_arterial|default:"-" }}</span>
+                      <span><strong>FC:</strong> {{ ultimos_sinais_vitais.nr_frequencia_cardiaca|default:"-" }} bpm</span>
+                      <span><strong>FR:</strong> {{ ultimos_sinais_vitais.nr_frequencia_respiratoria|default:"-" }} irpm</span>
+                      <span><strong>SpO₂:</strong> {{ ultimos_sinais_vitais.nr_saturacao|default:"-" }}%</span>
+                      <span><strong>Temperatura:</strong> {{ ultimos_sinais_vitais.nr_temperatura|default:"-" }} °C</span>
+                      <span><strong>Peso:</strong> {{ ultimos_sinais_vitais.nr_peso|default:"-" }} kg</span>
+                      <span><strong>Prioridade:</strong> {{ ultimos_sinais_vitais.get_nr_prioridade_display }}</span>
+                      <span><strong>Coleta:</strong> {{ ultimos_sinais_vitais.dh_classificacao|date:"d/m/Y H:i" }}</span>
+                    </div>
+                  {% else %}
+                    <span class="empty-state">Nenhum sinal vital coletado para este paciente.</span>
+                  {% endif %}
                 </div>
+              {% elif item_selecionado.ds_acao == "DOCUMENTOS" %}
+                <div class="pep-document-workarea pep-system-action-content">
+                  <div class="pep-document-history-list">
+                    {% for documento in atendimento.documentos.all %}
+                      <article class="pep-document-history-item">
+                        <strong>{{ documento.ds_titulo }}</strong>
+                        <span>{{ documento.get_ds_status_display }} · {{ documento.dh_emissao|date:"d/m/Y H:i" }}</span>
+                        <small>{{ documento.cd_usuario_responsavel|default:documento.cd_usuario_emissor|default:"Sem responsável" }}</small>
+                      </article>
+                    {% empty %}
+                      <span class="empty-state">Nenhum documento registrado neste atendimento.</span>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% elif pep_item_embed_url %}
+                <div class="pep-document-workarea">
+                  <iframe class="pep-document-print-frame pep-system-action-frame" title="{{ item_selecionado.nm_item }}" src="{{ pep_item_embed_url }}"></iframe>
+                </div>
+              {% else %}
+                <div class="empty-state">Esta ação ainda não possui uma tela clínica vinculada.</div>
               {% endif %}
             {% endif %}
           </section>
         {% endif %}
+        {% if not item_selecionado %}
         <details class="card pep-clinical-section" open>
           <summary>Resumo clínico do prontuário</summary>
           <section class="pep-clinical-grid pep-section-content">
@@ -331,6 +366,7 @@
             <div class="pep-summary-card pep-summary-documents"><h4><span class="svg-icon" data-nav-icon="file-text"></span> Documentos</h4><ul>{% for item in atendimento.documentos.all %}<li class="pep-summary-document pep-summary-document-{{ item.ds_status|lower }}"><strong>{{ item.ds_titulo }}</strong><span>{{ item.get_ds_status_display }} · {{ item.dh_emissao|date:"d/m/Y H:i" }} · {{ item.cd_usuario_responsavel|default:item.cd_usuario_emissor|default:"Sem responsável" }}</span></li>{% empty %}<li>Nenhum documento.</li>{% endfor %}</ul></div>
           </section>
         </details>
+        {% endif %}
       {% endif %}
     </main>
 

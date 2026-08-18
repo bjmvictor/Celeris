@@ -1,4 +1,4 @@
-{% extends "base/layout.html" %}
+{% extends clinical_action_base_template|default:"base/layout.html" %}
 {% block content %}
   <section class="card patient-summary patient-summary-detailed">
     <div class="patient-summary-name"><small>Atendimento {{ atendimento.pk }}</small><strong>{{ atendimento.cd_paciente.nm_paciente }}</strong></div>
@@ -10,6 +10,7 @@
   </section>
   <form class="card" method="post" autocomplete="off">
     {% csrf_token %}
+    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
     <h2>{{ titulo }}</h2>
     <label>Conteúdo
       <textarea name="ds_conteudo" rows="18" required></textarea>

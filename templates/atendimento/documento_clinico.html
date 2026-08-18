@@ -5,6 +5,12 @@
 {% endblock %}
 
 {% block content %}
+  {% if rascunho_salvo %}
+    <div class="document-save-feedback" data-document-save-feedback role="status" aria-live="polite">
+      <span class="svg-icon" data-nav-icon="circle-check-big"></span>
+      <span>Rascunho salvo com sucesso.</span>
+    </div>
+  {% endif %}
   {% if not embed %}<section class="print-toolbar">
     {% if modo_impressao %}
       {% if pode_imprimir %}<a class="toolbar-button" href="?modo=impressao&pdf=1" title="Abrir PDF" aria-label="Abrir PDF"><span class="svg-icon" data-nav-icon="printer"></span></a>{% endif %}
@@ -116,15 +122,15 @@
           src="?modo=impressao&amp;pdf=1#toolbar=0&amp;navpanes=0&amp;scrollbar=1&amp;page=1&amp;zoom=100"
         ></iframe>
         <section class="document-signature-metadata" aria-label="Integridade do documento">
-          <strong>Versão {{ versao_final.nr_versao }} · {{ versao_final.get_ds_status_display }}</strong>
-          <span>SHA-256: <code>{{ versao_final.ds_hash_sha256 }}</code></span>
           {% if assinatura_final %}
+            <strong>Documento fechado e assinado</strong>
             <span>Assinado em {{ assinatura_final.dh_assinatura|date:"d/m/Y H:i:s" }}</span>
             <span>Certificado: {{ assinatura_final.ds_sujeito }}</span>
             <span>Série: {{ assinatura_final.nr_serie }} · Fingerprint: {{ assinatura_final.ds_fingerprint_sha256 }}</span>
           {% else %}
-            <span>Versão final imutável sem assinatura digital configurada.</span>
+            <strong>Documento fechado e assinado sem assinatura digital</strong>
           {% endif %}
+          <span>Versão {{ versao_final.nr_versao }} · SHA-256: <code>{{ versao_final.ds_hash_sha256 }}</code></span>
           {% if versoes_documento|length > 1 %}
             <details>
               <summary>Histórico de versões</summary>
@@ -176,6 +182,11 @@
 {% block extra_scripts %}
   <script>
     (() => {
+      const saveFeedback = document.querySelector("[data-document-save-feedback]");
+      if (saveFeedback) {
+        try { window.parent?.CelerisNotify?.("Rascunho salvo com sucesso.", "success"); } catch {}
+        window.setTimeout(() => saveFeedback.remove(), 3500);
+      }
       const rasterizeWatermarks = () => {
         {% if modo_impressao and documento.ds_status == 'ABERTO' or modo_impressao and documento.ds_status == 'RASCUNHO' %}
         document.querySelectorAll(".document-draft-watermark").forEach((image) => {

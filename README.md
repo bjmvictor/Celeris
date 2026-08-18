@@ -221,7 +221,7 @@ python manage.py populate
 
 O comando é idempotente e pode ser executado novamente sem duplicar o cenário do
 dia. Os usuários `ADMINDEMO`, `RECEPCAODEMO`, `ENFERMAGEMDEMO`, `MEDICODEMO` e
-`AUDITORDEMO` são criados com a senha inicial `Celeris@123`. Para escolher outra
+`AUDITORDEMO` são criados com a senha inicial `123456`. Para escolher outra
 senha, use `--senha-padrao`. Quando `DEBUG=False`, é necessário confirmar o uso em
 homologação com `--permitir-fora-debug`.
 

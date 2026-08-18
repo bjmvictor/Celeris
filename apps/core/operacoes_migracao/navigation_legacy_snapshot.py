@@ -231,6 +231,7 @@ MODULES = [
                         ],
                         roles=["TI"],
                     ),
+                    item("Domínios externos", "core:dominios_externos", roles=["TI"]),
                 ],
                 roles=["TI"],
             ),

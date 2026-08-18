@@ -19,7 +19,9 @@
       </ul>
     </section>
   {% endif %}
-  <form class="card discharge-form" method="post">{% csrf_token %}
+  <form class="card discharge-form" method="post" data-discharge-form>
+    {% csrf_token %}
+    <input type="hidden" name="posicao_assinatura" value="CENTRO" data-signature-position-value>
     <strong>{{ atendimento.cd_paciente.nm_paciente }}</strong>
     <div class="form-grid">
       <label class="field-md">Data e hora da alta
@@ -44,6 +46,102 @@
       <label class="field-xl">Diagnóstico da alta <input name="ds_diagnostico" value="{{ atendimento.ds_diagnostico }}" required></label>
       <label class="field-xl">Observações <textarea name="ds_observacao_alta">{{ atendimento.ds_conduta }}</textarea></label>
     </div>
-    <div class="table-actions"><button class="button button-primary discharge-submit-button" type="submit"><span class="svg-icon" data-nav-icon="check"></span><span>Registrar alta médica</span></button></div>
+    <div class="table-actions">
+      <button class="button button-primary discharge-submit-button" type="submit">
+        <span class="svg-icon" data-nav-icon="badge-check"></span><span>Fechar e assinar alta médica</span>
+      </button>
+    </div>
   </form>
+
+  <section class="document-move-modal discharge-signature-modal" data-discharge-signature-modal hidden>
+    <div class="card discharge-signature-dialog" role="dialog" aria-modal="true" aria-labelledby="discharge-signature-title">
+      <header class="section-heading">
+        <div>
+          <h2 id="discharge-signature-title">Confirmar fechamento e assinatura</h2>
+          <small>Revise o documento e escolha a posição da assinatura.</small>
+        </div>
+        <button class="toolbar-button" type="button" data-discharge-signature-cancel title="Fechar" aria-label="Fechar">×</button>
+      </header>
+      <div class="discharge-signature-preview">
+        <article class="discharge-preview-page">
+          <h3>Resumo de alta</h3>
+          <dl>
+            <div><dt>Paciente</dt><dd>{{ atendimento.cd_paciente.nm_paciente }}</dd></div>
+            <div><dt>Data e hora</dt><dd data-discharge-preview="dh_alta_medica">-</dd></div>
+            <div><dt>Motivo</dt><dd data-discharge-preview="ds_motivo_alta">-</dd></div>
+            <div><dt>CID</dt><dd data-discharge-preview="ds_cid">-</dd></div>
+            <div><dt>Diagnóstico</dt><dd data-discharge-preview="ds_diagnostico">-</dd></div>
+            <div><dt>Observações</dt><dd data-discharge-preview="ds_observacao_alta">-</dd></div>
+          </dl>
+          <div class="discharge-preview-signature" data-discharge-preview-signature>
+            <span></span>
+            <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+          </div>
+        </article>
+      </div>
+      <fieldset class="discharge-signature-positions">
+        <legend>Posição da assinatura</legend>
+        <label><input type="radio" name="signature_position_choice" value="ESQUERDA"><span>Esquerda</span></label>
+        <label><input type="radio" name="signature_position_choice" value="CENTRO" checked><span>Centro</span></label>
+        <label><input type="radio" name="signature_position_choice" value="DIREITA"><span>Direita</span></label>
+      </fieldset>
+      <div class="form-actions">
+        <button class="button button-secondary" type="button" data-discharge-signature-cancel>Cancelar</button>
+        <button class="button button-primary" type="button" data-discharge-signature-confirm>
+          <span class="svg-icon" data-nav-icon="badge-check"></span><span>Confirmar e assinar</span>
+        </button>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const form = document.querySelector("[data-discharge-form]");
+      const modal = document.querySelector("[data-discharge-signature-modal]");
+      if (!form || !modal) return;
+      const positionInput = form.querySelector("[data-signature-position-value]");
+      const signature = modal.querySelector("[data-discharge-preview-signature]");
+      let confirmed = false;
+
+      const fieldText = (name) => {
+        const field = form.elements[name];
+        if (!field) return "-";
+        if (field.tagName === "SELECT") return field.selectedOptions[0]?.textContent.trim() || "-";
+        return field.value.trim() || "-";
+      };
+      const updatePreview = () => {
+        modal.querySelectorAll("[data-discharge-preview]").forEach((target) => {
+          target.textContent = fieldText(target.dataset.dischargePreview);
+        });
+      };
+      const closeModal = () => { modal.hidden = true; };
+      const updatePosition = (value) => {
+        positionInput.value = value;
+        signature.dataset.position = value.toLowerCase();
+      };
+
+      form.addEventListener("submit", (event) => {
+        if (confirmed) return;
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        updatePreview();
+        updatePosition(modal.querySelector('[name="signature_position_choice"]:checked')?.value || "CENTRO");
+        modal.hidden = false;
+      });
+      modal.querySelectorAll('[name="signature_position_choice"]').forEach((field) => {
+        field.addEventListener("change", () => updatePosition(field.value));
+      });
+      modal.querySelectorAll("[data-discharge-signature-cancel]").forEach((button) => button.addEventListener("click", closeModal));
+      modal.querySelector("[data-discharge-signature-confirm]")?.addEventListener("click", () => {
+        confirmed = true;
+        closeModal();
+        form.requestSubmit();
+      });
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeModal();
+      });
+    })();
+  </script>
 {% endblock %}

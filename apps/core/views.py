@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.sessions.models import Session
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied, ValidationError
-from django.db import OperationalError, ProgrammingError, transaction
+from django.db import IntegrityError, OperationalError, ProgrammingError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Max, Q, TextField
 from django.http import Http404, HttpResponse, JsonResponse
@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from io import BytesIO, StringIO
 from datetime import timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 import csv
 import json
 import re
@@ -1152,6 +1152,92 @@ def global_tables(request):
         for index, item in enumerate(catalogos_configurados(), start=1)
     ]
     return render(request, "core/global_tables.html", {"tables": tables})
+
+
+def _normalizar_dominio_externo(value):
+    value = str(value or "").strip().lower()
+    parsed = urlparse(value if "://" in value else f"https://{value}")
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValidationError("Informe um domínio HTTPS válido.")
+    return parsed.hostname
+
+
+@login_required
+@role_required("TI")
+def dominios_externos(request):
+    empresa = get_object_or_404(
+        Empresa,
+        cd_empresa=request.session.get("cd_empresa") or 1,
+        sn_ativo=True,
+    )
+    DominioExternoPermitido = apps.get_model("atendimento", "DominioExternoPermitido")
+    request.current_tab_title = "Global > Configuração do Sistema > Domínios externos"
+    request.current_tab_root_title = "Domínios externos"
+    request.current_module_title = "Global"
+    request.current_can_query = True
+    request.current_can_remove = True
+
+    if request.method == "POST":
+        try:
+            with transaction.atomic():
+                registros = DominioExternoPermitido.objects.select_for_update().filter(cd_empresa=empresa)
+                for registro in registros:
+                    if request.POST.get(f"delete_{registro.pk}") == "1":
+                        registro.sn_ativo = False
+                        registro.cd_usuario_atualizacao = request.user
+                        registro.save(update_fields=("sn_ativo", "cd_usuario_atualizacao", "dh_atualizacao"))
+                        continue
+                    if f"domain_{registro.pk}" not in request.POST:
+                        continue
+                    registro.ds_dominio = _normalizar_dominio_externo(
+                        request.POST.get(f"domain_{registro.pk}")
+                    )
+                    registro.sn_permite_iframe = request.POST.get(f"iframe_{registro.pk}") == "true"
+                    registro.sn_ativo = request.POST.get(f"active_{registro.pk}") == "true"
+                    registro.cd_usuario_atualizacao = request.user
+                    registro.save()
+
+                novos_dominios = request.POST.getlist("new_domain")
+                novos_iframes = request.POST.getlist("new_iframe")
+                novos_status = request.POST.getlist("new_active")
+                for index, value in enumerate(novos_dominios):
+                    if not value.strip():
+                        continue
+                    dominio = _normalizar_dominio_externo(value)
+                    registro, created = DominioExternoPermitido.objects.get_or_create(
+                        cd_empresa=empresa,
+                        ds_dominio=dominio,
+                        defaults={
+                            "sn_permite_iframe": (novos_iframes[index] if index < len(novos_iframes) else "false") == "true",
+                            "sn_ativo": (novos_status[index] if index < len(novos_status) else "true") == "true",
+                            "cd_usuario_criacao": request.user,
+                            "cd_usuario_atualizacao": request.user,
+                        },
+                    )
+                    if not created:
+                        registro.sn_permite_iframe = (novos_iframes[index] if index < len(novos_iframes) else "false") == "true"
+                        registro.sn_ativo = (novos_status[index] if index < len(novos_status) else "true") == "true"
+                        registro.cd_usuario_atualizacao = request.user
+                        registro.save()
+        except ValidationError as error:
+            messages.error(request, "; ".join(error.messages))
+        except IntegrityError:
+            messages.error(request, "O domínio informado já está cadastrado para esta empresa.")
+        else:
+            messages.success(request, "Domínios externos salvos com sucesso.")
+        return redirect(f"{request.path}?consultar=1")
+
+    registros = DominioExternoPermitido.objects.filter(cd_empresa=empresa)
+    query = _query_text(request)
+    if query:
+        registros = registros.filter(ds_dominio__icontains=query)
+    registros = paginate_table(
+        request,
+        registros,
+        {"cd_dominio_externo_permitido", "ds_dominio", "sn_permite_iframe", "sn_ativo"},
+        "cd_dominio_externo_permitido",
+    )
+    return render(request, "core/dominios_externos.html", {"registros": registros})
 
 
 @login_required

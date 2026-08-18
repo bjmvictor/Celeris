@@ -1,0 +1,51 @@
+<div class="profile-side-profile" data-profile-side-profile>
+  <div class="profile-context-switcher">
+    <label>Perfil
+      <select data-profile-selector data-native-select>
+        <option value="" {% if not perfil %}selected{% endif %}>Novo perfil</option>
+        {% for item in perfis %}<option value="{{ item.pk }}" {% if perfil.pk == item.pk %}selected{% endif %}>{{ item.nm_perfil }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <form class="profile-main-form profile-side-form" method="post" data-primary-form data-preserve-input data-query-url="{% url 'atendimento:perfis-assistenciais' %}" data-table="perfil_assistencial" data-profile-user="{{ request.user.pk }}">
+    {% csrf_token %}
+    <input type="hidden" name="acao" value="salvar_perfil">
+    <input type="hidden" name="perfil" value="{{ perfil.pk|default:'' }}">
+    <header class="section-heading">
+      <div>
+        <h2>{% if perfil %}Configuração do perfil{% else %}Novo perfil assistencial{% endif %}</h2>
+        <small>As alterações salvas passam a valer imediatamente no PEP.</small>
+      </div>
+    </header>
+    <div class="profile-side-form-scroll">
+      <div class="form-grid">
+        <label class="field-fluid">Nome <input name="nm_perfil" value="{{ perfil.nm_perfil|default:'' }}" required data-consultable="true" data-editable="true"></label>
+        <label class="field-fluid">Descrição <input name="ds_descricao" value="{{ perfil.ds_descricao|default:'' }}" data-consultable="true" data-editable="true"></label>
+        <div class="profile-privacity-types">
+          <label class="provider-checkbox"><input name="sn_sigiloso" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if perfil.sn_sigiloso %}checked{% endif %}><span>Perfil sigiloso</span></label>
+          <label class="provider-checkbox"><input name="sn_ativo" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if perfil %}{% if perfil.sn_ativo %}checked{% endif %}{% else %}checked{% endif %}><span>Ativo</span></label>
+        </div>
+        <section class="field-fluid profile-access-section">
+          <header><strong>Tipos de prestador vinculados</strong></header>
+          <div class="profile-access-table-scroll table-scroll">
+            <table class="data-table compact-table" data-profile-access-table data-context-table data-context-query="true" data-context-new="true">
+              <thead><tr><th>Tipo de prestador</th><th>Ativo</th></tr></thead>
+              <tbody data-profile-access-body>
+                {% for vinculo in tipos_vinculados_perfil %}
+                  <tr data-profile-access-row>
+                    <td><select data-profile-access-provider data-native-select><option value=""></option>{% for tipo in tipos_prestador %}<option value="{{ tipo.cd_valor }}" {% if tipo.cd_valor == vinculo.cd_tipo_prestador %}selected{% endif %}>{{ tipo.ds_valor }}</option>{% endfor %}</select></td>
+                    <td><input type="checkbox" data-profile-access-active {% if vinculo.sn_ativo %}checked{% endif %} aria-label="Vínculo ativo"></td>
+                  </tr>
+                {% empty %}
+                  <tr data-profile-access-row><td><select data-profile-access-provider data-native-select><option value=""></option>{% for tipo in tipos_prestador %}<option value="{{ tipo.cd_valor }}">{{ tipo.ds_valor }}</option>{% endfor %}</select></td><td><input type="checkbox" data-profile-access-active checked aria-label="Vínculo ativo"></td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <template data-profile-access-row-template><tr data-profile-access-row><td><select data-profile-access-provider data-native-select><option value=""></option>{% for tipo in tipos_prestador %}<option value="{{ tipo.cd_valor }}">{{ tipo.ds_valor }}</option>{% endfor %}</select></td><td><input type="checkbox" data-profile-access-active checked aria-label="Vínculo ativo"></td></tr></template>
+          <div data-profile-access-hidden></div>
+        </section>
+      </div>
+    </div>
+  </form>
+</div>

@@ -5,17 +5,19 @@
   <style>
     @page {
       size: A4;
-      margin: {{ margem_superior_pdf_mm|default:27 }}mm 7mm 10mm 7mm;
+      margin: {{ margem_superior_pdf_mm|default:38 }}mm 7mm 14mm 7mm;
       {% if not apenas_layout or tipo_layout == "CABECALHO" %}
       @top-center {
         content: element(celeris-header);
         width: 196mm;
+        vertical-align: top;
       }
       {% endif %}
       {% if not apenas_layout or tipo_layout == "RODAPE" %}
       @bottom-center {
         content: element(celeris-footer);
         width: 196mm;
+        vertical-align: bottom;
       }
       {% endif %}
       {% if pagina_no_cabecalho %}
@@ -42,10 +44,11 @@
     }
     @page celeris-header-page-number {
       size: A4;
-      margin: 27mm 7mm 10mm 7mm;
+      margin: 38mm 7mm 14mm 7mm;
       @top-center {
         content: element(celeris-header);
         width: 196mm;
+        vertical-align: top;
       }
       @top-right {
         content: "Página: " counter(page);
@@ -56,18 +59,21 @@
       @bottom-center {
         content: element(celeris-footer);
         width: 196mm;
+        vertical-align: bottom;
       }
     }
     @page celeris-footer-page-number {
       size: A4;
-      margin: 27mm 7mm 10mm 7mm;
+      margin: 38mm 7mm 14mm 7mm;
       @top-center {
         content: element(celeris-header);
         width: 196mm;
+        vertical-align: top;
       }
       @bottom-center {
         content: element(celeris-footer);
         width: 196mm;
+        vertical-align: bottom;
       }
       @bottom-right {
         content: "Página: " counter(page);
@@ -96,7 +102,7 @@
       position: running(celeris-header);
       width: 196mm;
       max-width: 196mm;
-      padding: {{ cabecalho_padding_superior_mm|default:10 }}mm 0 10px;
+      padding: {{ cabecalho_padding_superior_mm|default:4 }}mm 0 10px;
       background: transparent;
       overflow: hidden;
     }
@@ -104,7 +110,7 @@
       position: running(celeris-footer);
       width: 196mm;
       max-width: 196mm;
-      padding: .3mm 0 0;
+      padding: .3mm 0 4mm;
       background: transparent;
     }
     .document-pdf-content {
@@ -191,7 +197,7 @@
       position: running(celeris-header);
       width: 196mm !important;
       max-width: 196mm !important;
-      padding: {{ cabecalho_padding_superior_mm|default:10 }}mm 0 0;
+      padding: {{ cabecalho_padding_superior_mm|default:4 }}mm 0 0;
     }
     .print-check-box {
       display: inline-block;
@@ -290,7 +296,7 @@
       padding-bottom: 0 !important;
     }
     .document-pdf-header .pdf-layout-image-box {
-      height: 0 !important;
+      height: auto !important;
       min-height: 0 !important;
       margin-bottom: 0 !important;
       padding-bottom: 0 !important;

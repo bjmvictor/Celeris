@@ -1,0 +1,51 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <form class="card table-card" data-editable-table data-table="dominio_externo_permitido" method="post">
+    {% csrf_token %}
+    <table class="editable-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Domínio HTTPS</th>
+          <th>Permitir no PEP</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for registro in registros %}
+          <tr data-editable-row>
+            <td>
+              <input value="{{ registro.pk }}" readonly data-primary-key="true">
+              <input data-row-delete name="delete_{{ registro.pk }}" type="hidden" value="0">
+            </td>
+            <td><input name="domain_{{ registro.pk }}" value="{{ registro.ds_dominio }}" maxlength="253" required></td>
+            <td>
+              <select name="iframe_{{ registro.pk }}">
+                <option value="true" {% if registro.sn_permite_iframe %}selected{% endif %}>Sim</option>
+                <option value="false" {% if not registro.sn_permite_iframe %}selected{% endif %}>Não</option>
+              </select>
+            </td>
+            <td>
+              <select name="active_{{ registro.pk }}">
+                <option value="true" {% if registro.sn_ativo %}selected{% endif %}>Ativo</option>
+                <option value="false" {% if not registro.sn_ativo %}selected{% endif %}>Inativo</option>
+              </select>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty-cell">Nenhum domínio carregado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template data-table-new-row>
+      <tr data-editable-row>
+        <td><input readonly data-primary-key="true" placeholder="Automático"></td>
+        <td><input name="new_domain" maxlength="253" placeholder="sistema.exemplo.com.br" required></td>
+        <td><select name="new_iframe"><option value="false">Não</option><option value="true">Sim</option></select></td>
+        <td><select name="new_active"><option value="true">Ativo</option><option value="false">Inativo</option></select></td>
+      </tr>
+    </template>
+    {% include "components/table_pager.html" %}
+  </form>
+{% endblock %}

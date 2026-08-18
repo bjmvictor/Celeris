@@ -27,6 +27,7 @@ urlpatterns = [
     path("configuracao/empresas/nova/", views.system_company_edit, name="system_company_new"),
     path("configuracao/empresas/<int:pk>/", views.system_company_edit, name="system_company_edit"),
     path("global/empresa/certificados-digitais/", views.certificados_digitais, name="certificados_digitais"),
+    path("global/configuracao/dominios-externos/", views.dominios_externos, name="dominios_externos"),
     path("global/formularios/configurar/", views.configurar_formularios, name="configurar_formularios"),
     path("global/empresa/setores/", views.setores, name="setores"),
     path("global/empresa/setores-atendimento/", views.setores, {"tipo": "ATENDIMENTO"}, name="setores_atendimento"),
