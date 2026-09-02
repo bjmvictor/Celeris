@@ -1,0 +1,21 @@
+{% extends "base/document_embed.html" %}
+{% block content %}
+  <section class="card clinical-action-complete">
+    <span class="svg-icon" data-nav-icon="badge-check"></span>
+    <strong>Registro concluído.</strong>
+    <span>Atualizando o prontuário...</span>
+  </section>
+{% endblock %}
+{% block extra_scripts %}
+  <script>
+    (() => {
+      const destino = "{{ destino|escapejs }}";
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "celeris:clinical-action-complete", destino }, window.location.origin);
+        window.parent.location.assign(destino);
+        return;
+      }
+      window.location.assign(destino);
+    })();
+  </script>
+{% endblock %}

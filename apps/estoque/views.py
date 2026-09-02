@@ -1,12 +1,16 @@
 from decimal import Decimal
 
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.html import format_html
 
 from apps.accounts.models import Empresa
 from apps.core.permissions import role_required
+from apps.core.table_utils import paginate_table
 
 from .forms import (
     CotaConsumoForm,
@@ -17,10 +21,13 @@ from .forms import (
     ProdutoClassificacaoForm,
     ProdutoEstoqueForm,
     ProdutoForm,
+    SaldoProdutoTabelaForm,
     SolicitacaoProdutoForm,
     UnidadeProdutoForm,
     ValorTabelaEstoqueForm,
 )
+from .selectors.catalogos import filtrar_catalogo
+from .services.catalogos import salvar_linhas_catalogo
 from .models import (
     CotaConsumo,
     Estoque,
@@ -97,10 +104,12 @@ def _prepare_navigation(request, queryset, instance, session_key):
             request.current_last_url = f"{request.path}?id={result_ids[-1]}&origem=consulta"
 
 
-def _cadastro_simples(request, *, model, form_class, title, search_fields, template="estoque/cadastro_simples.html", path=None):
+def _cadastro_simples(request, *, model, form_class, title, search_fields, template="estoque/cadastro_simples.html", path=None, filtros=None, valores_forcados=None):
     empresa = _empresa_logada(request)
     _toolbar_context(request, title, path)
     queryset = model.objects.filter(cd_empresa=empresa)
+    if filtros:
+        queryset = queryset.filter(**filtros)
     session_key = _query_session_key(request, model)
     if request.GET.get("abrir") == "1" or request.GET.get("consultar") == "1":
         registros, _ = _apply_form_query(queryset, form_class, request, empresa)
@@ -117,8 +126,16 @@ def _cadastro_simples(request, *, model, form_class, title, search_fields, templ
         request.current_start_query = True
     _prepare_navigation(request, queryset, instance, session_key)
     form = form_class(request.POST or None, instance=instance, empresa=empresa)
+    for campo, valor in (valores_forcados or {}).items():
+        if campo in form.fields:
+            form.fields[campo].initial = valor
+            form.fields[campo].disabled = True
     if request.method == "POST" and form.is_valid():
-        saved = form.save()
+        saved = form.save(commit=False)
+        for campo, valor in (valores_forcados or {}).items():
+            setattr(saved, campo, valor)
+        saved.save()
+        form.save_m2m()
         messages.success(request, f"{title} salvo com sucesso.")
         return redirect(f"{request.path}?id={saved.pk}")
     return render(request, template, {
@@ -129,22 +146,125 @@ def _cadastro_simples(request, *, model, form_class, title, search_fields, templ
     })
 
 
+def _widget_tabela(campo, nome, valor):
+    attrs = {"data-consultable": "true", "data-editable": "true"}
+    widget = campo.widget
+    if isinstance(campo, forms.BooleanField):
+        widget = forms.Select(choices=(("true", "Ativo"), ("false", "Inativo")))
+        valor = "true" if valor in {True, "true", "True", "1", 1} else "false"
+    return widget.render(nome, valor, attrs=attrs)
+
+
+def _tabela_editavel(
+    request,
+    *,
+    model,
+    form_class,
+    title,
+    path,
+    colunas,
+    search_fields,
+    filtros=None,
+    valores_forcados=None,
+):
+    empresa = _empresa_logada(request)
+    _toolbar_context(request, title, path)
+    request.current_can_remove = True
+    queryset = model.objects.filter(cd_empresa=empresa, **(filtros or {}))
+    if request.method == "POST":
+        try:
+            alterados = salvar_linhas_catalogo(
+                queryset=queryset,
+                form_class=form_class,
+                post=request.POST,
+                empresa=empresa,
+                campos=tuple(coluna[0] for coluna in colunas if coluna[0] in form_class.base_fields),
+                valores_forcados=valores_forcados,
+            )
+        except ValidationError as exc:
+            for erro in exc.messages:
+                messages.error(request, erro)
+        else:
+            messages.success(request, f"{alterados} registro(s) salvo(s) em {title}.")
+            return redirect(f"{request.path}?consultar=1")
+    queryset = filtrar_catalogo(queryset, request.GET.get("q", ""), search_fields)
+    pk_name = model._meta.pk.name
+    allowed_ordering = {pk_name, *(coluna[2] for coluna in colunas)}
+    registros = paginate_table(request, queryset, allowed_ordering, pk_name)
+    linhas = []
+    for registro in registros:
+        formulario = form_class(instance=registro, empresa=empresa, prefix=f"linha_{registro.pk}")
+        celulas = []
+        for campo_nome, _titulo, _ordem in colunas:
+            if campo_nome in formulario.fields:
+                campo = formulario.fields[campo_nome]
+                celulas.append(_widget_tabela(campo, formulario[campo_nome].html_name, formulario[campo_nome].value()))
+            else:
+                valor = getattr(registro, campo_nome, "")
+                celulas.append(format_html('<input value="{}" readonly>', valor))
+        linhas.append({"pk": registro.pk, "celulas": celulas})
+    formulario_novo = form_class(empresa=empresa)
+    nova_linha = []
+    for campo_nome, _titulo, _ordem in colunas:
+        if campo_nome in formulario_novo.fields:
+            campo = formulario_novo.fields[campo_nome]
+            nova_linha.append(_widget_tabela(campo, f"new_{campo_nome}", formulario_novo[campo_nome].value()))
+        else:
+            nova_linha.append(format_html('<input value="0" readonly>'))
+    return render(request, "estoque/tabela_editavel.html", {
+        "title": title,
+        "table_name": model._meta.db_table,
+        "pk_name": pk_name,
+        "colunas": [
+            {"campo": campo, "titulo": titulo, "ordem": ordem}
+            for campo, titulo, ordem in colunas
+        ],
+        "linhas": linhas,
+        "nova_linha": nova_linha,
+        "total_colunas": len(colunas) + 1,
+    })
+
+
 @login_required
 @role_required("Almoxarifado")
 def estoques(request):
-    return _cadastro_simples(request, model=Estoque, form_class=EstoqueForm, title="Estoques", search_fields=("nm_estoque", "ds_codigo"), path="Almoxarifado > Tabelas > Gerais > Estoques")
+    return _cadastro_simples(
+        request,
+        model=Estoque,
+        form_class=EstoqueForm,
+        title="Estoques",
+        search_fields=("nm_estoque", "ds_codigo"),
+        template="estoque/estoques.html",
+        path="Almoxarifado > Tabelas > Gerais > Estoques",
+    )
 
 
 @login_required
 @role_required("Almoxarifado")
 def unidades(request):
-    return _cadastro_simples(request, model=UnidadeProduto, form_class=UnidadeProdutoForm, title="Unidades", search_fields=("ds_sigla", "ds_descricao"), path="Almoxarifado > Tabelas > Gerais > Unidades")
+    return _tabela_editavel(
+        request,
+        model=UnidadeProduto,
+        form_class=UnidadeProdutoForm,
+        title="Unidades",
+        path="Almoxarifado > Tabelas > Gerais > Unidades",
+        colunas=(("ds_sigla", "Sigla", "ds_sigla"), ("ds_descricao", "Descrição", "ds_descricao"), ("qt_fator_conversao", "Fator de conversão", "qt_fator_conversao"), ("sn_ativo", "Status", "sn_ativo")),
+        search_fields=("ds_sigla", "ds_descricao"),
+    )
 
 
 @login_required
 @role_required("Almoxarifado")
 def classificacoes_produto(request):
-    return _cadastro_simples(request, model=ProdutoClassificacao, form_class=ProdutoClassificacaoForm, title="Classificação de produtos", search_fields=("nm_classificacao",), path="Almoxarifado > Tabelas > Produtos > Classificação")
+    return _tabela_editavel(
+        request,
+        model=ProdutoClassificacao,
+        form_class=ProdutoClassificacaoForm,
+        title="Classificação de produtos",
+        path="Almoxarifado > Tabelas > Produtos > Classificação",
+        colunas=(("nm_classificacao", "Classificação", "nm_classificacao"), ("sn_ativo", "Status", "sn_ativo")),
+        search_fields=("nm_classificacao",),
+    )
 
 
 @login_required
@@ -154,15 +274,47 @@ def produtos(request):
 
 
 @login_required
+@role_required("Almoxarifado", "TI")
+def medicamentos(request):
+    return _cadastro_simples(
+        request,
+        model=Produto,
+        form_class=ProdutoForm,
+        title="Medicamentos",
+        search_fields=("nm_produto", "cd_codigo", "ds_descricao"),
+        template="estoque/produtos.html",
+        path="Almoxarifado > Farmácia > Tabelas > Medicamentos",
+        filtros={"tp_produto": Produto.TipoProduto.MEDICAMENTO},
+        valores_forcados={"tp_produto": Produto.TipoProduto.MEDICAMENTO},
+    )
+
+
+@login_required
 @role_required("Almoxarifado")
 def saldos_produto(request):
-    return _cadastro_simples(request, model=ProdutoEstoque, form_class=ProdutoEstoqueForm, title="Saldos por estoque", search_fields=("cd_produto__nm_produto", "cd_estoque__nm_estoque"), path="Almoxarifado > Tabelas > Gerais > Saldos por estoque")
+    return _tabela_editavel(
+        request,
+        model=ProdutoEstoque,
+        form_class=SaldoProdutoTabelaForm,
+        title="Saldos por estoque",
+        path="Almoxarifado > Tabelas > Gerais > Saldos por estoque",
+        colunas=(("cd_produto", "Produto", "cd_produto__nm_produto"), ("cd_estoque", "Estoque", "cd_estoque__nm_estoque"), ("qt_saldo", "Saldo", "qt_saldo"), ("qt_reservado", "Reservado", "qt_reservado"), ("qt_minima", "Mínimo", "qt_minima"), ("sn_ativo", "Status", "sn_ativo")),
+        search_fields=("cd_produto__nm_produto", "cd_estoque__nm_estoque"),
+    )
 
 
 @login_required
 @role_required("Almoxarifado")
 def cotas_consumo(request):
-    return _cadastro_simples(request, model=CotaConsumo, form_class=CotaConsumoForm, title="Cotas / Consumo", search_fields=("cd_produto__nm_produto", "cd_estoque__nm_estoque"), path="Almoxarifado > Tabelas > Gerais > Cotas / Consumo")
+    return _tabela_editavel(
+        request,
+        model=CotaConsumo,
+        form_class=CotaConsumoForm,
+        title="Cotas / Consumo",
+        path="Almoxarifado > Tabelas > Gerais > Cotas / Consumo",
+        colunas=(("cd_estoque", "Estoque", "cd_estoque__nm_estoque"), ("cd_produto", "Produto", "cd_produto__nm_produto"), ("qt_cota", "Cota", "qt_cota"), ("nr_dias", "Dias", "nr_dias"), ("dt_inicio_vigencia", "Início", "dt_inicio_vigencia"), ("dt_fim_vigencia", "Fim", "dt_fim_vigencia"), ("sn_ativo", "Status", "sn_ativo")),
+        search_fields=("cd_produto__nm_produto", "cd_estoque__nm_estoque"),
+    )
 
 
 TABELAS_GERAIS = {
@@ -180,33 +332,18 @@ TABELAS_GERAIS = {
 def tabela_estoque(request, chave):
     empresa = _empresa_logada(request)
     nome = TABELAS_GERAIS.get(chave, chave.replace("-", " ").title())
-    _toolbar_context(request, nome, f"Almoxarifado > Tabelas > Gerais > {nome}")
     tabela, _ = TabelaEstoque.objects.get_or_create(cd_empresa=empresa, ds_chave=chave, defaults={"ds_nome": nome})
-    queryset = ValorTabelaEstoque.objects.filter(cd_empresa=empresa, cd_tabela=tabela)
-    session_key = _query_session_key(request, ValorTabelaEstoque) + f"_{chave}"
-    if request.GET.get("abrir") == "1" or request.GET.get("consultar") == "1":
-        registros, _ = _apply_form_query(queryset, ValorTabelaEstoqueForm, request, empresa)
-        result_ids = list(registros.order_by("cd_valor_tabela_estoque").values_list("cd_valor_tabela_estoque", flat=True)[:300])
-        request.session[session_key] = result_ids
-        if not result_ids:
-            messages.warning(request, "Nenhum registro encontrado para os filtros informados.")
-            return redirect(f"{request.path}?sem_resultados=1")
-        return redirect(f"{request.path}?id={result_ids[0]}&origem=consulta")
-    instance = None
-    if request.GET.get("id"):
-        instance = get_object_or_404(queryset, pk=request.GET["id"])
-    if request.GET.get("sem_resultados") == "1":
-        request.current_start_query = True
-    _prepare_navigation(request, queryset, instance, session_key)
-    form = ValorTabelaEstoqueForm(request.POST or None, instance=instance, empresa=empresa)
-    if request.method == "POST" and form.is_valid():
-        saved = form.save(commit=False)
-        saved.cd_empresa = empresa
-        saved.cd_tabela = tabela
-        saved.save()
-        messages.success(request, f"{nome} salvo com sucesso.")
-        return redirect(f"{request.path}?id={saved.pk}")
-    return render(request, "estoque/cadastro_simples.html", {"title": nome, "form": form, "instance": instance, "form_table": "valor_tabela_estoque"})
+    return _tabela_editavel(
+        request,
+        model=ValorTabelaEstoque,
+        form_class=ValorTabelaEstoqueForm,
+        title=nome,
+        path=f"Almoxarifado > Tabelas > Gerais > {nome}",
+        colunas=(("cd_valor", "Código", "cd_valor"), ("ds_valor", "Descrição", "ds_valor"), ("ds_observacao", "Observação", "ds_observacao"), ("sn_ativo", "Status", "sn_ativo")),
+        search_fields=("cd_valor", "ds_valor", "ds_observacao"),
+        filtros={"cd_tabela": tabela},
+        valores_forcados={"cd_tabela": tabela},
+    )
 
 
 def _apply_stock_alerts(solicitacao, empresa):

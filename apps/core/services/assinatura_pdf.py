@@ -36,6 +36,8 @@ class SignerBackend(Protocol):
         finalidade: str,
         motivo: str,
         localizacao: str,
+        pagina: int | None,
+        caixa_normalizada: tuple[float, float, float, float] | None,
     ) -> ResultadoAssinaturaPdf: ...
 
 
@@ -51,6 +53,8 @@ class PKCS12SignerBackend:
         finalidade: str,
         motivo: str,
         localizacao: str = "Celeris",
+        pagina: int | None = None,
+        caixa_normalizada: tuple[float, float, float, float] | None = None,
     ) -> ResultadoAssinaturaPdf:
         if not pdf.startswith(b"%PDF"):
             raise ErroAssinaturaPdf("O conteúdo final não é um PDF válido.")
@@ -63,7 +67,7 @@ class PKCS12SignerBackend:
             from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
             from pyhanko.pdf_utils.reader import PdfFileReader
             from pyhanko.sign import signers
-            from pyhanko.sign.fields import SigSeedSubFilter
+            from pyhanko.sign.fields import SigFieldSpec, SigSeedSubFilter
             from pyhanko.sign.timestamps.requests_client import HTTPTimeStamper
             from pyhanko.sign.validation import validate_pdf_signature
             from pyhanko_certvalidator import ValidationContext
@@ -80,6 +84,29 @@ class PKCS12SignerBackend:
             if signer is None:
                 raise ValueError("PKCS#12 sem material de assinatura")
             campo = f"CelerisSignature{uuid.uuid4().hex}"
+            especificacao_campo = None
+            if pagina is not None and caixa_normalizada is not None:
+                leitor_caixa = PdfFileReader(BytesIO(pdf))
+                paginas = leitor_caixa.root["/Pages"]["/Kids"]
+                indice_pagina = max(0, min(int(pagina), len(paginas) - 1))
+                caixa_pagina = paginas[indice_pagina].get_object()["/MediaBox"]
+                largura_pagina = float(caixa_pagina[2]) - float(caixa_pagina[0])
+                altura_pagina = float(caixa_pagina[3]) - float(caixa_pagina[1])
+                x, y, largura, altura = caixa_normalizada
+                x = min(max(float(x), 0.0), 1.0)
+                y = min(max(float(y), 0.0), 1.0)
+                largura = min(max(float(largura), 0.08), 1.0 - x)
+                altura = min(max(float(altura), 0.03), 1.0 - y)
+                esquerda = round(x * largura_pagina)
+                direita = round((x + largura) * largura_pagina)
+                topo = round(altura_pagina - (y * altura_pagina))
+                base = round(altura_pagina - ((y + altura) * altura_pagina))
+                especificacao_campo = SigFieldSpec(
+                    sig_field_name=campo,
+                    on_page=indice_pagina,
+                    box=(esquerda, base, direita, topo),
+                    readable_field_name="Assinatura digital Celeris",
+                )
             metadata = signers.PdfSignatureMetadata(
                 field_name=campo,
                 md_algorithm="sha256",
@@ -101,7 +128,12 @@ class PKCS12SignerBackend:
                 else None
             )
             saida = BytesIO()
-            signers.PdfSigner(metadata, signer=signer, timestamper=timestamper).sign_pdf(
+            signers.PdfSigner(
+                metadata,
+                signer=signer,
+                timestamper=timestamper,
+                new_field_spec=especificacao_campo,
+            ).sign_pdf(
                 IncrementalPdfFileWriter(BytesIO(pdf)),
                 output=saida,
             )
@@ -135,16 +167,20 @@ def assinar_pdf_pades(
     finalidade: str,
     motivo: str,
     localizacao: str = "Celeris",
+    pagina: int | None = None,
+    caixa_normalizada: tuple[float, float, float, float] | None = None,
     backend: SignerBackend | None = None,
 ) -> ResultadoAssinaturaPdf:
-    return (backend or PKCS12SignerBackend()).sign(
-        pdf,
-        certificado,
-        empresa=empresa,
-        finalidade=finalidade,
-        motivo=motivo,
-        localizacao=localizacao,
-    )
+    parametros = {
+        "empresa": empresa,
+        "finalidade": finalidade,
+        "motivo": motivo,
+        "localizacao": localizacao,
+    }
+    if pagina is not None and caixa_normalizada is not None:
+        parametros["pagina"] = pagina
+        parametros["caixa_normalizada"] = caixa_normalizada
+    return (backend or PKCS12SignerBackend()).sign(pdf, certificado, **parametros)
 
 
 def _validar_com_certificado_pyhanko(

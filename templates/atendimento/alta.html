@@ -124,8 +124,12 @@
 
       form.addEventListener("submit", (event) => {
         if (confirmed) return;
-        event.preventDefault();
         if (!form.reportValidity()) return;
+        {% if not certificado_alta_disponivel %}
+          if (!window.confirm("Confirma o fechamento da alta médica?")) event.preventDefault();
+          return;
+        {% endif %}
+        event.preventDefault();
         updatePreview();
         updatePosition(modal.querySelector('[name="signature_position_choice"]:checked')?.value || "CENTRO");
         modal.hidden = false;
@@ -142,6 +146,12 @@
       modal.addEventListener("click", (event) => {
         if (event.target === modal) closeModal();
       });
+      {% if pendencias and embed %}
+        window.parent?.postMessage({
+          type: "celeris:clinical-action-error",
+          message: "Alta bloqueada: {{ pendencias|join:', '|escapejs }}",
+        }, window.location.origin);
+      {% endif %}
     })();
   </script>
 {% endblock %}

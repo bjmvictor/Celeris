@@ -24,8 +24,120 @@ from apps.core.services.certificados_digitais import cadastrar_certificado
 from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs12_teste
 
 from .forms import EscalaForm, PacienteForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico
+from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
+from .services.prescricoes import registrar_itens_prescricao
+from apps.estoque.models import Produto
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
+
+
+class PrescricaoEstruturadaTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=7098, nm_empresa="Empresa Prescrição", sn_ativo=True)
+        self.usuario = User.objects.create_user("medico-prescricao", password="senha-forte")
+        self.usuario.groups.add(Group.objects.get_or_create(name="Médico")[0])
+        self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="PACIENTE PRESCRIÇÃO")
+        self.atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            ds_status="EM_ATENDIMENTO",
+        )
+        self.classe = ClasseItemPrescricao.objects.create(
+            cd_empresa=self.empresa,
+            sg_classe="MED",
+            ds_classe="Medicamentos",
+            tp_classe="MEDICAMENTO",
+        )
+        self.via = ViaAplicacaoPrescricao.objects.create(
+            cd_empresa=self.empresa,
+            sg_via="VO",
+            ds_via="Via oral",
+        )
+        self.produto = Produto.objects.create(
+            cd_empresa=self.empresa,
+            nm_produto="MEDICAMENTO REAL",
+            tp_produto="MEDICAMENTO",
+        )
+        self.item = ItemPrescricao.objects.create(
+            cd_empresa=self.empresa,
+            cd_classe=self.classe,
+            cd_produto=self.produto,
+            nm_item=self.produto.nm_produto,
+            cd_via_padrao=self.via,
+            ds_posologia_padrao="1 comprimido a cada 8 horas",
+            sn_exige_posologia=True,
+        )
+
+    def test_servico_grava_cabecalho_e_itens_em_transacao(self):
+        resultado = registrar_itens_prescricao(
+            empresa=self.empresa,
+            atendimento=self.atendimento,
+            usuario=self.usuario,
+            tipo="MEDICAMENTO",
+            itens=[{"item_id": self.item.pk, "dose": "500 mg", "via_id": self.via.pk}],
+        )
+        self.assertIsNotNone(resultado.prescricao)
+        linha = PrescricaoItem.objects.get(cd_prescricao=resultado.prescricao)
+        self.assertEqual(linha.cd_item_prescricao, self.item)
+        self.assertEqual(linha.ds_dose, "500 mg")
+        self.assertEqual(linha.ds_posologia, self.item.ds_posologia_padrao)
+
+    def test_documento_obrigatorio_impede_prescricao_sem_gravacao_parcial(self):
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Termo obrigatório",
+            tp_documento="ADMINISTRATIVO",
+        )
+        ItemPrescricaoDocumento.objects.create(
+            cd_empresa=self.empresa,
+            cd_item_prescricao=self.item,
+            cd_modelo_documento=modelo,
+        )
+        with self.assertRaisesMessage(ValidationError, "Termo obrigatório"):
+            registrar_itens_prescricao(
+                empresa=self.empresa,
+                atendimento=self.atendimento,
+                usuario=self.usuario,
+                tipo="MEDICAMENTO",
+                itens=[{"item_id": self.item.pk}],
+            )
+        self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento).exists())
+
+    def test_acao_embutida_conclui_no_pai_sem_replicar_layout(self):
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Prescrição médica",
+            tp_documento="PRESCRICAO",
+            tp_elemento="DOCUMENTO",
+        )
+        documento = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=self.atendimento,
+            cd_modelo_documento=modelo,
+            tp_documento="PRESCRICAO",
+            ds_titulo="Prescrição médica",
+            cd_usuario_emissor=self.usuario,
+            cd_usuario_responsavel=self.usuario,
+        )
+        self.client.force_login(self.usuario)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
+        response = self.client.post(
+            reverse("atendimento:prescrever", args=[self.atendimento.pk]) + "?embed=1&return_to=/PEP/",
+            {
+                "embed": "1",
+                "return_to": "/PEP/",
+                "documento": documento.pk,
+                "itens_json": json.dumps([{"item_id": self.item.pk}]),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "celeris:clinical-action-complete")
+        self.assertNotContains(response, 'class="topbar"')
+        self.assertEqual(Prescricao.objects.filter(cd_atendimento=self.atendimento).count(), 1)
+        documento.refresh_from_db()
+        self.assertEqual(documento.ds_status, "RASCUNHO")
+        self.assertEqual(documento.prescricao_estruturada.cd_atendimento, self.atendimento)
 
 
 class ConsultaAtendimentosTests(TestCase):
@@ -688,8 +800,8 @@ class FluxoHomologacaoTests(TestCase):
                 "posicao_assinatura": "DIREITA",
             },
         )
-        self.assertEqual(alta.status_code, 302)
-        self.assertIn("embed=1", alta.url)
+        self.assertEqual(alta.status_code, 200)
+        self.assertContains(alta, "celeris:clinical-action-complete")
         atendimento.refresh_from_db()
         self.assertEqual(atendimento.ds_status, "ALTA_MEDICA")
         self.assertEqual(atendimento.ds_cid, "R51")
@@ -804,9 +916,9 @@ class FluxoHomologacaoTests(TestCase):
     def test_pep_nao_lista_paciente_apenas_agendado(self):
         self.login_as(self.medico_user)
         response = self.client.get(reverse("atendimento:pep"))
-        self.assertContains(response, 'class="pep-header-actions"')
-        self.assertContains(response, 'class="pep-filter-form pep-header-fields"')
-        self.assertContains(response, "grid-template-columns:max-content minmax(0,1fr)!important")
+        self.assertContains(response, "pep-unified-toolbar")
+        self.assertContains(response, "data-pep-main-search")
+        self.assertContains(response, "Atendimento, nome, prontuário, CPF ou nome da mãe")
         self.assertNotContains(response, self.paciente.nm_paciente)
 
     def test_pep_exibe_filtros_por_engrenagem_e_lista_atendimentos_sem_alta(self):
@@ -839,8 +951,8 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.login_as(self.medico_user)
         response = self.client.get(reverse("atendimento:pep"))
-        self.assertContains(response, 'data-nav-icon="settings"')
-        self.assertContains(response, 'data-nav-icon="filter"')
+        self.assertContains(response, 'data-nav-icon="sliders-horizontal"')
+        self.assertContains(response, "Mais filtros")
         self.assertContains(response, 'value="CLINICA_GERAL"')
         self.assertContains(response, 'value="CLINICA_GERAL"', count=1)
         self.assertContains(response, 'document.querySelectorAll(".pep-settings[open]")')
@@ -862,9 +974,8 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.login_as(self.medico_user)
         response = self.client.get(reverse("atendimento:pep"), {"aba": "todos", "q": "PACIENTE"})
-        self.assertContains(response, 'class="pep-header-actions"')
-        self.assertContains(response, 'class="pep-search-form pep-header-tools"')
-        self.assertContains(response, "grid-template-columns:max-content minmax(0,1fr)!important")
+        self.assertContains(response, "pep-unified-toolbar")
+        self.assertContains(response, "Pacientes / Prontuários")
         self.assertContains(response, "Prontuário")
         self.assertContains(response, self.paciente.nm_paciente)
 
@@ -3947,6 +4058,13 @@ class FluxoHomologacaoTests(TestCase):
         self.login_as(self.medico_user)
         response = self.client.post(
             reverse("atendimento:fechar-documento-clinico", args=[documento.pk]),
+            {
+                "assinatura_pagina": "1",
+                "assinatura_x": "0.10",
+                "assinatura_y": "0.78",
+                "assinatura_largura": "0.38",
+                "assinatura_altura": "0.08",
+            },
         )
         self.assertEqual(response.status_code, 302)
         documento.refresh_from_db()
@@ -3956,6 +4074,8 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(versao.ds_status, "ASSINADO")
         self.assertEqual(assinatura.cd_certificado_digital, certificado)
         self.assertEqual(assinatura.ds_hash_pdf_assinado, versao.ds_hash_sha256)
+        self.assertEqual(assinatura.ds_detalhes["pagina_assinatura"], 1)
+        self.assertEqual(assinatura.ds_detalhes["caixa_assinatura"], [0.1, 0.78, 0.38, 0.08])
         self.assertIn(b"CelerisSignature", bytes(versao.arquivo_pdf))
         resposta_pdf = self.client.get(
             reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
@@ -4463,6 +4583,23 @@ class FluxoHomologacaoTests(TestCase):
             tp_item="ACAO",
             ds_acao="EVOLUIR",
         )
+        modelo_prescricao = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Prescrição médica",
+            tp_documento="PRESCRICAO",
+            tp_elemento="DOCUMENTO",
+        )
+        item_prescrever = ItemMenuAssistencial.objects.create(
+            cd_empresa=self.empresa,
+            cd_perfil_assistencial=perfil,
+            cd_versao_perfil=versao,
+            cd_item_pai=grupo,
+            cd_item_tecnico="PRESCREVER",
+            nm_item="Prescrever",
+            ds_icone="pill",
+            tp_item="ACAO",
+            ds_acao="PRESCREVER",
+        )
         pre_atendimento = PreAtendimento.objects.create(
             cd_empresa=self.empresa,
             cd_paciente=self.paciente,
@@ -4511,10 +4648,34 @@ class FluxoHomologacaoTests(TestCase):
         self.assertContains(response, "Novo")
 
         acao = self.client.get(url, {"atendimento": atendimento.pk, "item": item_evoluir.pk})
-        self.assertContains(acao, 'class="pep-document-print-frame pep-system-action-frame"')
-        self.assertContains(acao, reverse("atendimento:evoluir", args=[atendimento.pk]))
+        self.assertNotContains(acao, 'class="pep-document-print-frame pep-system-action-frame"')
+        self.assertContains(acao, "Nenhum documento deste tipo no prontuário")
+        self.assertContains(acao, "data-pep-new-document")
         self.assertNotContains(acao, "Esta tela está selecionada no PEP")
         self.assertNotContains(acao, "Resumo clínico do prontuário")
+        prescricao_vazia = self.client.get(
+            url,
+            {"atendimento": atendimento.pk, "item": item_prescrever.pk},
+        )
+        self.assertContains(prescricao_vazia, "data-pep-new-document")
+        self.assertNotContains(prescricao_vazia, "pep-system-action-frame")
+        criada = self.client.post(
+            f"{url}?atendimento={atendimento.pk}&item={item_prescrever.pk}",
+            {
+                "acao": "novo_documento",
+                "item": item_prescrever.pk,
+                "dh_documento": "2026-07-02T10:15",
+            },
+        )
+        self.assertEqual(criada.status_code, 302)
+        documento_prescricao = DocumentoClinico.objects.get(
+            cd_atendimento=atendimento,
+            cd_modelo_documento=modelo_prescricao,
+        )
+        editor_prescricao = self.client.get(criada.url)
+        self.assertContains(editor_prescricao, "data-structured-prescription")
+        self.assertContains(editor_prescricao, f'name="documento" value="{documento_prescricao.pk}"')
+        self.assertNotContains(editor_prescricao, "pep-system-action-frame")
         formulario_embutido = self.client.get(
             reverse("atendimento:evoluir", args=[atendimento.pk]),
             {"embed": "1", "return_to": url},

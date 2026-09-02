@@ -47,7 +47,19 @@ class EmpresaScopedModelForm(forms.ModelForm):
 class EstoqueForm(EmpresaScopedModelForm):
     class Meta:
         model = Estoque
-        fields = ("ds_codigo", "nm_estoque", "cd_setor", "sn_principal", "sn_ativo")
+        fields = (
+            "ds_codigo",
+            "nm_estoque",
+            "cd_setor",
+            "sn_principal",
+            "sn_saida_setor",
+            "sn_saida_paciente",
+            "sn_saida_fornecedor",
+            "sn_saida_gasto_sala",
+            "sn_transferencia",
+            "sn_controla_lote_validade",
+            "sn_ativo",
+        )
 
 
 class UnidadeProdutoForm(EmpresaScopedModelForm):
@@ -122,6 +134,12 @@ class ProdutoEstoqueForm(EmpresaScopedModelForm):
     class Meta:
         model = ProdutoEstoque
         fields = ("cd_produto", "cd_estoque", "qt_saldo", "qt_reservado", "qt_minima", "sn_ativo")
+
+
+class SaldoProdutoTabelaForm(EmpresaScopedModelForm):
+    class Meta:
+        model = ProdutoEstoque
+        fields = ("cd_produto", "cd_estoque", "qt_minima", "sn_ativo")
 
 
 class CotaConsumoForm(EmpresaScopedModelForm):

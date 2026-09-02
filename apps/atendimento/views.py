@@ -55,7 +55,7 @@ from apps.core.services.assinatura_pdf import ErroAssinaturaPdf, assinar_pdf_pad
 from apps.core.services.certificados_digitais import ErroCertificadoDigital, certificado_ativo_para
 from apps.core.table_utils import paginate_table
 
-from .forms import AgendamentoForm, AlteracaoAtendimentoForm, AtendimentoForm, CadastroAtendimentoForm, EscalaForm, EvolucaoAtendimentoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm
+from .forms import AgendamentoForm, AlteracaoAtendimentoForm, AtendimentoForm, CadastroAtendimentoForm, ClasseItemPrescricaoForm, EscalaForm, EvolucaoAtendimentoForm, ItemPrescricaoDocumentoForm, ItemPrescricaoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm, ViaAplicacaoPrescricaoForm
 from .models import (
     AcessoClinicoAuditado,
     AuditoriaAssinaturaDigital,
@@ -68,6 +68,7 @@ from .models import (
     AgendaProfissional,
     Agendamento,
     ChamadaPainel,
+    ClasseItemPrescricao,
     ClasseSenhaAtendimento,
     CorClassificacaoRisco,
     Convenio,
@@ -84,6 +85,8 @@ from .models import (
     HorarioAgenda,
     IconeChamada,
     ItemMenuAssistencial,
+    ItemPrescricao,
+    ItemPrescricaoDocumento,
     MaquinaChamada,
     ModeloDocumento,
     ModeloDocumentoTelaImpressao,
@@ -108,8 +111,10 @@ from .models import (
     SolicitacaoExame,
     SenhaAtendimento,
     TipoSenhaAtendimento,
+    ViaAplicacaoPrescricao,
     VersaoDocumentoClinico,
 )
+from .services.prescricoes import registrar_itens_prescricao
 
 
 logger = logging.getLogger("celeris.atendimento")
@@ -3494,35 +3499,171 @@ def publicar_perfil_assistencial_api(request, cd_perfil):
     return JsonResponse({"ok": True, "version": versao.nr_versao})
 
 
+def _concluir_acao_clinica_embutida(request, atendimento):
+    destino = _safe_return_url(request) or reverse("atendimento:ficha-atendimento", args=[atendimento.pk])
+    if request.GET.get("embed") == "1" or request.POST.get("embed") == "1":
+        return render(request, "atendimento/acao_clinica_concluida.html", {"destino": destino})
+    return redirect(destino)
+
+
+def _contexto_acao_prescricao(request, atendimento, tipo, documento=None, classes_permitidas=None):
+    empresa = atendimento.cd_empresa
+    classes = list(
+        ClasseItemPrescricao.objects.filter(
+            cd_empresa=empresa,
+            tp_classe=tipo,
+            sn_ativo=True,
+        ).order_by("nr_ordem", "ds_classe")
+    )
+    classes_configuradas = {
+        str(valor).strip().upper()
+        for valor in (classes_permitidas or request.GET.get("classes", "").split(","))
+        if str(valor).strip()
+    }
+    if classes_configuradas:
+        classes = [
+            classe
+            for classe in classes
+            if str(classe.pk) in classes_configuradas or classe.sg_classe.upper() in classes_configuradas
+        ]
+    itens = (
+        ItemPrescricao.objects.filter(
+            cd_empresa=empresa,
+            cd_classe__in=classes,
+            sn_ativo=True,
+        )
+        .select_related("cd_classe", "cd_produto", "cd_via_padrao")
+        .prefetch_related("documentos_exigidos__cd_modelo_documento")
+        .order_by("cd_classe__nr_ordem", "nm_item")
+    )
+    itens_por_classe = {classe.pk: [] for classe in classes}
+    _perfis, itens_menu = _itens_menu_assistencial_mesclados(request.user, empresa)
+    itens_menu_por_modelo = {
+        item.cd_modelo_documento_id: item
+        for item in itens_menu
+        if item.tp_item == "DOCUMENTO" and item.cd_modelo_documento_id
+    }
+    retorno_pep = _safe_return_url(request) or ""
+    rota_prontuario = "pep_prontuario_standalone" if retorno_pep.startswith("/PEP/") else "atendimento:pep-prontuario-paciente"
+    for item in itens:
+        item.documentos_exigidos_lista = []
+        for vinculo in item.documentos_exigidos.all():
+            if not vinculo.sn_ativo or not vinculo.sn_obrigatorio:
+                continue
+            modelo = vinculo.cd_modelo_documento
+            item_menu = itens_menu_por_modelo.get(modelo.pk)
+            finalizado = DocumentoClinico.objects.filter(
+                cd_atendimento=atendimento,
+                cd_modelo_documento=modelo,
+                ds_status__in=("FECHADO", "FINALIZADO", "ASSINADO"),
+            ).exists()
+            url_documento = ""
+            if item_menu:
+                url_documento = (
+                    f"{reverse(rota_prontuario, args=[atendimento.cd_paciente_id])}?"
+                    f"{urlencode({'modo': 'atendimento', 'atendimento': atendimento.pk, 'item': item_menu.pk, 'return_to': retorno_pep})}"
+                )
+            item.documentos_exigidos_lista.append({
+                "nome": modelo.nm_modelo,
+                "url": url_documento,
+                "finalizado": finalizado,
+            })
+        itens_por_classe[item.cd_classe_id].append(item)
+    for classe in classes:
+        classe.itens_disponiveis = itens_por_classe.get(classe.pk, [])
+    itens_salvos = []
+    if documento and isinstance(documento.ds_dados_formulario, dict):
+        dados_salvos = documento.ds_dados_formulario.get("itens", [])
+        if isinstance(dados_salvos, list):
+            itens_salvos = dados_salvos
+    rota_salvar = "atendimento:prescrever" if tipo == "MEDICAMENTO" else "atendimento:solicitar-exame"
+    return {
+        "atendimento": atendimento,
+        "classes": classes,
+        "vias": ViaAplicacaoPrescricao.objects.filter(
+            cd_empresa=empresa,
+            sn_ativo=True,
+        ).order_by("nr_ordem", "ds_via"),
+        "tipo_prescricao": tipo,
+        "return_to": _safe_return_url(request),
+        "prescricao_documento": documento,
+        "prescricao_itens_salvos": itens_salvos,
+        "prescricao_form_action": reverse(rota_salvar, args=[atendimento.pk]),
+    }
+
+
+def _renderizar_acao_prescricao(request, atendimento, tipo):
+    contexto = _contexto_acao_prescricao(request, atendimento, tipo)
+    contexto["clinical_action_base_template"] = (
+        "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html"
+    )
+    return render(request, "atendimento/prescricao_estruturada.html", contexto)
+
+
 @login_required
 @role_required("Médico")
 @xframe_options_sameorigin
 def solicitar_exame(request, cd_atendimento):
     empresa = _empresa_logada(request)
     atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
-    form = SolicitacaoExameForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        saved = form.save(commit=False)
-        saved.cd_empresa = empresa
-        saved.cd_atendimento = atendimento
-        _apply_audit(saved, request.user)
-        saved.save()
-        _criar_documento_clinico(
-            atendimento,
-            "SOLICITACAO_EXAME",
-            f"Solicitação de exame {saved.cd_solicitacao_exame}",
-            f"Exame: {saved.ds_exame}\nPrioridade: {saved.get_ds_prioridade_display()}\nJustificativa: {saved.ds_justificativa}",
-            request.user,
-            status="FECHADO",
+    documento_id = (request.POST.get("documento") or request.GET.get("documento") or "").strip()
+    documento = None
+    if documento_id.isdigit():
+        documento = get_object_or_404(
+            DocumentoClinico,
+            cd_empresa=empresa,
+            cd_atendimento=atendimento,
+            pk=int(documento_id),
+            ds_status__in=("ABERTO", "RASCUNHO"),
+            cd_modelo_documento__tp_documento="SOLICITACAO_EXAME",
         )
-        _mudar_status_atendimento(atendimento, "AGUARDANDO_EXAMES", request.user, origem="solicitacao_exame")
-        return redirect(_safe_return_url(request) or reverse("atendimento:ficha-atendimento", args=[atendimento.pk]))
-    return render(request, "atendimento/solicitar_exame.html", {
-        "form": form,
-        "atendimento": atendimento,
-        "return_to": _safe_return_url(request),
-        "clinical_action_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
-    })
+    if request.method == "POST":
+        if not request.POST.get("itens_json") and request.POST.get("ds_exame"):
+            form_legado = SolicitacaoExameForm(request.POST)
+            if form_legado.is_valid():
+                saved = form_legado.save(commit=False)
+                saved.cd_empresa = empresa
+                saved.cd_atendimento = atendimento
+                _apply_audit(saved, request.user)
+                saved.save()
+                _criar_documento_clinico(
+                    atendimento,
+                    "SOLICITACAO_EXAME",
+                    f"Solicitação de exame {saved.pk}",
+                    f"Exame: {saved.ds_exame}\nPrioridade: {saved.get_ds_prioridade_display()}\nJustificativa: {saved.ds_justificativa}",
+                    request.user,
+                    status="FECHADO",
+                )
+                _mudar_status_atendimento(atendimento, "AGUARDANDO_EXAMES", request.user, origem="solicitacao_exame")
+                return _concluir_acao_clinica_embutida(request, atendimento)
+        if not documento:
+            messages.error(request, "Crie a solicitação pelo botão + do PEP antes de incluir exames.")
+            return _renderizar_acao_prescricao(request, atendimento, "EXAME")
+        try:
+            itens = json.loads(request.POST.get("itens_json") or "[]")
+            resultado = registrar_itens_prescricao(
+                empresa=empresa,
+                atendimento=atendimento,
+                usuario=request.user,
+                itens=itens,
+                tipo="EXAME",
+                documento=documento,
+            )
+        except (json.JSONDecodeError, TypeError, ValidationError) as exc:
+            mensagem = exc.messages[0] if isinstance(exc, ValidationError) else "Revise os exames selecionados."
+            messages.error(request, mensagem)
+        else:
+            _mudar_status_atendimento(atendimento, "AGUARDANDO_EXAMES", request.user, origem="solicitacao_exame")
+            messages.success(request, "Rascunho da solicitação de exames salvo.")
+            return _concluir_acao_clinica_embutida(request, atendimento)
+    return render(
+        request,
+        "atendimento/prescricao_estruturada.html",
+        {
+            **_contexto_acao_prescricao(request, atendimento, "EXAME", documento),
+            "clinical_action_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
+        },
+    )
 
 
 @login_required
@@ -3554,29 +3695,63 @@ def resultado_exame(request, cd_solicitacao):
 def prescrever(request, cd_atendimento):
     empresa = _empresa_logada(request)
     atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
-    form = PrescricaoForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        saved = form.save(commit=False)
-        saved.cd_empresa = empresa
-        saved.cd_atendimento = atendimento
-        _apply_audit(saved, request.user)
-        saved.save()
-        _criar_documento_clinico(
-            atendimento,
-            "PRESCRICAO",
-            f"Prescrição {saved.cd_prescricao}",
-            f"{saved.ds_prescricao}\n\nOrientações: {saved.ds_orientacoes}",
-            request.user,
-            status="FECHADO",
+    documento_id = (request.POST.get("documento") or request.GET.get("documento") or "").strip()
+    documento = None
+    if documento_id.isdigit():
+        documento = get_object_or_404(
+            DocumentoClinico,
+            cd_empresa=empresa,
+            cd_atendimento=atendimento,
+            pk=int(documento_id),
+            ds_status__in=("ABERTO", "RASCUNHO"),
+            cd_modelo_documento__tp_documento="PRESCRICAO",
         )
-        messages.success(request, "Prescrição registrada.")
-        return redirect(_safe_return_url(request) or reverse("atendimento:ficha-atendimento", args=[atendimento.pk]))
-    return render(request, "atendimento/prescricao.html", {
-        "form": form,
-        "atendimento": atendimento,
-        "return_to": _safe_return_url(request),
-        "clinical_action_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
-    })
+    if request.method == "POST":
+        if not request.POST.get("itens_json") and request.POST.get("ds_prescricao"):
+            form_legado = PrescricaoForm(request.POST)
+            if form_legado.is_valid():
+                saved = form_legado.save(commit=False)
+                saved.cd_empresa = empresa
+                saved.cd_atendimento = atendimento
+                _apply_audit(saved, request.user)
+                saved.save()
+                _criar_documento_clinico(
+                    atendimento,
+                    "PRESCRICAO",
+                    f"Prescrição {saved.pk}",
+                    f"{saved.ds_prescricao}\n\nOrientações: {saved.ds_orientacoes}",
+                    request.user,
+                    status="FECHADO",
+                )
+                messages.success(request, "Prescrição registrada.")
+                return _concluir_acao_clinica_embutida(request, atendimento)
+        if not documento:
+            messages.error(request, "Crie a prescrição pelo botão + do PEP antes de incluir medicamentos.")
+            return _renderizar_acao_prescricao(request, atendimento, "MEDICAMENTO")
+        try:
+            itens = json.loads(request.POST.get("itens_json") or "[]")
+            resultado = registrar_itens_prescricao(
+                empresa=empresa,
+                atendimento=atendimento,
+                usuario=request.user,
+                itens=itens,
+                tipo="MEDICAMENTO",
+                documento=documento,
+            )
+        except (json.JSONDecodeError, TypeError, ValidationError) as exc:
+            mensagem = exc.messages[0] if isinstance(exc, ValidationError) else "Revise os medicamentos selecionados."
+            messages.error(request, mensagem)
+        else:
+            messages.success(request, "Rascunho da prescrição salvo.")
+            return _concluir_acao_clinica_embutida(request, atendimento)
+    return render(
+        request,
+        "atendimento/prescricao_estruturada.html",
+        {
+            **_contexto_acao_prescricao(request, atendimento, "MEDICAMENTO", documento),
+            "clinical_action_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
+        },
+    )
 
 
 @login_required
@@ -3614,16 +3789,114 @@ def evoluir(request, cd_atendimento):
     })
 
 
+def _cadastro_configuracao_prescricao(request, *, modelo, formulario, titulo, caminho):
+    empresa = _empresa_logada(request)
+    request.current_tab_title = caminho
+    request.current_tab_root_title = titulo
+    request.current_module_title = "Atendimento"
+    request.current_can_query = True
+    queryset = modelo.objects.filter(cd_empresa=empresa).order_by(modelo._meta.pk.name)
+    termo = request.GET.get("q", "").strip().replace("%", "")
+    if termo:
+        campos = [
+            campo.name
+            for campo in modelo._meta.fields
+            if campo.get_internal_type() in {"CharField", "TextField"}
+        ]
+        filtro = Q()
+        for campo in campos:
+            filtro |= Q(**{f"{campo}__icontains": termo})
+        queryset = queryset.filter(filtro)
+    instance = queryset.filter(pk=request.GET.get("id")).first() if request.GET.get("id", "").isdigit() else None
+    form = formulario(request.POST or None, instance=instance, empresa=empresa) if formulario is ItemPrescricaoForm else formulario(request.POST or None, instance=instance)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            registro = form.save(commit=False)
+            registro.cd_empresa = empresa
+            _apply_audit(registro, request.user)
+            registro.save()
+            if isinstance(registro, ItemPrescricao):
+                documentos = set(form.cleaned_data["documentos_obrigatorios"].values_list("pk", flat=True))
+                ItemPrescricaoDocumento.objects.filter(
+                    cd_empresa=empresa,
+                    cd_item_prescricao=registro,
+                ).exclude(cd_modelo_documento_id__in=documentos).update(sn_ativo=False)
+                for documento_id in documentos:
+                    vinculo, _ = ItemPrescricaoDocumento.objects.get_or_create(
+                        cd_empresa=empresa,
+                        cd_item_prescricao=registro,
+                        cd_modelo_documento_id=documento_id,
+                        defaults={
+                            "sn_obrigatorio": True,
+                            "sn_ativo": True,
+                            "cd_usuario_criacao": request.user,
+                        },
+                    )
+                    vinculo.sn_obrigatorio = True
+                    vinculo.sn_ativo = True
+                    _apply_audit(vinculo, request.user)
+                    vinculo.save()
+        messages.success(request, f"{titulo} salvo com sucesso.")
+        return redirect(f"{request.path}?id={registro.pk}")
+    return render(request, "atendimento/cadastro_prescricao.html", {
+        "title": titulo,
+        "form": form,
+        "registros": queryset[:100],
+        "instance": instance,
+    })
+
+
+@login_required
+@role_required("TI", "Médico")
+def classes_itens_prescricao(request):
+    return _cadastro_configuracao_prescricao(
+        request,
+        modelo=ClasseItemPrescricao,
+        formulario=ClasseItemPrescricaoForm,
+        titulo="Classes de itens de prescrição",
+        caminho="Atendimento > PEP > Cadastros > Classes de itens de prescrição",
+    )
+
+
+@login_required
+@role_required("TI", "Médico")
+def vias_aplicacao_prescricao(request):
+    return _cadastro_configuracao_prescricao(
+        request,
+        modelo=ViaAplicacaoPrescricao,
+        formulario=ViaAplicacaoPrescricaoForm,
+        titulo="Formas de aplicação",
+        caminho="Atendimento > PEP > Cadastros > Formas de aplicação",
+    )
+
+
+@login_required
+@role_required("TI", "Médico")
+def itens_prescricao(request):
+    return _cadastro_configuracao_prescricao(
+        request,
+        modelo=ItemPrescricao,
+        formulario=ItemPrescricaoForm,
+        titulo="Itens de prescrição",
+        caminho="Atendimento > PEP > Cadastros > Itens de prescrição",
+    )
+
+
 @login_required
 @role_required("Médico")
 @xframe_options_sameorigin
 def conceder_alta(request, cd_atendimento):
-    atendimento = get_object_or_404(Atendimento, cd_empresa=_empresa_logada(request), cd_atendimento=cd_atendimento)
+    empresa = _empresa_logada(request)
+    atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
     pendencias = []
     pendencias_detalhadas = []
     opcoes_cid = catalogo_queryset("cids", ativos=True).order_by("cd_valor", "ds_valor")
     opcoes_motivo_alta = catalogo_queryset("motivos_alta", ativos=True).order_by("ds_valor", "cd_valor")
     dh_alta_inicial = atendimento.dh_alta_medica or timezone.now()
+    try:
+        certificado_alta_disponivel = bool(certificado_ativo_para(empresa, "MEDICO", request.user))
+    except (ErroCertificadoDigital, ImproperlyConfigured):
+        certificado_alta_disponivel = False
     dh_alta_get = request.GET.get("dh_alta_medica", "").strip()
     if dh_alta_get:
         try:
@@ -3642,6 +3915,7 @@ def conceder_alta(request, cd_atendimento):
             "opcoes_motivo_alta": opcoes_motivo_alta,
             "dh_alta_medica_input": timezone.localtime(dh_alta_inicial).strftime("%Y-%m-%dT%H:%M"),
             "embed": request.GET.get("embed") == "1",
+            "certificado_alta_disponivel": certificado_alta_disponivel,
             "alta_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
         }
 
@@ -3689,7 +3963,7 @@ def conceder_alta(request, cd_atendimento):
     for item in itens_obrigatorios:
         if not atendimento.documentos.filter(
             cd_modelo_documento=item.cd_modelo_documento,
-            ds_status="FECHADO",
+            ds_status__in=("FECHADO", "FINALIZADO", "ASSINADO"),
         ).exists():
             pendencias.append(f"documento obrigatório: {item.nm_item}")
             pendencias_detalhadas.append({
@@ -3784,10 +4058,7 @@ def conceder_alta(request, cd_atendimento):
                 paciente.save(update_fields=["sn_obito", "dh_obito", "dh_atualizacao", "cd_usuario_atualizacao"])
             _mudar_status_atendimento(atendimento, "OBITO" if alta_por_obito else "ALTA_MEDICA", request.user, origem="alta_medica")
         messages.success(request, "Alta médica registrada com sucesso.")
-        destino_documento = reverse("atendimento:imprimir-documento-clinico", args=[documento.pk])
-        if request.GET.get("embed") == "1":
-            destino_documento = f"{destino_documento}?embed=1"
-        return redirect(destino_documento)
+        return _concluir_acao_clinica_embutida(request, atendimento)
     return render(request, "atendimento/alta.html", _contexto_alta())
 
 
@@ -6163,6 +6434,21 @@ def fechar_documento_clinico(request, cd_documento):
         posicao_assinatura = str(request.POST.get("posicao_assinatura") or "").strip().upper()
         if posicao_assinatura not in {"ESQUERDA", "CENTRO", "DIREITA"}:
             posicao_assinatura = "CENTRO"
+        pagina_assinatura = None
+        caixa_assinatura = None
+        try:
+            pagina_assinatura = max(0, int(request.POST.get("assinatura_pagina", "1")) - 1)
+            caixa_assinatura = tuple(
+                float(request.POST.get(nome, ""))
+                for nome in ("assinatura_x", "assinatura_y", "assinatura_largura", "assinatura_altura")
+            )
+            if len(caixa_assinatura) != 4 or any(valor < 0 or valor > 1 for valor in caixa_assinatura):
+                raise ValueError
+            if caixa_assinatura[2] <= 0 or caixa_assinatura[3] <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            pagina_assinatura = None
+            caixa_assinatura = None
         assinatura = {
             "usuario_id": request.user.pk,
             "usuario_nome": request.user.display_name() if hasattr(request.user, "display_name") else request.user.get_username(),
@@ -6173,6 +6459,8 @@ def fechar_documento_clinico(request, cd_documento):
             "uf_conselho": getattr(prestador_assinante, "sg_conselho", ""),
             "data_hora": agora.isoformat(),
             "posicao": posicao_assinatura,
+            "pagina": (pagina_assinatura + 1) if pagina_assinatura is not None else None,
+            "caixa_normalizada": caixa_assinatura,
         }
         conteudo_hash = json.dumps(
             {"documento": json.loads(conteudo_hash), "assinatura": assinatura},
@@ -6220,6 +6508,8 @@ def fechar_documento_clinico(request, cd_documento):
                     finalidade=finalidade,
                     motivo=f"Fechamento do documento clínico {documento.pk}",
                     localizacao=empresa.nm_empresa,
+                    pagina=pagina_assinatura,
+                    caixa_normalizada=caixa_assinatura,
                 )
                 pdf_final = resultado_assinatura.pdf
                 campo_assinatura = resultado_assinatura.campo_assinatura
@@ -6294,6 +6584,8 @@ def fechar_documento_clinico(request, cd_documento):
                     "algoritmo_hash": "SHA-256",
                     "timestamp_tsa": timestamp_aplicado,
                     "posicao_assinatura": posicao_assinatura,
+                    "pagina_assinatura": (pagina_assinatura + 1) if pagina_assinatura is not None else None,
+                    "caixa_assinatura": caixa_assinatura,
                 },
             )
         AuditoriaAssinaturaDigital.objects.create(
@@ -6310,6 +6602,8 @@ def fechar_documento_clinico(request, cd_documento):
                 "finalidade": finalidade,
                 "versao": versao_final.nr_versao,
                 "posicao_assinatura": posicao_assinatura,
+                "pagina_assinatura": (pagina_assinatura + 1) if pagina_assinatura is not None else None,
+                "caixa_assinatura": caixa_assinatura,
                 "fingerprint_certificado": certificado.ds_fingerprint_sha256 if certificado else "",
             },
         )
@@ -7537,6 +7831,37 @@ def pep(request):
     request.current_tab_root_title = "PEP"
     request.current_module_title = "Atendimento"
     request.current_can_query = False
+    busca_unificada = request.GET.get("q_pep", "").strip().replace("%", "")
+    grupos_status_pep = {
+        "EM_ATENDIMENTO": {
+            "titulo": "Em atendimento",
+            "icone": "stethoscope",
+            "status": ("EM_ATENDIMENTO",),
+        },
+        "AGUARDANDO": {
+            "titulo": "Aguardando",
+            "icone": "clock",
+            "status": ("RECEPCIONADO", "ABERTO", "AGUARDANDO_CLASSIFICACAO", "EM_CLASSIFICACAO", "AGUARDANDO_CONSULTA", "AGUARDANDO_EXAMES"),
+        },
+        "REAVALIACAO": {
+            "titulo": "Reavaliação",
+            "icone": "refresh-cw",
+            "status": ("RETORNO_EXAMES",),
+        },
+        "OBSERVACAO": {
+            "titulo": "Observação",
+            "icone": "eye",
+            "status": ("EM_OBSERVACAO",),
+        },
+        "ALTA": {
+            "titulo": "Alta",
+            "icone": "badge-check",
+            "status": ("ALTA", "ALTA_MEDICA", "ALTA_HOSPITALAR", "FINALIZADO"),
+        },
+    }
+    status_pep_selecionados = [
+        valor for valor in request.GET.getlist("status_pep") if valor in grupos_status_pep
+    ]
     setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO, sn_ativo=True)
     if not request.user.groups.filter(name="TI").exists():
         setores = setores.filter(usuarios=request.user)
@@ -7585,35 +7910,47 @@ def pep(request):
         for codigo in request.GET.getlist("especialidades_atendimento")
         if str(codigo).strip().upper() in codigos_especialidades_permitidas
     ]
-    atendimentos_setor = (
+    atendimentos_base = (
         Atendimento.objects.select_related("cd_paciente", "cd_paciente__cd_convenio", "cd_convenio", "cd_prestador", "cd_pre_atendimento", "cd_setor_atual")
         .prefetch_related("solicitacoes_exames", "prescricoes")
         .filter(cd_empresa=empresa, sn_ativo=True)
-        .filter(ds_status__in=[
-            "RECEPCIONADO",
-            "ABERTO",
-            "AGUARDANDO_CLASSIFICACAO",
-            "EM_CLASSIFICACAO",
-            "AGUARDANDO_CONSULTA",
-            "EM_ATENDIMENTO",
-            "AGUARDANDO_EXAMES",
-            "RETORNO_EXAMES",
-            "EM_OBSERVACAO",
-        ])
         .order_by("cd_pre_atendimento__nr_prioridade", "dh_inicio")
     )
     if setores_filtrados.exists():
-        atendimentos_setor = atendimentos_setor.filter(Q(cd_setor_atual__in=setores_filtrados) | Q(cd_setor_atual__isnull=True))
+        atendimentos_base = atendimentos_base.filter(Q(cd_setor_atual__in=setores_filtrados) | Q(cd_setor_atual__isnull=True))
     elif setores.exists():
-        atendimentos_setor = atendimentos_setor.none()
+        atendimentos_base = atendimentos_base.none()
     if prestador_logado and not request.user.groups.filter(name="TI").exists():
-        atendimentos_setor = atendimentos_setor.filter(
+        atendimentos_base = atendimentos_base.filter(
             Q(cd_prestador=prestador_logado)
             | Q(cd_prestador__isnull=True, ds_especialidade__in=codigos_especialidades_permitidas)
         )
     if especialidades_selecionadas:
-        atendimentos_setor = atendimentos_setor.filter(ds_especialidade__in=especialidades_selecionadas)
-    busca_atendimento = request.GET.get("q_atendimento", "").strip().replace("%", "")
+        atendimentos_base = atendimentos_base.filter(ds_especialidade__in=especialidades_selecionadas)
+    indicadores_status_pep = []
+    for chave, configuracao in grupos_status_pep.items():
+        indicadores_status_pep.append({
+            "chave": chave,
+            "titulo": configuracao["titulo"],
+            "icone": configuracao["icone"],
+            "total": atendimentos_base.filter(ds_status__in=configuracao["status"]).count(),
+            "selecionado": chave in status_pep_selecionados,
+        })
+    if status_pep_selecionados:
+        status_filtrados = {
+            status
+            for chave in status_pep_selecionados
+            for status in grupos_status_pep[chave]["status"]
+        }
+    else:
+        status_filtrados = {
+            status
+            for chave, configuracao in grupos_status_pep.items()
+            if chave != "ALTA"
+            for status in configuracao["status"]
+        }
+    atendimentos_setor = atendimentos_base.filter(ds_status__in=status_filtrados)
+    busca_atendimento = busca_unificada or request.GET.get("q_atendimento", "").strip().replace("%", "")
     nr_atendimento = request.GET.get("nr_atendimento", "").strip()
     if nr_atendimento.isdigit():
         atendimentos_setor = atendimentos_setor.filter(cd_atendimento=int(nr_atendimento))
@@ -7622,12 +7959,13 @@ def pep(request):
         filtros_atendimento = (
             Q(cd_paciente__nm_paciente__icontains=busca_atendimento)
             | Q(cd_paciente__nm_social__icontains=busca_atendimento)
+            | Q(cd_paciente__nm_mae__icontains=busca_atendimento)
             | Q(cd_paciente__nr_cpf__icontains=busca_atendimento)
             | Q(cd_paciente__nr_cartao_sus__icontains=busca_atendimento)
             | Q(cd_paciente__nr_rg__icontains=busca_atendimento)
         )
         if busca_atendimento.isdigit():
-            filtros_atendimento |= Q(cd_paciente_id=int(busca_atendimento))
+            filtros_atendimento |= Q(cd_paciente_id=int(busca_atendimento)) | Q(cd_atendimento=int(busca_atendimento))
         atendimentos_setor = atendimentos_setor.filter(filtros_atendimento)
 
     atendimentos_lista = list(atendimentos_setor[:80])
@@ -7656,7 +7994,7 @@ def pep(request):
     paciente_selecionado = None
     atendimentos_paciente = Atendimento.objects.none()
     atendimento_selecionado = None
-    busca = request.GET.get("q", "").strip().replace("%", "")
+    busca = busca_unificada or request.GET.get("q", "").strip().replace("%", "")
     nr_atendimento_geral = request.GET.get("nr_atendimento_geral", "").strip()
     data_inicio = request.GET.get("data_inicio", "")
     data_fim = request.GET.get("data_fim", "")
@@ -7673,6 +8011,7 @@ def pep(request):
             filtros = (
                 Q(nm_paciente__icontains=busca)
                 | Q(nm_social__icontains=busca)
+                | Q(nm_mae__icontains=busca)
                 | Q(nr_cpf__icontains=busca)
                 | Q(nr_cartao_sus__icontains=busca)
                 | Q(nr_rg__icontains=busca)
@@ -7719,6 +8058,10 @@ def pep(request):
             "usar_todos_setores": usar_todos_setores,
             "especialidades_permitidas": especialidades_permitidas,
             "especialidades_selecionadas": especialidades_selecionadas,
+            "busca_unificada": busca_unificada,
+            "indicadores_status_pep": indicadores_status_pep,
+            "status_pep_selecionados": status_pep_selecionados,
+            "tem_filtros_ativos": bool(status_pep_selecionados or not usar_todos_setores or especialidades_selecionadas),
             "atendimentos": atendimentos_lista,
             "aba": aba,
             "busca_atendimento": busca_atendimento,
@@ -7791,6 +8134,23 @@ def pep_prontuario_paciente(request, cd_paciente):
     perfis_assistenciais, itens_assistenciais = _itens_menu_assistencial_mesclados(request.user, empresa)
     menu_assistencial_raizes = []
     if atendimento_selecionado:
+        tipos_documentais_por_acao = {
+            "ADMISSAO": "ADMISSAO_ANAMNESE",
+            "EVOLUIR": "EVOLUCAO",
+            "PRESCREVER": "PRESCRICAO",
+            "EXAMES": "SOLICITACAO_EXAME",
+            "RECEITUARIO": "RECEITUARIO",
+            "AIH": "AIH",
+        }
+        modelos_documentais = {}
+        for acao, tipo_documento in tipos_documentais_por_acao.items():
+            modelos_documentais[acao] = ModeloDocumento.objects.filter(
+                Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
+                tp_documento=tipo_documento,
+                tp_elemento="DOCUMENTO",
+                sn_versao_atual=True,
+                sn_ativo=True,
+            ).order_by("-cd_empresa_id", "-nr_versao", "pk").first()
         mapa_acoes = {
             "SINAIS_VITAIS": f"{reverse('atendimento:ficha-atendimento', args=[atendimento_selecionado.pk])}#classificacao",
             "ADMISSAO": reverse("atendimento:documento-assistencial", args=[atendimento_selecionado.pk, "admissao"]),
@@ -7803,6 +8163,11 @@ def pep_prontuario_paciente(request, cd_paciente):
             "DOCUMENTOS": f"{reverse('atendimento:ficha-atendimento', args=[atendimento_selecionado.pk])}#documentos",
         }
         for item in itens_assistenciais:
+            modelo_documental = modelos_documentais.get(item.ds_acao)
+            if modelo_documental:
+                item.tp_item = "DOCUMENTO"
+                item.cd_modelo_documento = modelo_documental
+                item.cd_modelo_documento_id = modelo_documental.pk
             item.url_conteudo_renderizada = mapa_acoes.get(item.ds_acao, item.ds_url or "#")
             item.somente_consulta = somente_consulta and item.tp_item not in {"DOCUMENTO", "HISTORICO", "GRUPO"}
             if item.tp_item == "GRUPO":
@@ -7846,6 +8211,7 @@ def pep_prontuario_paciente(request, cd_paciente):
     pode_cancelar_documento_item = False
     pode_copiar_documento_item = False
     documento_bloqueio_item = ""
+    prescricao_documento_contexto = None
     pep_documento_next_url = ""
     historico_documentos_item = DocumentoClinico.objects.none()
     item_id = (request.POST.get("item") or request.GET.get("item") or "").strip()
@@ -7858,17 +8224,20 @@ def pep_prontuario_paciente(request, cd_paciente):
             None,
         )
     pep_item_embed_url = ""
-    if item_selecionado and item_selecionado.ds_acao in {
-        "ADMISSAO", "EVOLUIR", "PRESCREVER", "EXAMES", "RECEITUARIO", "AIH",
-    }:
+    if (
+        item_selecionado
+        and item_selecionado.tp_item != "DOCUMENTO"
+        and item_selecionado.ds_acao in {"PRESCREVER", "EXAMES"}
+    ):
         item_return_url = (
             f"{reverse(pep_patient_route, args=[paciente.pk])}?"
             f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item_selecionado.pk, 'return_to': return_to})}"
         )
-        pep_item_embed_url = (
-            f"{item_selecionado.url_conteudo_renderizada}?"
-            f"{urlencode({'embed': '1', 'return_to': item_return_url})}"
-        )
+        parametros_embed = {"embed": "1", "return_to": item_return_url}
+        classes_prescricao = (item_selecionado.ds_configuracao or {}).get("classes_prescricao") or []
+        if classes_prescricao:
+            parametros_embed["classes"] = ",".join(str(valor) for valor in classes_prescricao)
+        pep_item_embed_url = f"{item_selecionado.url_conteudo_renderizada}?{urlencode(parametros_embed)}"
     if item_selecionado and item_selecionado.tp_item == "DOCUMENTO" and item_selecionado.cd_modelo_documento_id:
         modelo_documento_item = _versao_atual_modelo_documento(item_selecionado.cd_modelo_documento)
         if modelo_documento_item and modelo_documento_item.pk != item_selecionado.cd_modelo_documento_id:
@@ -7988,11 +8357,22 @@ def pep_prontuario_paciente(request, cd_paciente):
                             "Não é possível assumir enquanto a trava estiver ativa."
                         )
             documento_modo_impressao_item = not documento_editavel_item
-            apresentacao_documento_item = (
-                _renderizar_documento(ultimo_documento_item, False)
-                if documento_editavel_item
-                else None
-            )
+            tipo_documento_item = getattr(ultimo_documento_item.cd_modelo_documento, "tp_documento", "")
+            if documento_editavel_item and tipo_documento_item in {"PRESCRICAO", "SOLICITACAO_EXAME"}:
+                tipo_prescricao_item = "MEDICAMENTO" if tipo_documento_item == "PRESCRICAO" else "EXAME"
+                prescricao_documento_contexto = _contexto_acao_prescricao(
+                    request,
+                    atendimento_selecionado,
+                    tipo_prescricao_item,
+                    ultimo_documento_item,
+                    (item_selecionado.ds_configuracao or {}).get("classes_prescricao") or None,
+                )
+            else:
+                apresentacao_documento_item = (
+                    _renderizar_documento(ultimo_documento_item, False)
+                    if documento_editavel_item
+                    else None
+                )
             pep_documento_next_url = (
                 f"{reverse(pep_patient_route, args=[paciente.pk])}?"
                 f"{urlencode({'modo': 'consulta' if somente_consulta else 'atendimento', 'atendimento': atendimento_selecionado.pk, 'item': item_selecionado.pk, 'documento': ultimo_documento_item.pk, 'return_to': return_to})}"
@@ -8048,6 +8428,20 @@ def pep_prontuario_paciente(request, cd_paciente):
             if documento_historico.pep_travado_por_outro
             else ""
         )
+    certificado_documento_disponivel = False
+    erro_certificado_documento = ""
+    if documento_editavel_item and ultimo_documento_item:
+        finalidade_documento = (
+            getattr(ultimo_documento_item.cd_modelo_documento, "tp_finalidade_assinatura", "MEDICO")
+            if ultimo_documento_item.cd_modelo_documento_id
+            else "MEDICO"
+        )
+        try:
+            certificado_documento_disponivel = bool(
+                certificado_ativo_para(empresa, finalidade_documento, request.user)
+            )
+        except (ErroCertificadoDigital, ImproperlyConfigured) as exc:
+            erro_certificado_documento = str(exc)
     if documento_bloqueio_item:
         messages.warning(request, documento_bloqueio_item)
     return render(
@@ -8080,7 +8474,10 @@ def pep_prontuario_paciente(request, cd_paciente):
             "pode_cancelar_documento_item": pode_cancelar_documento_item,
             "pode_copiar_documento_item": pode_copiar_documento_item,
             "documento_bloqueio_item": documento_bloqueio_item,
+            "certificado_documento_disponivel": certificado_documento_disponivel,
+            "erro_certificado_documento": erro_certificado_documento,
             "apresentacao_documento_item": apresentacao_documento_item,
+            "prescricao_documento_contexto": prescricao_documento_contexto,
             "pep_documento_next_url": pep_documento_next_url,
             "historico_documentos_item": historico_documentos_lista,
             "agora_documento": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),

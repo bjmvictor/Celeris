@@ -1,0 +1,180 @@
+{% if prescricao_documento %}
+<form
+  id="pep-document-fill-form"
+  class="card structured-prescription{% if prescricao_embutida_pep %} structured-prescription-pep{% endif %}"
+  method="post"
+  action="{{ prescricao_form_action }}"
+  data-structured-prescription
+  data-document-fill-form
+  {% if prescricao_embutida_pep %}data-document-lock-release-url="{% url 'atendimento:liberar-trava-documento-clinico' prescricao_documento.pk %}"{% endif %}
+>
+  {% csrf_token %}
+  <input type="hidden" name="documento" value="{{ prescricao_documento.pk }}">
+  {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
+  <input type="hidden" name="itens_json" value="[]" data-prescription-payload>
+  <input type="hidden" name="assinatura_pagina" value="">
+  <input type="hidden" name="assinatura_x" value="">
+  <input type="hidden" name="assinatura_y" value="">
+  <input type="hidden" name="assinatura_largura" value="">
+  <input type="hidden" name="assinatura_altura" value="">
+  <label class="prescription-search">
+    <span>Pesquisar {{ tipo_prescricao|lower }}</span>
+    <input type="search" placeholder="Digite o nome do item" autocomplete="off" data-prescription-search>
+    <div class="prescription-search-results" data-prescription-results hidden></div>
+  </label>
+  <div class="prescription-classes">
+    {% for classe in classes %}
+      <details class="prescription-class" open data-prescription-class="{{ classe.pk }}">
+        <summary><strong>{{ classe.sg_classe }} - {{ classe.ds_classe }}</strong><span data-class-count>0 item(ns)</span></summary>
+        <div class="prescription-class-catalog" data-class-catalog>
+          {% for item in classe.itens_disponiveis %}
+            <button
+              class="prescription-catalog-item"
+              type="button"
+              data-add-prescription-item
+              data-item-id="{{ item.pk }}"
+              data-class-id="{{ classe.pk }}"
+              data-item-name="{{ item.nm_item }}"
+              data-via-id="{{ item.cd_via_padrao_id|default:'' }}"
+              data-dose="{{ item.ds_dose_padrao }}"
+              data-frequency="{{ item.ds_frequencia_padrao }}"
+              data-duration="{{ item.ds_duracao_padrao }}"
+              data-posology="{{ item.ds_posologia_padrao }}"
+              data-requires-posology="{{ item.sn_exige_posologia|yesno:'1,0' }}"
+            >
+              <span class="svg-icon" data-nav-icon="plus"></span>
+              <span>{{ item.nm_item }}</span>
+              {% if item.documentos_exigidos_lista %}<small>Exige: {% for documento in item.documentos_exigidos_lista %}{{ documento.nome }}{% if documento.finalizado %} ✓{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
+            </button>
+            {% for documento in item.documentos_exigidos_lista %}{% if documento.url and not documento.finalizado %}<a class="prescription-required-document" href="{{ documento.url }}">Preencher {{ documento.nome }}</a>{% endif %}{% endfor %}
+          {% empty %}
+            <span class="empty-state">Nenhum item ativo nesta classe.</span>
+          {% endfor %}
+        </div>
+        <div class="prescription-selected-items" data-selected-items></div>
+      </details>
+    {% empty %}
+      <span class="empty-state">Nenhuma classe de prescrição configurada para esta tela.</span>
+    {% endfor %}
+  </div>
+  {% if not prescricao_embutida_pep %}
+    <div class="table-actions">
+      <button class="button button-primary" type="submit">
+        <span class="svg-icon" data-nav-icon="save"></span>
+        <span>Salvar rascunho</span>
+      </button>
+    </div>
+  {% endif %}
+</form>
+<template data-prescription-row-template>
+  <article class="prescription-selected-row" data-selected-row>
+    <header><strong data-selected-name></strong><button class="toolbar-button danger" type="button" data-remove-item aria-label="Remover"><span class="svg-icon" data-nav-icon="trash"></span></button></header>
+    <div class="prescription-item-fields">
+      {% if tipo_prescricao == "MEDICAMENTO" %}
+        <label>Via<select data-item-field="via_id"><option value=""></option>{% for via in vias %}<option value="{{ via.pk }}">{{ via.sg_via }} - {{ via.ds_via }}</option>{% endfor %}</select></label>
+        <label>Dose<input data-item-field="dose"></label>
+        <label>Frequência<input data-item-field="frequencia"></label>
+        <label>Duração<input data-item-field="duracao"></label>
+        <label class="prescription-posology">Posologia<input data-item-field="posologia"></label>
+      {% else %}
+        <label>Prioridade<select data-item-field="prioridade"><option value="ROTINA">Rotina</option><option value="URGENTE">Urgente</option><option value="EMERGENCIA">Emergência</option></select></label>
+      {% endif %}
+      <label class="prescription-observation">Observação/justificativa<input data-item-field="observacao"></label>
+    </div>
+  </article>
+</template>
+{{ prescricao_itens_salvos|json_script:"prescricao-itens-salvos" }}
+<script>
+  (() => {
+    const form = document.querySelector("[data-structured-prescription]");
+    const template = document.querySelector("[data-prescription-row-template]");
+    const payload = form?.querySelector("[data-prescription-payload]");
+    const search = form?.querySelector("[data-prescription-search]");
+    const results = form?.querySelector("[data-prescription-results]");
+    if (!form || !template || !payload) return;
+    const selected = new Map();
+    const catalogItems = [...form.querySelectorAll("[data-add-prescription-item]")];
+
+    const sync = () => {
+      payload.value = JSON.stringify([...selected.values()].map(({ row, itemId }) => {
+        const data = { item_id: itemId };
+        row.querySelectorAll("[data-item-field]").forEach((field) => { data[field.dataset.itemField] = field.value; });
+        return data;
+      }));
+      form.querySelectorAll("[data-prescription-class]").forEach((group) => {
+        const total = group.querySelectorAll("[data-selected-row]").length;
+        group.querySelector("[data-class-count]").textContent = `${total} item(ns)`;
+      });
+    };
+    const add = (button, saved = null) => {
+      const itemId = button.dataset.itemId;
+      if (selected.has(itemId)) {
+        selected.get(itemId).row.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      const row = template.content.firstElementChild.cloneNode(true);
+      row.dataset.itemId = itemId;
+      row.querySelector("[data-selected-name]").textContent = button.dataset.itemName;
+      const defaults = {
+        via_id: button.dataset.viaId,
+        dose: button.dataset.dose,
+        frequencia: button.dataset.frequency,
+        duracao: button.dataset.duration,
+        posologia: button.dataset.posology,
+        prioridade: "ROTINA",
+        observacao: "",
+        ...(saved || {}),
+      };
+      Object.entries(defaults).forEach(([name, value]) => {
+        const field = row.querySelector(`[data-item-field="${name}"]`);
+        if (field) field.value = value || "";
+      });
+      const posology = row.querySelector('[data-item-field="posologia"]');
+      if (posology && button.dataset.requiresPosology === "1") posology.required = true;
+      row.querySelector("[data-remove-item]").addEventListener("click", () => {
+        selected.delete(itemId);
+        row.remove();
+        sync();
+      });
+      row.addEventListener("input", sync);
+      row.addEventListener("change", sync);
+      form.querySelector(`[data-prescription-class="${button.dataset.classId}"] [data-selected-items]`).append(row);
+      selected.set(itemId, { itemId, row });
+      window.CelerisRenderIcons?.();
+      sync();
+    };
+    catalogItems.forEach((button) => button.addEventListener("click", () => add(button)));
+    let savedItems = [];
+    try { savedItems = JSON.parse(document.getElementById("prescricao-itens-salvos")?.textContent || "[]"); } catch {}
+    savedItems.forEach((saved) => {
+      const button = catalogItems.find((item) => item.dataset.itemId === String(saved.item_id || ""));
+      if (button) add(button, saved);
+    });
+    search?.addEventListener("input", () => {
+      const term = search.value.trim().toLocaleLowerCase("pt-BR");
+      results.replaceChildren();
+      if (!term) { results.hidden = true; return; }
+      catalogItems.filter((item) => item.dataset.itemName.toLocaleLowerCase("pt-BR").includes(term)).slice(0, 12).forEach((item) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.textContent = item.dataset.itemName;
+        option.addEventListener("click", () => { add(item); search.value = ""; results.hidden = true; });
+        results.append(option);
+      });
+      results.hidden = !results.childElementCount;
+    });
+    form.addEventListener("submit", (event) => {
+      sync();
+      if (!selected.size && !form.action.includes("/fechar/")) {
+        event.preventDefault();
+        window.CelerisNotify?.("Selecione ao menos um item.", "warning");
+      }
+    });
+  })();
+</script>
+{% else %}
+  <section class="card empty-state prescription-create-required">
+    Use o botão <strong>+</strong> na barra do documento e confirme a data e hora antes de incluir itens.
+  </section>
+{% endif %}
+

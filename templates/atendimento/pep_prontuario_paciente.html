@@ -211,7 +211,7 @@
                 {% endif %}
                 {% if documento_editavel_item %}
                   <button class="toolbar-button success" type="submit" form="pep-document-fill-form" title="Salvar" aria-label="Salvar"><span class="svg-icon" data-nav-icon="save"></span></button>
-                  <button class="toolbar-button primary" type="submit" form="pep-document-fill-form" formaction="{% url 'atendimento:fechar-documento-clinico' ultimo_documento_item.pk %}" title="Fechar e assinar" aria-label="Fechar e assinar"><span class="svg-icon" data-nav-icon="badge-check"></span></button>
+                  <button class="toolbar-button primary" type="button" data-pep-close-document data-close-url="{% url 'atendimento:fechar-documento-clinico' ultimo_documento_item.pk %}" data-has-certificate="{{ certificado_documento_disponivel|yesno:'1,0' }}" title="Fechar e assinar" aria-label="Fechar e assinar"><span class="svg-icon" data-nav-icon="badge-check"></span></button>
                   {% if item_selecionado.sn_permite_abandonar %}
                     <button class="toolbar-button danger" type="button" data-pep-status-open title="Excluir" aria-label="Excluir"><span class="svg-icon" data-nav-icon="trash"></span></button>
                   {% endif %}
@@ -226,13 +226,22 @@
               {% if apresentacao_documento_item.css %}<style>{{ apresentacao_documento_item.css }}</style>{% endif %}
               <div class="pep-document-workarea">
                 {% if documento_editavel_item %}
+                  {% if prescricao_documento_contexto %}
+                    {% include "atendimento/_prescricao_estruturada_form.html" with atendimento=prescricao_documento_contexto.atendimento classes=prescricao_documento_contexto.classes vias=prescricao_documento_contexto.vias tipo_prescricao=prescricao_documento_contexto.tipo_prescricao prescricao_documento=prescricao_documento_contexto.prescricao_documento prescricao_itens_salvos=prescricao_documento_contexto.prescricao_itens_salvos prescricao_form_action=prescricao_documento_contexto.prescricao_form_action return_to=pep_documento_next_url prescricao_embutida_pep=True %}
+                  {% else %}
                   <form id="pep-document-fill-form" method="post" action="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}" class="document-fill-form pep-document-fill-form" data-document-fill-form data-document-lock-release-url="{% url 'atendimento:liberar-trava-documento-clinico' ultimo_documento_item.pk %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ pep_documento_next_url }}">
                     <input type="hidden" name="ds_conteudo" value="{{ ultimo_documento_item.ds_conteudo }}">
                     <input type="hidden" name="ds_dados_formulario">
+                    <input type="hidden" name="assinatura_pagina" value="">
+                    <input type="hidden" name="assinatura_x" value="">
+                    <input type="hidden" name="assinatura_y" value="">
+                    <input type="hidden" name="assinatura_largura" value="">
+                    <input type="hidden" name="assinatura_altura" value="">
                     <section class="document-section document-content">{{ apresentacao_documento_item.conteudo }}</section>
                   </form>
+                  {% endif %}
                 {% elif documento_modo_impressao_item %}
                   <div class="pep-pdf-viewer" data-pep-pdf-viewer data-pep-pdf-base-src="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1">
                     <div class="pep-pdf-loading" data-pep-pdf-loading>
@@ -257,6 +266,33 @@
                 </div>
               </div>
               {{ ultimo_documento_item.ds_dados_formulario|json_script:"pep-document-form-data" }}
+              {% if documento_editavel_item and certificado_documento_disponivel %}
+                <section class="document-move-modal pep-signature-placement-modal" data-pep-signature-modal hidden>
+                  <div class="card pep-signature-placement-dialog" role="dialog" aria-modal="true" aria-labelledby="pep-signature-title">
+                    <header class="section-heading">
+                      <div><h2 id="pep-signature-title">Posicionar assinatura digital</h2><small>Selecione a página e arraste sobre o documento para definir a área visível da assinatura.</small></div>
+                      <button class="toolbar-button" type="button" data-signature-cancel aria-label="Fechar">×</button>
+                    </header>
+                    <div class="pep-signature-toolbar">
+                      <button class="toolbar-button" type="button" data-signature-prev aria-label="Página anterior"><span class="svg-icon" data-nav-icon="arrow-left"></span></button>
+                      <input type="number" min="1" value="1" data-signature-page aria-label="Página">
+                      <span>/ <span data-signature-total>1</span></span>
+                      <button class="toolbar-button" type="button" data-signature-next aria-label="Próxima página"><span class="svg-icon" data-nav-icon="arrow-right"></span></button>
+                    </div>
+                    <div class="pep-signature-preview" data-signature-preview data-pdf-url="{% url 'atendimento:imprimir-documento-clinico' ultimo_documento_item.pk %}?modo=impressao&pdf=1">
+                      <div class="pep-signature-page" data-signature-page-box>
+                        <canvas data-signature-canvas></canvas>
+                        <div class="pep-signature-box" data-signature-box hidden><strong>ASSINATURA DIGITAL</strong><span>{{ request.user.get_full_name|default:request.user.username }}</span></div>
+                      </div>
+                      <div class="pep-pdf-loading" data-signature-loading><span class="loading-spinner"></span><strong>Gerando visualização...</strong></div>
+                    </div>
+                    <div class="form-actions">
+                      <button class="button button-secondary" type="button" data-signature-cancel>Cancelar</button>
+                      <button class="button button-primary" type="button" data-signature-confirm disabled><span class="svg-icon" data-nav-icon="badge-check"></span><span>Confirmar e assinar</span></button>
+                    </div>
+                  </div>
+                </section>
+              {% endif %}
               {% if not somente_consulta and documento_editavel_item and item_selecionado.sn_permite_abandonar %}
                 <section class="document-move-modal" data-pep-status-modal hidden>
                   <form class="card" method="post" action="{% url 'atendimento:abandonar-documento-clinico' ultimo_documento_item.pk %}">
@@ -425,6 +461,14 @@
   </div>
   <script>
     (() => {
+      window.addEventListener("message", (event) => {
+        if (event.origin !== window.location.origin || !event.data) return;
+        if (event.data.type === "celeris:clinical-action-error") {
+          if (typeof window.CelerisNotify === "function") {
+            window.CelerisNotify(event.data.message || "A ação clínica não pôde ser concluída.", "error");
+          }
+        }
+      });
       const header = document.querySelector("[data-pep-patient-summary]");
       header?.addEventListener("click", (event) => {
         if (event.target.closest("a, button, details, summary, input, select, textarea, [data-pep-expanded-panel]")) return;
@@ -584,7 +628,7 @@
             }
             data[name] = field.type === "checkbox" ? field.checked : field.value;
           });
-          form.elements.ds_dados_formulario.value = JSON.stringify(data);
+          if (form.elements.ds_dados_formulario) form.elements.ds_dados_formulario.value = JSON.stringify(data);
           return data;
         };
         window.celerisPepSyncDocumentForm = () => {
@@ -677,6 +721,180 @@
           });
           return promise;
         };
+      })();
+      (() => {
+        const closeButton = document.querySelector("[data-pep-close-document]");
+        const form = document.querySelector("[data-document-fill-form]");
+        if (!closeButton || !form) return;
+        const closeUrl = closeButton.dataset.closeUrl;
+        const hasCertificate = closeButton.dataset.hasCertificate === "1";
+        const modal = document.querySelector("[data-pep-signature-modal]");
+        let pdfDocument = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        let renderTask = null;
+
+        const submitClose = () => {
+          form.action = closeUrl;
+          form.requestSubmit();
+        };
+        const saveDraftForPreview = async () => {
+          const data = typeof window.celerisPepSyncDocumentForm === "function"
+            ? window.celerisPepSyncDocumentForm()
+            : new FormData(form);
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: data,
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (!response.ok) throw new Error("Não foi possível preparar a visualização do documento.");
+        };
+
+        if (!hasCertificate || !modal) {
+          closeButton.addEventListener("click", async () => {
+            if (!form.reportValidity()) return;
+            if (!window.confirm("Confirma o fechamento deste documento? Após fechar, o conteúdo não poderá ser alterado.")) return;
+            closeButton.disabled = true;
+            try {
+              await saveDraftForPreview();
+              submitClose();
+            } catch (error) {
+              closeButton.disabled = false;
+              window.CelerisNotify?.(error.message, "error");
+            }
+          });
+          return;
+        }
+
+        const preview = modal.querySelector("[data-signature-preview]");
+        const pageBox = modal.querySelector("[data-signature-page-box]");
+        const canvas = modal.querySelector("[data-signature-canvas]");
+        const signatureBox = modal.querySelector("[data-signature-box]");
+        const loading = modal.querySelector("[data-signature-loading]");
+        const pageInput = modal.querySelector("[data-signature-page]");
+        const totalLabel = modal.querySelector("[data-signature-total]");
+        const confirmButton = modal.querySelector("[data-signature-confirm]");
+        let selection = null;
+
+        const syncSelection = () => {
+          const pageRect = pageBox.getBoundingClientRect();
+          const boxRect = signatureBox.getBoundingClientRect();
+          form.elements.assinatura_pagina.value = String(currentPage);
+          form.elements.assinatura_x.value = String((boxRect.left - pageRect.left) / pageRect.width);
+          form.elements.assinatura_y.value = String((boxRect.top - pageRect.top) / pageRect.height);
+          form.elements.assinatura_largura.value = String(boxRect.width / pageRect.width);
+          form.elements.assinatura_altura.value = String(boxRect.height / pageRect.height);
+          confirmButton.disabled = false;
+        };
+        const renderPage = async () => {
+          if (!pdfDocument) return;
+          loading.hidden = false;
+          confirmButton.disabled = true;
+          signatureBox.hidden = true;
+          selection = null;
+          if (renderTask) renderTask.cancel();
+          const page = await pdfDocument.getPage(currentPage);
+          const availableWidth = Math.max(420, preview.clientWidth - 32);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const scale = Math.min(1.55, availableWidth / baseViewport.width);
+          const viewport = page.getViewport({ scale });
+          const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.floor(viewport.width * outputScale);
+          canvas.height = Math.floor(viewport.height * outputScale);
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+          pageBox.style.width = `${viewport.width}px`;
+          pageBox.style.height = `${viewport.height}px`;
+          renderTask = page.render({
+            canvasContext: canvas.getContext("2d", { alpha: false }),
+            viewport,
+            transform: outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0],
+          });
+          try { await renderTask.promise; } finally { renderTask = null; loading.hidden = true; }
+          pageInput.value = String(currentPage);
+          pageInput.max = String(totalPages);
+          totalLabel.textContent = String(totalPages);
+        };
+        const loadPreview = async () => {
+          loading.hidden = false;
+          const pdfjsLib = await loadPepPdfJs();
+          pdfDocument = await pdfjsLib.getDocument({
+            url: `${preview.dataset.pdfUrl}&_=${Date.now()}`,
+            withCredentials: true,
+          }).promise;
+          totalPages = Math.max(1, pdfDocument.numPages || 1);
+          currentPage = Math.min(currentPage, totalPages);
+          await renderPage();
+        };
+        const closeModal = () => { modal.hidden = true; };
+        closeButton.addEventListener("click", async () => {
+          if (!form.reportValidity() || closeButton.disabled) return;
+          closeButton.disabled = true;
+          modal.hidden = false;
+          try {
+            await saveDraftForPreview();
+            await loadPreview();
+          } catch (error) {
+            closeModal();
+            if (typeof window.CelerisNotify === "function") window.CelerisNotify(error.message, "error");
+            else window.alert(error.message);
+          } finally {
+            closeButton.disabled = false;
+          }
+        });
+        pageBox.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          const rect = pageBox.getBoundingClientRect();
+          const startX = Math.min(rect.width, Math.max(0, event.clientX - rect.left));
+          const startY = Math.min(rect.height, Math.max(0, event.clientY - rect.top));
+          selection = { startX, startY };
+          signatureBox.hidden = false;
+          signatureBox.style.left = `${startX}px`;
+          signatureBox.style.top = `${startY}px`;
+          signatureBox.style.width = "1px";
+          signatureBox.style.height = "1px";
+          pageBox.setPointerCapture(event.pointerId);
+        });
+        pageBox.addEventListener("pointermove", (event) => {
+          if (!selection) return;
+          const rect = pageBox.getBoundingClientRect();
+          const currentX = Math.min(rect.width, Math.max(0, event.clientX - rect.left));
+          const currentY = Math.min(rect.height, Math.max(0, event.clientY - rect.top));
+          signatureBox.style.left = `${Math.min(selection.startX, currentX)}px`;
+          signatureBox.style.top = `${Math.min(selection.startY, currentY)}px`;
+          signatureBox.style.width = `${Math.abs(currentX - selection.startX)}px`;
+          signatureBox.style.height = `${Math.abs(currentY - selection.startY)}px`;
+        });
+        pageBox.addEventListener("pointerup", (event) => {
+          if (!selection) return;
+          selection = null;
+          pageBox.releasePointerCapture(event.pointerId);
+          if (signatureBox.offsetWidth < 90 || signatureBox.offsetHeight < 38) {
+            signatureBox.hidden = true;
+            confirmButton.disabled = true;
+            return;
+          }
+          syncSelection();
+        });
+        modal.querySelector("[data-signature-prev]").addEventListener("click", () => {
+          if (currentPage > 1) { currentPage -= 1; renderPage(); }
+        });
+        modal.querySelector("[data-signature-next]").addEventListener("click", () => {
+          if (currentPage < totalPages) { currentPage += 1; renderPage(); }
+        });
+        pageInput.addEventListener("change", () => {
+          currentPage = Math.min(totalPages, Math.max(1, Number.parseInt(pageInput.value || "1", 10) || 1));
+          renderPage();
+        });
+        modal.querySelectorAll("[data-signature-cancel]").forEach((button) => button.addEventListener("click", closeModal));
+        modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+        confirmButton.addEventListener("click", () => {
+          if (confirmButton.disabled) return;
+          closeModal();
+          submitClose();
+        });
       })();
       document.querySelectorAll("[data-pep-pdf-viewer]").forEach((viewer) => {
         const controls = viewer.closest(".pep-selected-screen")?.querySelector("[data-pep-pdf-controls]");

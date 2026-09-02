@@ -1247,6 +1247,14 @@ class SolicitacaoExame(AuditoriaModel):
     cd_solicitacao_exame = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
     cd_atendimento = models.ForeignKey(Atendimento, related_name="solicitacoes_exames", on_delete=models.PROTECT, db_column="cd_atendimento")
+    cd_documento_clinico = models.ForeignKey(
+        "DocumentoClinico",
+        null=True,
+        blank=True,
+        related_name="solicitacoes_exames_estruturadas",
+        on_delete=models.PROTECT,
+        db_column="cd_documento_clinico",
+    )
     ds_exame = models.CharField(max_length=180)
     ds_justificativa = models.TextField(blank=True)
     ds_prioridade = models.CharField(max_length=20, choices=PRIORIDADES, default="ROTINA")
@@ -1274,6 +1282,14 @@ class Prescricao(AuditoriaModel):
     cd_prescricao = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
     cd_atendimento = models.ForeignKey(Atendimento, related_name="prescricoes", on_delete=models.PROTECT, db_column="cd_atendimento")
+    cd_documento_clinico = models.OneToOneField(
+        "DocumentoClinico",
+        null=True,
+        blank=True,
+        related_name="prescricao_estruturada",
+        on_delete=models.PROTECT,
+        db_column="cd_documento_clinico",
+    )
     ds_prescricao = models.TextField()
     ds_orientacoes = models.TextField(blank=True)
     sn_ativa = models.BooleanField(default=True)
@@ -1281,6 +1297,166 @@ class Prescricao(AuditoriaModel):
     class Meta:
         db_table = "prescricao"
         ordering = ("-dh_criacao",)
+
+
+class ClasseItemPrescricao(AuditoriaModel):
+    TIPOS = [
+        ("MEDICAMENTO", "Medicamentos"),
+        ("EXAME", "Exames"),
+        ("OUTRO", "Outros"),
+    ]
+
+    cd_classe_item_prescricao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    sg_classe = models.CharField(max_length=8)
+    ds_classe = models.CharField(max_length=120)
+    tp_classe = models.CharField(max_length=20, choices=TIPOS)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "classe_item_prescricao"
+        ordering = ("nr_ordem", "ds_classe")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "sg_classe"),
+                name="classe_item_prescricao_sigla_unica",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.sg_classe} - {self.ds_classe}"
+
+
+class ViaAplicacaoPrescricao(AuditoriaModel):
+    cd_via_aplicacao_prescricao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    sg_via = models.CharField(max_length=8)
+    ds_via = models.CharField(max_length=120)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "via_aplicacao_prescricao"
+        ordering = ("nr_ordem", "ds_via")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "sg_via"),
+                name="via_aplicacao_prescricao_sigla_unica",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.sg_via} - {self.ds_via}"
+
+
+class ItemPrescricao(AuditoriaModel):
+    cd_item_prescricao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_classe = models.ForeignKey(
+        ClasseItemPrescricao,
+        on_delete=models.PROTECT,
+        db_column="cd_classe_item_prescricao",
+        related_name="itens",
+    )
+    cd_produto = models.ForeignKey(
+        "estoque.Produto",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_produto",
+        related_name="itens_prescricao",
+    )
+    nm_item = models.CharField(max_length=180)
+    cd_via_padrao = models.ForeignKey(
+        ViaAplicacaoPrescricao,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_via_padrao",
+        related_name="itens_padrao",
+    )
+    ds_dose_padrao = models.CharField(max_length=80, blank=True)
+    ds_frequencia_padrao = models.CharField(max_length=120, blank=True)
+    ds_duracao_padrao = models.CharField(max_length=80, blank=True)
+    ds_posologia_padrao = models.CharField(max_length=500, blank=True)
+    sn_exige_posologia = models.BooleanField(default=False)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "item_prescricao"
+        ordering = ("cd_classe__nr_ordem", "nm_item")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_classe", "nm_item"),
+                name="item_prescricao_nome_unico_classe",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nm_item
+
+
+class ItemPrescricaoDocumento(AuditoriaModel):
+    cd_item_prescricao_documento = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_item_prescricao = models.ForeignKey(
+        ItemPrescricao,
+        on_delete=models.CASCADE,
+        db_column="cd_item_prescricao",
+        related_name="documentos_exigidos",
+    )
+    cd_modelo_documento = models.ForeignKey(
+        "ModeloDocumento",
+        on_delete=models.PROTECT,
+        db_column="cd_modelo_documento",
+    )
+    sn_obrigatorio = models.BooleanField(default=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "item_prescricao_documento"
+        ordering = ("cd_modelo_documento__nm_modelo",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_item_prescricao", "cd_modelo_documento"),
+                name="item_prescricao_documento_unico",
+            ),
+        ]
+
+
+class PrescricaoItem(AuditoriaModel):
+    cd_prescricao_item = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_prescricao = models.ForeignKey(
+        Prescricao,
+        on_delete=models.CASCADE,
+        db_column="cd_prescricao",
+        related_name="itens",
+    )
+    cd_item_prescricao = models.ForeignKey(
+        ItemPrescricao,
+        on_delete=models.PROTECT,
+        db_column="cd_item_prescricao",
+    )
+    cd_via_aplicacao = models.ForeignKey(
+        ViaAplicacaoPrescricao,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_via_aplicacao_prescricao",
+    )
+    ds_dose = models.CharField(max_length=80, blank=True)
+    ds_frequencia = models.CharField(max_length=120, blank=True)
+    ds_duracao = models.CharField(max_length=80, blank=True)
+    ds_posologia = models.CharField(max_length=500, blank=True)
+    ds_observacao = models.CharField(max_length=500, blank=True)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "prescricao_item"
+        ordering = ("nr_ordem", "cd_prescricao_item")
 
 
 class EvolucaoAtendimento(AuditoriaModel):
@@ -1362,11 +1538,13 @@ class ModeloDocumento(AuditoriaModel):
         ("ETIQUETA_ATENDIMENTO", "Etiqueta de atendimento"),
         ("PRESCRICAO", "Prescrição"),
         ("SOLICITACAO_EXAME", "Solicitação de exame"),
+        ("ADMISSAO_ANAMNESE", "Admissão / Anamnese"),
         ("EVOLUCAO", "Evolução"),
         ("RESUMO_ALTA", "Resumo de alta"),
         ("RECEITUARIO", "Receituário"),
         ("ATESTADO", "Atestado"),
         ("ENCAMINHAMENTO", "Encaminhamento"),
+        ("AIH", "AIH"),
         ("ADMINISTRATIVO", "Administrativo"),
     ]
     ELEMENTOS = [
