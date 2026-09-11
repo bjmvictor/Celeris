@@ -12,6 +12,7 @@ urlpatterns = [
     path("tabelas/gerais/saldos/", views.saldos_produto, name="saldos_produto"),
     path("tabelas/gerais/<slug:chave>/", views.tabela_estoque, name="tabela_estoque"),
     path("tabelas/produtos/produtos/", views.produtos, name="produtos"),
+    path("farmacia/tabelas/medicamentos/", views.medicamentos, name="medicamentos"),
     path("tabelas/produtos/classificacao/", views.classificacoes_produto, name="classificacoes_produto"),
     path("movimentacoes/", views.movimentacoes, name="movimentacoes"),
     path("movimentacoes/<slug:tipo>/", views.movimentacoes, name="movimentacoes_tipo"),

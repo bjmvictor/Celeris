@@ -1247,6 +1247,14 @@ class SolicitacaoExame(AuditoriaModel):
     cd_solicitacao_exame = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
     cd_atendimento = models.ForeignKey(Atendimento, related_name="solicitacoes_exames", on_delete=models.PROTECT, db_column="cd_atendimento")
+    cd_documento_clinico = models.ForeignKey(
+        "DocumentoClinico",
+        null=True,
+        blank=True,
+        related_name="solicitacoes_exames_estruturadas",
+        on_delete=models.PROTECT,
+        db_column="cd_documento_clinico",
+    )
     ds_exame = models.CharField(max_length=180)
     ds_justificativa = models.TextField(blank=True)
     ds_prioridade = models.CharField(max_length=20, choices=PRIORIDADES, default="ROTINA")
@@ -1274,6 +1282,14 @@ class Prescricao(AuditoriaModel):
     cd_prescricao = models.BigAutoField(primary_key=True)
     cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
     cd_atendimento = models.ForeignKey(Atendimento, related_name="prescricoes", on_delete=models.PROTECT, db_column="cd_atendimento")
+    cd_documento_clinico = models.OneToOneField(
+        "DocumentoClinico",
+        null=True,
+        blank=True,
+        related_name="prescricao_estruturada",
+        on_delete=models.PROTECT,
+        db_column="cd_documento_clinico",
+    )
     ds_prescricao = models.TextField()
     ds_orientacoes = models.TextField(blank=True)
     sn_ativa = models.BooleanField(default=True)
@@ -1281,6 +1297,166 @@ class Prescricao(AuditoriaModel):
     class Meta:
         db_table = "prescricao"
         ordering = ("-dh_criacao",)
+
+
+class ClasseItemPrescricao(AuditoriaModel):
+    TIPOS = [
+        ("MEDICAMENTO", "Medicamentos"),
+        ("EXAME", "Exames"),
+        ("OUTRO", "Outros"),
+    ]
+
+    cd_classe_item_prescricao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    sg_classe = models.CharField(max_length=8)
+    ds_classe = models.CharField(max_length=120)
+    tp_classe = models.CharField(max_length=20, choices=TIPOS)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "classe_item_prescricao"
+        ordering = ("nr_ordem", "ds_classe")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "sg_classe"),
+                name="classe_item_prescricao_sigla_unica",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.sg_classe} - {self.ds_classe}"
+
+
+class ViaAplicacaoPrescricao(AuditoriaModel):
+    cd_via_aplicacao_prescricao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    sg_via = models.CharField(max_length=8)
+    ds_via = models.CharField(max_length=120)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "via_aplicacao_prescricao"
+        ordering = ("nr_ordem", "ds_via")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "sg_via"),
+                name="via_aplicacao_prescricao_sigla_unica",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.sg_via} - {self.ds_via}"
+
+
+class ItemPrescricao(AuditoriaModel):
+    cd_item_prescricao = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_classe = models.ForeignKey(
+        ClasseItemPrescricao,
+        on_delete=models.PROTECT,
+        db_column="cd_classe_item_prescricao",
+        related_name="itens",
+    )
+    cd_produto = models.ForeignKey(
+        "estoque.Produto",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_produto",
+        related_name="itens_prescricao",
+    )
+    nm_item = models.CharField(max_length=180)
+    cd_via_padrao = models.ForeignKey(
+        ViaAplicacaoPrescricao,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_via_padrao",
+        related_name="itens_padrao",
+    )
+    ds_dose_padrao = models.CharField(max_length=80, blank=True)
+    ds_frequencia_padrao = models.CharField(max_length=120, blank=True)
+    ds_duracao_padrao = models.CharField(max_length=80, blank=True)
+    ds_posologia_padrao = models.CharField(max_length=500, blank=True)
+    sn_exige_posologia = models.BooleanField(default=False)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "item_prescricao"
+        ordering = ("cd_classe__nr_ordem", "nm_item")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_classe", "nm_item"),
+                name="item_prescricao_nome_unico_classe",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nm_item
+
+
+class ItemPrescricaoDocumento(AuditoriaModel):
+    cd_item_prescricao_documento = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_item_prescricao = models.ForeignKey(
+        ItemPrescricao,
+        on_delete=models.CASCADE,
+        db_column="cd_item_prescricao",
+        related_name="documentos_exigidos",
+    )
+    cd_modelo_documento = models.ForeignKey(
+        "ModeloDocumento",
+        on_delete=models.PROTECT,
+        db_column="cd_modelo_documento",
+    )
+    sn_obrigatorio = models.BooleanField(default=True)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "item_prescricao_documento"
+        ordering = ("cd_modelo_documento__nm_modelo",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_empresa", "cd_item_prescricao", "cd_modelo_documento"),
+                name="item_prescricao_documento_unico",
+            ),
+        ]
+
+
+class PrescricaoItem(AuditoriaModel):
+    cd_prescricao_item = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_prescricao = models.ForeignKey(
+        Prescricao,
+        on_delete=models.CASCADE,
+        db_column="cd_prescricao",
+        related_name="itens",
+    )
+    cd_item_prescricao = models.ForeignKey(
+        ItemPrescricao,
+        on_delete=models.PROTECT,
+        db_column="cd_item_prescricao",
+    )
+    cd_via_aplicacao = models.ForeignKey(
+        ViaAplicacaoPrescricao,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_via_aplicacao_prescricao",
+    )
+    ds_dose = models.CharField(max_length=80, blank=True)
+    ds_frequencia = models.CharField(max_length=120, blank=True)
+    ds_duracao = models.CharField(max_length=80, blank=True)
+    ds_posologia = models.CharField(max_length=500, blank=True)
+    ds_observacao = models.CharField(max_length=500, blank=True)
+    nr_ordem = models.PositiveSmallIntegerField(default=10)
+    sn_ativo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "prescricao_item"
+        ordering = ("nr_ordem", "cd_prescricao_item")
 
 
 class EvolucaoAtendimento(AuditoriaModel):
@@ -1344,6 +1520,11 @@ class PastaDocumento(AuditoriaModel):
 
 
 class ModeloDocumento(AuditoriaModel):
+    FINALIDADES_ASSINATURA = [
+        ("MEDICO", "Documento médico"),
+        ("ADMINISTRATIVO", "Documento administrativo"),
+        ("OUTRO", "Outro documento"),
+    ]
     ALINHAMENTOS_ASSINATURA = [
         ("ESQUERDA", "Esquerda"),
         ("CENTRO", "Centralizada"),
@@ -1357,11 +1538,13 @@ class ModeloDocumento(AuditoriaModel):
         ("ETIQUETA_ATENDIMENTO", "Etiqueta de atendimento"),
         ("PRESCRICAO", "Prescrição"),
         ("SOLICITACAO_EXAME", "Solicitação de exame"),
+        ("ADMISSAO_ANAMNESE", "Admissão / Anamnese"),
         ("EVOLUCAO", "Evolução"),
         ("RESUMO_ALTA", "Resumo de alta"),
         ("RECEITUARIO", "Receituário"),
         ("ATESTADO", "Atestado"),
         ("ENCAMINHAMENTO", "Encaminhamento"),
+        ("AIH", "AIH"),
         ("ADMINISTRATIVO", "Administrativo"),
     ]
     ELEMENTOS = [
@@ -1401,6 +1584,11 @@ class ModeloDocumento(AuditoriaModel):
         default="CENTRO",
     )
     sn_exibe_conselho_assinatura = models.BooleanField(default=False)
+    tp_finalidade_assinatura = models.CharField(
+        max_length=20,
+        choices=FINALIDADES_ASSINATURA,
+        default="MEDICO",
+    )
     sn_versao_atual = models.BooleanField(default=True)
     sn_sistema = models.BooleanField(default=False)
     sn_editavel = models.BooleanField(default=True)
@@ -1683,7 +1871,7 @@ class DocumentoClinico(AuditoriaModel):
                 "cd_modelo_documento_id",
                 "cd_atendimento_id",
             ).first()
-            if anterior and anterior["ds_status"] in {"FECHADO", "CANCELADO", "ABANDONADO"}:
+            if anterior and anterior["ds_status"] in {"FECHADO", "FINALIZADO", "ASSINADO", "CANCELADO", "ABANDONADO"}:
                 imutaveis = {
                     "ds_conteudo": self.ds_conteudo,
                     "ds_dados_formulario": self.ds_dados_formulario,
@@ -1693,6 +1881,174 @@ class DocumentoClinico(AuditoriaModel):
                 if any(anterior[campo] != valor for campo, valor in imutaveis.items()):
                     raise ValidationError("Documentos fechados, cancelados ou abandonados são imutáveis.")
         super().save(*args, **kwargs)
+
+
+class VersaoDocumentoClinico(models.Model):
+    STATUS = [
+        ("FINALIZADO", "Finalizado"),
+        ("ASSINADO", "Assinado"),
+        ("FALHA", "Falha"),
+    ]
+
+    cd_versao_documento_clinico = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_documento_clinico = models.ForeignKey(
+        DocumentoClinico,
+        on_delete=models.PROTECT,
+        db_column="cd_documento_clinico",
+        related_name="versoes_finais",
+    )
+    nr_versao = models.PositiveIntegerField()
+    ds_status = models.CharField(max_length=20, choices=STATUS)
+    arquivo_pdf = models.BinaryField()
+    ds_hash_sha256 = models.CharField(max_length=64, db_index=True)
+    nr_tamanho_bytes = models.PositiveBigIntegerField()
+    nr_paginas = models.PositiveIntegerField(default=1)
+    ds_mime_type = models.CharField(max_length=80, default="application/pdf")
+    ds_motivo_versao = models.CharField(max_length=500, blank=True)
+    cd_versao_anterior = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_versao_anterior",
+        related_name="versoes_seguintes",
+    )
+    cd_usuario_criacao = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario_criacao",
+        related_name="versoes_documentos_clinicos_criadas",
+    )
+    dh_criacao = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        db_table = "versao_documento_clinico"
+        ordering = ("-nr_versao",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("cd_documento_clinico", "nr_versao"),
+                name="versao_documento_clinico_unica",
+            ),
+        ]
+
+    def clean(self):
+        if self.cd_documento_clinico_id and self.cd_empresa_id != self.cd_documento_clinico.cd_empresa_id:
+            raise ValidationError("A versão final deve pertencer à mesma empresa do documento.")
+        if self.cd_versao_anterior_id:
+            anterior = self.cd_versao_anterior
+            documento_anterior_id = self.cd_documento_clinico.cd_documento_origem_id
+            if anterior.cd_documento_clinico_id not in {
+                self.cd_documento_clinico_id,
+                documento_anterior_id,
+            }:
+                raise ValidationError("A versão anterior deve pertencer ao documento ou à sua origem imediata.")
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Versões finais de documentos são imutáveis.")
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class AssinaturaDigitalDocumento(models.Model):
+    STATUS = [
+        ("VALIDA", "Válida"),
+        ("FALHA", "Falha"),
+        ("REVOGADA", "Revogada"),
+    ]
+
+    cd_assinatura_digital = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_versao_documento = models.OneToOneField(
+        VersaoDocumentoClinico,
+        on_delete=models.PROTECT,
+        db_column="cd_versao_documento",
+        related_name="assinatura_digital",
+    )
+    cd_certificado_digital = models.ForeignKey(
+        "core.CertificadoDigitalEmpresa",
+        on_delete=models.PROTECT,
+        db_column="cd_certificado_digital",
+        related_name="assinaturas_documentos",
+    )
+    cd_usuario_solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario_solicitante",
+        related_name="assinaturas_digitais_solicitadas",
+    )
+    tp_finalidade = models.CharField(max_length=20)
+    ds_status = models.CharField(max_length=20, choices=STATUS, default="VALIDA")
+    ds_sujeito = models.CharField(max_length=500)
+    ds_emissor = models.CharField(max_length=500)
+    nr_serie = models.CharField(max_length=160)
+    ds_fingerprint_sha256 = models.CharField(max_length=95)
+    ds_hash_pdf_assinado = models.CharField(max_length=64)
+    dh_assinatura = models.DateTimeField(default=timezone.now, editable=False)
+    ds_ip = models.GenericIPAddressField(null=True, blank=True)
+    ds_user_agent = models.CharField(max_length=500, blank=True)
+    ds_detalhes = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "assinatura_digital_documento"
+        ordering = ("-dh_assinatura",)
+
+    def clean(self):
+        if self.cd_versao_documento_id and self.cd_empresa_id != self.cd_versao_documento.cd_empresa_id:
+            raise ValidationError("A assinatura deve pertencer à mesma empresa da versão do documento.")
+        if self.cd_certificado_digital_id and self.cd_empresa_id != self.cd_certificado_digital.cd_empresa_id:
+            raise ValidationError("O certificado da assinatura não pertence à empresa do documento.")
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Registros de assinatura digital são imutáveis.")
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class AuditoriaAssinaturaDigital(models.Model):
+    cd_auditoria_assinatura = models.BigAutoField(primary_key=True)
+    cd_empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, db_column="cd_empresa")
+    cd_documento_clinico = models.ForeignKey(
+        DocumentoClinico,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_documento_clinico",
+        related_name="auditorias_assinatura",
+    )
+    cd_certificado_digital = models.ForeignKey(
+        "core.CertificadoDigitalEmpresa",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_column="cd_certificado_digital",
+        related_name="auditorias_assinatura",
+    )
+    cd_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_column="cd_usuario",
+    )
+    tp_evento = models.CharField(max_length=60)
+    ds_status = models.CharField(max_length=20)
+    ds_mensagem = models.CharField(max_length=500, blank=True)
+    ds_hash_pdf = models.CharField(max_length=64, blank=True)
+    ds_ip = models.GenericIPAddressField(null=True, blank=True)
+    ds_user_agent = models.CharField(max_length=500, blank=True)
+    ds_dados = models.JSONField(default=dict, blank=True)
+    dh_evento = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        db_table = "auditoria_assinatura_digital"
+        ordering = ("-dh_evento",)
 
 
 class EventoDocumentoClinico(models.Model):

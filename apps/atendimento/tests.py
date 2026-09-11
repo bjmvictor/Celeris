@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import Group
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpResponse
@@ -18,10 +19,125 @@ from django.utils import timezone
 from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
 from apps.core.catalogos import modelo_catalogo
 from apps.core.models import Cep, Especialidade, Feriado, Module, MotivoAlteracao, ScreenDefinition, TipoPrestador
+from apps.core.services.assinatura_pdf import ErroAssinaturaPdf, validar_pdf_pades
+from apps.core.services.certificados_digitais import cadastrar_certificado
+from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs12_teste
 
 from .forms import EscalaForm, PacienteForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, Atendimento, AtendimentoFluxo, ChamadaPainel, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, TipoSenhaAtendimento
+from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
+from .services.prescricoes import registrar_itens_prescricao
+from apps.estoque.models import Produto
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
+
+
+class PrescricaoEstruturadaTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=7098, nm_empresa="Empresa Prescrição", sn_ativo=True)
+        self.usuario = User.objects.create_user("medico-prescricao", password="senha-forte")
+        self.usuario.groups.add(Group.objects.get_or_create(name="Médico")[0])
+        self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="PACIENTE PRESCRIÇÃO")
+        self.atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            ds_status="EM_ATENDIMENTO",
+        )
+        self.classe = ClasseItemPrescricao.objects.create(
+            cd_empresa=self.empresa,
+            sg_classe="MED",
+            ds_classe="Medicamentos",
+            tp_classe="MEDICAMENTO",
+        )
+        self.via = ViaAplicacaoPrescricao.objects.create(
+            cd_empresa=self.empresa,
+            sg_via="VO",
+            ds_via="Via oral",
+        )
+        self.produto = Produto.objects.create(
+            cd_empresa=self.empresa,
+            nm_produto="MEDICAMENTO REAL",
+            tp_produto="MEDICAMENTO",
+        )
+        self.item = ItemPrescricao.objects.create(
+            cd_empresa=self.empresa,
+            cd_classe=self.classe,
+            cd_produto=self.produto,
+            nm_item=self.produto.nm_produto,
+            cd_via_padrao=self.via,
+            ds_posologia_padrao="1 comprimido a cada 8 horas",
+            sn_exige_posologia=True,
+        )
+
+    def test_servico_grava_cabecalho_e_itens_em_transacao(self):
+        resultado = registrar_itens_prescricao(
+            empresa=self.empresa,
+            atendimento=self.atendimento,
+            usuario=self.usuario,
+            tipo="MEDICAMENTO",
+            itens=[{"item_id": self.item.pk, "dose": "500 mg", "via_id": self.via.pk}],
+        )
+        self.assertIsNotNone(resultado.prescricao)
+        linha = PrescricaoItem.objects.get(cd_prescricao=resultado.prescricao)
+        self.assertEqual(linha.cd_item_prescricao, self.item)
+        self.assertEqual(linha.ds_dose, "500 mg")
+        self.assertEqual(linha.ds_posologia, self.item.ds_posologia_padrao)
+
+    def test_documento_obrigatorio_impede_prescricao_sem_gravacao_parcial(self):
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Termo obrigatório",
+            tp_documento="ADMINISTRATIVO",
+        )
+        ItemPrescricaoDocumento.objects.create(
+            cd_empresa=self.empresa,
+            cd_item_prescricao=self.item,
+            cd_modelo_documento=modelo,
+        )
+        with self.assertRaisesMessage(ValidationError, "Termo obrigatório"):
+            registrar_itens_prescricao(
+                empresa=self.empresa,
+                atendimento=self.atendimento,
+                usuario=self.usuario,
+                tipo="MEDICAMENTO",
+                itens=[{"item_id": self.item.pk}],
+            )
+        self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento).exists())
+
+    def test_acao_embutida_conclui_no_pai_sem_replicar_layout(self):
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Prescrição médica",
+            tp_documento="PRESCRICAO",
+            tp_elemento="DOCUMENTO",
+        )
+        documento = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=self.atendimento,
+            cd_modelo_documento=modelo,
+            tp_documento="PRESCRICAO",
+            ds_titulo="Prescrição médica",
+            cd_usuario_emissor=self.usuario,
+            cd_usuario_responsavel=self.usuario,
+        )
+        self.client.force_login(self.usuario)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
+        response = self.client.post(
+            reverse("atendimento:prescrever", args=[self.atendimento.pk]) + "?embed=1&return_to=/PEP/",
+            {
+                "embed": "1",
+                "return_to": "/PEP/",
+                "documento": documento.pk,
+                "itens_json": json.dumps([{"item_id": self.item.pk}]),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "celeris:clinical-action-complete")
+        self.assertNotContains(response, 'class="topbar"')
+        self.assertEqual(Prescricao.objects.filter(cd_atendimento=self.atendimento).count(), 1)
+        documento.refresh_from_db()
+        self.assertEqual(documento.ds_status, "RASCUNHO")
+        self.assertEqual(documento.prescricao_estruturada.cd_atendimento, self.atendimento)
 
 
 class ConsultaAtendimentosTests(TestCase):
@@ -674,20 +790,25 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(EvolucaoAtendimento.objects.filter(cd_atendimento=atendimento).count(), 1)
 
         alta = self.client.post(
-            reverse("atendimento:conceder-alta", args=[atendimento.pk]),
+            f'{reverse("atendimento:conceder-alta", args=[atendimento.pk])}?embed=1',
             {
                 "ds_cid": "R51",
                 "ds_diagnostico": "Cefaleia tensional",
                 "ds_conduta": "Medicação e repouso.",
                 "ds_motivo_alta": "Melhora clínica",
                 "ds_destino": "DOMICÍLIO",
+                "posicao_assinatura": "DIREITA",
             },
         )
-        self.assertEqual(alta.status_code, 302)
+        self.assertEqual(alta.status_code, 200)
+        self.assertContains(alta, "celeris:clinical-action-complete")
         atendimento.refresh_from_db()
         self.assertEqual(atendimento.ds_status, "ALTA_MEDICA")
         self.assertEqual(atendimento.ds_cid, "R51")
-        self.assertTrue(DocumentoClinico.objects.filter(cd_atendimento=atendimento, tp_documento="RESUMO_ALTA").exists())
+        documento_alta = DocumentoClinico.objects.get(cd_atendimento=atendimento, tp_documento="RESUMO_ALTA")
+        self.assertIn(documento_alta.ds_status, {"FECHADO", "ASSINADO"})
+        self.assertEqual(documento_alta.ds_campos_bloqueados["assinatura"]["posicao"], "DIREITA")
+        self.assertTrue(VersaoDocumentoClinico.objects.filter(cd_documento_clinico=documento_alta).exists())
 
         self.client.post(reverse("atendimento:finalizar-atendimento", args=[atendimento.pk]))
         atendimento.refresh_from_db()
@@ -795,9 +916,9 @@ class FluxoHomologacaoTests(TestCase):
     def test_pep_nao_lista_paciente_apenas_agendado(self):
         self.login_as(self.medico_user)
         response = self.client.get(reverse("atendimento:pep"))
-        self.assertContains(response, 'class="pep-header-actions"')
-        self.assertContains(response, 'class="pep-filter-form pep-header-fields"')
-        self.assertContains(response, "grid-template-columns:max-content minmax(0,1fr)!important")
+        self.assertContains(response, "pep-unified-toolbar")
+        self.assertContains(response, "data-pep-main-search")
+        self.assertContains(response, "Atendimento, nome, prontuário, CPF ou nome da mãe")
         self.assertNotContains(response, self.paciente.nm_paciente)
 
     def test_pep_exibe_filtros_por_engrenagem_e_lista_atendimentos_sem_alta(self):
@@ -805,24 +926,43 @@ class FluxoHomologacaoTests(TestCase):
         self.medico_user.save(update_fields=["cd_prestador"])
         self.prestador.ds_especialidades = ["CLINICA_GERAL", "clinica_geral", " CLINICA_GERAL "]
         self.prestador.save(update_fields=["ds_especialidades"])
-        Atendimento.objects.create(
+        pre_atendimento = PreAtendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            ds_dados_classificacao={"alergias": "Dipirona"},
+        )
+        atendimento = Atendimento.objects.create(
             cd_empresa=self.empresa,
             cd_paciente=self.paciente,
             cd_prestador=self.prestador,
+            cd_pre_atendimento=pre_atendimento,
             ds_status="AGUARDANDO_CONSULTA",
             ds_especialidade="CLINICA_GERAL",
         )
+        Prescricao.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            ds_prescricao="Medicação de teste",
+        )
+        SolicitacaoExame.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            ds_exame="Hemograma",
+        )
         self.login_as(self.medico_user)
         response = self.client.get(reverse("atendimento:pep"))
-        self.assertContains(response, 'data-nav-icon="settings"')
-        self.assertContains(response, 'data-nav-icon="filter"')
+        self.assertContains(response, 'data-nav-icon="sliders-horizontal"')
+        self.assertContains(response, "Mais filtros")
         self.assertContains(response, 'value="CLINICA_GERAL"')
         self.assertContains(response, 'value="CLINICA_GERAL"', count=1)
         self.assertContains(response, 'document.querySelectorAll(".pep-settings[open]")')
         self.assertContains(response, "Todos os setores permitidos")
         self.assertContains(response, "Atendimentos sem alta")
         self.assertContains(response, self.paciente.nm_paciente)
-        #self.assertContains(response, "Abrir prontuário")
+        self.assertContains(response, 'title="Alergia registrada"')
+        self.assertContains(response, 'title="Medicação pendente"')
+        self.assertContains(response, 'title="Exame pendente"')
+        self.assertNotContains(response, "Abrir prontuário")
 
     def test_pep_todos_pacientes_consulta_prontuario_e_atendimentos(self):
         atendimento = Atendimento.objects.create(
@@ -834,9 +974,8 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.login_as(self.medico_user)
         response = self.client.get(reverse("atendimento:pep"), {"aba": "todos", "q": "PACIENTE"})
-        self.assertContains(response, 'class="pep-header-actions"')
-        self.assertContains(response, 'class="pep-search-form pep-header-tools"')
-        self.assertContains(response, "grid-template-columns:max-content minmax(0,1fr)!important")
+        self.assertContains(response, "pep-unified-toolbar")
+        self.assertContains(response, "Pacientes / Prontuários")
         self.assertContains(response, "Prontuário")
         self.assertContains(response, self.paciente.nm_paciente)
 
@@ -2890,12 +3029,18 @@ class FluxoHomologacaoTests(TestCase):
         )
         self.login_as(self.medico_user)
         response = self.client.post(
-            reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+            f'{reverse("atendimento:imprimir-documento-clinico", args=[documento.pk])}?embed=1',
             {"ds_conteudo": "", "ds_dados_formulario": '{"queixa":"Dor abdominal"}'},
         )
         self.assertEqual(response.status_code, 302)
+        self.assertIn("embed=1", response.url)
+        self.assertIn("salvo=1", response.url)
         documento.refresh_from_db()
         self.assertEqual(documento.ds_dados_formulario["queixa"], "Dor abdominal")
+        feedback = self.client.get(response.url)
+        self.assertContains(feedback, "Rascunho salvo com sucesso.")
+        self.assertContains(feedback, "data-document-save-feedback")
+        self.assertNotContains(feedback, 'class="topbar"')
         impressao = self.client.get(
             reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
             {"modo": "impressao"},
@@ -3787,12 +3932,160 @@ class FluxoHomologacaoTests(TestCase):
         documento.refresh_from_db()
         self.assertEqual(documento.ds_status, "FECHADO")
         self.assertEqual(len(documento.ds_hash_conteudo), 64)
+        versao_final = VersaoDocumentoClinico.objects.get(cd_documento_clinico=documento)
+        self.assertTrue(bytes(versao_final.arquivo_pdf).startswith(b"%PDF"))
+        self.assertEqual(versao_final.ds_status, "FINALIZADO")
+        self.assertEqual(versao_final.nr_tamanho_bytes, len(bytes(versao_final.arquivo_pdf)))
+        resposta_pdf = self.client.get(
+            reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+            {"modo": "impressao", "pdf": "1"},
+        )
+        self.assertEqual(resposta_pdf.status_code, 200)
+        self.assertEqual(resposta_pdf.content, bytes(versao_final.arquivo_pdf))
+        resposta_modo_impressao = self.client.get(
+            reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+            {"modo": "impressao"},
+        )
+        self.assertEqual(resposta_modo_impressao.status_code, 200)
+        self.assertEqual(resposta_modo_impressao.content, bytes(versao_final.arquivo_pdf))
+        versao_final.ds_motivo_versao = "Tentativa de sobrescrita"
+        with self.assertRaises(ValidationError):
+            versao_final.save()
         self.assertTrue(
             EventoDocumentoClinico.objects.filter(
                 cd_documento_clinico=documento,
                 tp_evento="FECHADO",
             ).exists()
         )
+
+    def test_falha_na_geracao_final_mantem_documento_aberto_e_audita(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        documento = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            tp_documento="EVOLUCAO",
+            ds_titulo="Documento com falha",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.medico_user,
+            cd_usuario_responsavel=self.medico_user,
+        )
+        self.login_as(self.medico_user)
+        with patch(
+            "apps.atendimento.views._gerar_pdf_final_documento",
+            side_effect=ErroAssinaturaPdf("Falha de geração controlada."),
+        ):
+            response = self.client.post(
+                reverse("atendimento:fechar-documento-clinico", args=[documento.pk]),
+            )
+        self.assertEqual(response.status_code, 302)
+        documento.refresh_from_db()
+        self.assertEqual(documento.ds_status, "ABERTO")
+        self.assertFalse(VersaoDocumentoClinico.objects.filter(cd_documento_clinico=documento).exists())
+        self.assertTrue(
+            AuditoriaAssinaturaDigital.objects.filter(
+                cd_documento_clinico=documento,
+                ds_status="FALHA",
+            ).exists()
+        )
+
+    def test_copia_fechada_cria_nova_versao_sem_alterar_a_anterior(self):
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        original = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            tp_documento="EVOLUCAO",
+            ds_titulo="Versão original",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.medico_user,
+            cd_usuario_responsavel=self.medico_user,
+        )
+        self.login_as(self.medico_user)
+        self.client.post(reverse("atendimento:fechar-documento-clinico", args=[original.pk]))
+        versao_1 = VersaoDocumentoClinico.objects.get(cd_documento_clinico=original)
+        self.client.get(reverse("atendimento:copiar-documento-clinico", args=[original.pk]))
+        copia = DocumentoClinico.objects.get(cd_documento_origem=original)
+        copia.ds_conteudo = "Conteúdo retificado"
+        copia.save(update_fields=("ds_conteudo",))
+        self.client.post(reverse("atendimento:fechar-documento-clinico", args=[copia.pk]))
+        versao_2 = VersaoDocumentoClinico.objects.get(cd_documento_clinico=copia)
+        self.assertEqual(versao_1.nr_versao, 1)
+        self.assertEqual(versao_2.nr_versao, 2)
+        self.assertEqual(versao_2.cd_versao_anterior, versao_1)
+        self.assertTrue(VersaoDocumentoClinico.objects.filter(pk=versao_1.pk).exists())
+
+    @override_settings(
+        CELERIS_CERTIFICATE_MASTER_KEY=CHAVE_MESTRA_TESTE,
+        CELERIS_CERTIFICATE_MASTER_KEY_VERSION="teste-v1",
+        CELERIS_CERTIFICATE_MAX_UPLOAD_SIZE=10 * 1024 * 1024,
+    )
+    def test_fechamento_com_certificado_persiste_pdf_assinado(self):
+        senha = "senha-segura"
+        certificado = cadastrar_certificado(
+            empresa=self.empresa,
+            usuario=self.ti_user,
+            nome="A1 fechamento",
+            tipo="INSTITUCIONAL",
+            arquivo_nome="a1.pfx",
+            conteudo=gerar_pkcs12_teste(senha=senha),
+            senha=senha,
+            assina_medicos=True,
+        )
+        atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=self.prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        documento = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_atendimento=atendimento,
+            tp_documento="EVOLUCAO",
+            ds_titulo="Documento assinado",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.medico_user,
+            cd_usuario_responsavel=self.medico_user,
+        )
+        self.login_as(self.medico_user)
+        response = self.client.post(
+            reverse("atendimento:fechar-documento-clinico", args=[documento.pk]),
+            {
+                "assinatura_pagina": "1",
+                "assinatura_x": "0.10",
+                "assinatura_y": "0.78",
+                "assinatura_largura": "0.38",
+                "assinatura_altura": "0.08",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        documento.refresh_from_db()
+        self.assertEqual(documento.ds_status, "ASSINADO")
+        versao = VersaoDocumentoClinico.objects.get(cd_documento_clinico=documento)
+        assinatura = AssinaturaDigitalDocumento.objects.get(cd_versao_documento=versao)
+        self.assertEqual(versao.ds_status, "ASSINADO")
+        self.assertEqual(assinatura.cd_certificado_digital, certificado)
+        self.assertEqual(assinatura.ds_hash_pdf_assinado, versao.ds_hash_sha256)
+        self.assertEqual(assinatura.ds_detalhes["pagina_assinatura"], 1)
+        self.assertEqual(assinatura.ds_detalhes["caixa_assinatura"], [0.1, 0.78, 0.38, 0.08])
+        self.assertIn(b"CelerisSignature", bytes(versao.arquivo_pdf))
+        resposta_pdf = self.client.get(
+            reverse("atendimento:imprimir-documento-clinico", args=[documento.pk]),
+            {"modo": "impressao", "pdf": "1"},
+        )
+        self.assertEqual(resposta_pdf.status_code, 200)
+        self.assertEqual(resposta_pdf.content, bytes(versao.arquivo_pdf))
+        self.assertEqual(resposta_pdf.headers["X-Celeris-Pdf-Signed"], "1")
+        self.assertEqual(resposta_pdf.headers["X-Celeris-Pdf-Signature-Format"], "PAdES")
+        validar_pdf_pades(resposta_pdf.content, certificado)
 
     def test_escala_clinica_calcula_e_salva_documento_fechado(self):
         self.medico_user.cd_prestador = self.prestador
@@ -4075,20 +4368,74 @@ class FluxoHomologacaoTests(TestCase):
         response = self.client.get(reverse("atendimento:perfis-assistenciais"), {"perfil": perfil.pk})
         self.assertContains(response, "data-profile-item-builder")
         self.assertContains(response, "data-profile-item-modal")
-        self.assertContains(response, "data-profile-tree-toggle")
+        self.assertContains(response, "data-profile-workbench")
+        self.assertContains(response, 'data-profile-table="menus"')
+        self.assertContains(response, 'data-profile-table="submenus"')
+        self.assertContains(response, 'data-profile-table="screens"')
+        self.assertContains(response, 'data-profile-pager="menus"')
+        self.assertContains(response, 'data-context-save="false"')
+        self.assertContains(response, "Exibindo ${start} a ${end} de ${total} registros")
         self.assertContains(response, "data-profile-item-settings")
         self.assertContains(response, "data-native-select")
         self.assertNotContains(response, 'name="ds_descricao" value="{{ request.GET')
         self.assertNotContains(response, 'name="sn_sigiloso">')
-        self.assertContains(response, 'aria-label="Consultar perfil"')
-        self.assertContains(response, "data-scale-add-question")
-        self.assertContains(response, "data-scale-add-range")
+        self.assertNotContains(response, 'aria-label="Consultar perfil"')
+        self.assertNotContains(response, "profile-config-list")
+        self.assertContains(response, "data-profile-selector")
+        self.assertContains(response, "profile-side-form")
+        self.assertNotContains(response, "Tipos de prestador com acesso")
+        self.assertContains(response, "data-profile-access-table")
         self.assertContains(response, "DOCUMENTO VISÍVEL")
         self.assertNotContains(response, "CABEÇALHO OCULTO")
         self.assertContains(response, "--profile-depth:1")
-        self.assertContains(response, f'data-new-url="{reverse("atendimento:perfis-assistenciais")}"')
+        self.assertContains(response, 'data-new-url=""')
         self.assertNotContains(response, "Configuração JSON")
         self.assertNotContains(response, "Salvar perfil")
+        self.assertNotContains(response, "Domínios externos permitidos")
+        self.assertNotContains(response, "data-profile-remove-selected")
+        self.assertNotContains(response, 'data-profile-page="first"')
+        self.assertNotContains(response, 'data-profile-page="last"')
+        api = self.client.get(reverse("atendimento:perfil-assistencial-itens-api", args=[perfil.pk]))
+        self.assertEqual(api.status_code, 200)
+        self.assertEqual(api.json()["items"][0]["configuration"], {})
+        self.assertTrue(api.json()["items"][0]["active"])
+
+    def test_api_perfil_preserva_configuracao_e_exibe_item_inativo(self):
+        perfil = PerfilAssistencial.objects.create(cd_empresa=self.empresa, nm_perfil="Acesso por item")
+        versao = PerfilAssistencialVersao.objects.create(
+            cd_empresa=self.empresa,
+            cd_perfil_assistencial=perfil,
+            nr_versao=1,
+            ds_status="RASCUNHO",
+        )
+        item = ItemMenuAssistencial.objects.create(
+            cd_empresa=self.empresa,
+            cd_perfil_assistencial=perfil,
+            cd_versao_perfil=versao,
+            nm_item="Menu restrito",
+            cd_item_tecnico="MENU_RESTRITO",
+            tp_item="GRUPO",
+            sn_ativo=False,
+            ds_configuracao={"description": "Somente médicos", "provider_types": ["MEDICO"]},
+        )
+        self.login_as(self.ti_user)
+        response = self.client.get(reverse("atendimento:perfil-assistencial-itens-api", args=[perfil.pk]))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["items"]
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["id"], item.pk)
+        self.assertFalse(payload[0]["active"])
+        self.assertEqual(payload[0]["configuration"]["provider_types"], ["MEDICO"])
+        removido = self.client.delete(
+            reverse("atendimento:perfil-assistencial-itens-api", args=[perfil.pk]),
+            data=json.dumps({"id": item.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(removido.status_code, 200)
+        atualizado = self.client.get(reverse("atendimento:perfil-assistencial-itens-api", args=[perfil.pk]))
+        self.assertEqual(atualizado.json()["items"], [])
+        item.refresh_from_db()
+        self.assertTrue(item.ds_configuracao["removed"])
 
     def test_salvar_perfil_exige_e_grava_descricao_da_versao(self):
         self.login_as(self.ti_user)
@@ -4225,6 +4572,34 @@ class FluxoHomologacaoTests(TestCase):
             sn_imprimivel=True,
             sn_permite_criar=True,
         )
+        item_evoluir = ItemMenuAssistencial.objects.create(
+            cd_empresa=self.empresa,
+            cd_perfil_assistencial=perfil,
+            cd_versao_perfil=versao,
+            cd_item_pai=grupo,
+            cd_item_tecnico="EVOLUIR",
+            nm_item="Evoluir",
+            ds_icone="activity",
+            tp_item="ACAO",
+            ds_acao="EVOLUIR",
+        )
+        modelo_prescricao = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Prescrição médica",
+            tp_documento="PRESCRICAO",
+            tp_elemento="DOCUMENTO",
+        )
+        item_prescrever = ItemMenuAssistencial.objects.create(
+            cd_empresa=self.empresa,
+            cd_perfil_assistencial=perfil,
+            cd_versao_perfil=versao,
+            cd_item_pai=grupo,
+            cd_item_tecnico="PRESCREVER",
+            nm_item="Prescrever",
+            ds_icone="pill",
+            tp_item="ACAO",
+            ds_acao="PRESCREVER",
+        )
         pre_atendimento = PreAtendimento.objects.create(
             cd_empresa=self.empresa,
             cd_paciente=self.paciente,
@@ -4263,15 +4638,52 @@ class FluxoHomologacaoTests(TestCase):
         response = self.client.get(url, {"atendimento": atendimento.pk, "item": item.pk})
         self.assertContains(response, "Histórico de atendimentos")
         self.assertContains(response, "Atendimento {}".format(atendimento.pk))
-        self.assertContains(response, "Últimos sinais vitais")
+        self.assertNotContains(response, "Últimos sinais vitais")
         self.assertContains(response, "Histórico de sinais vitais")
         self.assertContains(response, "130/90")
-        self.assertContains(response, "Resumo clínico do prontuário")
+        self.assertNotContains(response, "Resumo clínico do prontuário")
         self.assertContains(response, "120/80")
-        self.assertContains(response, "Atender")
         self.assertContains(response, "Admissão")
         self.assertContains(response, "Impressão")
         self.assertContains(response, "Novo")
+
+        acao = self.client.get(url, {"atendimento": atendimento.pk, "item": item_evoluir.pk})
+        self.assertNotContains(acao, 'class="pep-document-print-frame pep-system-action-frame"')
+        self.assertContains(acao, "Nenhum documento deste tipo no prontuário")
+        self.assertContains(acao, "data-pep-new-document")
+        self.assertNotContains(acao, "Esta tela está selecionada no PEP")
+        self.assertNotContains(acao, "Resumo clínico do prontuário")
+        prescricao_vazia = self.client.get(
+            url,
+            {"atendimento": atendimento.pk, "item": item_prescrever.pk},
+        )
+        self.assertContains(prescricao_vazia, "data-pep-new-document")
+        self.assertNotContains(prescricao_vazia, "pep-system-action-frame")
+        criada = self.client.post(
+            f"{url}?atendimento={atendimento.pk}&item={item_prescrever.pk}",
+            {
+                "acao": "novo_documento",
+                "item": item_prescrever.pk,
+                "dh_documento": "2026-07-02T10:15",
+            },
+        )
+        self.assertEqual(criada.status_code, 302)
+        documento_prescricao = DocumentoClinico.objects.get(
+            cd_atendimento=atendimento,
+            cd_modelo_documento=modelo_prescricao,
+        )
+        editor_prescricao = self.client.get(criada.url)
+        self.assertContains(editor_prescricao, "data-structured-prescription")
+        self.assertContains(editor_prescricao, f'name="documento" value="{documento_prescricao.pk}"')
+        self.assertNotContains(editor_prescricao, "pep-system-action-frame")
+        formulario_embutido = self.client.get(
+            reverse("atendimento:evoluir", args=[atendimento.pk]),
+            {"embed": "1", "return_to": url},
+        )
+        self.assertEqual(formulario_embutido.status_code, 200)
+        self.assertEqual(formulario_embutido.headers["X-Frame-Options"], "SAMEORIGIN")
+        self.assertContains(formulario_embutido, 'name="return_to"')
+        self.assertNotContains(formulario_embutido, 'class="topbar"')
 
         consulta = self.client.get(
             url,

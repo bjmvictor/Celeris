@@ -1,95 +1,131 @@
 ﻿{% extends "base/layout.html" %}
 {% block content %}
   <div class="profile-config-layout">
-    <aside class="card profile-config-list">
-      <header class="section-heading">
-        <h2>Perfis</h2>
-      </header>
-      <form class="compact-filter-form" method="get">
-        <input type="hidden" name="consultar" value="1">
-        <input name="nm_perfil" value="{{ request.GET.nm_perfil }}" placeholder="Nome do perfil">
-        <button class="icon-button" type="submit" title="Consultar perfil" aria-label="Consultar perfil">
-          <span class="svg-icon" data-nav-icon="search"></span>
-        </button>
-      </form>
-      <div class="profile-config-scroll">
-        {% for item in perfis %}
-          <a class="profile-config-link{% if perfil.pk == item.pk %} active{% endif %}" href="?perfil={{ item.pk }}" data-profile-list-item data-profile-id="{{ item.pk }}" data-profile-name="{{ item.nm_perfil }}">
-            <strong>{{ item.nm_perfil }}</strong>
-            <small>{{ item.sn_sigiloso|yesno:"Sigiloso,Compartilhado" }}</small>
-          </a>
-        {% empty %}
-          <p class="empty-state">Nenhum perfil encontrado.</p>
-        {% endfor %}
-      </div>
-    </aside>
-
     <main class="profile-config-main">
-      <form class="card profile-main-form" method="post" data-primary-form data-preserve-input data-query-url="{% url 'atendimento:perfis-assistenciais' %}" data-table="perfil_assistencial" data-profile-user="{{ request.user.pk }}">
-        {% csrf_token %}
-        <input type="hidden" name="acao" value="salvar_perfil">
-        <input type="hidden" name="perfil" value="{{ perfil.pk|default:'' }}">
-        <header class="section-heading">
-          <div>
-            <h2>Configuração do perfil</h2>
-            <small>As alterações salvas passam a valer imediatamente no PEP.</small>
-          </div>
-        </header>
-        <div class="form-grid">
-          <label class="field-lg">Nome
-            <input name="nm_perfil" value="{{ perfil.nm_perfil|default:'' }}" required data-consultable="true" data-editable="true">
-          </label>
-          <label class="field-xl">Descrição
-            <input name="ds_descricao" value="{{ perfil.ds_descricao|default:'' }}" data-consultable="true" data-editable="true">
-          </label>
-          <div class="field-fluid specialty-manager" data-assignment-manager data-assignment-empty="Nenhum tipo de prestador vinculado.">
-            <strong>Tipos de prestador</strong>
-            <div class="specialty-toolbar">
-              <div class="specialty-chips" data-assignment-chips></div>
-              <button class="button button-secondary specialty-open-button" data-assignment-open type="button">+ Adicionar tipo</button>
-              <div class="specialty-add-row" data-assignment-add-row hidden>
-                <select data-assignment-picker>
-                  <option value="">Selecione...</option>
-                </select>
-                <button class="button button-secondary" data-assignment-add type="button">Incluir</button>
-              </div>
-            </div>
-            <div class="specialty-storage" hidden>
-              <select name="tipos_prestador" multiple data-assignment-values data-consultable="true" data-editable="true">
-                {% for tipo in tipos_prestador %}
-                  <option value="{{ tipo.cd_valor }}" {% if tipo.cd_valor in tipos_selecionados %}selected{% endif %}>{{ tipo.ds_valor }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <label class="provider-checkbox">
-            <input name="sn_sigiloso" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if perfil.sn_sigiloso %}checked{% endif %}>
-            <span>Perfil sigiloso</span>
-          </label>
-          <label class="provider-checkbox">
-            <input name="sn_ativo" type="checkbox" value="true" data-consultable="true" data-editable="true" {% if perfil %}{% if perfil.sn_ativo %}checked{% endif %}{% else %}checked{% endif %}>
-            <span>Ativo</span>
-          </label>
-        </div>
-      </form>
-
       {% if perfil %}
-        <section class="card profile-tree-card">
+        <div class="profile-workbench" data-profile-workbench data-profile-items-url="{% url 'atendimento:perfil-assistencial-itens-api' perfil.pk %}">
+          <section class="profile-workbench-tables">
+            <div class="profile-workbench-top">
+              <section class="card profile-data-panel" data-profile-panel="menus" data-context-table data-profile-context-kind="menus" data-context-query="true" data-context-new="true" data-context-save="false" data-context-remove="false">
+                <header class="profile-data-panel-heading">
+                  <h2>Menus</h2>
+                </header>
+                <div class="profile-table-scroll">
+                  <table class="data-table profile-structure-table" data-profile-table="menus" data-no-compact-pagination>
+                    <thead><tr><th>Nome</th><th>Ícone</th><th>Ordem</th><th>Status</th><th>Qtd. submenus</th></tr></thead>
+                    <tbody data-profile-table-body="menus"></tbody>
+                  </table>
+                </div>
+                <div class="compact-table-footer" data-profile-pager="menus"></div>
+              </section>
+
+              <section class="card profile-data-panel" data-profile-panel="submenus" data-context-table data-profile-context-kind="submenus" data-context-query="true" data-context-new="true" data-context-save="false" data-context-remove="false">
+                <header class="profile-data-panel-heading">
+                  <h2>Submenus <span data-profile-selected-menu-title></span></h2>
+                </header>
+                <div class="profile-table-scroll">
+                  <table class="data-table profile-structure-table" data-profile-table="submenus" data-no-compact-pagination>
+                    <thead><tr><th>Nome</th><th>Ícone</th><th>Chave interna</th><th>Ordem</th><th>Status</th><th>Qtd. telas</th></tr></thead>
+                    <tbody data-profile-table-body="submenus"></tbody>
+                  </table>
+                </div>
+                <div class="compact-table-footer" data-profile-pager="submenus"></div>
+              </section>
+            </div>
+
+            <section class="card profile-data-panel profile-screens-panel" data-profile-panel="screens" data-context-table data-profile-context-kind="screens" data-context-query="true" data-context-new="true" data-context-save="false" data-context-remove="false">
+              <header class="profile-data-panel-heading">
+                <h2>Telas <span data-profile-selected-submenu-title></span></h2>
+              </header>
+              <div class="profile-table-scroll">
+                <table class="data-table profile-structure-table" data-profile-table="screens" data-no-compact-pagination>
+                  <thead><tr><th>Nome</th><th>Tipo</th><th>Componente</th><th>Chave interna</th><th>Ordem</th><th>Status</th></tr></thead>
+                  <tbody data-profile-table-body="screens"></tbody>
+                </table>
+              </div>
+              <div class="compact-table-footer" data-profile-pager="screens"></div>
+            </section>
+          </section>
+
+          <aside class="card profile-item-editor-shell" data-profile-editor-host>
+            <div class="profile-editor-empty" data-profile-editor-empty>
+              {% include "atendimento/_perfil_assistencial_form.html" %}
+            </div>
+            <section class="profile-item-inline" data-profile-item-modal hidden>
+        <form class="profile-item-form" method="post" data-preserve-input data-profile-item-builder>
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="adicionar_item">
+          <input type="hidden" name="perfil" value="{{ perfil.pk }}">
+          <input type="hidden" name="item" value="" data-profile-edit-item>
+          <input type="hidden" name="tp_item" value="GRUPO" data-profile-item-type>
+          <input type="hidden" name="ds_configuracao" value="{}" data-profile-configuration>
           <header class="section-heading">
-            <div class="profile-tree-title" data-profile-tree-toggle>
-              <h2>Estrutura do PEP</h2>
-              <small>Menus e telas ativos para este perfil.</small>
+            <div>
+              <h2 data-profile-item-modal-title>Configuração do item</h2>
+              <small>As tabelas são somente para navegação; edite os dados neste painel.</small>
             </div>
-            <div class="profile-tree-heading-actions">
-              <button class="icon-button" type="button" data-profile-tree-toggle title="Exibir ou ocultar estrutura">
-                <span class="svg-icon" data-nav-icon="eye"></span>
-              </button>
-              <button class="button button-secondary" type="button" data-profile-item-open>
-                <span class="svg-icon" data-nav-icon="plus"></span> Adicionar
-              </button>
-            </div>
+            <button class="icon-button" type="button" data-profile-item-close aria-label="Fechar">×</button>
           </header>
-          <div class="profile-tree" data-profile-tree data-profile-tree-url="{% url 'atendimento:perfil-assistencial-itens-api' perfil.pk %}">
+          <div class="profile-item-editor-scroll">
+          <div class="form-grid">
+            <label class="field-md">Elemento
+              <select data-profile-node-kind data-native-select>
+                <option value="MENU">Menu</option>
+                <option value="SUBMENU">Submenu</option>
+                <option value="TELA">Tela</option>
+              </select>
+            </label>
+            <label class="field-lg">Nome de exibição <input name="nm_item" required placeholder="Ex.: Admissão / Anamnese"></label>
+            <label class="field-md">Chave interna <input name="cd_item_tecnico" placeholder="ATENDER_ADMISSAO"></label>
+            <label class="field-xs">Ordem <input name="nr_ordem" type="number" min="0" value="0"></label>
+            <label class="field-sm">Status
+              <select name="sn_ativo_item" data-native-select><option value="true">Ativo</option><option value="false">Inativo</option></select>
+            </label>
+            <label class="field-md">Ícone
+              <input type="hidden" name="ds_icone" value="file-text" data-profile-icon-select>
+              <button class="button button-secondary profile-icon-trigger" type="button" data-profile-icon-toggle title="Selecionar ícone">
+                <span class="profile-icon-preview" data-profile-icon-preview><span class="svg-icon" data-nav-icon="file-text"></span></span>
+              </button>
+              <div class="profile-icon-dropdown" data-profile-icon-dropdown hidden>
+                {% for value,label in icones_assistenciais %}
+                  <button type="button" data-profile-icon-option="{{ value }}" title="{{ label }}" aria-label="{{ label }}"><span class="svg-icon" data-nav-icon="{{ value }}"></span></button>
+                {% endfor %}
+              </div>
+            </label>
+            <label class="field-lg" data-profile-parent-field hidden>Item pai
+              <select name="cd_item_pai" data-native-select><option value="">Sem grupo</option></select>
+            </label>
+            <label class="field-lg" data-profile-screen-type hidden>Tipo da tela
+              <select data-profile-screen-type-select data-native-select>
+                {% for value,label in tipos_item %}{% if value != "GRUPO" %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}
+              </select>
+            </label>
+            <label class="field-lg" data-profile-type="ACAO" hidden>Ação
+              <select name="ds_acao" data-native-select><option value=""></option>{% for value,label in acoes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+            </label>
+            <label class="field-xl" data-profile-type="DOCUMENTO" hidden>Modelo de documento
+              <select name="cd_modelo_documento" data-native-select><option value=""></option>{% for modelo in modelos_documento %}<option value="{{ modelo.pk }}">{{ modelo.nm_modelo }}</option>{% endfor %}</select>
+            </label>
+            <label class="field-xl" data-profile-type="ESCALA" hidden>Escala existente
+              <select name="cd_escala_clinica" data-native-select><option value="">Criar nova escala</option>{% for escala in escalas_clinicas %}<option value="{{ escala.pk }}">{{ escala.nm_escala }} · v{{ escala.nr_versao }}</option>{% endfor %}</select>
+            </label>
+            <label class="field-xl" data-profile-type="LINK_EXTERNO" hidden>URL externa <input name="ds_url" placeholder="https://sistema/atendimento/<<atendimento.codigo>>"></label>
+            <label class="field-fluid">Descrição <textarea name="ds_descricao_item" rows="2" data-preserve-characters></textarea></label>
+            <div class="field-fluid profile-screen-permissions" data-profile-screen-options hidden>
+              <label class="provider-checkbox"><input name="sn_privado" type="checkbox"><span>Privado</span></label>
+              <label class="provider-checkbox"><input name="sn_imprimivel" type="checkbox" checked><span>Imprimível</span></label>
+              <label class="provider-checkbox"><input name="sn_permite_criar" type="checkbox" checked><span>Permite criar novo</span></label>
+              <label class="provider-checkbox"><input name="sn_permite_abandonar" type="checkbox" checked><span>Permite excluir rascunho</span></label>
+              <label class="provider-checkbox"><input name="sn_permite_cancelar" type="checkbox"><span>Permite cancelar fechado</span></label>
+              <label class="provider-checkbox"><input name="sn_somente_historico" type="checkbox"><span>Somente histórico</span></label>
+            </div>
+          </div>
+          </div>
+        </form>
+            </section>
+          </aside>
+
+          <div class="profile-tree" data-profile-tree data-profile-tree-url="{% url 'atendimento:perfil-assistencial-itens-api' perfil.pk %}" hidden>
             {% for item in itens_versao %}
               <article id="profile-item-{{ item.pk }}" class="profile-tree-item" style="--profile-depth:{{ item.nivel_arvore|default:0 }}" draggable="true" data-profile-item="{{ item.pk }}" data-parent="{{ item.cd_item_pai_id|default:'' }}" data-profile-depth="{{ item.nivel_arvore|default:0 }}">
                 <span class="profile-tree-handle">⋮⋮</span>
@@ -125,148 +161,13 @@
               <p class="empty-state">Nenhum item configurado neste perfil.</p>
             {% endfor %}
           </div>
-        </section>
-
-        <section class="card profile-item-inline" data-profile-item-modal hidden>
-        <form class="profile-item-form" method="post" data-preserve-input data-profile-item-builder>
-          {% csrf_token %}
-          <input type="hidden" name="acao" value="adicionar_item">
-          <input type="hidden" name="perfil" value="{{ perfil.pk }}">
-          <input type="hidden" name="item" value="" data-profile-edit-item>
-          <input type="hidden" name="tp_item" value="GRUPO" data-profile-item-type>
-          <header class="section-heading">
-            <div>
-              <h2 data-profile-item-modal-title>Adicionar à estrutura do PEP</h2>
-              <small>Crie menus, submenus e telas com configurações específicas.</small>
-            </div>
-            <button class="icon-button" type="button" data-profile-item-close aria-label="Fechar">×</button>
-          </header>
-          <div class="form-grid">
-            <label class="field-md">Elemento
-              <select data-profile-node-kind data-native-select>
-                <option value="MENU">Menu</option>
-                <option value="SUBMENU">Submenu</option>
-                <option value="TELA">Tela</option>
-              </select>
-            </label>
-            <label class="field-lg">Nome de exibição <input name="nm_item" required placeholder="Ex.: Admissão / Anamnese"></label>
-            <label class="field-md">Chave técnica <input name="cd_item_tecnico" placeholder="ATENDER_ADMISSAO"></label>
-            <input name="nr_ordem" type="hidden" value="0">
-            <label class="field-md">Ícone
-              <input type="hidden" name="ds_icone" value="file-text" data-profile-icon-select>
-              <button class="button button-secondary profile-icon-trigger" type="button" data-profile-icon-toggle title="Selecionar ícone">
-                <span class="profile-icon-preview" data-profile-icon-preview>
-                  <span class="svg-icon" data-nav-icon="file-text"></span>
-                </span>
-              </button>
-              <div class="profile-icon-dropdown" data-profile-icon-dropdown hidden>
-                {% for value,label in icones_assistenciais %}
-                  <button type="button" data-profile-icon-option="{{ value }}" title="{{ label }}" aria-label="{{ label }}">
-                    <span class="svg-icon" data-nav-icon="{{ value }}"></span>
-                  </button>
-                {% endfor %}
-              </div>
-            </label>
-            <label class="field-lg" data-profile-parent-field hidden>Dentro de
-              <select name="cd_item_pai" data-native-select>
-                <option value="">Sem grupo</option>
-                {% for item in itens_versao %}
-                  {% if item.tp_item == "GRUPO" %}<option value="{{ item.pk }}">{{ item.nm_item }}</option>{% endif %}
-                {% endfor %}
-              </select>
-            </label>
-            <label class="field-lg" data-profile-screen-type hidden>Tipo da tela
-              <select data-profile-screen-type-select data-native-select>
-                {% for value,label in tipos_item %}
-                  {% if value != "GRUPO" %}<option value="{{ value }}">{{ label }}</option>{% endif %}
-                {% endfor %}
-              </select>
-            </label>
-            <label class="field-lg" data-profile-type="ACAO" hidden>Ação
-              <select name="ds_acao" data-native-select>
-                <option value=""></option>
-                {% for value,label in acoes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-              </select>
-            </label>
-            <label class="field-xl" data-profile-type="DOCUMENTO" hidden>Modelo de documento
-              <select name="cd_modelo_documento" data-native-select>
-                <option value=""></option>
-                {% for modelo in modelos_documento %}<option value="{{ modelo.pk }}">{{ modelo.nm_modelo }}</option>{% endfor %}
-              </select>
-            </label>
-            <label class="field-xl" data-profile-type="ESCALA" hidden>Escala existente
-              <select name="cd_escala_clinica" data-native-select>
-                <option value="">Criar uma nova escala abaixo</option>
-                {% for escala in escalas_clinicas %}<option value="{{ escala.pk }}">{{ escala.nm_escala }} · v{{ escala.nr_versao }}</option>{% endfor %}
-              </select>
-            </label>
-            <label class="field-xl" data-profile-type="LINK_EXTERNO" hidden>URL externa
-              <input name="ds_url" placeholder="https://sistema/atendimento/<<atendimento.codigo>>">
-            </label>
-            <section class="profile-scale-builder field-fluid" data-profile-type="ESCALA" hidden>
-              <input type="hidden" name="ds_perguntas_escala" data-scale-questions-json>
-              <input type="hidden" name="ds_faixas_escala" data-scale-ranges-json>
-              <header class="section-heading">
-                <div><strong>Nova escala clínica</strong><small>Use uma escala existente acima ou configure uma nova configuração.</small></div>
-              </header>
-              <div class="form-grid">
-                <label class="field-lg">Nome da escala <input name="nm_nova_escala" placeholder="Escala de Braden"></label>
-                <label class="field-xl">Descrição <input name="ds_descricao_nova_escala"></label>
-                <label class="field-md">Cálculo padrão
-                  <select name="tp_calculo_nova_escala" data-native-select><option value="SOMA">Soma</option><option value="MEDIA">Média</option></select>
-                </label>
-                <label class="field-fluid">Expressão personalizada
-                  <input name="ds_expressao_nova_escala" data-scale-expression placeholder="{% verbatim %}{{pergunta_1}} + {{pergunta_2}}{% endverbatim %}">
-                </label>
-                <div class="field-fluid scale-expression-tokens" data-scale-expression-tokens></div>
-              </div>
-              <div class="scale-builder-heading">
-                <strong>Perguntas e opções</strong>
-                <button class="button button-secondary" type="button" data-scale-add-question><span class="svg-icon" data-nav-icon="plus"></span> Pergunta</button>
-              </div>
-              <div class="scale-question-list" data-scale-question-list></div>
-              <div class="scale-builder-heading">
-                <strong>Faixas de resultado</strong>
-                <button class="button button-secondary" type="button" data-scale-add-range><span class="svg-icon" data-nav-icon="plus"></span> Faixa</button>
-              </div>
-              <div class="scale-range-list" data-scale-range-list></div>
-            </section>
-            <div class="field-fluid profile-screen-permissions" data-profile-screen-options hidden>
-              <label class="provider-checkbox"><input name="sn_privado" type="checkbox"><span>Privado</span></label>
-              <label class="provider-checkbox"><input name="sn_imprimivel" type="checkbox" checked><span>Imprimível</span></label>
-              <label class="provider-checkbox"><input name="sn_permite_criar" type="checkbox" checked><span>Permite criar novo</span></label>
-              <label class="provider-checkbox"><input name="sn_permite_abandonar" type="checkbox" checked><span>Permite excluir rascunho</span></label>
-              <label class="provider-checkbox"><input name="sn_permite_cancelar" type="checkbox"><span>Permite cancelar fechado</span></label>
-              <label class="provider-checkbox"><input name="sn_somente_historico" type="checkbox"><span>Somente histórico</span></label>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="button button-primary" type="submit">
-              <span class="svg-icon" data-nav-icon="check"></span> Aplicar
-            </button>
-          </div>
-        </form>
-        </section>
+        </div>
+      {% else %}
+        <div class="profile-new-shell">
+          {% include "atendimento/_perfil_assistencial_form.html" %}
+        </div>
       {% endif %}
 
-      <details class="card form-section">
-        <summary>Domínios externos permitidos</summary>
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="acao" value="salvar_dominio">
-          {% if perfil %}<input type="hidden" name="perfil" value="{{ perfil.pk }}">{% endif %}
-          <div class="form-grid">
-            <label class="field-xl">Domínio HTTPS <input name="ds_dominio" required placeholder="sistema.exemplo.com.br"></label>
-            <label class="provider-checkbox"><input name="sn_permite_iframe" type="checkbox"><span>Permitir dentro do PEP</span></label>
-          </div>
-          <div class="form-actions"><button class="button button-primary" type="submit">Autorizar domínio</button></div>
-        </form>
-        <div class="tag-list">
-          {% for dominio in dominios_externos %}
-            <span class="specialty-chip">{{ dominio.ds_dominio }}{% if dominio.sn_permite_iframe %} · iframe{% endif %}</span>
-          {% empty %}<span class="empty-state">Nenhum domínio autorizado.</span>{% endfor %}
-        </div>
-      </details>
     </main>
   </div>
   <div class="document-context-menu" data-profile-context-menu hidden>
@@ -296,8 +197,116 @@
 {% endblock %}
 {% block extra_scripts %}
   <script>
+    (() => {
+      const selector = document.querySelector("[data-profile-selector]");
+      const form = document.querySelector(".profile-side-form");
+      const accessTable = document.querySelector("[data-profile-access-table]");
+      const accessBody = accessTable?.querySelector("[data-profile-access-body]");
+      const accessTemplate = document.querySelector("[data-profile-access-row-template]");
+      let accessRows = accessBody ? [...accessBody.querySelectorAll("[data-profile-access-row]")].map((row) => ({
+        provider: row.querySelector("[data-profile-access-provider]")?.value || "",
+        active: row.querySelector("[data-profile-access-active]")?.checked !== false,
+      })) : [];
+      let accessFilter = { provider: "", active: "" };
+      const renderAccessRows = () => {
+        if (!accessBody || !accessTemplate) return;
+        const visible = accessRows.map((row, index) => ({ ...row, index })).filter((row) => {
+          if (accessFilter.provider && row.provider !== accessFilter.provider) return false;
+          if (accessFilter.active === "true" && !row.active) return false;
+          if (accessFilter.active === "false" && row.active) return false;
+          return true;
+        });
+        accessBody.innerHTML = "";
+        visible.forEach((item) => {
+          const row = accessTemplate.content.firstElementChild.cloneNode(true);
+          row.dataset.profileAccessIndex = item.index;
+          row.querySelector("[data-profile-access-provider]").value = item.provider;
+          row.querySelector("[data-profile-access-active]").checked = item.active;
+          accessBody.appendChild(row);
+        });
+      };
+      const markProfileDirty = () => {
+        if (!form) return;
+        form.dataset.dirty = "true";
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      accessTable?.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-profile-access-row]");
+        if (!row) return;
+        accessBody.querySelectorAll("tr.selected").forEach((item) => item.classList.remove("selected"));
+        row.classList.add("selected");
+      });
+      accessTable?.addEventListener("change", (event) => {
+        const row = event.target.closest("[data-profile-access-row]");
+        const index = Number(row?.dataset.profileAccessIndex);
+        if (!Number.isInteger(index) || !accessRows[index]) return;
+        const provider = row.querySelector("[data-profile-access-provider]")?.value || "";
+        if (provider && accessRows.some((item, itemIndex) => itemIndex !== index && item.provider === provider)) {
+          row.querySelector("[data-profile-access-provider]").value = accessRows[index].provider;
+          window.CelerisNotify?.("Este tipo de prestador já está vinculado ao perfil.", "warning");
+          return;
+        }
+        accessRows[index] = {
+          provider,
+          active: row.querySelector("[data-profile-access-active]")?.checked !== false,
+        };
+        markProfileDirty();
+      });
+      accessTable?.addEventListener("celeris:context-table-new", (event) => {
+        event.preventDefault();
+        accessRows.push({ provider: "", active: true });
+        accessFilter = { provider: "", active: "" };
+        renderAccessRows();
+        accessBody.querySelector("tr:last-child select")?.focus();
+        markProfileDirty();
+      });
+      accessTable?.addEventListener("celeris:context-table-query-open", (event) => {
+        event.preventDefault();
+        accessBody.innerHTML = `<tr class="profile-query-row"><td><select data-access-query-provider data-native-select><option value="">Todos</option>${[...accessTemplate.content.querySelectorAll("option")].map((option) => `<option value="${option.value}">${option.textContent}</option>`).join("")}</select></td><td><select data-access-query-active data-native-select><option value="">Todos</option><option value="true">Ativos</option><option value="false">Inativos</option></select></td></tr>`;
+        accessBody.querySelector("select")?.focus();
+      });
+      accessTable?.addEventListener("celeris:context-table-query-execute", (event) => {
+        event.preventDefault();
+        accessFilter = {
+          provider: accessBody.querySelector("[data-access-query-provider]")?.value || "",
+          active: accessBody.querySelector("[data-access-query-active]")?.value || "",
+        };
+        renderAccessRows();
+      });
+      accessTable?.addEventListener("celeris:context-table-query-cancel", (event) => {
+        event.preventDefault();
+        accessFilter = { provider: "", active: "" };
+        renderAccessRows();
+      });
+      form?.addEventListener("submit", () => {
+        const hidden = form.querySelector("[data-profile-access-hidden]");
+        hidden.innerHTML = "";
+        accessRows.filter((row) => row.active && row.provider).forEach((row) => {
+          const field = document.createElement("input");
+          field.type = "hidden";
+          field.name = "tipos_prestador";
+          field.value = row.provider;
+          hidden.appendChild(field);
+        });
+      });
+      renderAccessRows();
+      if (!selector) return;
+      const selectedValue = selector.value;
+      selector.addEventListener("change", async () => {
+        if (form?.dataset.dirty === "true") {
+          const action = await window.CelerisPromptUnsavedAction?.("Existem alterações no perfil. Deseja salvar antes de trocar?");
+          if (action === "save") { form.requestSubmit(); return; }
+          if (action !== "discard") { selector.value = selectedValue; return; }
+        }
+        const target = selector.value ? `?perfil=${encodeURIComponent(selector.value)}` : "?novo=1";
+        window.location.assign(target);
+      });
+    })();
+  </script>
+  <script>
     {% verbatim %}
     (() => {
+      if (document.querySelector("[data-profile-workbench]")) return;
       const builder = document.querySelector("[data-profile-item-builder]");
       let openProfileItemModal = () => {};
       if (builder) {
@@ -631,34 +640,46 @@
           autoTechnicalKey = true;
           lastAutoTechnicalKey = "";
           modalTitle.textContent = itemId ? "Configurar item da estrutura" : "Adicionar item na estrutura do PEP";
+          placeBuilderInline(itemId, parentId);
+          modal.hidden = false;
+          modal.setAttribute("aria-busy", itemId ? "true" : "false");
           if (parentId) setField("cd_item_pai", parentId);
           if (itemId) {
-            const response = await fetch(document.querySelector("[data-profile-tree]").dataset.profileTreeUrl, {
-              credentials: "same-origin",
-              headers: {Accept: "application/json"},
-            });
-            const data = await response.json();
-            const item = data.items.find((value) => String(value.id) === String(itemId));
-            if (!item) return;
-            nodeKind.value = item.type === "GRUPO" ? (item.parent_id ? "SUBMENU" : "MENU") : "TELA";
-            screenType.value = item.type === "GRUPO" ? screenType.options[0].value : item.type;
-            setField("nm_item", item.name);
-            setField("cd_item_tecnico", item.technical_key);
-            setField("nr_ordem", item.order);
-            setField("ds_icone", item.icon || "file-text");
-            setField("cd_item_pai", item.parent_id || "");
-            setField("ds_acao", item.action);
-            setField("ds_url", item.url);
-            setField("cd_modelo_documento", item.document_model_id || "");
-            setField("cd_escala_clinica", item.configuration.escala || "");
-            setField("sn_privado", item.private);
-            setField("sn_imprimivel", item.printable);
-            setField("sn_permite_criar", item.can_create);
-            setField("sn_permite_abandonar", item.can_abandon);
-            setField("sn_permite_cancelar", item.can_cancel);
-            setField("sn_somente_historico", item.history_only);
-            lastAutoTechnicalKey = technicalSlug(item.name);
-            autoTechnicalKey = !item.technical_key || item.technical_key === lastAutoTechnicalKey;
+            try {
+              const response = await fetch(document.querySelector("[data-profile-tree]").dataset.profileTreeUrl, {
+                credentials: "same-origin",
+                headers: {Accept: "application/json"},
+              });
+              if (!response.ok) throw new Error(`Falha ao carregar o item (${response.status}).`);
+              const data = await response.json();
+              const item = (data.items || []).find((value) => String(value.id) === String(itemId));
+              if (!item) throw new Error("O item selecionado não foi encontrado na versão atual do perfil.");
+              const configuration = item.configuration || {};
+              nodeKind.value = item.type === "GRUPO" ? (item.parent_id ? "SUBMENU" : "MENU") : "TELA";
+              screenType.value = item.type === "GRUPO" ? screenType.options[0].value : item.type;
+              setField("nm_item", item.name);
+              setField("cd_item_tecnico", item.technical_key);
+              setField("nr_ordem", item.order);
+              setField("ds_icone", item.icon || "file-text");
+              setField("cd_item_pai", item.parent_id || "");
+              setField("ds_acao", item.action);
+              setField("ds_url", item.url);
+              setField("cd_modelo_documento", item.document_model_id || "");
+              setField("cd_escala_clinica", configuration.escala || "");
+              setField("sn_privado", item.private);
+              setField("sn_imprimivel", item.printable);
+              setField("sn_permite_criar", item.can_create);
+              setField("sn_permite_abandonar", item.can_abandon);
+              setField("sn_permite_cancelar", item.can_cancel);
+              setField("sn_somente_historico", item.history_only);
+              lastAutoTechnicalKey = technicalSlug(item.name);
+              autoTechnicalKey = !item.technical_key || item.technical_key === lastAutoTechnicalKey;
+            } catch (error) {
+              console.error("Não foi possível abrir a configuração do item assistencial.", error);
+              modalTitle.textContent = error.message || "Não foi possível carregar o item.";
+              modal.removeAttribute("aria-busy");
+              return;
+            }
           }
           const draft = builderDrafts.get(currentBuilderKey);
           if (draft) {
@@ -669,8 +690,7 @@
           syncTechnicalKey();
           syncBuilder();
           updateIconPreview();
-          placeBuilderInline(itemId, parentId);
-          modal.hidden = false;
+          modal.removeAttribute("aria-busy");
           modal.scrollIntoView({ block: "nearest", behavior: "smooth" });
           builder.querySelector('[name="nm_item"]').focus();
           lastHistoryState = captureProfileState();
@@ -859,12 +879,12 @@
       });
       tree.querySelectorAll("[data-profile-item-settings]").forEach((button) => {
         button.addEventListener("click", () => {
-          openProfileItemModal(button.closest("[data-profile-item]").dataset.profileItem);
+          void openProfileItemModal(button.closest("[data-profile-item]").dataset.profileItem);
         });
       });
       tree.querySelectorAll("[data-profile-item-add-child]").forEach((button) => {
         button.addEventListener("click", () => {
-          openProfileItemModal("", button.closest("[data-profile-item]").dataset.profileItem);
+          void openProfileItemModal("", button.closest("[data-profile-item]").dataset.profileItem);
         });
       });
       const removeModal = document.querySelector("[data-profile-remove-modal]");
@@ -933,5 +953,457 @@
       });
     })();
     {% endverbatim %}
+  </script>
+  <script>
+    (() => {
+      const workbench = document.querySelector("[data-profile-workbench]");
+      if (!workbench) return;
+      const builder = document.querySelector("[data-profile-item-builder]");
+      const editor = document.querySelector("[data-profile-item-modal]");
+      const editorEmpty = document.querySelector("[data-profile-editor-empty]");
+      const editorHost = document.querySelector("[data-profile-editor-host]");
+      const csrf = builder?.querySelector("[name='csrfmiddlewaretoken']")?.value || "";
+      const typeLabels = Object.fromEntries([...builder.querySelector("[data-profile-screen-type-select]").options].map((option) => [option.value, option.textContent.trim()]));
+      const tableState = {
+        menus: { page: 1, limit: 10, filters: {}, queryMode: false },
+        submenus: { page: 1, limit: 10, filters: {}, queryMode: false },
+        screens: { page: 1, limit: 10, filters: {}, queryMode: false },
+      };
+      let items = [];
+      let selectedMenuId = null;
+      let selectedSubmenuId = null;
+      let selectedItemId = null;
+      let editorDirty = false;
+      let editorSnapshot = "";
+      const undoStack = [];
+      const redoStack = [];
+      const draftKey = `celeris:perfil-assistencial-itens:${builder.elements.perfil.value}`;
+
+      const normalize = (value) => String(value || "")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("pt-BR");
+      const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[character]);
+      const technicalKey = (value) => normalize(value)
+        .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+      const itemById = (id) => items.find((item) => Number(item.id) === Number(id));
+      const childrenOf = (id) => items.filter((item) => Number(item.parent_id) === Number(id));
+      const isMenu = (item) => item.type === "GRUPO" && !item.parent_id;
+      const isSubmenu = (item) => item.type === "GRUPO" && Boolean(item.parent_id);
+      const componentName = (item) => item.type === "DOCUMENTO"
+        ? `Modelo ${item.document_model_id || "não definido"}`
+        : (item.action || item.url || item.configuration?.escala || "-");
+      const serializeEditor = () => JSON.stringify([...builder.elements].map((field) => {
+        if (!field.name || field.name === "csrfmiddlewaretoken") return null;
+        if (field.type === "checkbox") return [field.name, field.value, field.checked];
+        return [field.name, field.value];
+      }).filter(Boolean));
+      const saveLocalDraft = () => {
+        if (!selectedItemId || !editorDirty) return;
+        try { sessionStorage.setItem(draftKey, JSON.stringify({ itemId: selectedItemId, values: serializeEditor() })); } catch (error) {}
+      };
+      const clearLocalDraft = () => {
+        try { sessionStorage.removeItem(draftKey); } catch (error) {}
+      };
+      const editorKind = () => {
+        const kind = builder.querySelector("[data-profile-node-kind]")?.value;
+        return kind === "MENU" ? "menus" : kind === "SUBMENU" ? "submenus" : "screens";
+      };
+      const syncContextActions = () => {
+        const visible = !editor.hidden;
+        const kind = editorKind();
+        document.querySelectorAll("[data-profile-context-kind]").forEach((panel) => {
+          const matches = visible && panel.dataset.profileContextKind === kind;
+          panel.dataset.contextSave = matches ? "true" : "false";
+          panel.dataset.contextRemove = matches && Boolean(selectedItemId) ? "true" : "false";
+        });
+        window.CelerisSetupActionButtons?.();
+      };
+      const setEditorVisible = (visible) => {
+        editor.hidden = !visible;
+        editorEmpty.hidden = visible;
+        syncContextActions();
+      };
+      const setField = (name, value) => {
+        const field = builder.elements[name];
+        if (!field) return;
+        if (field instanceof RadioNodeList) return;
+        if (field.type === "checkbox") field.checked = Boolean(value);
+        else field.value = value ?? "";
+      };
+      const updateIconPreview = () => {
+        const value = builder.elements.ds_icone.value || "file-text";
+        builder.querySelector("[data-profile-icon-preview] [data-nav-icon]")?.setAttribute("data-nav-icon", value);
+        window.CelerisRenderIcons?.();
+      };
+      const syncParentOptions = (kind, selectedParent = "") => {
+        const select = builder.elements.cd_item_pai;
+        const currentId = Number(builder.elements.item.value || 0);
+        select.innerHTML = '<option value="">Sem item pai</option>';
+        items.filter((item) => item.type === "GRUPO" && Number(item.id) !== currentId).forEach((item) => {
+          if (kind === "SUBMENU" && !isMenu(item)) return;
+          const option = document.createElement("option");
+          option.value = item.id;
+          option.textContent = `${isSubmenu(item) ? "Submenu" : "Menu"} · ${item.name}`;
+          select.appendChild(option);
+        });
+        select.value = selectedParent ? String(selectedParent) : "";
+      };
+      const syncEditorSections = () => {
+        const kind = builder.querySelector("[data-profile-node-kind]").value;
+        const isScreen = kind === "TELA";
+        const type = isScreen ? builder.querySelector("[data-profile-screen-type-select]").value : "GRUPO";
+        builder.querySelector("[data-profile-item-type]").value = type;
+        builder.querySelector("[data-profile-parent-field]").hidden = kind === "MENU";
+        if (kind === "MENU") builder.elements.cd_item_pai.value = "";
+        builder.querySelector("[data-profile-screen-type]").hidden = !isScreen;
+        builder.querySelector("[data-profile-screen-options]").hidden = !isScreen;
+        builder.querySelectorAll("[data-profile-type]").forEach((field) => {
+          field.hidden = !isScreen || field.dataset.profileType !== type;
+          field.querySelectorAll("input, select, textarea").forEach((input) => { input.disabled = field.hidden; });
+        });
+        syncParentOptions(kind, builder.elements.cd_item_pai.value);
+      };
+      const fillEditor = (item = null, kind = "MENU", parentId = "") => {
+        builder.reset();
+        selectedItemId = item?.id || null;
+        builder.elements.item.value = item?.id || "";
+        builder.querySelector("[data-profile-node-kind]").value = item
+          ? (isMenu(item) ? "MENU" : isSubmenu(item) ? "SUBMENU" : "TELA")
+          : kind;
+        builder.querySelector("[data-profile-screen-type-select]").value = item?.type !== "GRUPO" ? item?.type || "ACAO" : "ACAO";
+        setField("nm_item", item?.name || "");
+        setField("cd_item_tecnico", item?.technical_key || "");
+        setField("nr_ordem", item?.order ?? childrenOf(parentId).length);
+        setField("sn_ativo_item", item?.active === false ? "false" : "true");
+        setField("ds_icone", item?.icon || "file-text");
+        setField("cd_item_pai", item?.parent_id || parentId || "");
+        setField("ds_acao", item?.action || "");
+        setField("ds_url", item?.url || "");
+        setField("cd_modelo_documento", item?.document_model_id || "");
+        setField("cd_escala_clinica", item?.configuration?.escala || "");
+        setField("ds_descricao_item", item?.configuration?.description || "");
+        setField("sn_privado", item?.private);
+        setField("sn_imprimivel", item ? item.printable : true);
+        setField("sn_permite_criar", item ? item.can_create : true);
+        setField("sn_permite_abandonar", item ? item.can_abandon : true);
+        setField("sn_permite_cancelar", item?.can_cancel);
+        setField("sn_somente_historico", item?.history_only);
+        builder.querySelector("[data-profile-item-modal-title]").textContent = item ? `Configurar ${isMenu(item) ? "menu" : isSubmenu(item) ? "submenu" : "tela"}` : `Adicionar ${kind.toLocaleLowerCase("pt-BR")}`;
+        syncEditorSections();
+        setField("cd_item_pai", item?.parent_id || parentId || "");
+        updateIconPreview();
+        setEditorVisible(true);
+        editorDirty = false;
+        editorSnapshot = serializeEditor();
+        undoStack.length = 0;
+        redoStack.length = 0;
+        updateHistoryButtons();
+      };
+      const confirmDiscard = () => !editorDirty || window.confirm("Existem alterações não aplicadas. Deseja descartá-las?");
+      const selectItem = (id, options = {}) => {
+        if (!options.force && !confirmDiscard()) return false;
+        const item = itemById(id);
+        if (!item) return false;
+        selectedItemId = item.id;
+        if (isMenu(item)) {
+          selectedMenuId = item.id;
+          const submenus = childrenOf(item.id).filter(isSubmenu);
+          if (!submenus.some((submenu) => Number(submenu.id) === Number(selectedSubmenuId))) selectedSubmenuId = submenus[0]?.id || null;
+        } else if (isSubmenu(item)) {
+          selectedMenuId = item.parent_id;
+          selectedSubmenuId = item.id;
+        } else {
+          const parent = itemById(item.parent_id);
+          if (parent && isSubmenu(parent)) {
+            selectedSubmenuId = parent.id;
+            selectedMenuId = parent.parent_id;
+          } else if (parent) {
+            selectedMenuId = parent.id;
+            selectedSubmenuId = null;
+          }
+        }
+        fillEditor(item);
+        renderAll();
+        return true;
+      };
+      const filteredRows = (kind) => {
+        let rows = [];
+        if (kind === "menus") rows = items.filter(isMenu);
+        if (kind === "submenus") rows = childrenOf(selectedMenuId).filter(isSubmenu);
+        if (kind === "screens") rows = childrenOf(selectedSubmenuId || selectedMenuId).filter((item) => item.type !== "GRUPO");
+        const filters = tableState[kind].filters || {};
+        return rows.filter((item) => Object.entries(filters).every(([field, value]) => {
+          if (!value) return true;
+          const values = {
+            name: item.name,
+            icon: item.icon,
+            technical_key: item.technical_key,
+            order: item.order,
+            status: item.active === false ? "inativo" : "ativo",
+            type: typeLabels[item.type] || item.type,
+            component: componentName(item),
+          };
+          return normalize(values[field]).includes(normalize(value));
+        })).sort((a, b) => Number(a.order) - Number(b.order) || Number(a.id) - Number(b.id));
+      };
+      const queryRowHtml = (kind) => {
+        const fields = kind === "menus"
+          ? [["name", "Nome"], ["icon", "Ícone"], ["order", "Ordem"], ["status", "Status"], ["", ""]]
+          : kind === "submenus"
+            ? [["name", "Nome"], ["icon", "Ícone"], ["technical_key", "Chave"], ["order", "Ordem"], ["status", "Status"], ["", ""]]
+            : [["name", "Nome"], ["type", "Tipo"], ["component", "Componente"], ["technical_key", "Chave"], ["order", "Ordem"], ["status", "Status"]];
+        return `<tr class="profile-query-row">${fields.map(([field, placeholder]) => `<td>${field ? `<input data-profile-query-field="${field}" value="${escapeHtml(tableState[kind].filters[field] || "")}" placeholder="${placeholder}">` : ""}</td>`).join("")}</tr>`;
+      };
+      const rowHtml = (kind, item) => {
+        const selected = Number(item.id) === Number(kind === "menus" ? selectedMenuId : kind === "submenus" ? selectedSubmenuId : selectedItemId);
+        const status = item.active === false ? "Inativo" : "Ativo";
+        const icon = `<span class="svg-icon" data-nav-icon="${escapeHtml(item.icon || "file-text")}"></span>`;
+        if (kind === "menus") return `<tr tabindex="0" data-profile-row="${item.id}" class="${selected ? "selected" : ""}"><td><strong>${escapeHtml(item.name)}</strong></td><td class="profile-icon-cell">${icon}</td><td>${item.order}</td><td><span class="status-pill ${item.active === false ? "inactive" : "active"}">${status}</span></td><td>${childrenOf(item.id).filter(isSubmenu).length}</td></tr>`;
+        if (kind === "submenus") return `<tr tabindex="0" data-profile-row="${item.id}" class="${selected ? "selected" : ""}"><td><strong>${escapeHtml(item.name)}</strong></td><td class="profile-icon-cell">${icon}</td><td><code>${escapeHtml(item.technical_key || "-")}</code></td><td>${item.order}</td><td><span class="status-pill ${item.active === false ? "inactive" : "active"}">${status}</span></td><td>${childrenOf(item.id).filter((child) => child.type !== "GRUPO").length}</td></tr>`;
+        return `<tr tabindex="0" data-profile-row="${item.id}" class="${selected ? "selected" : ""}"><td><strong>${escapeHtml(item.name)}</strong></td><td>${escapeHtml(typeLabels[item.type] || item.type)}</td><td>${escapeHtml(componentName(item))}</td><td><code>${escapeHtml(item.technical_key || "-")}</code></td><td>${item.order}</td><td><span class="status-pill ${item.active === false ? "inactive" : "active"}">${status}</span></td></tr>`;
+      };
+      const renderPager = (kind, total) => {
+        const state = tableState[kind];
+        const pages = Math.max(1, Math.ceil(total / state.limit));
+        state.page = Math.min(Math.max(1, state.page), pages);
+        const start = total ? ((state.page - 1) * state.limit) + 1 : 0;
+        const end = Math.min(total, state.page * state.limit);
+        const footer = document.querySelector(`[data-profile-pager="${kind}"]`);
+        footer.innerHTML = `<span>Exibindo ${start} a ${end} de ${total} registros</span><div class="compact-table-pager-controls"><button type="button" class="icon-button" data-profile-page="previous" ${state.page === 1 ? "disabled" : ""} title="Página anterior"><span class="svg-icon" data-nav-icon="arrow-left"></span></button><input type="number" min="1" max="${pages}" value="${state.page}" data-profile-page-input aria-label="Página atual"><button type="button" class="icon-button" data-profile-page="next" ${state.page === pages ? "disabled" : ""} title="Próxima página"><span class="svg-icon" data-nav-icon="arrow-right"></span></button><select data-profile-page-limit aria-label="Registros por página">${[10, 20, 40, 50, 100].map((limit) => `<option value="${limit}" ${state.limit === limit ? "selected" : ""}>${limit}</option>`).join("")}</select></div>`;
+      };
+      const renderTable = (kind) => {
+        if (tableState[kind].queryMode) {
+          document.querySelector(`[data-profile-table-body="${kind}"]`).innerHTML = queryRowHtml(kind);
+          renderPager(kind, 0);
+          return;
+        }
+        const rows = filteredRows(kind);
+        const state = tableState[kind];
+        const pages = Math.max(1, Math.ceil(rows.length / state.limit));
+        state.page = Math.min(state.page, pages);
+        const visible = rows.slice((state.page - 1) * state.limit, state.page * state.limit);
+        document.querySelector(`[data-profile-table-body="${kind}"]`).innerHTML = visible.length
+          ? visible.map((item) => rowHtml(kind, item)).join("")
+          : `<tr><td colspan="${kind === "menus" ? 5 : 6}" class="empty-cell">Nenhum registro encontrado.</td></tr>`;
+        renderPager(kind, rows.length);
+      };
+      const renderAll = () => {
+        const menu = itemById(selectedMenuId);
+        const submenu = itemById(selectedSubmenuId);
+        document.querySelector("[data-profile-selected-menu-title]").textContent = menu ? `· ${menu.name}` : "";
+        document.querySelector("[data-profile-selected-submenu-title]").textContent = submenu ? `· ${submenu.name}` : menu ? `· ${menu.name}` : "";
+        renderTable("menus");
+        renderTable("submenus");
+        renderTable("screens");
+        window.CelerisRenderIcons?.();
+      };
+      const loadItems = async ({ preserveSelection = true } = {}) => {
+        workbench.setAttribute("aria-busy", "true");
+        try {
+          const response = await fetch(workbench.dataset.profileItemsUrl, { credentials: "same-origin", headers: { Accept: "application/json" } });
+          const payload = await response.json();
+          if (!response.ok || payload.ok === false) throw new Error(payload.error || "Não foi possível carregar a estrutura.");
+          items = payload.items || [];
+          if (!preserveSelection || !itemById(selectedMenuId)) selectedMenuId = items.find(isMenu)?.id || null;
+          const submenus = childrenOf(selectedMenuId).filter(isSubmenu);
+          if (!submenus.some((item) => Number(item.id) === Number(selectedSubmenuId))) selectedSubmenuId = submenus[0]?.id || null;
+          if (selectedItemId && !itemById(selectedItemId)) selectedItemId = null;
+          renderAll();
+        } catch (error) {
+          document.querySelector("[data-profile-table-body='menus']").innerHTML = `<tr><td colspan="5" class="empty-cell">${escapeHtml(error.message)}</td></tr>`;
+        } finally {
+          workbench.removeAttribute("aria-busy");
+        }
+      };
+      const updateHistoryButtons = () => {
+        const undo = document.querySelector('[data-action="undo"]');
+        const redo = document.querySelector('[data-action="redo"]');
+        if (undo) { undo.hidden = false; undo.disabled = undoStack.length === 0; }
+        if (redo) { redo.hidden = false; redo.disabled = redoStack.length === 0; }
+      };
+      const restoreSerializedEditor = (serialized) => {
+        const values = JSON.parse(serialized || "[]");
+        const checkboxValues = new Map();
+        values.forEach(([name, value, checked]) => {
+          const fields = [...builder.querySelectorAll(`[name="${CSS.escape(name)}"]`)];
+          if (fields[0]?.type === "checkbox") {
+            checkboxValues.set(`${name}:${value}`, checked);
+            fields.forEach((field) => { field.checked = checkboxValues.get(`${name}:${field.value}`) || false; });
+          } else if (fields[0]) fields[0].value = value ?? "";
+        });
+        syncEditorSections();
+        updateIconPreview();
+        editorDirty = true;
+      };
+      const undo = () => {
+        if (!undoStack.length) return;
+        redoStack.push(serializeEditor());
+        restoreSerializedEditor(undoStack.pop());
+        updateHistoryButtons();
+      };
+      const redo = () => {
+        if (!redoStack.length) return;
+        undoStack.push(serializeEditor());
+        restoreSerializedEditor(redoStack.pop());
+        updateHistoryButtons();
+      };
+
+      workbench.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-profile-row]");
+        if (row) { selectItem(row.dataset.profileRow); return; }
+        const pager = event.target.closest("[data-profile-pager]");
+        const pageButton = event.target.closest("[data-profile-page]");
+        if (pager && pageButton) {
+          const kind = pager.dataset.profilePager;
+          const pages = Math.max(1, Math.ceil(filteredRows(kind).length / tableState[kind].limit));
+          if (pageButton.dataset.profilePage === "previous") tableState[kind].page -= 1;
+          if (pageButton.dataset.profilePage === "next") tableState[kind].page += 1;
+          renderTable(kind);
+        }
+      });
+      workbench.addEventListener("keydown", (event) => {
+        const row = event.target.closest("[data-profile-row]");
+        if (row && ["Enter", " "].includes(event.key)) { event.preventDefault(); selectItem(row.dataset.profileRow); }
+      });
+      workbench.addEventListener("input", (event) => {
+        if (!builder.contains(event.target)) return;
+        if (!editorDirty) undoStack.push(editorSnapshot);
+        else if (editorSnapshot !== serializeEditor()) undoStack.push(editorSnapshot);
+        if (undoStack.length > 60) undoStack.shift();
+        editorSnapshot = serializeEditor();
+        redoStack.length = 0;
+        editorDirty = true;
+        saveLocalDraft();
+        updateHistoryButtons();
+        if (event.target.name === "nm_item" && !builder.elements.cd_item_tecnico.dataset.manual) {
+          builder.elements.cd_item_tecnico.value = technicalKey(event.target.value);
+        }
+      });
+      workbench.addEventListener("change", (event) => {
+        const pager = event.target.closest("[data-profile-pager]");
+        if (pager && event.target.matches("[data-profile-page-limit]")) {
+          const kind = pager.dataset.profilePager;
+          tableState[kind].limit = Number(event.target.value) || 10;
+          tableState[kind].page = 1;
+          renderTable(kind);
+          return;
+        }
+        if (pager && event.target.matches("[data-profile-page-input]")) {
+          const kind = pager.dataset.profilePager;
+          const pages = Math.max(1, Math.ceil(filteredRows(kind).length / tableState[kind].limit));
+          tableState[kind].page = Math.min(pages, Math.max(1, Number(event.target.value) || 1));
+          renderTable(kind);
+          return;
+        }
+        if (event.target.matches("[data-profile-node-kind], [data-profile-screen-type-select]")) syncEditorSections();
+        if (event.target.name === "cd_item_tecnico") event.target.dataset.manual = "true";
+      });
+      builder.querySelector("[data-profile-icon-toggle]").addEventListener("click", () => {
+        const dropdown = builder.querySelector("[data-profile-icon-dropdown]");
+        dropdown.hidden = !dropdown.hidden;
+      });
+      builder.querySelector("[data-profile-icon-dropdown]").addEventListener("click", (event) => {
+        const option = event.target.closest("[data-profile-icon-option]");
+        if (!option) return;
+        builder.elements.ds_icone.value = option.dataset.profileIconOption;
+        builder.querySelector("[data-profile-icon-dropdown]").hidden = true;
+        updateIconPreview();
+        editorDirty = true;
+      });
+      builder.addEventListener("submit", () => {
+        const configuration = itemById(selectedItemId)?.configuration || {};
+        configuration.description = builder.elements.ds_descricao_item.value.trim();
+        delete configuration.provider_types;
+        if (builder.elements.cd_escala_clinica?.value) configuration.escala = Number(builder.elements.cd_escala_clinica.value);
+        else delete configuration.escala;
+        builder.querySelector("[data-profile-configuration]").value = JSON.stringify(configuration);
+        clearLocalDraft();
+      });
+      builder.querySelector("[data-profile-item-close]").addEventListener("click", () => {
+        if (!confirmDiscard()) return;
+        editorDirty = false;
+        clearLocalDraft();
+        selectedItemId = null;
+        setEditorVisible(false);
+        renderAll();
+      });
+      const removeSelectedItem = async () => {
+        const item = itemById(selectedItemId);
+        if (!item || !window.confirm(`Deseja remover "${item.name}" da estrutura do perfil?`)) return;
+        const response = await fetch(workbench.dataset.profileItemsUrl, {
+          method: "DELETE", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+          body: JSON.stringify({ id: item.id }),
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.ok === false) { window.alert(payload.error || "Não foi possível remover o item."); return; }
+        editorDirty = false;
+        selectedItemId = null;
+        setEditorVisible(false);
+        await loadItems({ preserveSelection: true });
+      };
+      document.querySelectorAll("[data-profile-context-kind]").forEach((panel) => {
+        const kind = panel.dataset.profileContextKind;
+        panel.addEventListener("celeris:context-table-query-open", (event) => {
+          event.preventDefault();
+          if (!confirmDiscard()) return;
+          editorDirty = false;
+          clearLocalDraft();
+          Object.entries(tableState).forEach(([name, state]) => { state.queryMode = name === kind; });
+          selectedItemId = null;
+          setEditorVisible(false);
+          renderAll();
+          requestAnimationFrame(() => panel.querySelector("[data-profile-query-field]")?.focus());
+        });
+        panel.addEventListener("celeris:context-table-query-execute", (event) => {
+          event.preventDefault();
+          tableState[kind].filters = Object.fromEntries([...panel.querySelectorAll("[data-profile-query-field]")].map((field) => [field.dataset.profileQueryField, field.value.trim()]));
+          tableState[kind].queryMode = false;
+          tableState[kind].page = 1;
+          void loadItems({ preserveSelection: true });
+        });
+        panel.addEventListener("celeris:context-table-query-cancel", (event) => {
+          event.preventDefault();
+          tableState[kind].queryMode = false;
+          tableState[kind].filters = {};
+          renderTable(kind);
+        });
+        panel.addEventListener("celeris:context-table-new", (event) => {
+          event.preventDefault();
+          if (!confirmDiscard()) return;
+          const nodeKind = kind === "menus" ? "MENU" : kind === "submenus" ? "SUBMENU" : "TELA";
+          if (nodeKind === "SUBMENU" && !selectedMenuId) return;
+          if (nodeKind === "TELA" && !(selectedSubmenuId || selectedMenuId)) return;
+          fillEditor(null, nodeKind, nodeKind === "SUBMENU" ? selectedMenuId : nodeKind === "TELA" ? (selectedSubmenuId || selectedMenuId) : "");
+          builder.elements.nm_item.focus();
+        });
+        panel.addEventListener("celeris:context-table-save", (event) => {
+          if (editor.hidden || panel.dataset.profileContextKind !== editorKind()) return;
+          event.preventDefault();
+          builder.requestSubmit();
+        });
+        panel.addEventListener("celeris:context-table-remove", (event) => {
+          if (!selectedItemId || editor.hidden || panel.dataset.profileContextKind !== editorKind()) return;
+          event.preventDefault();
+          void removeSelectedItem();
+        });
+      });
+      document.querySelector('[data-action="undo"]')?.addEventListener("click", undo);
+      document.querySelector('[data-action="redo"]')?.addEventListener("click", redo);
+      document.addEventListener("keydown", (event) => {
+        if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+        if (event.key.toLowerCase() === "z" && !event.shiftKey) { event.preventDefault(); undo(); }
+        if (event.key.toLowerCase() === "y" || (event.key.toLowerCase() === "z" && event.shiftKey)) { event.preventDefault(); redo(); }
+      });
+      document.querySelectorAll("[data-profile-list-item]").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          if (confirmDiscard()) { clearLocalDraft(); return; }
+          event.preventDefault();
+        });
+      });
+      void loadItems({ preserveSelection: false });
+    })();
   </script>
 {% endblock %}

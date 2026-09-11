@@ -1,0 +1,28 @@
+{% extends "base/layout.html" %}
+{% block content %}
+  <section class="card prescription-registration">
+    <form method="get" class="prescription-registration-search">
+      <label>Consultar<input name="q" value="{{ request.GET.q }}" placeholder="Código, sigla ou nome"></label>
+      <button class="button button-secondary" type="submit"><span class="svg-icon" data-nav-icon="search"></span><span>Consultar</span></button>
+    </form>
+    <form method="post" class="form-grid">
+      {% csrf_token %}
+      {% for field in form %}
+        <label class="{% if field.name == 'documentos_obrigatorios' or field.name == 'ds_posologia_padrao' %}span-2{% endif %}">
+          {{ field.label }}{{ field }}{{ field.errors }}
+        </label>
+      {% endfor %}
+      <div class="table-actions span-2"><button class="button button-primary" type="submit"><span class="svg-icon" data-nav-icon="save"></span><span>Salvar</span></button></div>
+    </form>
+  </section>
+  <section class="card prescription-registration-results">
+    <table class="data-table">
+      <thead><tr><th>Código</th><th>Descrição</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for registro in registros %}
+          <tr data-row-url="?id={{ registro.pk }}"><td>{{ registro.pk }}</td><td>{{ registro }}</td><td>{{ registro.sn_ativo|yesno:"Ativo,Inativo" }}</td></tr>
+        {% empty %}<tr><td colspan="3">Nenhum registro encontrado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

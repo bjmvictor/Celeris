@@ -17,8 +17,17 @@ def paginate_table(request, queryset, allowed_ordering, default_ordering, *, loa
         descending = False
     ordering = f"-{field_name}" if descending else field_name
 
-    paginator = Paginator(queryset.order_by(ordering), 20)
+    try:
+        page_limit = int(request.GET.get("limite", 10))
+    except (TypeError, ValueError):
+        page_limit = 10
+    if page_limit not in {10, 20, 40, 50, 100}:
+        page_limit = 10
+    paginator = Paginator(queryset.order_by(ordering), page_limit)
     page = paginator.get_page(request.GET.get("pagina", 1))
+    request.current_page_number = page.number
+    request.current_page_count = paginator.num_pages
+    request.current_page_limit = page_limit
     request.current_record_status = (
         f"{paginator.count} encontrado(s) · {len(page.object_list)} exibido(s) · "
         f"Página {page.number} de {paginator.num_pages}"

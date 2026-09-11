@@ -29,6 +29,12 @@ class Estoque(EmpresaModel):
         db_column="cd_setor",
     )
     sn_principal = models.BooleanField("principal", default=False)
+    sn_saida_setor = models.BooleanField("permite saída para setor", default=True)
+    sn_saida_paciente = models.BooleanField("permite saída para paciente", default=True)
+    sn_saida_fornecedor = models.BooleanField("permite devolução para fornecedor", default=False)
+    sn_saida_gasto_sala = models.BooleanField("permite gasto de sala", default=True)
+    sn_transferencia = models.BooleanField("permite transferência entre estoques", default=True)
+    sn_controla_lote_validade = models.BooleanField("controla lote e validade", default=True)
     sn_ativo = models.BooleanField("ativo", default=True)
 
     class Meta:

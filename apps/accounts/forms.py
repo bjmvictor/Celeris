@@ -179,7 +179,14 @@ class UsuarioForm(UserCreationForm):
                 "ds_profissao": provider.tp_prestador,
             }
             for field_name, value in defaults.items():
-                if not cleaned_data.get(field_name) and value:
+                current_value = cleaned_data.get(field_name)
+                generic_superuser_name = (
+                    field_name == "full_name"
+                    and self.instance.pk
+                    and self.instance.is_superuser
+                    and current_value == self.instance.username
+                )
+                if (not current_value or generic_superuser_name) and value:
                     cleaned_data[field_name] = value
         if not cleaned_data.get("full_name"):
             self.add_error("full_name", "Informe o nome completo.")
