@@ -2,11 +2,11 @@ import tomllib
 from pathlib import Path
 
 from django.conf import settings
+from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.accounts.models import Empresa, Setor
-from apps.atendimento.models import Convenio
 from apps.core.catalogos import atualizar_item_catalogo, modelo_catalogo
 
 
@@ -99,7 +99,9 @@ class Command(BaseCommand):
             if documents["convenios"]["habilitado"]:
                 for record in documents["convenios"]["registros"]:
                     company = Empresa.objects.get(cd_empresa=int(record["empresa_codigo"]))
-                    Convenio.objects.update_or_create(
+                    # The convention storage is still the legacy attendance
+                    # table, but Core no longer imports an application model.
+                    apps.get_model("atendimento", "Convenio").objects.update_or_create(
                         cd_empresa=company,
                         nm_convenio=record["nome"].strip(),
                         defaults={"sn_ativo": record.get("ativo", True)},

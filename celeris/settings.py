@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "apps.accounts",
     "apps.core",
+    "apps.platform",
     "apps.atendimento",
     "apps.estoque",
     "apps.reports",
@@ -92,6 +93,14 @@ INSTALLED_APPS = [
     "apps.enfermagem",
     "apps.ti",
     "apps.pesquisas",
+    # Application packages contain manifests and URL adapters; legacy Django
+    # apps remain installed so their app labels, migrations and tables stay
+    # unchanged during the incremental migration.
+    "applications.pep.apps.PepConfig",
+    "applications.classificacao.apps.ClassificacaoConfig",
+    "applications.painel.apps.PainelConfig",
+    "applications.totem.apps.TotemConfig",
+    "applications.editor.apps.EditorConfig",
 ]
 
 MIDDLEWARE = [

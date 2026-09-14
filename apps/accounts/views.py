@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
 from django.conf import settings
+from django.apps import apps
 from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.db.models import Q
@@ -18,7 +19,6 @@ import logging
 import hashlib
 from urllib.parse import urlencode
 
-from apps.atendimento.models import Prestador, RascunhoEditorDocumento
 from apps.core.locks import adquirir_trava_edicao, consultar_trava_ativa, liberar_trava_edicao, nome_usuario_trava, usuario_tem_trava_ou_livre
 from apps.core.table_utils import paginate_table
 
@@ -85,7 +85,7 @@ def csrf_failure(request, reason=""):
 class EmpresaLogoutView(auth_views.LogoutView):
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            RascunhoEditorDocumento.objects.filter(cd_usuario=request.user).delete()
+            apps.get_model("atendimento", "RascunhoEditorDocumento").objects.filter(cd_usuario=request.user).delete()
         request.session.pop("cd_empresa", None)
         request.session.pop("nm_empresa", None)
         return super().post(request, *args, **kwargs)
@@ -473,7 +473,7 @@ def usuario_login_sugerido(request):
 @login_required
 def prestador_dados_usuario(request, pk):
     provider = get_object_or_404(
-        Prestador,
+        apps.get_model("atendimento", "Prestador"),
         pk=pk,
         cd_empresa_id=request.session.get("cd_empresa") or 1,
     )

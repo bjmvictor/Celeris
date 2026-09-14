@@ -13,6 +13,7 @@
 /lib64
 /share/
 /pyvenv.cfg
+/test-results
 
 # Arquivos de mídia do painel de chamada
 /painel_chamada/

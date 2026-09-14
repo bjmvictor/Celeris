@@ -4,9 +4,9 @@ from django.contrib.auth.models import Group
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.atendimento.models import Prestador
 from apps.core.catalogos import opcoes_catalogo
 from apps.core.models import Module, ScreenDefinition
+from domain.profissionais import active_professionals
 
 from .models import Empresa, Papel, PapelModulo, PapelTela, Setor, User, UsuarioEmpresa, normalize_identifier
 
@@ -120,7 +120,7 @@ class UsuarioForm(UserCreationForm):
         self.fields["invalid_login_attempts"].disabled = True
         self.fields["password_expires_at"].disabled = True
         self.fields["cd_prestador"].queryset = (
-            Prestador.objects.filter(cd_empresa=empresa, sn_ativo=True)
+            active_professionals(empresa)
             .filter(
                 Q(usuarios__isnull=True)
                 | Q(pk=getattr(instance, "cd_prestador_id", None))
@@ -128,7 +128,7 @@ class UsuarioForm(UserCreationForm):
             .distinct()
             .order_by("nm_prestador")
             if empresa
-            else Prestador.objects.none()
+            else active_professionals(empresa).none()
         )
         self.fields["ds_idioma"].widget = forms.Select(choices=self._choices_for("idioma"))
         self.fields["ds_profissao"].widget = forms.Select(choices=self._choices_for("profissao"))
