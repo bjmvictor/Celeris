@@ -1,11 +1,17 @@
-{% if current_first_url or current_previous_url or current_next_url or current_last_url %}
-  <nav class="table-pager" data-table-pager aria-label="Paginação da tabela">
+{% if current_record_status %}
+  <nav class="table-pager compact-table-footer" data-table-pager data-server-table-pager aria-label="Paginação da tabela">
     <span class="table-pager-current">{{ current_record_status }}</span>
-    <span class="table-pager-actions">
-      <a class="table-pager-link {% if not current_first_url %}disabled{% endif %}" aria-label="Primeira página" title="Primeira" {% if current_first_url %}href="{{ current_first_url }}"{% endif %}><span class="svg-icon" data-nav-icon="chevrons-left"></span></a>
+    <span class="table-pager-actions compact-table-pager-controls">
       <a class="table-pager-link {% if not current_previous_url %}disabled{% endif %}" aria-label="Página anterior" title="Anterior" {% if current_previous_url %}href="{{ current_previous_url }}"{% endif %}><span class="svg-icon" data-nav-icon="arrow-left"></span></a>
+      <input type="number" min="1" max="{{ current_page_count|default:1 }}" value="{{ current_page_number|default:1 }}" data-server-page-input aria-label="Página atual">
       <a class="table-pager-link {% if not current_next_url %}disabled{% endif %}" aria-label="Próxima página" title="Próxima" {% if current_next_url %}href="{{ current_next_url }}"{% endif %}><span class="svg-icon" data-nav-icon="arrow-right"></span></a>
-      <a class="table-pager-link {% if not current_last_url %}disabled{% endif %}" aria-label="Última página" title="Última" {% if current_last_url %}href="{{ current_last_url }}"{% endif %}><span class="svg-icon" data-nav-icon="chevrons-right"></span></a>
+      <select data-server-page-limit aria-label="Registros por página">
+        <option value="10" {% if current_page_limit == 10 %}selected{% endif %}>10</option>
+        <option value="20" {% if current_page_limit == 20 %}selected{% endif %}>20</option>
+        <option value="40" {% if current_page_limit == 40 %}selected{% endif %}>40</option>
+        <option value="50" {% if current_page_limit == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if current_page_limit == 100 %}selected{% endif %}>100</option>
+      </select>
     </span>
   </nav>
 {% endif %}

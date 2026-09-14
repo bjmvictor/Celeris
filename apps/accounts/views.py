@@ -1,5 +1,5 @@
 from django.contrib.auth import views as auth_views
-from django.contrib.auth import get_user
+from django.contrib.auth import get_user, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
@@ -380,6 +380,8 @@ def usuario_alterar_senha(request, pk=None):
         form.add_error("username", "Usuário não encontrado para a empresa atual.")
     if request.method == "POST" and form.is_valid():
         usuario_senha = form.save()
+        if request.user.pk == usuario_senha.pk:
+            update_session_auth_hash(request, usuario_senha)
         messages.success(request, "Senha alterada com sucesso.")
         if pk:
             return redirect(f"{reverse('usuario_alterar_senha', args=[usuario_senha.pk])}?overlay=1")

@@ -91,6 +91,7 @@ class SuperusuarioAcessoTotalTests(TestCase):
             )
         usuario.refresh_from_db()
 
+        self.assertEqual(usuario.full_name, "SUPERADMIN")
         self.assertEqual(usuario.tp_usuario, "ADMINISTRADOR")
         self.assertTrue(usuario.can_configure_system)
         self.assertTrue(usuario.groups.filter(name="TI").exists())
@@ -207,6 +208,61 @@ class UsuarioCadastroTests(TestCase):
         self.assertEqual(user.cd_prestador, provider)
         self.assertTrue(user.groups.filter(pk=role.pk).exists())
         self.assertTrue(UsuarioEmpresa.objects.filter(usuario=user, empresa=self.empresa, sn_ativo=True).exists())
+
+    def test_superusuario_e_o_mesmo_cadastro_e_pode_ser_vinculado_ao_prestador(self):
+        prestador = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Administrador Clínico",
+            nr_cpf="529.982.247-25",
+            dt_nascimento="1985-04-10",
+            tp_prestador="MEDICO",
+        )
+        grupo_ti = Group.objects.get(name="TI")
+        form = UsuarioForm(
+            data={
+                "full_name": self.admin.username,
+                "nr_cpf": "",
+                "cd_prestador": prestador.pk,
+                "tp_usuario": "ADMINISTRADOR",
+                "empresas": [self.empresa.pk],
+                "grupos": [grupo_ti.pk],
+            },
+            instance=self.admin,
+            empresa=self.empresa,
+            allow_user_type=True,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        usuario_salvo = form.save()
+        usuario_salvo.refresh_from_db()
+        self.assertEqual(usuario_salvo.pk, self.admin.pk)
+        self.assertTrue(usuario_salvo.is_superuser)
+        self.assertEqual(usuario_salvo.cd_prestador, prestador)
+        self.assertEqual(usuario_salvo.full_name, prestador.nm_prestador)
+        self.assertEqual(usuario_salvo.nr_cpf, prestador.nr_cpf)
+
+    def test_superusuario_pode_ser_consultado_e_ter_senha_alterada_no_celeris(self):
+        response = self.client.get(
+            reverse("usuario_novo"),
+            {"consultar": "1", "username": self.admin.username},
+        )
+        self.assertRedirects(
+            response,
+            f"{reverse('usuario_editar', args=[self.admin.pk])}?origem=consulta",
+        )
+        self.assertEqual(self.client.session["consulta_usuarios"], [self.admin.pk])
+
+        password_response = self.client.post(
+            reverse("ti:alteracao_senha_usuario"),
+            {
+                "username": self.admin.username,
+                "new_password1": "nova-senha-super-123",
+                "new_password2": "nova-senha-super-123",
+            },
+        )
+        self.assertRedirects(password_response, reverse("ti:alteracao_senha_usuario"))
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password("nova-senha-super-123"))
 
     def test_prestador_vinculado_nao_aparece_para_outro_usuario(self):
         vinculado = Prestador.objects.create(

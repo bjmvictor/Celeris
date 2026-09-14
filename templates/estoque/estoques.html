@@ -1,0 +1,27 @@
+{% extends "base/layout.html" %}
+{% block content %}
+<form method="post" class="provider-form stock-form" data-primary-form data-query-url="{{ request.path }}" data-table="{{ form_table }}" autocomplete="off">
+  {% csrf_token %}
+  <details class="card form-section" open>
+    <summary>Identificação</summary>
+    <div class="form-grid">
+      <label class="field-xs">Código {{ form.ds_codigo }} {{ form.ds_codigo.errors }}</label>
+      <label class="field-xl">Estoque {{ form.nm_estoque }} {{ form.nm_estoque.errors }}</label>
+      <label class="field-lg">Setor responsável {{ form.cd_setor }} {{ form.cd_setor.errors }}</label>
+      <label class="provider-checkbox">{{ form.sn_principal }} <span>Estoque principal</span></label>
+      <label class="provider-checkbox">{{ form.sn_ativo }} <span>Ativo</span></label>
+    </div>
+  </details>
+  <details class="card form-section" open>
+    <summary>Regras operacionais</summary>
+    <div class="form-grid stock-operation-options">
+      <label class="provider-checkbox">{{ form.sn_saida_setor }} <span>Permite saída para setor</span></label>
+      <label class="provider-checkbox">{{ form.sn_saida_paciente }} <span>Permite saída para paciente</span></label>
+      <label class="provider-checkbox">{{ form.sn_saida_fornecedor }} <span>Permite devolução para fornecedor</span></label>
+      <label class="provider-checkbox">{{ form.sn_saida_gasto_sala }} <span>Permite gasto de sala</span></label>
+      <label class="provider-checkbox">{{ form.sn_transferencia }} <span>Permite transferência entre estoques</span></label>
+      <label class="provider-checkbox">{{ form.sn_controla_lote_validade }} <span>Controla lote e validade</span></label>
+    </div>
+  </details>
+</form>
+{% endblock %}

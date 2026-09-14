@@ -46,7 +46,7 @@
               <summary class="dropdown-item"><span class="svg-icon" data-nav-icon="monitor-config"></span>Acessar sistema</summary>
               <div class="dropdown-product-list">
                 <a class="dropdown-item" href="{% url 'core:home' %}"><span class="svg-icon" data-nav-icon="app-window"></span>Celeris</a>
-                <a class="dropdown-item" href="{% url 'pep_standalone' %}"><span class="svg-icon" data-nav-icon="clipboard-plus"></span>Celeris PEP</a>
+                {% if can_access_pep %}<a class="dropdown-item" href="{% url 'pep_standalone' %}"><span class="svg-icon" data-nav-icon="clipboard-plus"></span>Celeris PEP</a>{% endif %}
                 <a class="dropdown-item" href="/painel/"><span class="svg-icon" data-nav-icon="presentation"></span>Painel</a>
                 <a class="dropdown-item" href="/totem/"><span class="svg-icon" data-nav-icon="ticket"></span>Totem</a>
               </div>

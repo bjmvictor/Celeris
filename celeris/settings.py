@@ -75,6 +75,28 @@ CSRF_TRUSTED_ORIGINS = [
     if item.strip()
 ]
 
+# O Codespaces publica o servidor de desenvolvimento por meio de um proxy HTTPS.
+# Além do host, a origem externa precisa ser autorizada para requisições POST.
+CSRF_TRUSTED_ORIGINS = [
+    item.strip().rstrip("/")
+    for item in os.getenv(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        "http://localhost:8000,https://localhost:8000,"
+        "http://127.0.0.1:8000,https://127.0.0.1:8000",
+    ).split(",")
+    if item.strip()
+]
+
+CODESPACE_NAME = os.getenv("CODESPACE_NAME", "").strip()
+CODESPACES_DOMAIN = os.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev").strip()
+if CODESPACE_NAME:
+    codespaces_host = f"{CODESPACE_NAME}-8000.{CODESPACES_DOMAIN}"
+    if codespaces_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(codespaces_host)
+    codespaces_origin = f"https://{codespaces_host}"
+    if codespaces_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(codespaces_origin)
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -193,6 +215,22 @@ SECURE_HSTS_PRELOAD = env_bool("CELERIS_SECURE_HSTS_PRELOAD", not DEBUG)
 if env_bool("CELERIS_TRUST_PROXY_SSL_HEADER", False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("CELERIS_DATA_UPLOAD_MAX_MEMORY_SIZE", "25000000"))
+CELERIS_CERTIFICATE_MASTER_KEY = os.getenv("CELERIS_CERTIFICATE_MASTER_KEY", "")
+CELERIS_CERTIFICATE_MASTER_KEY_VERSION = os.getenv("CELERIS_CERTIFICATE_MASTER_KEY_VERSION", "v1")
+CELERIS_CERTIFICATE_MAX_UPLOAD_SIZE = int(os.getenv("CELERIS_CERTIFICATE_MAX_UPLOAD_SIZE", "10485760"))
+CELERIS_CERTIFICATE_EXPIRY_WARNING_DAYS = int(os.getenv("CELERIS_CERTIFICATE_EXPIRY_WARNING_DAYS", "30"))
+CELERIS_CERTIFICATE_EXPIRY_WARNING_LEVELS = tuple(
+    sorted(
+        {
+            int(value)
+            for value in os.getenv("CELERIS_CERTIFICATE_EXPIRY_WARNING_LEVELS", "60,30,15,7,1").split(",")
+            if value.strip().isdigit()
+        },
+        reverse=True,
+    )
+)
+CELERIS_TSA_URL = os.getenv("CELERIS_TSA_URL", "").strip()
+CELERIS_TSA_TIMEOUT = int(os.getenv("CELERIS_TSA_TIMEOUT", "10"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

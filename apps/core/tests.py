@@ -16,7 +16,7 @@ from django.urls import reverse
 from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
 from apps.accounts.access import user_access_keys
 from apps.atendimento.forms import PacienteForm
-from apps.atendimento.models import Convenio
+from apps.atendimento.models import Convenio, DominioExternoPermitido
 
 from .models import (
     Cep,
@@ -138,6 +138,30 @@ class GlobalIntegrationTests(TestCase):
         formulario = PacienteForm(empresa=self.empresa)
         self.assertTrue(formulario.fields["nr_cpf"].required)
         self.assertTrue(formulario.fields["nm_paciente"].required)
+
+    def test_dominios_externos_sao_gerenciados_em_tabela_global(self):
+        route = reverse("core:dominios_externos")
+        initial = self.client.get(route)
+        self.assertEqual(initial.status_code, 200)
+        self.assertContains(initial, 'data-table="dominio_externo_permitido"')
+
+        created = self.client.post(
+            route,
+            {
+                "new_domain": "https://integracao.exemplo.com.br/caminho",
+                "new_iframe": "true",
+                "new_active": "true",
+            },
+        )
+        self.assertRedirects(created, f"{route}?consultar=1", fetch_redirect_response=False)
+        domain = DominioExternoPermitido.objects.get(cd_empresa=self.empresa)
+        self.assertEqual(domain.ds_dominio, "integracao.exemplo.com.br")
+        self.assertTrue(domain.sn_permite_iframe)
+
+        loaded = self.client.get(route, {"q": "integracao"})
+        self.assertContains(loaded, "integracao.exemplo.com.br")
+        self.assertNotContains(loaded, "Primeira página")
+        self.assertNotContains(loaded, "Última página")
 
     def test_arvore_de_navegacao_reordena_itens_do_mesmo_grupo(self):
         module = Module.objects.create(code="TESTE_MENU", title="Teste menu", order=990)
@@ -955,7 +979,7 @@ class NavigationIntegrationTests(TestCase):
             nm_icone="Ícone personalizado",
             ds_svg='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
         )
-        table_response = self.client.get(reverse("core:system_icons"), {"consultar": "1"})
+        table_response = self.client.get(reverse("core:system_icons"), {"consultar": "1", "limite": "100"})
         self.assertEqual(table_response.status_code, 200)
         self.assertContains(table_response, 'data-table="icone_sistema"')
         self.assertContains(table_response, icon.nm_icone)

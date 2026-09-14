@@ -9,7 +9,7 @@ from apps.core.catalogos import catalogo_queryset, opcoes_catalogo
 from apps.core.form_registry import aplicar_configuracao_formulario
 from apps.core.models import Cep, MotivoAlteracao, TipoPrestadorConselho
 
-from .models import AgendaProfissional, Agendamento, Atendimento, ClasseSenhaAtendimento, Convenio, EvolucaoAtendimento, IconeChamada, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ProtocoloSenhaAtendimento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame, TipoSenhaAtendimento
+from .models import AgendaProfissional, Agendamento, Atendimento, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, EvolucaoAtendimento, IconeChamada, ItemPrescricao, ItemPrescricaoDocumento, ModeloDocumento, Paciente, PainelChamada, PreAtendimento, Prescricao, Prestador, ProtocoloSenhaAtendimento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoExame, SolicitacaoExame, TipoSenhaAtendimento, ViaAplicacaoPrescricao
 
 
 class PacienteSearchForm(forms.Form):
@@ -1047,6 +1047,119 @@ class PrescricaoForm(forms.ModelForm):
         model = Prescricao
         fields = ("ds_prescricao", "ds_orientacoes")
         widgets = {"ds_prescricao": forms.Textarea(attrs={"rows": 8}), "ds_orientacoes": forms.Textarea(attrs={"rows": 4})}
+
+
+class ClasseItemPrescricaoForm(forms.ModelForm):
+    class Meta:
+        model = ClasseItemPrescricao
+        fields = ("sg_classe", "ds_classe", "tp_classe", "nr_ordem", "sn_ativo")
+
+    def clean_sg_classe(self):
+        return self.cleaned_data["sg_classe"].strip().upper()
+
+
+class ViaAplicacaoPrescricaoForm(forms.ModelForm):
+    class Meta:
+        model = ViaAplicacaoPrescricao
+        fields = ("sg_via", "ds_via", "nr_ordem", "sn_ativo")
+
+    def clean_sg_via(self):
+        return self.cleaned_data["sg_via"].strip().upper()
+
+
+class ItemPrescricaoForm(forms.ModelForm):
+    documentos_obrigatorios = forms.ModelMultipleChoiceField(
+        label="Documentos obrigatórios",
+        queryset=ModeloDocumento.objects.none(),
+        required=False,
+        widget=forms.SelectMultiple(),
+    )
+
+    class Meta:
+        model = ItemPrescricao
+        fields = (
+            "cd_classe",
+            "cd_produto",
+            "nm_item",
+            "cd_via_padrao",
+            "ds_dose_padrao",
+            "ds_frequencia_padrao",
+            "ds_duracao_padrao",
+            "ds_posologia_padrao",
+            "sn_exige_posologia",
+            "sn_ativo",
+        )
+        widgets = {"ds_posologia_padrao": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.estoque.models import Produto
+
+        self.fields["nm_item"].required = False
+        if empresa:
+            self.fields["cd_classe"].queryset = ClasseItemPrescricao.objects.filter(
+                cd_empresa=empresa,
+                sn_ativo=True,
+            )
+            self.fields["cd_via_padrao"].queryset = ViaAplicacaoPrescricao.objects.filter(
+                cd_empresa=empresa,
+                sn_ativo=True,
+            )
+            self.fields["cd_produto"].queryset = Produto.objects.filter(
+                cd_empresa=empresa,
+                sn_ativo=True,
+                tp_produto__in=("MEDICAMENTO", "EXAME"),
+            ).order_by("nm_produto")
+            self.fields["documentos_obrigatorios"].queryset = ModeloDocumento.objects.filter(
+                cd_empresa=empresa,
+                tp_elemento="DOCUMENTO",
+                sn_versao_atual=True,
+                sn_ativo=True,
+            ).order_by("nm_modelo")
+            if self.instance.pk:
+                self.fields["documentos_obrigatorios"].initial = self.instance.documentos_exigidos.filter(
+                    sn_ativo=True,
+                    sn_obrigatorio=True,
+                ).values_list("cd_modelo_documento_id", flat=True)
+        else:
+            self.fields["cd_classe"].queryset = ClasseItemPrescricao.objects.none()
+            self.fields["cd_via_padrao"].queryset = ViaAplicacaoPrescricao.objects.none()
+            self.fields["cd_produto"].queryset = self.fields["cd_produto"].queryset.none()
+            self.fields["documentos_obrigatorios"].queryset = ModeloDocumento.objects.none()
+
+    def clean(self):
+        cleaned = super().clean()
+        classe = cleaned.get("cd_classe")
+        produto = cleaned.get("cd_produto")
+        if classe and produto and classe.tp_classe in {"MEDICAMENTO", "EXAME"}:
+            if produto.tp_produto != classe.tp_classe:
+                self.add_error(
+                    "cd_produto",
+                    f"Selecione um produto do tipo {classe.get_tp_classe_display().lower()}.",
+                )
+        if produto and not cleaned.get("nm_item"):
+            cleaned["nm_item"] = produto.nm_produto
+            self.instance.nm_item = produto.nm_produto
+        return cleaned
+
+
+class ItemPrescricaoDocumentoForm(forms.ModelForm):
+    class Meta:
+        model = ItemPrescricaoDocumento
+        fields = ("cd_modelo_documento", "sn_obrigatorio", "sn_ativo")
+
+    def __init__(self, *args, empresa=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cd_modelo_documento"].queryset = (
+            ModeloDocumento.objects.filter(
+                cd_empresa=empresa,
+                tp_elemento="DOCUMENTO",
+                sn_versao_atual=True,
+                sn_ativo=True,
+            ).order_by("nm_modelo")
+            if empresa
+            else ModeloDocumento.objects.none()
+        )
 
 
 class EvolucaoAtendimentoForm(forms.ModelForm):

@@ -1,0 +1,8 @@
+{% extends clinical_action_base_template|default:"base/layout.html" %}
+{% block content %}
+  <section class="card prescription-patient-summary">
+    <strong>{{ atendimento.cd_paciente.nm_paciente }}</strong>
+    <span>Atendimento {{ atendimento.pk }} · {{ atendimento.get_ds_status_display }}</span>
+  </section>
+  {% include "atendimento/_prescricao_estruturada_form.html" %}
+{% endblock %}

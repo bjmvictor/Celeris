@@ -1,3 +1,24 @@
+{% load static %}
 <!doctype html>
-<html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acesso negado</title></head>
-<body><main><h1>403</h1><h2>Acesso negado</h2><p>Seu usuário não possui permissão para acessar este recurso.</p><a href="/">Voltar ao início</a></main></body></html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Acesso negado · Celeris</title>
+    <link rel="icon" href="{% static 'img/logo.png' %}" type="image/png">
+    <script>if(localStorage.getItem("celeris-theme")==="dark")document.documentElement.classList.add("dark");</script>
+    <link rel="stylesheet" href="{% static 'css/celeris.css' %}?v=20260814-1">
+  </head>
+  <body class="error-page-shell">
+    <main class="error-page-card" role="main">
+      <img src="{% static 'img/logo.png' %}" alt="Celeris">
+      <span class="error-page-code">403</span>
+      <h1>Acesso negado</h1>
+      <p>Seu usuário não possui permissão para acessar este recurso.</p>
+      <div class="error-page-actions">
+        <button class="button button-secondary" type="button" onclick="history.length > 1 ? history.back() : location.assign('/')">Voltar</button>
+        <a class="button button-primary" href="{% url 'core:home' %}">Ir para o início</a>
+      </div>
+    </main>
+  </body>
+</html>

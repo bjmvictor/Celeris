@@ -8,11 +8,37 @@ from apps.core.models import Module, ScreenDefinition
 from .models import Empresa, Papel, PapelModulo, PapelTela, User, UsuarioEmpresa
 
 
+def campos_administrativos_superusuario(usuario: User) -> dict:
+    return {
+        "full_name": usuario.full_name or usuario.get_full_name() or usuario.username,
+        "tp_usuario": "ADMINISTRADOR",
+        "is_staff": True,
+        "is_active": True,
+        "is_blocked": False,
+        "can_register_patient": True,
+        "can_change_patient": True,
+        "can_create_users": True,
+        "can_deactivate_users": True,
+        "can_manage_auxiliary_tables": True,
+        "can_configure_system": True,
+    }
+
+
 def garantir_acesso_total_superusuario(usuario: User) -> None:
     if not usuario.is_superuser:
         return
 
     try:
+        alteracoes = {
+            campo: valor
+            for campo, valor in campos_administrativos_superusuario(usuario).items()
+            if getattr(usuario, campo) != valor
+        }
+        if alteracoes:
+            User.objects.filter(pk=usuario.pk).update(**alteracoes)
+            for campo, valor in alteracoes.items():
+                setattr(usuario, campo, valor)
+
         empresa_celeris, _ = Empresa.objects.update_or_create(
             cd_empresa=1,
             defaults={
@@ -80,18 +106,7 @@ def configurar_superusuario(sender, instance: User, **kwargs) -> None:
     if kwargs.get("raw") or not instance.is_superuser:
         return
 
-    campos_administrativos = {
-        "tp_usuario": "ADMINISTRADOR",
-        "is_staff": True,
-        "is_active": True,
-        "is_blocked": False,
-        "can_register_patient": True,
-        "can_change_patient": True,
-        "can_create_users": True,
-        "can_deactivate_users": True,
-        "can_manage_auxiliary_tables": True,
-        "can_configure_system": True,
-    }
+    campos_administrativos = campos_administrativos_superusuario(instance)
     alteracoes = {
         campo: valor
         for campo, valor in campos_administrativos.items()

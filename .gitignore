@@ -4,8 +4,11 @@
 .venv/
 
 # Ambiente virtual criado na raiz do workspace.
+/bin/
 /Include/
 /Lib/
+/lib/
+/lib64
 /Scripts/
 /bin/
 /include/
@@ -34,6 +37,10 @@ __pycache__/
 logs/
 *.session.sql
 .tmp/
+*.pfx
+*.p12
+*.key
+*.pem
 
 # Arquivos locais de ferramentas e sistema operacional.
 .coverage

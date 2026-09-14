@@ -1,0 +1,192 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+  <section class="card certificate-admin-card">
+    <header class="section-heading">
+      <div>
+        <h2>Certificado A1 da empresa</h2>
+        <p>O arquivo e a senha são criptografados. Não é possível baixar a chave privada após o cadastro.</p>
+      </div>
+    </header>
+    {% if not chave_mestra_configurada %}
+      <div class="field-error certificate-master-key-warning" role="alert">
+        <strong>Chave mestra não configurada.</strong>
+        Defina <code>CELERIS_CERTIFICATE_MASTER_KEY</code> no arquivo <code>.env</code> e reinicie o servidor antes de cadastrar certificados.
+      </div>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data" data-preserve-input>
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="cadastrar">
+      <input type="hidden" name="substituir_id" value="" data-certificate-replace-id>
+      {{ form.non_field_errors }}
+      <div class="form-grid">
+        <label class="field-md">{{ form.nm_certificado.label }} {{ form.nm_certificado }} {{ form.nm_certificado.errors }}</label>
+        <label class="field-sm">{{ form.tp_certificado.label }} {{ form.tp_certificado }} {{ form.tp_certificado.errors }}</label>
+        <label class="field-md" data-certificate-professional-field>{{ form.cd_usuario_profissional.label }} {{ form.cd_usuario_profissional }} {{ form.cd_usuario_profissional.errors }}</label>
+        <label class="field-md">{{ form.arquivo.label }} {{ form.arquivo }} {{ form.arquivo.errors }}</label>
+        <label class="field-md">{{ form.senha.label }} {{ form.senha }} {{ form.senha.errors }}</label>
+      </div>
+      <div class="certificate-purpose-grid">
+        <label class="provider-checkbox">{{ form.sn_assina_documentos_medicos }} <span>{{ form.sn_assina_documentos_medicos.label }}</span></label>
+        <label class="provider-checkbox">{{ form.sn_assina_documentos_administrativos }} <span>{{ form.sn_assina_documentos_administrativos.label }}</span></label>
+        <label class="provider-checkbox">{{ form.sn_assina_outros_documentos }} <span>{{ form.sn_assina_outros_documentos.label }}</span></label>
+      </div>
+      <div class="form-actions mt-3">
+        <button class="button button-primary certificate-submit-button" type="submit" {% if not chave_mestra_configurada %}disabled{% endif %}>
+          <span class="svg-icon" data-nav-icon="upload-database" aria-hidden="true"></span>
+          <span>Validar e cadastrar</span>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card certificate-table-card" aria-label="Certificados cadastrados">
+    <div class="table-wrapper certificate-table-wrapper">
+      <table class="data-table certificate-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Data de validade</th>
+            <th>Finalidade</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for certificado in certificados %}
+            <tr class="certificate-table-row {% if certificado.vencido %}is-expired{% elif certificado.proximo_vencimento %}is-expiring{% endif %}"
+                data-certificate-toggle
+                role="button"
+                tabindex="0"
+                aria-expanded="false"
+                aria-controls="certificate-details-{{ certificado.pk }}">
+              <td>
+                <span class="certificate-name-cell">
+                  <strong>{{ certificado.nm_certificado }}</strong>
+                  <span class="svg-icon certificate-row-chevron" data-nav-icon="chevron-down" aria-hidden="true"></span>
+                </span>
+              </td>
+              <td>{{ certificado.dh_fim_validade|date:"d/m/Y H:i" }}</td>
+              <td>
+                <span class="certificate-purpose-summary">
+                  {% if certificado.sn_assina_documentos_medicos %}<span>Médicos</span>{% endif %}
+                  {% if certificado.sn_assina_documentos_administrativos %}<span>Administrativos</span>{% endif %}
+                  {% if certificado.sn_assina_outros_documentos %}<span>Outros</span>{% endif %}
+                </span>
+              </td>
+              <td>
+                <span class="{% if not certificado.sn_ativo %}danger{% endif %}  status-badge {% if not certificado.sn_ativo or certificado.vencido %}inactive{% elif certificado.proximo_vencimento %}warning{% else %}active{% endif %}">
+                  {% if not certificado.sn_ativo %}Inativo{% elif certificado.vencido %}Vencido{% elif certificado.proximo_vencimento %}Próximo do vencimento{% else %}Válido{% endif %}
+                </span>
+              </td>
+            </tr>
+            <tr class="certificate-detail-row" id="certificate-details-{{ certificado.pk }}" hidden>
+              <td colspan="4">
+                <div class="certificate-detail-content">
+                  <dl class="certificate-metadata">
+                    <div><dt>Tipo</dt><dd>{{ certificado.get_tp_certificado_display }}</dd></div>
+                    <div><dt>Titular</dt><dd>{{ certificado.ds_sujeito }}</dd></div>
+                    <div><dt>Emissor</dt><dd>{{ certificado.ds_emissor }}</dd></div>
+                    <div><dt>CPF/CNPJ</dt><dd>{{ certificado.nr_cpf_cnpj|default:"Não identificado" }}</dd></div>
+                    <div><dt>Série</dt><dd>{{ certificado.nr_serie }}</dd></div>
+                    <div><dt>Fingerprint SHA-256</dt><dd>{{ certificado.ds_fingerprint_sha256 }}</dd></div>
+                    <div><dt>Início da validade</dt><dd>{{ certificado.dh_inicio_validade|date:"d/m/Y H:i" }}</dd></div>
+                    {% if certificado.cd_usuario_profissional %}<div><dt>Profissional</dt><dd>{{ certificado.cd_usuario_profissional.display_name }}</dd></div>{% endif %}
+                  </dl>
+
+                  {% if certificado.vencido %}<p class="field-error">Certificado vencido.</p>{% elif certificado.proximo_vencimento %}<p class="field-warning">Vence em até {{ aviso_dias }} dias.</p>{% endif %}
+
+                  <div class="certificate-detail-footer">
+                    <form method="post" class="certificate-purpose-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="acao" value="finalidades">
+                      <input type="hidden" name="certificado_id" value="{{ certificado.pk }}">
+                      <div class="certificate-purpose-grid">
+                        <label class="provider-checkbox"><input type="checkbox" name="sn_assina_documentos_medicos" {% if certificado.sn_assina_documentos_medicos %}checked{% endif %} {% if not certificado.sn_ativo %}disabled{% endif %}> <span>Assina documentos médicos</span></label>
+                        <label class="provider-checkbox"><input type="checkbox" name="sn_assina_documentos_administrativos" {% if certificado.sn_assina_documentos_administrativos %}checked{% endif %} {% if not certificado.sn_ativo %}disabled{% endif %}> <span>Assina documentos administrativos</span></label>
+                        <label class="provider-checkbox"><input type="checkbox" name="sn_assina_outros_documentos" {% if certificado.sn_assina_outros_documentos %}checked{% endif %} {% if not certificado.sn_ativo %}disabled{% endif %}> <span>Assina outros documentos</span></label>
+                      </div>
+                      {% if certificado.sn_ativo %}
+                        <button class="toolbar-button primary" type="submit" title="Salvar finalidades" aria-label="Salvar finalidades"><span class="svg-icon" data-nav-icon="save" aria-hidden="true"></span></button>
+                      {% endif %}
+                    </form>
+
+                    <div class="certificate-icon-actions" aria-label="Ações do certificado">
+                      <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="testar">
+                        <input type="hidden" name="certificado_id" value="{{ certificado.pk }}">
+                        <button class="toolbar-button success" type="submit" title="Testar certificado" aria-label="Testar certificado"><span class="svg-icon" data-nav-icon="certificate-check" aria-hidden="true"></span></button>
+                      </form>
+                      {% if certificado.sn_ativo %}
+                        <button class="toolbar-button primary" type="button" data-certificate-replace="{{ certificado.pk }}" data-certificate-name="{{ certificado.nm_certificado|escape }}" title="Substituir certificado" aria-label="Substituir certificado"><span class="svg-icon" data-nav-icon="refresh-cw" aria-hidden="true"></span></button>
+                        <form method="post" data-confirm-submit="Desativar este certificado? Documentos anteriores não serão alterados.">
+                          {% csrf_token %}
+                          <input type="hidden" name="acao" value="desativar">
+                          <input type="hidden" name="certificado_id" value="{{ certificado.pk }}">
+                          <button class="toolbar-button danger" type="submit" title="Desativar certificado" aria-label="Desativar certificado"><span class="svg-icon" data-nav-icon="ban" aria-hidden="true"></span></button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty-state">Nenhum certificado digital cadastrado para a empresa atual.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const replacementInput = document.querySelector("[data-certificate-replace-id]");
+      const nameInput = document.querySelector("[name='nm_certificado']");
+      const typeSelect = document.querySelector("[name='tp_certificado']");
+      const professionalField = document.querySelector("[data-certificate-professional-field]");
+      const professionalSelect = document.querySelector("[name='cd_usuario_profissional']");
+
+      const updateProfessionalVisibility = () => {
+        const isProfessional = typeSelect?.value === "PROFISSIONAL";
+        if (professionalField) professionalField.hidden = !isProfessional;
+        if (professionalSelect) {
+          professionalSelect.disabled = !isProfessional;
+          if (!isProfessional) professionalSelect.value = "";
+        }
+      };
+
+      typeSelect?.addEventListener("change", updateProfessionalVisibility);
+      updateProfessionalVisibility();
+
+      const toggleCertificateRow = (row) => {
+        const details = document.getElementById(row.getAttribute("aria-controls"));
+        if (!details) return;
+        const expanded = row.getAttribute("aria-expanded") === "true";
+        row.setAttribute("aria-expanded", String(!expanded));
+        details.hidden = expanded;
+      };
+
+      document.querySelectorAll("[data-certificate-toggle]").forEach((row) => {
+        row.addEventListener("click", (event) => {
+          if (event.target.closest("button, a, input, select, textarea, label, form")) return;
+          toggleCertificateRow(row);
+        });
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          toggleCertificateRow(row);
+        });
+      });
+
+      document.querySelectorAll("[data-certificate-replace]").forEach((button) => {
+        button.addEventListener("click", () => {
+          replacementInput.value = button.dataset.certificateReplace || "";
+          if (nameInput && !nameInput.value) nameInput.value = `Substituição de ${button.dataset.certificateName || "certificado"}`;
+          nameInput?.closest("form")?.scrollIntoView({behavior: "smooth", block: "start"});
+          nameInput?.focus();
+        });
+      });
+    })();
+  </script>
+{% endblock %}
