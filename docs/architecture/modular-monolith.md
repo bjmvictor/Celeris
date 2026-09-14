@@ -3,9 +3,9 @@
 ## Rules
 
 `apps.platform` is stable infrastructure. It contains application discovery,
-tenant context and domain events. It must not import `applications.*`.
-`domain` contains shared business contracts and is allowed to use a temporary
-storage adapter while legacy tables are moved. `applications` may depend on
+tenant context and domain events. It must not import `apps.applications.*`.
+`apps.domain` contains shared business contracts and is allowed to use a temporary
+storage adapter while legacy tables are moved. `apps.applications` may depend on
 Platform and Domain. They communicate through domain services or events, never
 through scattered model imports.
 
@@ -16,7 +16,7 @@ avoid shadowing Python's standard library module.
 
 | Producer | Direct dependency before this change | Transition boundary |
 | --- | --- | --- |
-| `accounts` | `atendimento.Prestador` and `RascunhoEditorDocumento` | `domain.profissionais` port; lazy compatibility lookup for draft cleanup |
+| `accounts` | `atendimento.Prestador` and `RascunhoEditorDocumento` | `apps.domain.profissionais` port; lazy compatibility lookup for draft cleanup |
 | project URLConf | PEP, classification, panel and totem attendance views | application-owned URL adapters discovered by registry |
 | `core.form_registry` | attendance form names, classes and field labels | neutral Platform registry; Atendimento registers its own form definitions on startup |
 | `atendimento` | no cross-application contract for a new attendance | `atendimento.criado` platform domain event |
@@ -30,7 +30,7 @@ keys.
 
 ## Application registry
 
-Every package under `applications/` has an `AppConfig` with an
+Every package under `apps/applications/` has an `AppConfig` with an
 `ApplicationManifest`. The manifest declares code, name, version,
 dependencies, URL contribution, permissions, menus, events, reports and
 settings. `apps.platform.registry` discovers them from Django's app registry.
@@ -51,13 +51,20 @@ registers those definitions through `apps.platform.form_registry` in its
 `AppConfig.ready()` hook; another application can now contribute a configurable
 form without editing Core.
 
-The legacy `populate` command still creates a complete cross-module demo
-scenario (accounts, attendance and research).  It remains in Core temporarily
-to preserve its public management-command name and idempotent test fixture;
-moving it safely requires provider registrations from each contributing module.
-Likewise, existing Django models and migrations keep their current app labels
-and physical tables.  They are compatibility boundaries, not evidence that a
-domain model has been moved.
+The public `populate` command is now a neutral orchestrator.  The Platform
+discovers registered demo-seed providers, resolves their declared dependencies
+and supplies a small context containing only the command inputs and output
+writer.  The existing complete scenario is registered by Atendimento as the
+single `atendimento.demo_legacy` compatibility provider, so its public command
+name, arguments, transaction and fixture data remain unchanged.
+
+That provider still creates the established cross-module demo scenario
+(accounts, attendance and research).  Splitting it into Accounts, Atendimento
+and Pesquisas providers is deliberately deferred: their current creation order
+links users to legacy `atendimento.Prestador` rows, and a partial split could
+change an idempotent fixture.  Existing Django models and migrations keep their
+current app labels and physical tables. They are compatibility boundaries, not
+evidence that a domain model has been moved.
 
 Recommended next slices are: extract the demo-data providers from `populate`,
 give PEP its view/service adapters rather than only URL adapters, then split
@@ -67,8 +74,8 @@ preserves every existing `db_table`, foreign key and permission mapping.
 
 ## Incremental slices
 
-1. Extract `domain.pessoas`, `domain.pacientes`, `domain.profissionais`,
-   `domain.organizacao` and `domain.atendimentos` ports. Keep their models'
+1. Extract `apps.domain.pessoas`, `apps.domain.pacientes`, `apps.domain.profissionais`,
+   `apps.domain.organizacao` and `apps.domain.atendimentos` ports. Keep their models'
    `db_table`, primary keys and Django app labels in compatibility adapters.
 2. Move attendance controllers into application packages by vertical slice:
    scheduling/reception, PEP, classification, panel/totem and editor. Keep

@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from .form_registry import form_registry
 from .registry import registry
+from .seeding import seed_registry
 from .tenancy import current_tenant
 
 
@@ -39,3 +40,7 @@ class ApplicationRegistryTests(SimpleTestCase):
             },
         )
         self.assertEqual(definitions["cadastro_paciente"].form_class, "apps.atendimento.forms.PacienteForm")
+
+    def test_registered_demo_seed_providers_have_a_resolvable_order(self):
+        providers = seed_registry.providers()
+        self.assertEqual([provider.code for provider in providers], ["atendimento.demo_legacy"])
