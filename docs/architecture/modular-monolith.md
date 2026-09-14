@@ -18,6 +18,7 @@ avoid shadowing Python's standard library module.
 | --- | --- | --- |
 | `accounts` | `atendimento.Prestador` and `RascunhoEditorDocumento` | `domain.profissionais` port; lazy compatibility lookup for draft cleanup |
 | project URLConf | PEP, classification, panel and totem attendance views | application-owned URL adapters discovered by registry |
+| `core.form_registry` | attendance form names, classes and field labels | neutral Platform registry; Atendimento registers its own form definitions on startup |
 | `atendimento` | no cross-application contract for a new attendance | `atendimento.criado` platform domain event |
 | `core` | navigation/data configuration and attendance-specific imports in management/tests | application registry is outside Core; remaining legacy configuration is a later extraction |
 
@@ -40,6 +41,29 @@ Initially manifests describe existing navigation access keys but do not rewrite
 legacy `Module` or `ScreenDefinition` rows. This preserves `PapelTela`, URLs
 and navigation without a bulk permission migration. A new application can own
 its Module/ScreenDefinition rows by setting `navigation_module` in its manifest.
+
+## Current boundaries and remaining work
+
+The Core keeps the generic persistence model for company-level form-field
+configuration and its configuration screen.  It no longer lists any clinical
+form, imports a clinical form class, or owns clinical labels.  Atendimento
+registers those definitions through `apps.platform.form_registry` in its
+`AppConfig.ready()` hook; another application can now contribute a configurable
+form without editing Core.
+
+The legacy `populate` command still creates a complete cross-module demo
+scenario (accounts, attendance and research).  It remains in Core temporarily
+to preserve its public management-command name and idempotent test fixture;
+moving it safely requires provider registrations from each contributing module.
+Likewise, existing Django models and migrations keep their current app labels
+and physical tables.  They are compatibility boundaries, not evidence that a
+domain model has been moved.
+
+Recommended next slices are: extract the demo-data providers from `populate`,
+give PEP its view/service adapters rather than only URL adapters, then split
+editor/document services before moving classification, panel and totem
+controllers.  No model relocation should occur until a data-migration plan
+preserves every existing `db_table`, foreign key and permission mapping.
 
 ## Incremental slices
 

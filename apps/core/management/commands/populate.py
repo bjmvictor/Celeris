@@ -44,7 +44,7 @@ from apps.pesquisas.models import (
 
 DEMO_COMPANY_CODE = 9000
 DEMO_COMPANY_NAME = "Hospital Horizonte Demo"
-DEFAULT_PASSWORD = "123456"
+DEFAULT_PASSWORD = "12345678"
 
 
 class Command(BaseCommand):

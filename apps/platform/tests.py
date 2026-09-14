@@ -1,6 +1,7 @@
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .form_registry import form_registry
 from .registry import registry
 from .tenancy import current_tenant
 
@@ -22,3 +23,19 @@ class ApplicationRegistryTests(SimpleTestCase):
         request = self.client.request().wsgi_request
         request.session["cd_empresa"] = 42
         self.assertEqual(current_tenant(request).empresa_id, 42)
+
+    def test_atendimento_registers_its_configurable_forms(self):
+        definitions = {definition.code: definition for definition in form_registry.definitions()}
+        self.assertEqual(
+            set(definitions),
+            {
+                "cadastro_paciente",
+                "cadastro_prestador",
+                "cadastro_atendimento",
+                "responsavel_atendimento",
+                "cadastro_escala",
+                "cadastro_painel_chamada",
+                "pre_atendimento",
+            },
+        )
+        self.assertEqual(definitions["cadastro_paciente"].form_class, "apps.atendimento.forms.PacienteForm")

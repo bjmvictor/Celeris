@@ -1,116 +1,23 @@
+"""Persistence-backed configuration for forms registered by applications."""
 from django.db import OperationalError, ProgrammingError
-from django.utils.module_loading import import_string
+
+from apps.platform.form_registry import form_registry
 
 from .models import ConfiguracaoCampoFormulario
 
 
-FORMULARIOS_CONFIGURAVEIS = {
-    "cadastro_paciente": {
-        "nome": "Cadastro de paciente",
-        "classe": "apps.atendimento.forms.PacienteForm",
-        "usa_empresa": True,
-    },
-    "cadastro_prestador": {
-        "nome": "Cadastro de prestador",
-        "classe": "apps.atendimento.forms.PrestadorForm",
-        "usa_empresa": True,
-    },
-    "cadastro_atendimento": {
-        "nome": "Cadastro de atendimento",
-        "classe": "apps.atendimento.forms.CadastroAtendimentoForm",
-        "usa_empresa": True,
-    },
-    "responsavel_atendimento": {
-        "nome": "Responsável pelo atendimento",
-        "classe": "apps.atendimento.forms.ResponsavelAtendimentoForm",
-        "usa_empresa": True,
-    },
-    "cadastro_escala": {
-        "nome": "Cadastro de escala",
-        "classe": "apps.atendimento.forms.EscalaForm",
-        "usa_empresa": True,
-    },
-    "cadastro_painel_chamada": {
-        "nome": "Cadastro de painel de chamada",
-        "classe": "apps.atendimento.forms.PainelChamadaForm",
-        "usa_empresa": True,
-    },
-    "pre_atendimento": {
-        "nome": "Pré-atendimento",
-        "classe": "apps.atendimento.forms.PreAtendimentoForm",
-        "usa_empresa": True,
-    },
-}
-
-ROTULOS_CAMPOS = {
-    "cadastro_paciente": {
-        "nm_paciente": "Nome",
-        "nm_social": "Nome social",
-        "dt_nascimento": "Data de nascimento",
-        "nr_cpf": "CPF",
-        "nr_rg": "RG",
-        "nr_cartao_sus": "Cartão Nacional de Saúde",
-        "nm_mae": "Nome da mãe",
-        "nm_pai": "Nome do pai",
-    },
-    "cadastro_prestador": {
-        "nm_prestador": "Nome",
-        "nm_guerra": "Nome de guerra",
-        "dt_nascimento": "Data de nascimento",
-        "nr_cpf": "CPF",
-        "nr_rg": "RG",
-        "nr_cartao_sus": "Cartão Nacional de Saúde",
-        "nm_mae": "Nome da mãe",
-        "nm_pai": "Nome do pai",
-        "tp_prestador": "Tipo de prestador",
-        "nr_conselho": "Número do conselho",
-        "sg_conselho": "UF do conselho",
-        "tp_vinculo": "Tipo de vínculo",
-        "nr_telefone": "Telefone",
-        "nr_celular": "Celular",
-        "nr_celular_2": "Celular 2",
-        "ds_email": "E-mail",
-    },
-    "cadastro_atendimento": {
-        "cd_atendimento": "Código",
-        "cd_paciente_exibicao": "Prontuário",
-        "nm_paciente_exibicao": "Paciente",
-        "dh_atendimento_exibicao": "Data e hora",
-        "cd_prestador": "Médico/Prestador",
-        "ds_tipo_atendimento": "Tipo de atendimento",
-        "ds_local_procedencia": "Local de procedência",
-        "ds_meio_transporte": "Meio de transporte",
-    },
-    "cadastro_escala": {
-        "ds_agenda": "Nome da escala",
-        "tp_escala": "Tipo de escala",
-        "cd_prestador": "Prestador",
-        "ds_especialidade": "Especialidade",
-        "cd_setor_atendimento": "Setor de atendimento",
-        "tp_horario": "Tipo de horário",
-        "ds_dias_semana": "Dias da semana",
-        "qt_horarios_dia": "Quantidade de horários",
-        "qt_encaixes": "Quantidade de encaixes",
-    },
-}
-
-
 def opcoes_formularios():
-    return [(codigo, dados["nome"]) for codigo, dados in FORMULARIOS_CONFIGURAVEIS.items()]
+    return [(definition.code, definition.name) for definition in form_registry.definitions()]
 
 
 def construir_formulario_referencia(codigo, empresa):
-    configuracao = FORMULARIOS_CONFIGURAVEIS.get(codigo)
-    if not configuracao:
-        return None
-    form_class = import_string(configuracao["classe"])
-    kwargs = {"empresa": empresa} if configuracao.get("usa_empresa") else {}
-    return form_class(**kwargs)
+    return form_registry.build(codigo, empresa)
 
 
 def listar_campos_formulario(codigo, empresa):
+    definition = form_registry.get(codigo)
     formulario = construir_formulario_referencia(codigo, empresa)
-    if formulario is None:
+    if definition is None or formulario is None:
         return []
     try:
         configuracoes = {
@@ -128,10 +35,10 @@ def listar_campos_formulario(codigo, empresa):
         campos.append(
             {
                 "formulario": codigo,
-                "nome_formulario": FORMULARIOS_CONFIGURAVEIS[codigo]["nome"],
+                "nome_formulario": definition.name,
                 "chave": f"{codigo}::{nome}",
                 "codigo": nome,
-                "nome": ROTULOS_CAMPOS.get(codigo, {}).get(
+                "nome": definition.field_labels.get(
                     nome,
                     campo.label or nome.replace("_", " ").title(),
                 ),
@@ -145,7 +52,9 @@ def listar_campos_formulario(codigo, empresa):
 
 
 def consultar_campos_formularios(empresa, codigo_formulario="", nome_campo=""):
-    codigos = [codigo_formulario] if codigo_formulario in FORMULARIOS_CONFIGURAVEIS else list(FORMULARIOS_CONFIGURAVEIS)
+    codigos = [codigo_formulario] if form_registry.get(codigo_formulario) else [
+        definition.code for definition in form_registry.definitions()
+    ]
     termo = (nome_campo or "").strip().casefold()
     campos = []
     for codigo in codigos:
