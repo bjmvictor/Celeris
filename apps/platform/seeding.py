@@ -10,7 +10,18 @@ class DemoSeedContext:
     allow_non_debug: bool
     stdout: object
     style: object
-    state: dict[str, object] = field(default_factory=dict)
+    _state: dict[str, str | int | float | bool | None] = field(
+        default_factory=dict,
+        repr=False,
+    )
+
+    def set(self, key: str, value: str | int | float | bool | None) -> None:
+        if not key or not isinstance(value, (str, int, float, bool, type(None))):
+            raise TypeError("Demo seed context only accepts stable scalar values.")
+        self._state[key] = value
+
+    def get(self, key: str, default=None):
+        return self._state.get(key, default)
 
 
 class DemoSeedProvider(Protocol):

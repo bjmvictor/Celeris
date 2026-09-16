@@ -1,5 +1,5 @@
 from django.urls import path
-from apps.atendimento import views
+from . import views
 
 urlpatterns = [
     path("", views.pep_standalone, name="pep_standalone"),

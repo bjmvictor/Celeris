@@ -53,8 +53,10 @@ form without editing Core.
 
 The public `populate` command is now a neutral orchestrator.  The Platform
 discovers registered demo-seed providers, resolves their declared dependencies
-and supplies a small context containing only the command inputs and output
-writer.  The existing complete scenario is registered by Atendimento as the
+and supplies a small context containing only command inputs, an output writer
+and explicitly registered scalar identifiers. It cannot transport models,
+querysets or service objects between providers. The existing complete scenario
+is registered by Atendimento as the
 single `atendimento.demo_legacy` compatibility provider, so its public command
 name, arguments, transaction and fixture data remain unchanged.
 
@@ -67,10 +69,22 @@ current app labels and physical tables. They are compatibility boundaries, not
 evidence that a domain model has been moved.
 
 Recommended next slices are: extract the demo-data providers from `populate`,
-give PEP its view/service adapters rather than only URL adapters, then split
-editor/document services before moving classification, panel and totem
-controllers.  No model relocation should occur until a data-migration plan
+then move the remaining PEP controller logic behind its now application-owned
+entry points before moving classification, panel and totem controllers. No
+model relocation should occur until a data-migration plan
 preserves every existing `db_table`, foreign key and permission mapping.
+
+## Documents boundary audit
+
+`DocumentoClinico`, `ModeloDocumento`, draft cleanup, rendering and PDF output
+remain physically owned by legacy Atendimento. Tickets now consumes the public
+`apps.atendimento.documents` API for template selection, rendering and PDF
+responses; Accounts consumes `apps.atendimento.public` for draft cleanup.
+Editor now exposes the public rendering service and PEP exposes the public
+route entry points; both delegate to legacy Atendimento controllers while the
+models, signing infrastructure and templates remain in place. Moving those
+implementations is deferred because it would change model ownership or
+existing clinical workflows.
 
 ## Incremental slices
 

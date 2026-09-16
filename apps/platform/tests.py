@@ -44,3 +44,12 @@ class ApplicationRegistryTests(SimpleTestCase):
     def test_registered_demo_seed_providers_have_a_resolvable_order(self):
         providers = seed_registry.providers()
         self.assertEqual([provider.code for provider in providers], ["atendimento.demo_legacy"])
+
+    def test_demo_seed_context_only_shares_scalar_values(self):
+        from .seeding import DemoSeedContext
+
+        context = DemoSeedContext(1, "senha-teste", False, None, None)
+        context.set("empresa.demo", 1)
+        self.assertEqual(context.get("empresa.demo"), 1)
+        with self.assertRaises(TypeError):
+            context.set("empresa.model", object())

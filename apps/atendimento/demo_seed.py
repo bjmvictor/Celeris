@@ -586,10 +586,10 @@ class AtendimentoDemoSeedProvider:
                     "cd_usuario_atualizacao": users["ADMINDEMO"],
                 },
             )
-        root, _ = ItemMenuAssistencial.objects.update_or_create(
-            cd_perfil_assistencial=profile,
-            cd_item_tecnico="DEMO_CUIDADO",
-            defaults={
+        root = AtendimentoDemoSeedProvider._upsert_seed_menu_item(
+            profile,
+            "DEMO_CUIDADO",
+            {
                 "cd_empresa": company,
                 "cd_versao_perfil": version,
                 "nm_item": "Cuidado assistencial",
@@ -611,10 +611,10 @@ class AtendimentoDemoSeedProvider:
             ("DEMO_DOC_ALTA", "Resumo de alta", "DOCUMENTO", "", templates["RESUMO_ALTA"]),
         )
         for order, (key, name, item_type, action, document) in enumerate(items, 1):
-            ItemMenuAssistencial.objects.update_or_create(
-                cd_perfil_assistencial=profile,
-                cd_item_tecnico=key,
-                defaults={
+            AtendimentoDemoSeedProvider._upsert_seed_menu_item(
+                profile,
+                key,
+                {
                     "cd_empresa": company,
                     "cd_item_pai": root,
                     "cd_modelo_documento": document,
@@ -628,6 +628,33 @@ class AtendimentoDemoSeedProvider:
                     "cd_usuario_atualizacao": users["ADMINDEMO"],
                 },
             )
+
+    @staticmethod
+    def _upsert_seed_menu_item(profile, technical_code, defaults):
+        """Keep `populate` idempotent even when an old demo run left duplicates.
+
+        The legacy model has no database uniqueness constraint for this natural
+        key. Retaining older rows avoids destructive cleanup; the oldest row is
+        the canonical seed record refreshed by subsequent runs.
+        """
+        item = (
+            ItemMenuAssistencial.objects.filter(
+                cd_perfil_assistencial=profile,
+                cd_item_tecnico=technical_code,
+            )
+            .order_by("pk")
+            .first()
+        )
+        if item is None:
+            return ItemMenuAssistencial.objects.create(
+                cd_perfil_assistencial=profile,
+                cd_item_tecnico=technical_code,
+                **defaults,
+            )
+        for field, value in defaults.items():
+            setattr(item, field, value)
+        item.save(update_fields=tuple(defaults))
+        return item
 
     @staticmethod
     def _create_survey(company):
@@ -872,4 +899,3 @@ def register_seed_provider() -> None:
     from apps.platform.seeding import seed_registry
 
     seed_registry.register(AtendimentoDemoSeedProvider())
-

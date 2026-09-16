@@ -4,7 +4,6 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, Permission
 from django.contrib import messages
 from django.conf import settings
-from django.apps import apps
 from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.db.models import Q
@@ -85,7 +84,9 @@ def csrf_failure(request, reason=""):
 class EmpresaLogoutView(auth_views.LogoutView):
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            apps.get_model("atendimento", "RascunhoEditorDocumento").objects.filter(cd_usuario=request.user).delete()
+            from apps.atendimento.public import limpar_rascunhos_do_usuario
+
+            limpar_rascunhos_do_usuario(request.user)
         request.session.pop("cd_empresa", None)
         request.session.pop("nm_empresa", None)
         return super().post(request, *args, **kwargs)

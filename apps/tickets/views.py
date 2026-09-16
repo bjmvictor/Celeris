@@ -425,11 +425,11 @@ def solicitar(request):
 @role_required("Suporte")
 @xframe_options_sameorigin
 def imprimir_chamado(request, cd_ticket):
-    from apps.atendimento.models import DocumentoClinico
-    from apps.atendimento.views import (
-        _modelos_documento_por_tela,
-        _renderizar_documento,
-        _resposta_pdf_documento,
+    from apps.atendimento.documents import (
+        DocumentoClinico,
+        modelos_para_tela,
+        renderizar_documento,
+        resposta_pdf_documento,
     )
 
     empresa = _empresa_logada(request)
@@ -452,7 +452,7 @@ def imprimir_chamado(request, cd_ticket):
     chave_tela = request.GET.get("tela", "tickets:solicitar")
     if chave_tela not in {"tickets:solicitar", "tickets:atender"}:
         chave_tela = "tickets:solicitar"
-    modelo = _modelos_documento_por_tela(
+    modelo = modelos_para_tela(
         empresa,
         chave_tela,
         {"COMPROVANTE_CHAMADO"},
@@ -480,8 +480,8 @@ def imprimir_chamado(request, cd_ticket):
         cd_usuario_criacao=ticket.requester or request.user,
     )
     documento._variaveis_adicionais = _variaveis_chamado(ticket, request)
-    apresentacao = _renderizar_documento(documento, True)
-    return _resposta_pdf_documento(request, documento, empresa, apresentacao)
+    apresentacao = renderizar_documento(documento, True)
+    return resposta_pdf_documento(request, documento, empresa, apresentacao)
 
 
 @login_required
