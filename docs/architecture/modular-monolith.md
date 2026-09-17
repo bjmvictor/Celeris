@@ -86,6 +86,30 @@ models, signing infrastructure and templates remain in place. Moving those
 implementations is deferred because it would change model ownership or
 existing clinical workflows.
 
+## Functional ownership extraction
+
+The Totem ticket-generation view was the first controller moved out of
+`apps.atendimento.views`. `apps.applications.totem.views.gerar_senha_totem`
+now owns the request handling, ticket-number allocation transaction, rule and
+class selection, and history query. The legacy Atendimento URL retains its
+name and decorators, but delegates to that implementation. The template and
+the legacy shared models (`SenhaAtendimento`, classes and rules) remain
+unchanged.
+
+PEP, Editor, Classification and Panel still have controller implementations in
+Atendimento or direct imports from it. They remain deferred because their
+current views share large private helper sets and clinical action routes; a
+partial copy would increase duplication rather than invert a dependency. The
+next recommended slice is to extract PEP list selectors and then its main
+controller, replacing the current PEP-to-Atendimento view import.
+
+PEP now owns the read-only selectors for patient search, tenant-scoped patient
+and encounter resolution, and the basic record context (selected encounter and
+vital-sign history). The legacy PEP controller consumes those selectors, so
+these queries no longer have competing implementations. Documents, menu
+composition, prescriptions and clinical write actions remain in Atendimento;
+they are intentionally outside this read-only extraction.
+
 ## Incremental slices
 
 1. Extract `apps.domain.pessoas`, `apps.domain.pacientes`, `apps.domain.profissionais`,
