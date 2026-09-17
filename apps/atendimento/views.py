@@ -122,6 +122,8 @@ from apps.applications.editor.permissions import (
     usuario_pode_visualizar_documento,
 )
 
+from apps.applications.editor.services import criar_documento_clinico
+
 logger = logging.getLogger("celeris.atendimento")
 
 from apps.atendimento.services.perfis_assistenciais import perfis_assistenciais_usuario
@@ -1141,58 +1143,6 @@ def _calendario_mensal(empresa, data_selecionada, data_final=None):
         "next": proximo,
         "weekdays": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
     }
-
-
-def _criar_documento_clinico(
-    atendimento,
-    tipo,
-    titulo,
-    conteudo,
-    user,
-    status="ABERTO",
-    origem=None,
-    modelo=None,
-    campos_bloqueados=None,
-    dados_formulario=None,
-):
-    status_final = {
-        "RASCUNHO": "ABERTO",
-        "FINALIZADO": "FECHADO",
-        "ASSINADO": "FECHADO",
-    }.get(status, status)
-    documento = DocumentoClinico.objects.create(
-        cd_empresa=atendimento.cd_empresa,
-        cd_atendimento=atendimento,
-        cd_modelo_documento=modelo,
-        cd_documento_origem=origem,
-        tp_documento=tipo,
-        ds_titulo=titulo,
-        ds_conteudo=conteudo,
-        ds_dados_formulario=dados_formulario or {},
-        ds_status=status_final,
-        dh_finalizacao=timezone.now() if status_final == "FECHADO" else None,
-        dh_assinatura=timezone.now() if status_final == "FECHADO" else None,
-        cd_usuario_emissor=user,
-        cd_usuario_responsavel=user,
-        ds_hash_conteudo=hashlib.sha256((conteudo or "").encode("utf-8")).hexdigest() if status_final == "FECHADO" else "",
-        cd_usuario_criacao=user,
-        cd_usuario_atualizacao=user,
-        ds_campos_bloqueados={
-            "paciente.codigo": atendimento.cd_paciente_id,
-            "paciente.nome": (atendimento.cd_paciente.nm_social or "").strip() or atendimento.cd_paciente.nm_paciente,
-            "atendimento.codigo": atendimento.pk,
-            "empresa.nome": atendimento.cd_empresa.nm_empresa,
-            "usuario.nome": user.display_name() if hasattr(user, "display_name") else user.get_username(),
-            **(campos_bloqueados or {}),
-        },
-    )
-    EventoDocumentoClinico.objects.create(
-        cd_empresa=atendimento.cd_empresa,
-        cd_documento_clinico=documento,
-        cd_usuario=user,
-        tp_evento="FECHADO" if status_final == "FECHADO" else "CRIADO",
-    )
-    return documento
 
 
 def _dados_formulario_resumo_alta(modelo, atendimento):
@@ -2741,7 +2691,7 @@ def abrir_modelo_assistencial(request, cd_atendimento, cd_item):
                 return redirect("atendimento:imprimir-documento-clinico", cd_documento=historico.pk)
             messages.warning(request, "Esta tela está configurada apenas para consulta e ainda não possui documentos.")
             return redirect("atendimento:ficha-atendimento", cd_atendimento=atendimento.pk)
-        documento = _criar_documento_clinico(
+        documento = criar_documento_clinico(
             atendimento,
             modelo.tp_documento,
             modelo.nm_modelo,
@@ -3579,7 +3529,7 @@ def solicitar_exame(request, cd_atendimento):
                 saved.cd_atendimento = atendimento
                 _apply_audit(saved, request.user)
                 saved.save()
-                _criar_documento_clinico(
+                criar_documento_clinico(
                     atendimento,
                     "SOLICITACAO_EXAME",
                     f"Solicitação de exame {saved.pk}",
@@ -3668,7 +3618,7 @@ def prescrever(request, cd_atendimento):
                 saved.cd_atendimento = atendimento
                 _apply_audit(saved, request.user)
                 saved.save()
-                _criar_documento_clinico(
+                criar_documento_clinico(
                     atendimento,
                     "PRESCRICAO",
                     f"Prescrição {saved.pk}",
@@ -3724,7 +3674,7 @@ def evoluir(request, cd_atendimento):
         saved.cd_prestador = atendimento.cd_prestador
         _apply_audit(saved, request.user)
         saved.save()
-        _criar_documento_clinico(
+        criar_documento_clinico(
             atendimento,
             "EVOLUCAO",
             f"Evolução {saved.cd_evolucao_atendimento}",
@@ -3977,7 +3927,7 @@ def conceder_alta(request, cd_atendimento):
                 "ds_cid", "ds_diagnostico", "ds_conduta", "ds_destino", "ds_motivo_alta",
                 "dh_alta_medica", "dh_atualizacao", "cd_usuario_atualizacao",
             ])
-            documento = _criar_documento_clinico(
+            documento = criar_documento_clinico(
                 atendimento,
                 "RESUMO_ALTA",
                 f"Resumo de alta {atendimento.pk}",
@@ -4037,7 +3987,7 @@ def documento_assistencial(request, cd_atendimento, tipo):
         if not conteudo:
             messages.error(request, "Preencha o conteúdo do documento.")
         else:
-            documento = _criar_documento_clinico(
+            documento = criar_documento_clinico(
                 atendimento,
                 codigo,
                 f"{titulo} - atendimento {atendimento.pk}",
@@ -6771,7 +6721,7 @@ def executar_escala_clinica(request, cd_atendimento, cd_item):
             )
         faixa = _faixa_resultado_escala(escala.ds_faixas_resultado, resultado)
         with transaction.atomic():
-            documento = _criar_documento_clinico(
+            documento = criar_documento_clinico(
                 atendimento,
                 f"ESCALA_{escala.pk}",
                 f"{escala.nm_escala} - atendimento {atendimento.pk}",
@@ -7026,7 +6976,7 @@ def copiar_documento_clinico(request, cd_documento):
         raise PermissionDenied("Somente documentos fechados ou cancelados podem ser copiados.")
     if not usuario_pode_visualizar_documento(request.user, origem):
         raise PermissionDenied
-    copia = _criar_documento_clinico(
+    copia = criar_documento_clinico(
         origem.cd_atendimento,
         origem.tp_documento,
         origem.ds_titulo,
@@ -8168,7 +8118,7 @@ def pep_prontuario_paciente(request, cd_paciente):
             except (TypeError, ValueError):
                 messages.error(request, "Informe uma data e hora válida para o documento.")
             else:
-                documento = _criar_documento_clinico(
+                documento = criar_documento_clinico(
                     atendimento_selecionado,
                     modelo_documento_item.tp_documento,
                     modelo_documento_item.nm_modelo,
