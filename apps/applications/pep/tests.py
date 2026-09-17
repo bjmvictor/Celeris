@@ -1,5 +1,6 @@
 from django.http import Http404
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.accounts.models import Empresa, User
 from apps.atendimento.models import (
@@ -185,3 +186,44 @@ class PepMenuTests(TestCase):
 
         self.assertEqual([perfil.pk for perfil in perfis], [perfil_a.pk])
         self.assertEqual([(item.cd_item_tecnico, item.ds_url) for item in itens], [("EMPRESA_A", "#empresa-a")])
+
+
+class PepStandaloneViewsTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=8130, nm_empresa="Standalone", sn_ativo=True)
+        self.usuario = User.objects.create_user("pep-standalone", password="senha-forte")
+        prestador = Prestador.objects.create(
+            cd_empresa=self.empresa,
+            nm_prestador="Prestador standalone",
+            nm_guerra="Standalone",
+        )
+        self.usuario.cd_prestador = prestador
+        self.usuario.save(update_fields=["cd_prestador"])
+        self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="Paciente standalone")
+        Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            cd_prestador=prestador,
+            ds_status="EM_ATENDIMENTO",
+        )
+        self.client.force_login(self.usuario)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
+
+    def test_entradas_standalone_preservam_workspace_e_prontuario(self):
+        workspace = self.client.get(reverse("pep_standalone"))
+        prontuario = self.client.get(reverse("pep_prontuario_standalone", args=[self.paciente.pk]))
+
+        self.assertEqual(workspace.status_code, 200)
+        self.assertEqual(prontuario.status_code, 200)
+        self.assertTemplateUsed(workspace, "atendimento/pep.html")
+        self.assertTemplateUsed(prontuario, "atendimento/pep_prontuario_paciente.html")
+
+    def test_standalone_sem_prestador_mantem_redirect_legado(self):
+        self.usuario.cd_prestador = None
+        self.usuario.save(update_fields=["cd_prestador"])
+
+        response = self.client.get(reverse("pep_standalone"))
+
+        self.assertRedirects(response, reverse("core:home"))

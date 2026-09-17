@@ -120,8 +120,11 @@ they are intentionally outside this read-only extraction.
 PEP also owns the composition of its assistential workspace menu through
 `apps.applications.pep.menu`. It uses the public Atendimento clinical-profile
 resolver and the existing legacy profile-item relationships, preserving version
-selection, tenant scoping, item merging and display attributes. The models and
-the PEP controllers remain in Atendimento until a later vertical slice.
+selection, tenant scoping, item merging and display attributes. PEP now owns
+its workspace, patient-chart, standalone workspace and standalone chart
+controllers. They retain temporary imports of Atendimento legacy models and
+public Atendimento profile/prescription services; they do not import
+`apps.atendimento.views`.
 
 The shared context for prescription and exam actions is now exposed by
 `apps.atendimento.services.prescricoes.contexto_acao_prescricao`. Controllers
