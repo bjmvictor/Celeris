@@ -123,6 +123,13 @@ resolver and the existing legacy profile-item relationships, preserving version
 selection, tenant scoping, item merging and display attributes. The models and
 the PEP controllers remain in Atendimento until a later vertical slice.
 
+The shared context for prescription and exam actions is now exposed by
+`apps.atendimento.services.prescricoes.contexto_acao_prescricao`. Controllers
+and PEP supply the already-composed assistential menu explicitly, so the
+service keeps prescription models, required-document checks, tenant filters and
+URL construction outside `apps.atendimento.views` without creating an
+Atendimento-to-PEP dependency.
+
 ## Incremental slices
 
 1. Extract `apps.domain.pessoas`, `apps.domain.pacientes`, `apps.domain.profissionais`,

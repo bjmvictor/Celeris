@@ -12,7 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpResponse
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -25,7 +25,7 @@ from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs
 
 from .forms import EscalaForm, PacienteForm, PrestadorForm
 from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
-from .services.prescricoes import registrar_itens_prescricao
+from .services.prescricoes import contexto_acao_prescricao, registrar_itens_prescricao
 from apps.estoque.models import Produto
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
 
@@ -101,6 +101,63 @@ class PrescricaoEstruturadaTests(TestCase):
                 itens=[{"item_id": self.item.pk}],
             )
         self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento).exists())
+
+    def test_contexto_publico_preserva_tenant_documentos_e_url_pep(self):
+        modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Termo de prescricao",
+            tp_documento="ADMINISTRATIVO",
+        )
+        ItemPrescricaoDocumento.objects.create(
+            cd_empresa=self.empresa,
+            cd_item_prescricao=self.item,
+            cd_modelo_documento=modelo,
+        )
+        outra_empresa = Empresa.objects.create(cd_empresa=7099, nm_empresa="Outra empresa", sn_ativo=True)
+        ClasseItemPrescricao.objects.create(
+            cd_empresa=outra_empresa,
+            sg_classe="OUTRA",
+            ds_classe="Nao pode aparecer",
+            tp_classe="MEDICAMENTO",
+        )
+        ViaAplicacaoPrescricao.objects.create(
+            cd_empresa=outra_empresa,
+            sg_via="IV",
+            ds_via="Outra empresa",
+        )
+        request = RequestFactory().get("/atendimento/ficha/", {"return_to": "/PEP/"})
+        request.user = self.usuario
+        item_menu = types.SimpleNamespace(
+            tp_item="DOCUMENTO",
+            cd_modelo_documento_id=modelo.pk,
+            pk=71,
+        )
+
+        contexto = contexto_acao_prescricao(
+            request,
+            self.atendimento,
+            "MEDICAMENTO",
+            itens_menu=[item_menu],
+        )
+
+        self.assertEqual(
+            set(contexto),
+            {
+                "atendimento", "classes", "vias", "tipo_prescricao", "return_to",
+                "prescricao_documento", "prescricao_itens_salvos", "prescricao_form_action",
+            },
+        )
+        self.assertEqual(contexto["classes"], [self.classe])
+        item_contexto = contexto["classes"][0].itens_disponiveis[0]
+        self.assertEqual(item_contexto.pk, self.item.pk)
+        self.assertEqual(list(contexto["vias"]), [self.via])
+        documento = item_contexto.documentos_exigidos_lista[0]
+        self.assertEqual(documento["nome"], modelo.nm_modelo)
+        self.assertFalse(documento["finalizado"])
+        self.assertIn(reverse("pep_prontuario_standalone", args=[self.atendimento.cd_paciente_id]), documento["url"])
+        self.assertIn("modo=atendimento", documento["url"])
+        self.assertIn("return_to=%2FPEP%2F", documento["url"])
+        self.assertEqual(contexto["prescricao_form_action"], reverse("atendimento:prescrever", args=[self.atendimento.pk]))
 
     def test_acao_embutida_conclui_no_pai_sem_replicar_layout(self):
         modelo = ModeloDocumento.objects.create(

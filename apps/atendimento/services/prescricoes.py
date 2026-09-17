@@ -4,8 +4,12 @@ from dataclasses import dataclass
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
+from urllib.parse import urlencode
 
 from apps.atendimento.models import (
+    ClasseItemPrescricao,
     DocumentoClinico,
     ItemPrescricao,
     Prescricao,
@@ -19,6 +23,106 @@ from apps.atendimento.models import (
 class ResultadoRegistroPrescricao:
     prescricao: Prescricao | None
     solicitacoes_exame: tuple[SolicitacaoExame, ...]
+
+
+def contexto_acao_prescricao(
+    request,
+    atendimento,
+    tipo,
+    documento=None,
+    classes_permitidas=None,
+    itens_menu=(),
+):
+    """Build the shared prescription/exam action context without controller imports."""
+    empresa = atendimento.cd_empresa
+    classes = list(
+        ClasseItemPrescricao.objects.filter(
+            cd_empresa=empresa,
+            tp_classe=tipo,
+            sn_ativo=True,
+        ).order_by("nr_ordem", "ds_classe")
+    )
+    classes_configuradas = {
+        str(valor).strip().upper()
+        for valor in (classes_permitidas or request.GET.get("classes", "").split(","))
+        if str(valor).strip()
+    }
+    if classes_configuradas:
+        classes = [
+            classe
+            for classe in classes
+            if str(classe.pk) in classes_configuradas or classe.sg_classe.upper() in classes_configuradas
+        ]
+    itens = (
+        ItemPrescricao.objects.filter(
+            cd_empresa=empresa,
+            cd_classe__in=classes,
+            sn_ativo=True,
+        )
+        .select_related("cd_classe", "cd_produto", "cd_via_padrao")
+        .prefetch_related("documentos_exigidos__cd_modelo_documento")
+        .order_by("cd_classe__nr_ordem", "nm_item")
+    )
+    itens_por_classe = {classe.pk: [] for classe in classes}
+    itens_menu_por_modelo = {
+        item.cd_modelo_documento_id: item
+        for item in itens_menu
+        if item.tp_item == "DOCUMENTO" and item.cd_modelo_documento_id
+    }
+    retorno_pep = _return_to_seguro(request)
+    rota_prontuario = "pep_prontuario_standalone" if retorno_pep.startswith("/PEP/") else "atendimento:pep-prontuario-paciente"
+    for item in itens:
+        item.documentos_exigidos_lista = []
+        for vinculo in item.documentos_exigidos.all():
+            if not vinculo.sn_ativo or not vinculo.sn_obrigatorio:
+                continue
+            modelo = vinculo.cd_modelo_documento
+            item_menu = itens_menu_por_modelo.get(modelo.pk)
+            finalizado = DocumentoClinico.objects.filter(
+                cd_atendimento=atendimento,
+                cd_modelo_documento=modelo,
+                ds_status__in=("FECHADO", "FINALIZADO", "ASSINADO"),
+            ).exists()
+            url_documento = ""
+            if item_menu:
+                url_documento = (
+                    f"{reverse(rota_prontuario, args=[atendimento.cd_paciente_id])}?"
+                    f"{urlencode({'modo': 'atendimento', 'atendimento': atendimento.pk, 'item': item_menu.pk, 'return_to': retorno_pep})}"
+                )
+            item.documentos_exigidos_lista.append({
+                "nome": modelo.nm_modelo,
+                "url": url_documento,
+                "finalizado": finalizado,
+            })
+        itens_por_classe[item.cd_classe_id].append(item)
+    for classe in classes:
+        classe.itens_disponiveis = itens_por_classe.get(classe.pk, [])
+    itens_salvos = []
+    if documento and isinstance(documento.ds_dados_formulario, dict):
+        dados_salvos = documento.ds_dados_formulario.get("itens", [])
+        if isinstance(dados_salvos, list):
+            itens_salvos = dados_salvos
+    rota_salvar = "atendimento:prescrever" if tipo == "MEDICAMENTO" else "atendimento:solicitar-exame"
+    return {
+        "atendimento": atendimento,
+        "classes": classes,
+        "vias": ViaAplicacaoPrescricao.objects.filter(
+            cd_empresa=empresa,
+            sn_ativo=True,
+        ).order_by("nr_ordem", "ds_via"),
+        "tipo_prescricao": tipo,
+        "return_to": _return_to_seguro(request),
+        "prescricao_documento": documento,
+        "prescricao_itens_salvos": itens_salvos,
+        "prescricao_form_action": reverse(rota_salvar, args=[atendimento.pk]),
+    }
+
+
+def _return_to_seguro(request):
+    candidate = request.POST.get("return_to") or request.GET.get("return_to", "")
+    if candidate and url_has_allowed_host_and_scheme(candidate, allowed_hosts={request.get_host()}):
+        return candidate
+    return ""
 
 
 def _documentos_obrigatorios_pendentes(atendimento, item: ItemPrescricao) -> list[str]:

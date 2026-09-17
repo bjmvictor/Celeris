@@ -114,7 +114,7 @@ from .models import (
     ViaAplicacaoPrescricao,
     VersaoDocumentoClinico,
 )
-from .services.prescricoes import registrar_itens_prescricao
+from .services.prescricoes import contexto_acao_prescricao, registrar_itens_prescricao
 
 
 from apps.applications.editor.permissions import (
@@ -3359,94 +3359,13 @@ def _concluir_acao_clinica_embutida(request, atendimento):
     return redirect(destino)
 
 
-def _contexto_acao_prescricao(request, atendimento, tipo, documento=None, classes_permitidas=None):
-    empresa = atendimento.cd_empresa
-    classes = list(
-        ClasseItemPrescricao.objects.filter(
-            cd_empresa=empresa,
-            tp_classe=tipo,
-            sn_ativo=True,
-        ).order_by("nr_ordem", "ds_classe")
-    )
-    classes_configuradas = {
-        str(valor).strip().upper()
-        for valor in (classes_permitidas or request.GET.get("classes", "").split(","))
-        if str(valor).strip()
-    }
-    if classes_configuradas:
-        classes = [
-            classe
-            for classe in classes
-            if str(classe.pk) in classes_configuradas or classe.sg_classe.upper() in classes_configuradas
-        ]
-    itens = (
-        ItemPrescricao.objects.filter(
-            cd_empresa=empresa,
-            cd_classe__in=classes,
-            sn_ativo=True,
-        )
-        .select_related("cd_classe", "cd_produto", "cd_via_padrao")
-        .prefetch_related("documentos_exigidos__cd_modelo_documento")
-        .order_by("cd_classe__nr_ordem", "nm_item")
-    )
-    itens_por_classe = {classe.pk: [] for classe in classes}
-    _perfis, itens_menu = itens_menu_assistencial_mesclados(request.user, empresa)
-    itens_menu_por_modelo = {
-        item.cd_modelo_documento_id: item
-        for item in itens_menu
-        if item.tp_item == "DOCUMENTO" and item.cd_modelo_documento_id
-    }
-    retorno_pep = _safe_return_url(request) or ""
-    rota_prontuario = "pep_prontuario_standalone" if retorno_pep.startswith("/PEP/") else "atendimento:pep-prontuario-paciente"
-    for item in itens:
-        item.documentos_exigidos_lista = []
-        for vinculo in item.documentos_exigidos.all():
-            if not vinculo.sn_ativo or not vinculo.sn_obrigatorio:
-                continue
-            modelo = vinculo.cd_modelo_documento
-            item_menu = itens_menu_por_modelo.get(modelo.pk)
-            finalizado = DocumentoClinico.objects.filter(
-                cd_atendimento=atendimento,
-                cd_modelo_documento=modelo,
-                ds_status__in=("FECHADO", "FINALIZADO", "ASSINADO"),
-            ).exists()
-            url_documento = ""
-            if item_menu:
-                url_documento = (
-                    f"{reverse(rota_prontuario, args=[atendimento.cd_paciente_id])}?"
-                    f"{urlencode({'modo': 'atendimento', 'atendimento': atendimento.pk, 'item': item_menu.pk, 'return_to': retorno_pep})}"
-                )
-            item.documentos_exigidos_lista.append({
-                "nome": modelo.nm_modelo,
-                "url": url_documento,
-                "finalizado": finalizado,
-            })
-        itens_por_classe[item.cd_classe_id].append(item)
-    for classe in classes:
-        classe.itens_disponiveis = itens_por_classe.get(classe.pk, [])
-    itens_salvos = []
-    if documento and isinstance(documento.ds_dados_formulario, dict):
-        dados_salvos = documento.ds_dados_formulario.get("itens", [])
-        if isinstance(dados_salvos, list):
-            itens_salvos = dados_salvos
-    rota_salvar = "atendimento:prescrever" if tipo == "MEDICAMENTO" else "atendimento:solicitar-exame"
-    return {
-        "atendimento": atendimento,
-        "classes": classes,
-        "vias": ViaAplicacaoPrescricao.objects.filter(
-            cd_empresa=empresa,
-            sn_ativo=True,
-        ).order_by("nr_ordem", "ds_via"),
-        "tipo_prescricao": tipo,
-        "return_to": _safe_return_url(request),
-        "prescricao_documento": documento,
-        "prescricao_itens_salvos": itens_salvos,
-        "prescricao_form_action": reverse(rota_salvar, args=[atendimento.pk]),
-    }
-
-
 def _renderizar_acao_prescricao(request, atendimento, tipo):
-    contexto = _contexto_acao_prescricao(request, atendimento, tipo)
+    contexto = contexto_acao_prescricao(
+        request,
+        atendimento,
+        tipo,
+        itens_menu=itens_menu_assistencial_mesclados(request.user, atendimento.cd_empresa)[1],
+    )
     contexto["clinical_action_base_template"] = (
         "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html"
     )
@@ -3513,7 +3432,13 @@ def solicitar_exame(request, cd_atendimento):
         request,
         "atendimento/prescricao_estruturada.html",
         {
-            **_contexto_acao_prescricao(request, atendimento, "EXAME", documento),
+            **contexto_acao_prescricao(
+                request,
+                atendimento,
+                "EXAME",
+                documento,
+                itens_menu=itens_menu_assistencial_mesclados(request.user, atendimento.cd_empresa)[1],
+            ),
             "clinical_action_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
         },
     )
@@ -3601,7 +3526,13 @@ def prescrever(request, cd_atendimento):
         request,
         "atendimento/prescricao_estruturada.html",
         {
-            **_contexto_acao_prescricao(request, atendimento, "MEDICAMENTO", documento),
+            **contexto_acao_prescricao(
+                request,
+                atendimento,
+                "MEDICAMENTO",
+                documento,
+                itens_menu=itens_menu_assistencial_mesclados(request.user, atendimento.cd_empresa)[1],
+            ),
             "clinical_action_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
         },
     )
@@ -8126,12 +8057,13 @@ def pep_prontuario_paciente(request, cd_paciente):
             tipo_documento_item = getattr(ultimo_documento_item.cd_modelo_documento, "tp_documento", "")
             if documento_editavel_item and tipo_documento_item in {"PRESCRICAO", "SOLICITACAO_EXAME"}:
                 tipo_prescricao_item = "MEDICAMENTO" if tipo_documento_item == "PRESCRICAO" else "EXAME"
-                prescricao_documento_contexto = _contexto_acao_prescricao(
+                prescricao_documento_contexto = contexto_acao_prescricao(
                     request,
                     atendimento_selecionado,
                     tipo_prescricao_item,
                     ultimo_documento_item,
                     (item_selecionado.ds_configuracao or {}).get("classes_prescricao") or None,
+                    itens_menu=itens_assistenciais,
                 )
             else:
                 apresentacao_documento_item = (
