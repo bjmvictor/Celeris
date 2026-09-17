@@ -113,9 +113,15 @@ controller, replacing the current PEP-to-Atendimento view import.
 PEP now owns the read-only selectors for patient search, tenant-scoped patient
 and encounter resolution, and the basic record context (selected encounter and
 vital-sign history). The legacy PEP controller consumes those selectors, so
-these queries no longer have competing implementations. Documents, menu
-composition, prescriptions and clinical write actions remain in Atendimento;
+these queries no longer have competing implementations. Documents,
+prescriptions and clinical write actions remain in Atendimento;
 they are intentionally outside this read-only extraction.
+
+PEP also owns the composition of its assistential workspace menu through
+`apps.applications.pep.menu`. It uses the public Atendimento clinical-profile
+resolver and the existing legacy profile-item relationships, preserving version
+selection, tenant scoping, item merging and display attributes. The models and
+the PEP controllers remain in Atendimento until a later vertical slice.
 
 ## Incremental slices
 

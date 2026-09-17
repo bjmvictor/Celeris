@@ -131,68 +131,11 @@ from apps.applications.editor.locking import (
     usuario_tem_lock_documento_ou_livre,
 )
 
+from apps.applications.pep.menu import itens_menu_assistencial_mesclados
+
 logger = logging.getLogger("celeris.atendimento")
 
 from apps.atendimento.services.perfis_assistenciais import perfis_assistenciais_usuario
-
-
-def _itens_menu_assistencial_mesclados(usuario, empresa):
-    perfis = list(perfis_assistenciais_usuario(usuario, empresa))
-    if not perfis:
-        return perfis, []
-    itens = []
-    for perfil in perfis:
-        versao = (
-            perfil.versoes.filter(ds_status="RASCUNHO").first()
-            or perfil.versoes.filter(ds_status="PUBLICADO").first()
-        )
-        queryset = perfil.itens.select_related(
-            "cd_modelo_documento",
-            "cd_item_pai",
-            "cd_versao_perfil",
-            "cd_perfil_assistencial",
-        ).filter(sn_ativo=True)
-        if versao:
-            queryset = queryset.filter(Q(cd_versao_perfil=versao) | Q(cd_versao_perfil__isnull=True))
-        itens.extend(queryset)
-
-    mesclados = {}
-    id_para_chave = {}
-    for item in sorted(itens, key=lambda value: (value.nr_ordem, value.pk)):
-        chave = item.cd_item_tecnico or f"{item.tp_item}:{item.nm_item.strip().upper()}"
-        id_para_chave[item.pk] = chave
-        if chave not in mesclados:
-            mesclados[chave] = copy.copy(item)
-            mesclados[chave].perfis_origem = [item.cd_perfil_assistencial]
-            continue
-        atual = mesclados[chave]
-        if item.cd_perfil_assistencial.sn_sigiloso and not atual.cd_perfil_assistencial.sn_sigiloso:
-            perfis_origem = atual.perfis_origem
-            anterior = atual
-            atual = copy.copy(item)
-            atual.perfis_origem = perfis_origem
-            atual.sn_privado = anterior.sn_privado
-            atual.sn_imprimivel = anterior.sn_imprimivel
-            atual.sn_permite_criar = anterior.sn_permite_criar
-            atual.sn_permite_abandonar = anterior.sn_permite_abandonar
-            atual.sn_permite_cancelar = anterior.sn_permite_cancelar
-            atual.sn_somente_historico = anterior.sn_somente_historico
-            mesclados[chave] = atual
-        atual.sn_privado = atual.sn_privado or item.sn_privado
-        atual.sn_imprimivel = atual.sn_imprimivel and item.sn_imprimivel
-        atual.sn_permite_criar = atual.sn_permite_criar and item.sn_permite_criar
-        atual.sn_permite_abandonar = atual.sn_permite_abandonar and item.sn_permite_abandonar
-        atual.sn_permite_cancelar = atual.sn_permite_cancelar and item.sn_permite_cancelar
-        atual.sn_somente_historico = atual.sn_somente_historico or item.sn_somente_historico
-        atual.nr_ordem = min(atual.nr_ordem, item.nr_ordem)
-        atual.perfis_origem.append(item.cd_perfil_assistencial)
-
-    resultado = list(mesclados.values())
-    for item in resultado:
-        item.chave_mesclagem = item.cd_item_tecnico or f"{item.tp_item}:{item.nm_item.strip().upper()}"
-        item.chave_pai_mesclagem = id_para_chave.get(item.cd_item_pai_id)
-        item.filhos_renderizados = []
-    return perfis, sorted(resultado, key=lambda value: (value.nr_ordem, value.pk))
 
 
 def _marcar_ramo_menu_assistencial(itens, item_selecionado):
@@ -2575,7 +2518,7 @@ def ficha_atendimento(request, cd_atendimento):
         "enfermeiro": request.user.is_superuser or bool(grupos.intersection({"TI", "Enfermeiro"})),
         "laboratorio": request.user.is_superuser or bool(grupos.intersection({"TI", "Laboratório", "Laboratorio"})),
     }
-    perfis_assistenciais, itens_menu_assistencial = _itens_menu_assistencial_mesclados(request.user, empresa)
+    perfis_assistenciais, itens_menu_assistencial = itens_menu_assistencial_mesclados(request.user, empresa)
     perfil_assistencial = perfis_assistenciais[0] if perfis_assistenciais else None
     if not request.user.is_superuser and not perfis_assistenciais and not any(clinical_permissions.values()):
         raise PermissionDenied("Usuário sem perfil assistencial para acessar o prontuário.")
@@ -3447,7 +3390,7 @@ def _contexto_acao_prescricao(request, atendimento, tipo, documento=None, classe
         .order_by("cd_classe__nr_ordem", "nm_item")
     )
     itens_por_classe = {classe.pk: [] for classe in classes}
-    _perfis, itens_menu = _itens_menu_assistencial_mesclados(request.user, empresa)
+    _perfis, itens_menu = itens_menu_assistencial_mesclados(request.user, empresa)
     itens_menu_por_modelo = {
         item.cd_modelo_documento_id: item
         for item in itens_menu
@@ -3829,7 +3772,7 @@ def conceder_alta(request, cd_atendimento):
             "alta_base_template": "base/document_embed.html" if request.GET.get("embed") == "1" else "base/layout.html",
         }
 
-    perfis, itens = _itens_menu_assistencial_mesclados(request.user, atendimento.cd_empresa)
+    perfis, itens = itens_menu_assistencial_mesclados(request.user, atendimento.cd_empresa)
     itens_por_modelo = {
         item.cd_modelo_documento_id: item
         for item in itens
@@ -7960,7 +7903,7 @@ def pep_prontuario_paciente(request, cd_paciente):
     request.current_can_query = False
     grupos = set(request.user.groups.values_list("name", flat=True))
     can_clinical_actions = request.user.is_superuser or bool(grupos.intersection({"TI", "Médico", "Médico"}))
-    perfis_assistenciais, itens_assistenciais = _itens_menu_assistencial_mesclados(request.user, empresa)
+    perfis_assistenciais, itens_assistenciais = itens_menu_assistencial_mesclados(request.user, empresa)
     menu_assistencial_raizes = []
     if atendimento_selecionado:
         tipos_documentais_por_acao = {
