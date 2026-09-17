@@ -88,6 +88,13 @@ existing clinical workflows.
 
 ## Functional ownership extraction
 
+Document-lock orchestration now belongs to Editor through
+`apps.applications.editor.locking`. Atendimento controllers use that public
+API for DocumentoClinico acquisition, lookup, ownership checks and release;
+their HTTP messages and redirects remain in the controller. `apps.core.locks`
+remains the generic shared lock infrastructure and continues to serve
+non-document resources such as provider and attendance records.
+
 The Totem ticket-generation view was the first controller moved out of
 `apps.atendimento.views`. `apps.applications.totem.views.gerar_senha_totem`
 now owns the request handling, ticket-number allocation transaction, rule and

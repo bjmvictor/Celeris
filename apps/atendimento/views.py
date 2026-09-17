@@ -124,6 +124,13 @@ from apps.applications.editor.permissions import (
 
 from apps.applications.editor.services import criar_documento_clinico
 
+from apps.applications.editor.locking import (
+    adquirir_lock_documento,
+    consultar_lock_documento,
+    liberar_lock_documento,
+    usuario_tem_lock_documento_ou_livre,
+)
+
 logger = logging.getLogger("celeris.atendimento")
 
 from apps.atendimento.services.perfis_assistenciais import perfis_assistenciais_usuario
@@ -6039,7 +6046,10 @@ def imprimir_documento_clinico(request, cd_documento):
     if request.method == "POST" and documento.ds_status in {"ABERTO", "RASCUNHO"}:
         if documento.cd_usuario_responsavel_id and documento.cd_usuario_responsavel_id != request.user.pk:
             raise PermissionDenied("Assuma o documento antes de alterá-lo.")
-        mensagem_trava = _bloqueio_trava_documento(request, documento)
+        resultado_trava = usuario_tem_lock_documento_ou_livre(documento, request.user)
+        mensagem_trava = "" if resultado_trava.permitido else (
+            f"{resultado_trava.mensagem} Aguarde a liberação ou solicite ao TI em Sessões e travas."
+        )
         if mensagem_trava:
             messages.warning(request, mensagem_trava)
             return _redirect_documento_clinico(request, documento)
@@ -6141,10 +6151,6 @@ def _redirect_documento_clinico(request, documento):
     return redirect("atendimento:imprimir-documento-clinico", cd_documento=documento.pk)
 
 
-def _titulo_trava_documento(documento):
-    return f"Documento {documento.pk} - {documento.ds_titulo or documento.tp_documento}"
-
-
 def _mensagem_documento_nao_editavel(documento):
     usuario = documento.cd_usuario_responsavel
     usuario_texto = f" por {nome_usuario_trava(usuario)}" if usuario else ""
@@ -6155,17 +6161,6 @@ def _mensagem_documento_nao_editavel(documento):
     if documento.ds_status == "ABANDONADO":
         return f"Este documento já foi excluído{usuario_texto}."
     return "Este documento não está mais disponível para edição."
-
-
-def _bloqueio_trava_documento(request, documento):
-    resultado = usuario_tem_trava_ou_livre(documento.cd_empresa, request.user, "documento_clinico", documento.pk)
-    if resultado.permitido:
-        return ""
-    return f"{resultado.mensagem} Aguarde a liberação ou solicite ao TI em Sessões e travas."
-
-
-def _liberar_trava_documento(documento, usuario, motivo):
-    liberar_trava_edicao(documento.cd_empresa, usuario, "documento_clinico", documento.pk, motivo=motivo)
 
 
 def _registrar_evento_documento(documento, usuario, tipo, motivo="", dados=None):
@@ -6209,7 +6204,10 @@ def assumir_documento_clinico(request, cd_documento):
         if documento.ds_status not in {"ABERTO", "RASCUNHO"}:
             messages.warning(request, _mensagem_documento_nao_editavel(documento))
             return _redirect_documento_clinico(request, documento)
-        mensagem_trava = _bloqueio_trava_documento(request, documento)
+        resultado_trava = usuario_tem_lock_documento_ou_livre(documento, request.user)
+        mensagem_trava = "" if resultado_trava.permitido else (
+            f"{resultado_trava.mensagem} Aguarde a liberação ou solicite ao TI em Sessões e travas."
+        )
         if mensagem_trava:
             messages.warning(request, mensagem_trava)
             return _redirect_documento_clinico(request, documento)
@@ -6232,13 +6230,7 @@ def assumir_documento_clinico(request, cd_documento):
             motivo,
             {"usuario_anterior": anterior},
         )
-        adquirir_trava_edicao(
-            documento.cd_empresa,
-            request.user,
-            "documento_clinico",
-            documento.pk,
-            _titulo_trava_documento(documento),
-        )
+        adquirir_lock_documento(documento, request.user)
     messages.success(request, "Documento assumido com sucesso.")
     return _redirect_documento_clinico(request, documento)
 
@@ -6270,7 +6262,10 @@ def fechar_documento_clinico(request, cd_documento):
         if documento.ds_status not in {"ABERTO", "RASCUNHO"}:
             messages.warning(request, _mensagem_documento_nao_editavel(documento))
             return _redirect_documento_clinico(request, documento)
-        mensagem_trava = _bloqueio_trava_documento(request, documento)
+        resultado_trava = usuario_tem_lock_documento_ou_livre(documento, request.user)
+        mensagem_trava = "" if resultado_trava.permitido else (
+            f"{resultado_trava.mensagem} Aguarde a liberação ou solicite ao TI em Sessões e travas."
+        )
         if mensagem_trava:
             messages.warning(request, mensagem_trava)
             return _redirect_documento_clinico(request, documento)
@@ -6490,7 +6485,7 @@ def fechar_documento_clinico(request, cd_documento):
                 "fingerprint_certificado": certificado.ds_fingerprint_sha256 if certificado else "",
             },
         )
-        _liberar_trava_documento(documento, request.user, "Liberada ao fechar documento.")
+        liberar_lock_documento(documento, request.user, "Liberada ao fechar documento.")
     if certificado:
         messages.success(request, "Documento fechado e assinado.")
     else:
@@ -6512,7 +6507,10 @@ def abandonar_documento_clinico(request, cd_documento):
         if documento.ds_status not in {"ABERTO", "RASCUNHO"}:
             messages.warning(request, _mensagem_documento_nao_editavel(documento))
             return _redirect_documento_clinico(request, documento)
-        mensagem_trava = _bloqueio_trava_documento(request, documento)
+        resultado_trava = usuario_tem_lock_documento_ou_livre(documento, request.user)
+        mensagem_trava = "" if resultado_trava.permitido else (
+            f"{resultado_trava.mensagem} Aguarde a liberação ou solicite ao TI em Sessões e travas."
+        )
         if mensagem_trava:
             messages.warning(request, mensagem_trava)
             return _redirect_documento_clinico(request, documento)
@@ -6524,7 +6522,7 @@ def abandonar_documento_clinico(request, cd_documento):
         _apply_audit(documento, request.user)
         documento.save(update_fields=["ds_status", "dh_atualizacao", "cd_usuario_atualizacao"])
         _registrar_evento_documento(documento, request.user, "ABANDONADO", motivo)
-        _liberar_trava_documento(documento, request.user, "Liberada ao excluir documento aberto.")
+        liberar_lock_documento(documento, request.user, "Liberada ao excluir documento aberto.")
     messages.success(request, "Documento excluído.")
     return _redirect_documento_clinico(request, documento)
 
@@ -6575,13 +6573,7 @@ def liberar_trava_documento_clinico(request, cd_documento):
     documento = DocumentoClinico.objects.filter(cd_empresa=empresa, pk=cd_documento).first()
     if not documento:
         return JsonResponse({"ok": False, "error": "Documento não encontrado."}, status=404)
-    liberar_trava_edicao(
-        empresa,
-        request.user,
-        "documento_clinico",
-        documento.pk,
-        motivo="Liberada ao sair do prontuário.",
-    )
+    liberar_lock_documento(documento, request.user, motivo="Liberada ao sair do prontuário.")
     return HttpResponse(status=204)
 
 
@@ -8172,13 +8164,7 @@ def pep_prontuario_paciente(request, cd_paciente):
             )
             if ultimo_documento_item.ds_status in {"ABERTO", "RASCUNHO"}:
                 if documento_editavel_item:
-                    resultado_trava = adquirir_trava_edicao(
-                        empresa,
-                        request.user,
-                        "documento_clinico",
-                        ultimo_documento_item.pk,
-                        _titulo_trava_documento(ultimo_documento_item),
-                    )
+                    resultado_trava = adquirir_lock_documento(ultimo_documento_item, request.user)
                     if not resultado_trava.permitido:
                         documento_editavel_item = False
                         pode_assumir_documento_item = False
@@ -8186,7 +8172,7 @@ def pep_prontuario_paciente(request, cd_paciente):
                             f"{resultado_trava.mensagem} O documento ficará somente para consulta até a liberação."
                         )
                 elif pode_assumir_documento_item:
-                    trava_ativa = consultar_trava_ativa(empresa, "documento_clinico", ultimo_documento_item.pk)
+                    trava_ativa = consultar_lock_documento(ultimo_documento_item)
                     if trava_ativa and trava_ativa.cd_usuario_id != request.user.pk:
                         pode_assumir_documento_item = False
                         documento_bloqueio_item = (
@@ -8243,7 +8229,7 @@ def pep_prontuario_paciente(request, cd_paciente):
     travas_por_documento = {
         int(trava.ds_recurso_id): trava
         for trava in (
-            consultar_trava_ativa(empresa, "documento_clinico", documento.pk)
+            consultar_lock_documento(documento)
             for documento in historico_documentos_lista
             if documento.ds_status in {"ABERTO", "RASCUNHO"}
         )
