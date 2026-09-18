@@ -7,14 +7,12 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
-from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from apps.accounts.models import Empresa, Setor
-from apps.atendimento.models import Atendimento, Paciente
+from apps.accounts.models import Empresa
 from apps.atendimento.services.prescricoes import contexto_acao_prescricao
 from apps.applications.editor.locking import adquirir_lock_documento, consultar_lock_documento
 from apps.applications.editor.permissions import usuario_pode_operar_documento, usuario_pode_visualizar_documento
@@ -27,10 +25,16 @@ from apps.applications.editor.selectors import (
 from apps.applications.editor.services import criar_documento_clinico, renderizar_documento
 from apps.applications.pep.menu import itens_menu_assistencial_mesclados
 from apps.applications.pep.selectors import (
+    atendimentos_base_da_fila_pep,
+    atendimentos_da_aba_todos_pep,
     atendimentos_do_paciente,
     buscar_pacientes,
+    codigos_especialidades_pep,
     contexto_basico_prontuario,
+    contexto_setores_pep,
+    filtrar_fila_pep,
     resolver_paciente,
+    resolver_atendimento_da_aba_todos_pep,
 )
 from apps.core.catalogos import catalogo_queryset
 from apps.core.locks import nome_usuario_trava
@@ -144,32 +148,21 @@ def pep(request):
     status_pep_selecionados = [
         valor for valor in request.GET.getlist("status_pep") if valor in grupos_status_pep
     ]
-    setores = Setor.objects.filter(cd_empresa=empresa, tp_setor=Setor.TipoSetor.ATENDIMENTO, sn_ativo=True)
-    if not request.user.groups.filter(name="TI").exists():
-        setores = setores.filter(usuarios=request.user)
-    setores = setores.distinct().order_by("nm_setor")
     aba = request.GET.get("aba", "atendimentos")
     setor_ids = [value for value in request.GET.getlist("setores") if value.isdigit()]
     usar_todos_setores = request.GET.get("todos_setores", "1") == "1" and not setor_ids
-    setores_filtrados = setores if usar_todos_setores else setores.filter(pk__in=setor_ids)
+    usuario_eh_ti, setores, setores_filtrados = contexto_setores_pep(
+        empresa,
+        request.user,
+        setor_ids,
+        usar_todos_setores,
+    )
     prestador_logado = getattr(request.user, "cd_prestador", None)
-    codigos_especialidades_permitidas = []
-    if prestador_logado:
-        codigos_especialidades_permitidas = [
-            str(codigo).strip().upper()
-            for codigo in list(prestador_logado.ds_especialidades or []) + [prestador_logado.ds_especialidade]
-            if str(codigo or "").strip()
-        ]
-    elif request.user.groups.filter(name="TI").exists():
-        codigos_especialidades_permitidas = [
-            str(codigo).strip().upper()
-            for codigo in Atendimento.objects.filter(cd_empresa=empresa)
-            .exclude(ds_especialidade="")
-            .values_list("ds_especialidade", flat=True)
-            .distinct()
-            if str(codigo or "").strip()
-        ]
-    codigos_especialidades_permitidas = list(dict.fromkeys(codigos_especialidades_permitidas))
+    codigos_especialidades_permitidas = codigos_especialidades_pep(
+        empresa,
+        prestador_logado,
+        usuario_eh_ti,
+    )
     nomes_especialidades = {
         str(item.cd_valor).strip().upper(): item.ds_valor
         for item in catalogo_queryset("especialidade", ativos=True)
@@ -192,23 +185,15 @@ def pep(request):
         for codigo in request.GET.getlist("especialidades_atendimento")
         if str(codigo).strip().upper() in codigos_especialidades_permitidas
     ]
-    atendimentos_base = (
-        Atendimento.objects.select_related("cd_paciente", "cd_paciente__cd_convenio", "cd_convenio", "cd_prestador", "cd_pre_atendimento", "cd_setor_atual")
-        .prefetch_related("solicitacoes_exames", "prescricoes")
-        .filter(cd_empresa=empresa, sn_ativo=True)
-        .order_by("cd_pre_atendimento__nr_prioridade", "dh_inicio")
+    atendimentos_base = atendimentos_base_da_fila_pep(
+        empresa,
+        setores,
+        setores_filtrados,
+        prestador_logado,
+        usuario_eh_ti,
+        codigos_especialidades_permitidas,
+        especialidades_selecionadas,
     )
-    if setores_filtrados.exists():
-        atendimentos_base = atendimentos_base.filter(Q(cd_setor_atual__in=setores_filtrados) | Q(cd_setor_atual__isnull=True))
-    elif setores.exists():
-        atendimentos_base = atendimentos_base.none()
-    if prestador_logado and not request.user.groups.filter(name="TI").exists():
-        atendimentos_base = atendimentos_base.filter(
-            Q(cd_prestador=prestador_logado)
-            | Q(cd_prestador__isnull=True, ds_especialidade__in=codigos_especialidades_permitidas)
-        )
-    if especialidades_selecionadas:
-        atendimentos_base = atendimentos_base.filter(ds_especialidade__in=especialidades_selecionadas)
     indicadores_status_pep = []
     for chave, configuracao in grupos_status_pep.items():
         indicadores_status_pep.append({
@@ -231,24 +216,16 @@ def pep(request):
             if chave != "ALTA"
             for status in configuracao["status"]
         }
-    atendimentos_setor = atendimentos_base.filter(ds_status__in=status_filtrados)
     busca_atendimento = busca_unificada or request.GET.get("q_atendimento", "").strip().replace("%", "")
     nr_atendimento = request.GET.get("nr_atendimento", "").strip()
     if nr_atendimento.isdigit():
-        atendimentos_setor = atendimentos_setor.filter(cd_atendimento=int(nr_atendimento))
         busca_atendimento = ""
-    elif busca_atendimento:
-        filtros_atendimento = (
-            Q(cd_paciente__nm_paciente__icontains=busca_atendimento)
-            | Q(cd_paciente__nm_social__icontains=busca_atendimento)
-            | Q(cd_paciente__nm_mae__icontains=busca_atendimento)
-            | Q(cd_paciente__nr_cpf__icontains=busca_atendimento)
-            | Q(cd_paciente__nr_cartao_sus__icontains=busca_atendimento)
-            | Q(cd_paciente__nr_rg__icontains=busca_atendimento)
-        )
-        if busca_atendimento.isdigit():
-            filtros_atendimento |= Q(cd_paciente_id=int(busca_atendimento)) | Q(cd_atendimento=int(busca_atendimento))
-        atendimentos_setor = atendimentos_setor.filter(filtros_atendimento)
+    atendimentos_setor = filtrar_fila_pep(
+        atendimentos_base,
+        status_filtrados,
+        busca=busca_atendimento,
+        nr_atendimento=nr_atendimento,
+    )
 
     atendimentos_lista = list(atendimentos_setor[:80])
     for atendimento_lista in atendimentos_lista:
@@ -272,9 +249,9 @@ def pep(request):
             alertas.append({"icone": "message-square-warning", "classe": "warning", "titulo": "Observação clínica"})
         atendimento_lista.alertas_pep = alertas
 
-    pacientes_geral = Paciente.objects.none()
+    pacientes_geral = ()
     paciente_selecionado = None
-    atendimentos_paciente = Atendimento.objects.none()
+    atendimentos_paciente = ()
     atendimento_selecionado = None
     busca = busca_unificada or request.GET.get("q", "").strip().replace("%", "")
     nr_atendimento_geral = request.GET.get("nr_atendimento_geral", "").strip()
@@ -283,12 +260,6 @@ def pep(request):
     paciente_id = request.GET.get("paciente")
     atendimento_id = request.GET.get("atendimento")
     if aba == "todos":
-        from apps.applications.pep.selectors import (
-            atendimentos_do_paciente,
-            buscar_pacientes,
-            resolver_paciente,
-        )
-
         if nr_atendimento_geral.isdigit():
             busca = ""
             data_inicio = ""
@@ -302,19 +273,9 @@ def pep(request):
         )
         if paciente_id:
             paciente_selecionado = resolver_paciente(empresa, paciente_id)
-            atendimentos_paciente = (
-                Atendimento.objects.select_related("cd_prestador", "cd_pre_atendimento", "cd_convenio")
-                .prefetch_related("solicitacoes_exames__resultado", "prescricoes", "evolucoes")
-                .filter(cd_empresa=empresa, cd_paciente=paciente_selecionado)
-                .order_by("-dh_inicio")
-            )
+            atendimentos_paciente = atendimentos_da_aba_todos_pep(empresa, paciente_selecionado)
         if atendimento_id:
-            atendimento_selecionado = get_object_or_404(
-                Atendimento.objects.select_related("cd_paciente", "cd_prestador", "cd_pre_atendimento", "cd_convenio")
-                .prefetch_related("solicitacoes_exames__resultado", "prescricoes", "evolucoes"),
-                cd_empresa=empresa,
-                pk=atendimento_id,
-            )
+            atendimento_selecionado = resolver_atendimento_da_aba_todos_pep(empresa, atendimento_id)
             paciente_selecionado = atendimento_selecionado.cd_paciente
             atendimentos_paciente = atendimentos_do_paciente(empresa, paciente_selecionado)
     return render(

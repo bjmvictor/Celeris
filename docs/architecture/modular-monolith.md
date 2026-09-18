@@ -129,7 +129,10 @@ public Atendimento profile/prescription services; they do not import
 `apps.atendimento.views`. Its controllers also delegate generic document-model
 resolution and tenant-scoped document history to public Editor selectors, while
 PEP keeps the workspace-specific composition. The physical document models
-remain legacy-owned temporarily.
+remain legacy-owned temporarily. Operational workspace queries for sectors,
+specialties, queue filtering and the "todos" tab belong to
+`apps.applications.pep.selectors`; PEP controllers now concentrate on HTTP
+orchestration and context assembly, with no direct legacy model ORM access.
 
 The shared context for prescription and exam actions is now exposed by
 `apps.atendimento.services.prescricoes.contexto_acao_prescricao`. Controllers

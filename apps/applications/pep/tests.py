@@ -1,8 +1,12 @@
+from datetime import timedelta
+
+from django.contrib.auth.models import Group
 from django.http import Http404
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.accounts.models import Empresa, User
+from apps.accounts.models import Empresa, Setor, User
 from apps.atendimento.models import (
     Atendimento,
     ItemMenuAssistencial,
@@ -16,9 +20,15 @@ from apps.atendimento.models import (
 
 from .menu import itens_menu_assistencial_mesclados
 from .selectors import (
+    atendimentos_base_da_fila_pep,
+    atendimentos_da_aba_todos_pep,
     atendimentos_do_paciente,
     buscar_pacientes,
+    codigos_especialidades_pep,
     contexto_basico_prontuario,
+    contexto_setores_pep,
+    filtrar_fila_pep,
+    resolver_atendimento_da_aba_todos_pep,
     resolver_paciente,
 )
 
@@ -57,6 +67,116 @@ class PepSelectorsTenantTests(TestCase):
                 atendimentos_do_paciente(self.empresa_b, self.paciente_b),
                 str(self.atendimento_a.pk),
             )
+
+
+class PepOperationalSelectorsTests(TestCase):
+    def setUp(self):
+        self.empresa_a = Empresa.objects.create(cd_empresa=8120, nm_empresa="Operacional A", sn_ativo=True)
+        self.empresa_b = Empresa.objects.create(cd_empresa=8121, nm_empresa="Operacional B", sn_ativo=True)
+        self.usuario = User.objects.create_user("operacional-pep", password="senha-forte")
+        self.setor_a = Setor.objects.create(
+            cd_empresa=self.empresa_a,
+            nm_setor="Clínica A",
+            tp_setor=Setor.TipoSetor.ATENDIMENTO,
+        )
+        self.setor_b = Setor.objects.create(
+            cd_empresa=self.empresa_a,
+            nm_setor="Clínica B",
+            tp_setor=Setor.TipoSetor.ATENDIMENTO,
+        )
+        self.setor_a.usuarios.add(self.usuario)
+        self.paciente = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente fila")
+        agora = timezone.now()
+        self.atendimento_setor = Atendimento.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_paciente=self.paciente,
+            cd_setor_atual=self.setor_a,
+            ds_status="EM_ATENDIMENTO",
+            ds_especialidade="CLINICA_GERAL",
+            dh_inicio=agora - timedelta(minutes=20),
+        )
+        self.atendimento_sem_setor = Atendimento.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_paciente=self.paciente,
+            ds_status="RECEPCIONADO",
+            ds_especialidade="CLINICA_GERAL",
+            dh_inicio=agora - timedelta(minutes=10),
+        )
+        self.atendimento_outro_setor = Atendimento.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_paciente=self.paciente,
+            cd_setor_atual=self.setor_b,
+            ds_status="EM_ATENDIMENTO",
+            ds_especialidade="CLINICA_GERAL",
+        )
+        paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente externo")
+        self.atendimento_outra_empresa = Atendimento.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_paciente=paciente_b,
+            ds_status="EM_ATENDIMENTO",
+            ds_especialidade="CARDIOLOGIA",
+        )
+
+    def test_fila_preserva_empresa_setor_especialidade_estado_e_ordenacao(self):
+        usuario_eh_ti, setores, setores_filtrados = contexto_setores_pep(
+            self.empresa_a,
+            self.usuario,
+            [str(self.setor_a.pk)],
+            False,
+        )
+        codigos = codigos_especialidades_pep(self.empresa_a, None, True)
+        fila = atendimentos_base_da_fila_pep(
+            self.empresa_a,
+            setores,
+            setores_filtrados,
+            None,
+            usuario_eh_ti,
+            codigos,
+            ["CLINICA_GERAL"],
+        )
+        filtrada = filtrar_fila_pep(fila, {"EM_ATENDIMENTO", "RECEPCIONADO"})
+
+        self.assertFalse(usuario_eh_ti)
+        self.assertEqual(list(setores), [self.setor_a])
+        self.assertEqual(
+            [atendimento.pk for atendimento in filtrada],
+            [self.atendimento_setor.pk, self.atendimento_sem_setor.pk],
+        )
+        self.assertNotIn(self.atendimento_outra_empresa.pk, [atendimento.pk for atendimento in filtrada])
+
+    def test_fila_por_numero_e_aba_todos_preservam_tenant_e_atendimento(self):
+        grupo_ti = Group.objects.get_or_create(name="TI")[0]
+        self.usuario.groups.add(grupo_ti)
+        usuario_eh_ti, setores, setores_filtrados = contexto_setores_pep(
+            self.empresa_a,
+            self.usuario,
+            [],
+            True,
+        )
+        fila = atendimentos_base_da_fila_pep(
+            self.empresa_a,
+            setores,
+            setores_filtrados,
+            None,
+            usuario_eh_ti,
+            codigos_especialidades_pep(self.empresa_a, None, usuario_eh_ti),
+            [],
+        )
+
+        self.assertEqual(
+            list(filtrar_fila_pep(fila, {"EM_ATENDIMENTO"}, nr_atendimento=str(self.atendimento_setor.pk))),
+            [self.atendimento_setor],
+        )
+        self.assertEqual(
+            list(atendimentos_da_aba_todos_pep(self.empresa_a, self.paciente)),
+            [self.atendimento_outro_setor, self.atendimento_sem_setor, self.atendimento_setor],
+        )
+        self.assertEqual(
+            resolver_atendimento_da_aba_todos_pep(self.empresa_a, self.atendimento_setor.pk),
+            self.atendimento_setor,
+        )
+        with self.assertRaises(Http404):
+            resolver_atendimento_da_aba_todos_pep(self.empresa_a, self.atendimento_outra_empresa.pk)
 
 
 class PepMenuTests(TestCase):
