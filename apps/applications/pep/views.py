@@ -2,9 +2,11 @@
 
 from datetime import datetime
 import unicodedata
+from functools import wraps
 from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.shortcuts import redirect, render
@@ -39,7 +41,7 @@ from apps.core.catalogos import catalogo_queryset
 from apps.core.locks import nome_usuario_trava
 from apps.core.permissions import role_required
 from apps.core.services.certificados_digitais import ErroCertificadoDigital, certificado_ativo_para
-from apps.platform.tenancy import empresa_atual
+from apps.platform.tenancy import TenantContextError, empresa_atual
 
 
 def _marcar_ramo_menu_assistencial(itens, item_selecionado):
@@ -97,6 +99,27 @@ def _validar_prestador_pep_standalone(request):
     return False
 
 
+def _redirecionar_tenant_pep_invalido(request):
+    if request.user.is_authenticated:
+        from apps.atendimento.public import limpar_rascunhos_do_usuario
+
+        limpar_rascunhos_do_usuario(request.user)
+    logout(request)
+    messages.error(request, "Sua sessão de empresa não é mais válida. Entre novamente.")
+    return redirect(f"{reverse('login')}?{urlencode({'next': request.get_full_path()})}")
+
+
+def _proteger_contexto_tenant_pep(view):
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        try:
+            return view(request, *args, **kwargs)
+        except TenantContextError:
+            return _redirecionar_tenant_pep_invalido(request)
+
+    return wrapped
+
+
 def _view_sem_decoradores(view):
     while getattr(view, "__wrapped__", None):
         view = view.__wrapped__
@@ -105,6 +128,7 @@ def _view_sem_decoradores(view):
 
 @login_required
 @role_required("TI", "Médico", "Enfermeiro")
+@_proteger_contexto_tenant_pep
 def pep(request):
     empresa = empresa_atual(request)
     pep_standalone = getattr(request, "pep_standalone", False)
@@ -310,6 +334,7 @@ def pep(request):
 
 @login_required
 @role_required("TI", "Médico", "Enfermeiro")
+@_proteger_contexto_tenant_pep
 def pep_prontuario_paciente(request, cd_paciente):
     from apps.applications.pep.selectors import (
         atendimentos_do_paciente,
@@ -671,6 +696,7 @@ def pep_prontuario_paciente(request, cd_paciente):
 
 
 @login_required
+@_proteger_contexto_tenant_pep
 def pep_standalone(request):
     if not _validar_prestador_pep_standalone(request):
         return redirect("core:home")
@@ -679,6 +705,7 @@ def pep_standalone(request):
 
 
 @login_required
+@_proteger_contexto_tenant_pep
 def pep_prontuario_paciente_standalone(request, cd_paciente):
     if not _validar_prestador_pep_standalone(request):
         return redirect("core:home")

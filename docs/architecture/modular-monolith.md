@@ -160,12 +160,12 @@ Atendimento-to-PEP dependency.
 ## Tenant rule
 
 Use `apps.platform.tenancy.current_tenant(request)` when a boundary needs only
-the selected company identifier. It is the neutral identifier boundary around
-the existing `request.session['cd_empresa']` contract. For operational code
-that must retain
-the legacy company resolution, use `apps.platform.tenancy.empresa_atual(request)`:
-it reads only the session, falls back to company `1`, and returns 404 for a
-missing or inactive company. The physical `Empresa` model remains in Accounts
-until a model-migration plan is approved. Existing filters retain their database
-behavior; each slice should replace inline session reads with the applicable
-Platform service while it is touched.
+the selected company identifier. For operational code, use
+`apps.platform.tenancy.empresa_atual(request)`: it fails closed unless
+`request.session['cd_empresa']` is explicitly present, the company is active,
+and the authenticated user has an active `UsuarioEmpresa` link. Bootstrap
+company `1` is a normal company, never an implicit tenant. `TenantContextError`
+is translated by the PEP HTTP adapter into logout and reauthentication without
+exposing membership details. Legacy helpers outside Platform have not yet been
+migrated and remain known technical debt. The physical `Empresa` model remains
+in Accounts until a model-migration plan is approved.

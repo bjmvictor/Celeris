@@ -1,12 +1,14 @@
 from datetime import timedelta
 
 from django.contrib.auth.models import Group
+from django.contrib.messages.storage.fallback import FallbackStorage
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.http import Http404
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.accounts.models import Empresa, Setor, User
+from apps.accounts.models import Empresa, Papel, Setor, User, UsuarioEmpresa
 from apps.atendimento.models import (
     Atendimento,
     ItemMenuAssistencial,
@@ -31,6 +33,7 @@ from .selectors import (
     resolver_atendimento_da_aba_todos_pep,
     resolver_paciente,
 )
+from .views import pep, pep_prontuario_paciente, pep_prontuario_paciente_standalone, pep_standalone
 
 
 class PepSelectorsTenantTests(TestCase):
@@ -319,6 +322,7 @@ class PepStandaloneViewsTests(TestCase):
         )
         self.usuario.cd_prestador = prestador
         self.usuario.save(update_fields=["cd_prestador"])
+        UsuarioEmpresa.objects.create(usuario=self.usuario, empresa=self.empresa, sn_ativo=True)
         self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="Paciente standalone")
         Atendimento.objects.create(
             cd_empresa=self.empresa,
@@ -347,3 +351,74 @@ class PepStandaloneViewsTests(TestCase):
         response = self.client.get(reverse("pep_standalone"))
 
         self.assertRedirects(response, reverse("core:home"))
+
+
+class PepTenantInvalidationViewsTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1,
+            defaults={"nm_empresa": "Empresa A", "sn_ativo": True},
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=8131, nm_empresa="Empresa B", sn_ativo=True)
+        prestador = Prestador.objects.create(
+            cd_empresa=self.empresa_b,
+            nm_prestador="Prestador B",
+            nm_guerra="B",
+        )
+        self.usuario = User.objects.create_user(
+            "pep-tenant-b",
+            password="senha-forte",
+            cd_prestador=prestador,
+        )
+        grupo, _ = Group.objects.get_or_create(name="Médico")
+        Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+        self.usuario.groups.add(grupo)
+        UsuarioEmpresa.objects.create(usuario=self.usuario, empresa=self.empresa_b, sn_ativo=True)
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente A")
+
+    def request(self, path, session):
+        request = self.factory.get(path)
+        SessionMiddleware(lambda current_request: None).process_request(request)
+        request.session.update(session)
+        request.session.save()
+        request.user = self.usuario
+        request._messages = FallbackStorage(request)
+        return request
+
+    def assert_redireciona_para_login_por_tenant_invalido(self, view, path, *args, session):
+        request = self.request(path, session)
+
+        response = view(request, *args)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(f"{reverse('login')}?next="))
+        self.assertIsNone(request.session.get("cd_empresa"))
+
+    def test_usuario_da_empresa_b_sem_tenant_nao_acessa_empresa_a_nas_quatro_entradas(self):
+        entradas = (
+            (pep, reverse("atendimento:pep"), ()),
+            (pep_prontuario_paciente, reverse("atendimento:pep-prontuario-paciente", args=[self.paciente_a.pk]), (self.paciente_a.pk,)),
+            (pep_standalone, reverse("pep_standalone"), ()),
+            (
+                pep_prontuario_paciente_standalone,
+                reverse("pep_prontuario_standalone", args=[self.paciente_a.pk]),
+                (self.paciente_a.pk,),
+            ),
+        )
+
+        for view, path, args in entradas:
+            with self.subTest(view=view.__name__):
+                self.assert_redireciona_para_login_por_tenant_invalido(
+                    view,
+                    path,
+                    *args,
+                    session={},
+                )
+
+    def test_empresa_ativa_sem_vinculo_tambem_invalida_sessao(self):
+        self.assert_redireciona_para_login_por_tenant_invalido(
+            pep_standalone,
+            reverse("pep_standalone"),
+            session={"cd_empresa": self.empresa_a.pk},
+        )

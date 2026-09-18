@@ -1,13 +1,13 @@
-from django.http import Http404
+from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 
-from apps.accounts.models import Empresa
+from apps.accounts.models import Empresa, User, UsuarioEmpresa
 
 from .form_registry import form_registry
 from .registry import registry
 from .seeding import seed_registry
-from .tenancy import current_tenant, empresa_atual
+from .tenancy import TenantContextError, current_tenant, empresa_atual
 
 
 class ApplicationRegistryTests(SimpleTestCase):
@@ -75,10 +75,23 @@ class EmpresaAtualTests(TestCase):
             nm_empresa="Empresa inativa",
             sn_ativo=False,
         )
+        self.usuario_empresa_b = User.objects.create_user("tenant-b", password="senha-forte")
+        UsuarioEmpresa.objects.create(
+            usuario=self.usuario_empresa_b,
+            empresa=self.empresa_selecionada,
+            sn_ativo=True,
+        )
+        self.usuario_empresa_um = User.objects.create_user("tenant-um", password="senha-forte")
+        UsuarioEmpresa.objects.create(
+            usuario=self.usuario_empresa_um,
+            empresa=self.empresa_padrao,
+            sn_ativo=True,
+        )
 
-    def request(self, session=None, query=None):
+    def request(self, session=None, query=None, usuario=None):
         request = self.factory.get("/PEP/", query or {})
         request.session = session or {}
+        request.user = self.usuario_empresa_b if usuario is None else usuario
         return request
 
     def test_resolve_empresa_ativa_da_sessao_como_instancia_empresa(self):
@@ -87,8 +100,17 @@ class EmpresaAtualTests(TestCase):
         self.assertIsInstance(empresa, Empresa)
         self.assertEqual(empresa, self.empresa_selecionada)
 
-    def test_usa_empresa_padrao_sem_empresa_na_sessao(self):
-        self.assertEqual(empresa_atual(self.request()), self.empresa_padrao)
+    def test_empresa_um_funciona_quando_explicitamente_selecionada_e_autorizada(self):
+        self.assertEqual(
+            empresa_atual(self.request({"cd_empresa": 1}, usuario=self.usuario_empresa_um)),
+            self.empresa_padrao,
+        )
+
+    def test_sessao_sem_empresa_falha_fechado(self):
+        with self.assertRaisesRegex(TenantContextError, "Contexto de empresa") as erro:
+            empresa_atual(self.request())
+
+        self.assertEqual(erro.exception.reason, "missing_company")
 
     def test_nao_aceita_empresa_por_get_ou_post(self):
         empresa = empresa_atual(
@@ -96,12 +118,36 @@ class EmpresaAtualTests(TestCase):
         )
         request_post = self.factory.post("/PEP/", {"cd_empresa": 1})
         request_post.session = {"cd_empresa": self.empresa_selecionada.cd_empresa}
+        request_post.user = self.usuario_empresa_b
 
         self.assertEqual(empresa, self.empresa_selecionada)
         self.assertEqual(empresa_atual(request_post), self.empresa_selecionada)
 
-    def test_empresa_inexistente_ou_inativa_retorna_404(self):
-        with self.assertRaises(Http404):
+    def test_empresa_inexistente_ou_inativa_falha_fechado(self):
+        with self.assertRaises(TenantContextError) as inexistente:
             empresa_atual(self.request({"cd_empresa": 999999}))
-        with self.assertRaises(Http404):
+        self.assertEqual(inexistente.exception.reason, "company_not_found")
+
+        with self.assertRaises(TenantContextError) as inativa:
             empresa_atual(self.request({"cd_empresa": self.empresa_inativa.cd_empresa}))
+        self.assertEqual(inativa.exception.reason, "company_inactive")
+
+    def test_vinculo_ausente_ou_inativo_falha_fechado(self):
+        with self.assertRaises(TenantContextError) as ausente:
+            empresa_atual(self.request({"cd_empresa": self.empresa_padrao.cd_empresa}))
+        self.assertEqual(ausente.exception.reason, "membership_invalid")
+
+        usuario_vinculo_inativo = User.objects.create_user("tenant-inativo", password="senha-forte")
+        UsuarioEmpresa.objects.create(
+            usuario=usuario_vinculo_inativo,
+            empresa=self.empresa_padrao,
+            sn_ativo=False,
+        )
+        with self.assertRaises(TenantContextError) as inativo:
+            empresa_atual(self.request({"cd_empresa": 1}, usuario=usuario_vinculo_inativo))
+        self.assertEqual(inativo.exception.reason, "membership_invalid")
+
+    def test_usuario_anonimo_falha_fechado(self):
+        with self.assertRaises(TenantContextError) as erro:
+            empresa_atual(self.request({"cd_empresa": self.empresa_selecionada.cd_empresa}, usuario=AnonymousUser()))
+        self.assertEqual(erro.exception.reason, "anonymous_user")
