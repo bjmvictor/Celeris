@@ -7,18 +7,23 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
-from django.db.models import Prefetch, Q
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.accounts.models import Empresa, Setor
-from apps.atendimento.models import Atendimento, DocumentoClinico, EventoDocumentoClinico, ModeloDocumento, Paciente
+from apps.atendimento.models import Atendimento, Paciente
 from apps.atendimento.services.prescricoes import contexto_acao_prescricao
 from apps.applications.editor.locking import adquirir_lock_documento, consultar_lock_documento
 from apps.applications.editor.permissions import usuario_pode_operar_documento, usuario_pode_visualizar_documento
-from apps.applications.editor.selectors import ids_familia_modelo_documento, versao_atual_modelo_documento
+from apps.applications.editor.selectors import (
+    documentos_do_prontuario,
+    ids_familia_modelo_documento,
+    modelos_documentais_vigentes_por_tipo,
+    versao_atual_modelo_documento,
+)
 from apps.applications.editor.services import criar_documento_clinico, renderizar_documento
 from apps.applications.pep.menu import itens_menu_assistencial_mesclados
 from apps.applications.pep.selectors import (
@@ -386,15 +391,14 @@ def pep_prontuario_paciente(request, cd_paciente):
             "RECEITUARIO": "RECEITUARIO",
             "AIH": "AIH",
         }
-        modelos_documentais = {}
-        for acao, tipo_documento in tipos_documentais_por_acao.items():
-            modelos_documentais[acao] = ModeloDocumento.objects.filter(
-                Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
-                tp_documento=tipo_documento,
-                tp_elemento="DOCUMENTO",
-                sn_versao_atual=True,
-                sn_ativo=True,
-            ).order_by("-cd_empresa_id", "-nr_versao", "pk").first()
+        modelos_por_tipo = modelos_documentais_vigentes_por_tipo(
+            empresa,
+            tipos_documentais_por_acao.values(),
+        )
+        modelos_documentais = {
+            acao: modelos_por_tipo.get(tipo_documento)
+            for acao, tipo_documento in tipos_documentais_por_acao.items()
+        }
         mapa_acoes = {
             "SINAIS_VITAIS": f"{reverse('atendimento:ficha-atendimento', args=[atendimento_selecionado.pk])}#classificacao",
             "ADMISSAO": reverse("atendimento:documento-assistencial", args=[atendimento_selecionado.pk, "admissao"]),
@@ -457,7 +461,7 @@ def pep_prontuario_paciente(request, cd_paciente):
     documento_bloqueio_item = ""
     prescricao_documento_contexto = None
     pep_documento_next_url = ""
-    historico_documentos_item = DocumentoClinico.objects.none()
+    historico_documentos_item = ()
     item_id = (request.POST.get("item") or request.GET.get("item") or "").strip()
     if atendimento_selecionado and item_id.isdigit():
         item_selecionado = next(
@@ -488,20 +492,11 @@ def pep_prontuario_paciente(request, cd_paciente):
             item_selecionado.cd_modelo_documento = modelo_documento_item
             item_selecionado.cd_modelo_documento_id = modelo_documento_item.pk
         modelos_familia_item = ids_familia_modelo_documento(modelo_documento_item) if modelo_documento_item else [item_selecionado.cd_modelo_documento_id]
-        historico_documentos_item = DocumentoClinico.objects.filter(
-            cd_empresa=empresa,
-            cd_atendimento__cd_paciente=paciente,
-            cd_modelo_documento_id__in=modelos_familia_item,
-        ).exclude(ds_status="ABANDONADO").select_related(
-            "cd_atendimento",
-            "cd_usuario_responsavel",
-            "cd_usuario_cancelamento",
-        ).prefetch_related(
-            Prefetch(
-                "eventos",
-                queryset=EventoDocumentoClinico.objects.select_related("cd_usuario").order_by("-dh_evento"),
-            )
-        ).order_by("-dh_emissao")
+        historico_documentos_item = documentos_do_prontuario(
+            empresa,
+            paciente,
+            modelos_familia_item,
+        )
         documento_id = (request.GET.get("documento") or "").strip()
         if documento_id.isdigit():
             ultimo_documento_item = historico_documentos_item.filter(pk=int(documento_id)).first()

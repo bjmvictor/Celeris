@@ -126,7 +126,10 @@ selection, tenant scoping, item merging and display attributes. PEP now owns
 its workspace, patient-chart, standalone workspace and standalone chart
 controllers. They retain temporary imports of Atendimento legacy models and
 public Atendimento profile/prescription services; they do not import
-`apps.atendimento.views`.
+`apps.atendimento.views`. Its controllers also delegate generic document-model
+resolution and tenant-scoped document history to public Editor selectors, while
+PEP keeps the workspace-specific composition. The physical document models
+remain legacy-owned temporarily.
 
 The shared context for prescription and exam actions is now exposed by
 `apps.atendimento.services.prescricoes.contexto_acao_prescricao`. Controllers

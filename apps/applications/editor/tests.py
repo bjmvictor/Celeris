@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -18,6 +18,10 @@ from apps.atendimento.models import (
     PerfilAssistencialVersao,
 )
 from apps.applications.editor import locking
+from apps.applications.editor.selectors import (
+    documentos_do_prontuario,
+    modelos_documentais_vigentes_por_tipo,
+)
 from apps.applications.editor.services import criar_documento_clinico
 from apps.core.locks import ResultadoTrava
 
@@ -209,3 +213,144 @@ class CriarDocumentoClinicoTests(TestCase):
                 )
 
         self.assertFalse(DocumentoClinico.objects.filter(cd_atendimento=self.atendimento).exists())
+
+
+class EditorDocumentSelectorsTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(cd_empresa=8141, nm_empresa="Editor selectors", sn_ativo=True)
+        self.outra_empresa = Empresa.objects.create(cd_empresa=8142, nm_empresa="Outra empresa", sn_ativo=True)
+        self.usuario = User.objects.create_user("editor-selector", password="senha-forte")
+        self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="Paciente selector")
+        self.atendimento = Atendimento.objects.create(
+            cd_empresa=self.empresa,
+            cd_paciente=self.paciente,
+            ds_status="EM_ATENDIMENTO",
+        )
+        self.modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Evolução da empresa",
+            tp_documento="EVOLUCAO",
+            tp_elemento="DOCUMENTO",
+        )
+
+    def test_modelos_vigentes_preservam_preferencia_por_empresa(self):
+        ModeloDocumento.objects.create(
+            nm_modelo="Evolução global",
+            tp_documento="EVOLUCAO",
+            tp_elemento="DOCUMENTO",
+            nr_versao=9,
+        )
+        ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Inativo",
+            tp_documento="EVOLUCAO",
+            tp_elemento="DOCUMENTO",
+            nr_versao=99,
+            sn_ativo=False,
+        )
+
+        modelos = modelos_documentais_vigentes_por_tipo(
+            self.empresa,
+            ("EVOLUCAO", "EDITOR_TEST_MISSING"),
+        )
+
+        self.assertEqual(modelos["EVOLUCAO"], self.modelo)
+        self.assertNotIn("EDITOR_TEST_MISSING", modelos)
+
+    def test_historico_preserva_tenant_familia_ordenacao_e_eventos_prefetched(self):
+        emissao_antiga = timezone.make_aware(datetime(2026, 9, 1, 8, 0))
+        emissao_recente = timezone.make_aware(datetime(2026, 9, 2, 8, 0))
+        antigo = criar_documento_clinico(
+            self.atendimento,
+            "EVOLUCAO",
+            "Antigo",
+            "",
+            self.usuario,
+            modelo=self.modelo,
+            dh_emissao=emissao_antiga,
+        )
+        recente = criar_documento_clinico(
+            self.atendimento,
+            "EVOLUCAO",
+            "Recente",
+            "",
+            self.usuario,
+            modelo=self.modelo,
+            dh_emissao=emissao_recente,
+        )
+        criar_documento_clinico(
+            self.atendimento,
+            "EVOLUCAO",
+            "Abandonado",
+            "",
+            self.usuario,
+            modelo=self.modelo,
+            status="ABANDONADO",
+            dh_emissao=timezone.make_aware(datetime(2026, 9, 3, 8, 0)),
+        )
+        EventoDocumentoClinico.objects.create(
+            cd_empresa=self.empresa,
+            cd_documento_clinico=recente,
+            cd_usuario=self.usuario,
+            tp_evento="ATUALIZADO",
+            dh_evento=timezone.now() + timedelta(minutes=1),
+        )
+        outro_modelo = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa,
+            nm_modelo="Outro modelo",
+            tp_documento="RECEITUARIO",
+            tp_elemento="DOCUMENTO",
+        )
+        criar_documento_clinico(
+            self.atendimento,
+            "RECEITUARIO",
+            "Fora da família",
+            "",
+            self.usuario,
+            modelo=outro_modelo,
+        )
+
+        documentos = list(documentos_do_prontuario(self.empresa, self.paciente, [self.modelo.pk]))
+
+        self.assertEqual([documento.pk for documento in documentos], [recente.pk, antigo.pk])
+        documento_recente = documentos[0]
+        self.assertIn("eventos", documento_recente._prefetched_objects_cache)
+        self.assertEqual([evento.tp_evento for evento in documento_recente.eventos.all()][0], "ATUALIZADO")
+
+    def test_historico_isola_empresa_e_retorna_vazio_sem_modelos(self):
+        paciente_outra = Paciente.objects.create(
+            cd_empresa=self.outra_empresa,
+            nm_paciente="Paciente de outra empresa",
+        )
+        atendimento_outra = Atendimento.objects.create(
+            cd_empresa=self.outra_empresa,
+            cd_paciente=paciente_outra,
+            ds_status="EM_ATENDIMENTO",
+        )
+        modelo_outra = ModeloDocumento.objects.create(
+            cd_empresa=self.outra_empresa,
+            nm_modelo="Evolução outra empresa",
+            tp_documento="EVOLUCAO",
+            tp_elemento="DOCUMENTO",
+        )
+        documento_outra = criar_documento_clinico(
+            atendimento_outra,
+            "EVOLUCAO",
+            "Outra empresa",
+            "",
+            self.usuario,
+            modelo=modelo_outra,
+        )
+
+        self.assertEqual(
+            list(documentos_do_prontuario(self.empresa, self.paciente, [self.modelo.pk])),
+            [],
+        )
+        self.assertEqual(
+            list(documentos_do_prontuario(self.outra_empresa, self.paciente, [modelo_outra.pk])),
+            [],
+        )
+        self.assertNotIn(
+            documento_outra,
+            documentos_do_prontuario(self.empresa, self.paciente, [self.modelo.pk]),
+        )
