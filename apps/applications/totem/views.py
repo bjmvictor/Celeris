@@ -1,35 +1,48 @@
 """Totem application views backed by the existing shared clinical models."""
 import random
+from functools import wraps
+from urllib.parse import urlencode
 
+from django.contrib import messages
+from django.contrib.auth import logout
 from django.db import transaction
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
-from apps.accounts.models import Empresa
 from apps.atendimento.models import (
     ClasseSenhaAtendimento,
     RegraSubdivisaoSenha,
     SenhaAtendimento,
 )
 from apps.core.permissions import role_required
-from apps.platform.tenancy import current_tenant
+from apps.platform.tenancy import TenantContextError, empresa_atual
 
 
-def _empresa_atual(request):
-    tenant = current_tenant(request, required=False)
-    return get_object_or_404(
-        Empresa,
-        cd_empresa=tenant.empresa_id if tenant else 1,
-        sn_ativo=True,
-    )
+def _redirecionar_tenant_totem_invalido(request):
+    logout(request)
+    messages.error(request, "Sua sessão de empresa não é mais válida. Entre novamente.")
+    return redirect(f"{reverse('login')}?{urlencode({'next': request.get_full_path()})}")
+
+
+def _proteger_contexto_tenant_totem(view):
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        try:
+            return view(request, *args, **kwargs)
+        except TenantContextError:
+            return _redirecionar_tenant_totem_invalido(request)
+
+    return wrapped
 
 
 @login_required
 @role_required("TI", "Recepcionista")
+@_proteger_contexto_tenant_totem
 def gerar_senha_totem(request):
     """Generate a ticket for the selected Totem class or subdivision rule."""
-    empresa = _empresa_atual(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Totem > Gerar senha"
     request.current_tab_root_title = "Gerar senha"
     request.current_module_title = "Totem"
