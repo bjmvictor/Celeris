@@ -1,10 +1,13 @@
-from django.test import SimpleTestCase
+from django.http import Http404
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
+
+from apps.accounts.models import Empresa
 
 from .form_registry import form_registry
 from .registry import registry
 from .seeding import seed_registry
-from .tenancy import current_tenant
+from .tenancy import current_tenant, empresa_atual
 
 
 class ApplicationRegistryTests(SimpleTestCase):
@@ -53,3 +56,52 @@ class ApplicationRegistryTests(SimpleTestCase):
         self.assertEqual(context.get("empresa.demo"), 1)
         with self.assertRaises(TypeError):
             context.set("empresa.model", object())
+
+
+class EmpresaAtualTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.empresa_padrao, _ = Empresa.objects.update_or_create(
+            cd_empresa=1,
+            defaults={"nm_empresa": "Empresa padrão", "sn_ativo": True},
+        )
+        self.empresa_selecionada = Empresa.objects.create(
+            cd_empresa=9201,
+            nm_empresa="Empresa selecionada",
+            sn_ativo=True,
+        )
+        self.empresa_inativa = Empresa.objects.create(
+            cd_empresa=9202,
+            nm_empresa="Empresa inativa",
+            sn_ativo=False,
+        )
+
+    def request(self, session=None, query=None):
+        request = self.factory.get("/PEP/", query or {})
+        request.session = session or {}
+        return request
+
+    def test_resolve_empresa_ativa_da_sessao_como_instancia_empresa(self):
+        empresa = empresa_atual(self.request({"cd_empresa": str(self.empresa_selecionada.cd_empresa)}))
+
+        self.assertIsInstance(empresa, Empresa)
+        self.assertEqual(empresa, self.empresa_selecionada)
+
+    def test_usa_empresa_padrao_sem_empresa_na_sessao(self):
+        self.assertEqual(empresa_atual(self.request()), self.empresa_padrao)
+
+    def test_nao_aceita_empresa_por_get_ou_post(self):
+        empresa = empresa_atual(
+            self.request({"cd_empresa": self.empresa_selecionada.cd_empresa}, {"cd_empresa": 1})
+        )
+        request_post = self.factory.post("/PEP/", {"cd_empresa": 1})
+        request_post.session = {"cd_empresa": self.empresa_selecionada.cd_empresa}
+
+        self.assertEqual(empresa, self.empresa_selecionada)
+        self.assertEqual(empresa_atual(request_post), self.empresa_selecionada)
+
+    def test_empresa_inexistente_ou_inativa_retorna_404(self):
+        with self.assertRaises(Http404):
+            empresa_atual(self.request({"cd_empresa": 999999}))
+        with self.assertRaises(Http404):
+            empresa_atual(self.request({"cd_empresa": self.empresa_inativa.cd_empresa}))

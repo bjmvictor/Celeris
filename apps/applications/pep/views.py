@@ -7,12 +7,11 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from apps.accounts.models import Empresa
 from apps.atendimento.services.prescricoes import contexto_acao_prescricao
 from apps.applications.editor.locking import adquirir_lock_documento, consultar_lock_documento
 from apps.applications.editor.permissions import usuario_pode_operar_documento, usuario_pode_visualizar_documento
@@ -40,11 +39,7 @@ from apps.core.catalogos import catalogo_queryset
 from apps.core.locks import nome_usuario_trava
 from apps.core.permissions import role_required
 from apps.core.services.certificados_digitais import ErroCertificadoDigital, certificado_ativo_para
-
-
-def _empresa_pep(request):
-    cd_empresa = request.session.get("cd_empresa") or 1
-    return get_object_or_404(Empresa, cd_empresa=cd_empresa, sn_ativo=True)
+from apps.platform.tenancy import empresa_atual
 
 
 def _marcar_ramo_menu_assistencial(itens, item_selecionado):
@@ -111,7 +106,7 @@ def _view_sem_decoradores(view):
 @login_required
 @role_required("TI", "Médico", "Enfermeiro")
 def pep(request):
-    empresa = _empresa_pep(request)
+    empresa = empresa_atual(request)
     pep_standalone = getattr(request, "pep_standalone", False)
     request.current_tab_title = "Atendimento > PEP"
     request.current_tab_root_title = "PEP"
@@ -322,7 +317,7 @@ def pep_prontuario_paciente(request, cd_paciente):
         resolver_paciente,
     )
 
-    empresa = _empresa_pep(request)
+    empresa = empresa_atual(request)
     pep_standalone = getattr(request, "pep_standalone", False)
     pep_list_route = "pep_standalone" if pep_standalone else "atendimento:pep"
     pep_patient_route = "pep_prontuario_standalone" if pep_standalone else "atendimento:pep-prontuario-paciente"
