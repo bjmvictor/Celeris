@@ -165,7 +165,10 @@ the selected company identifier. For operational code, use
 `request.session['cd_empresa']` is explicitly present, the company is active,
 and the authenticated user has an active `UsuarioEmpresa` link. Bootstrap
 company `1` is a normal company, never an implicit tenant. `TenantContextError`
-is translated by the PEP HTTP adapter into logout and reauthentication without
-exposing membership details. Legacy helpers outside Platform have not yet been
-migrated and remain known technical debt. The physical `Empresa` model remains
-in Accounts until a model-migration plan is approved.
+is translated by the Platform HTTP adapter into logout and reauthentication
+without exposing membership details. PEP adds only its document-draft cleanup
+before delegating to that adapter. Tickets uses `empresa_atual()` for all
+operational reads, writes and print output, so its session tenant is validated
+against an active link and bootstrap company `1` cannot be used as fallback.
+The physical `Empresa` model remains in Accounts until a model-migration plan
+is approved.

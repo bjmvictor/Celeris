@@ -1,6 +1,12 @@
 from dataclasses import dataclass
+from functools import wraps
+from urllib.parse import urlencode
 
+from django.contrib import messages
+from django.contrib.auth import logout
 from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect
+from django.urls import reverse
 
 from apps.accounts.models import Empresa, UsuarioEmpresa
 
@@ -46,3 +52,22 @@ def empresa_atual(request) -> Empresa:
     if not UsuarioEmpresa.objects.filter(usuario=usuario, empresa=empresa, sn_ativo=True).exists():
         raise TenantContextError("membership_invalid")
     return empresa
+
+
+def invalidar_sessao_tenant(request):
+    """End an invalid tenant session and require authentication again."""
+    logout(request)
+    messages.error(request, "Sua sessão de empresa não é mais válida. Entre novamente.")
+    return redirect(f"{reverse('login')}?{urlencode({'next': request.get_full_path()})}")
+
+
+def proteger_contexto_tenant(view):
+    """Translate a tenant-resolution failure into the common HTTP response."""
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        try:
+            return view(request, *args, **kwargs)
+        except TenantContextError:
+            return invalidar_sessao_tenant(request)
+
+    return wrapped

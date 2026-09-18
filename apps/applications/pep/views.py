@@ -6,7 +6,6 @@ from functools import wraps
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.shortcuts import redirect, render
@@ -41,7 +40,7 @@ from apps.core.catalogos import catalogo_queryset
 from apps.core.locks import nome_usuario_trava
 from apps.core.permissions import role_required
 from apps.core.services.certificados_digitais import ErroCertificadoDigital, certificado_ativo_para
-from apps.platform.tenancy import TenantContextError, empresa_atual
+from apps.platform.tenancy import TenantContextError, empresa_atual, invalidar_sessao_tenant
 
 
 def _marcar_ramo_menu_assistencial(itens, item_selecionado):
@@ -104,9 +103,7 @@ def _redirecionar_tenant_pep_invalido(request):
         from apps.atendimento.public import limpar_rascunhos_do_usuario
 
         limpar_rascunhos_do_usuario(request.user)
-    logout(request)
-    messages.error(request, "Sua sessão de empresa não é mais válida. Entre novamente.")
-    return redirect(f"{reverse('login')}?{urlencode({'next': request.get_full_path()})}")
+    return invalidar_sessao_tenant(request)
 
 
 def _proteger_contexto_tenant_pep(view):

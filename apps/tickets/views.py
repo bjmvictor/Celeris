@@ -10,19 +10,15 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
-from apps.accounts.models import Empresa
 from apps.core.permissions import role_required
 from apps.core.table_utils import paginate_table
+from apps.platform.tenancy import empresa_atual, proteger_contexto_tenant
 
 from .forms import MotivoConclusaoSuporteForm, MotivoServicoSuporteForm, OficinaSuporteForm, PrioridadeSuporteForm, TicketAtendimentoForm, TicketForm, UsuarioOficinaSuporteForm
 from .models import MotivoConclusaoSuporte, MotivoServicoSuporte, OficinaSuporte, PrioridadeSuporte, Ticket, TicketTransferenciaSuporte, UsuarioOficinaSuporte
 
 
 User = get_user_model()
-
-
-def _empresa_logada(request):
-    return get_object_or_404(Empresa, cd_empresa=request.session.get("cd_empresa") or 1, sn_ativo=True)
 
 
 def _toolbar_context(request, title, path=None):
@@ -171,8 +167,9 @@ def _prepare_navigation(request, instance, session_key):
             request.current_last_url = f"{request.path}?id={result_ids[-1]}&origem=consulta"
 
 
+@proteger_contexto_tenant
 def _cadastro_simples(request, *, model, form_class, title, search_fields):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, title)
     queryset = model.objects.filter(cd_empresa=empresa)
     session_key = _query_session_key(request, model)
@@ -199,17 +196,19 @@ def _cadastro_simples(request, *, model, form_class, title, search_fields):
 
 
 @login_required
+@proteger_contexto_tenant
 def ticket_list(request):
     _toolbar_context(request, "Chamados", "Suporte > Chamados")
-    tickets = Ticket.objects.filter(cd_empresa=_empresa_logada(request))[:100]
+    tickets = Ticket.objects.filter(cd_empresa=empresa_atual(request))[:100]
     return render(request, "core/table_page.html", {"title": "Chamados", "rows": tickets})
 
 
 @login_required
 @role_required("Suporte")
 @transaction.atomic
+@proteger_contexto_tenant
 def prioridades(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Prioridades", "Suporte > Tabelas > Prioridades")
     request.current_can_remove = True
     registros = PrioridadeSuporte.objects.filter(cd_empresa=empresa)
@@ -251,7 +250,7 @@ def prioridades(request):
 
 @transaction.atomic
 def _tabela_motivos_suporte(request, *, model, title, path, table_name, pk_sort):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, title, path)
     request.current_can_remove = True
     oficinas = OficinaSuporte.objects.filter(cd_empresa=empresa, sn_ativo=True).order_by("nm_oficina")
@@ -298,6 +297,7 @@ def _tabela_motivos_suporte(request, *, model, title, path, table_name, pk_sort)
 
 @login_required
 @role_required("Suporte")
+@proteger_contexto_tenant
 def motivos_servico(request):
     return _tabela_motivos_suporte(
         request,
@@ -311,6 +311,7 @@ def motivos_servico(request):
 
 @login_required
 @role_required("Suporte")
+@proteger_contexto_tenant
 def motivos_conclusao(request):
     return _tabela_motivos_suporte(
         request,
@@ -324,8 +325,9 @@ def motivos_conclusao(request):
 @login_required
 @role_required("Suporte")
 @transaction.atomic
+@proteger_contexto_tenant
 def oficinas(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Oficinas", "Suporte > Tabelas > Oficinas")
     request.current_can_remove = True
     registros = OficinaSuporte.objects.filter(cd_empresa=empresa)
@@ -366,8 +368,9 @@ def oficinas(request):
 @login_required
 @role_required("Suporte")
 @transaction.atomic
+@proteger_contexto_tenant
 def solicitar(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Solicitar suporte", "Suporte > Solicitação > Solicitar")
     registros = Ticket.objects.filter(cd_empresa=empresa, requester=request.user).order_by("-created_at")
     session_key = _query_session_key(request, Ticket)
@@ -424,6 +427,7 @@ def solicitar(request):
 @login_required
 @role_required("Suporte")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def imprimir_chamado(request, cd_ticket):
     from apps.atendimento.documents import (
         DocumentoClinico,
@@ -432,7 +436,7 @@ def imprimir_chamado(request, cd_ticket):
         resposta_pdf_documento,
     )
 
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     ticket = get_object_or_404(
         Ticket.objects.select_related(
             "cd_empresa",
@@ -487,8 +491,9 @@ def imprimir_chamado(request, cd_ticket):
 @login_required
 @role_required("Suporte")
 @transaction.atomic
+@proteger_contexto_tenant
 def atender(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Atender suporte", "Suporte > Solicitação > Atender")
     request.current_can_save = False
     request.current_can_remove = False
@@ -670,8 +675,9 @@ def atender(request):
 @login_required
 @role_required("TI")
 @transaction.atomic
+@proteger_contexto_tenant
 def usuario_oficina(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Usuário x oficina", "TI > Usuários e acessos > Acessos > Usuário x oficina")
     request.current_module_title = "TI"
     request.current_can_remove = True
