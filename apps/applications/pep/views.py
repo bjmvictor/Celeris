@@ -531,21 +531,12 @@ def pep_prontuario_paciente(request, cd_paciente):
                     modelo_documento_item.nm_modelo,
                     "",
                     request.user,
+                    modelo=modelo_documento_item,
+                    item_menu_assistencial=item_selecionado,
+                    versao_perfil=item_selecionado.cd_versao_perfil,
+                    usuario_responsavel=request.user,
+                    dh_emissao=data_hora_documento,
                 )
-                documento.cd_modelo_documento = modelo_documento_item
-                documento.cd_item_menu_assistencial = item_selecionado
-                documento.cd_versao_perfil = item_selecionado.cd_versao_perfil
-                documento.cd_usuario_responsavel = request.user
-                documento.ds_status = "ABERTO"
-                documento.dh_emissao = data_hora_documento
-                documento.save(update_fields=[
-                    "cd_modelo_documento",
-                    "cd_item_menu_assistencial",
-                    "cd_versao_perfil",
-                    "cd_usuario_responsavel",
-                    "ds_status",
-                    "dh_emissao",
-                ])
                 params = urlencode({
                     "modo": "atendimento",
                     "atendimento": atendimento_selecionado.pk,

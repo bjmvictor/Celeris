@@ -4764,7 +4764,16 @@ class FluxoHomologacaoTests(TestCase):
         self.assertEqual(response.status_code, 302)
         documento = DocumentoClinico.objects.get(cd_atendimento=atendimento, cd_modelo_documento=modelo)
         self.assertEqual(documento.cd_item_menu_assistencial, item)
+        self.assertEqual(documento.cd_versao_perfil, versao)
+        self.assertEqual(documento.cd_usuario_responsavel, self.medico_user)
+        self.assertEqual(documento.dh_emissao, timezone.make_aware(datetime(2026, 7, 2, 9, 30)))
         self.assertEqual(documento.ds_status, "ABERTO")
+        self.assertTrue(
+            EventoDocumentoClinico.objects.filter(
+                cd_documento_clinico=documento,
+                tp_evento="CRIADO",
+            ).exists()
+        )
 
     def test_editor_suporta_checkboxes_exclusivos_com_campo_condicional(self):
         javascript = (settings.BASE_DIR / "static" / "js" / "document-editor.js").read_text(encoding="utf-8")
