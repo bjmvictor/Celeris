@@ -170,5 +170,8 @@ without exposing membership details. PEP adds only its document-draft cleanup
 before delegating to that adapter. Tickets uses `empresa_atual()` for all
 operational reads, writes and print output, so its session tenant is validated
 against an active link and bootstrap company `1` cannot be used as fallback.
+Estoque uses the same canonical resolution for catalog reads, stock requests
+and movements; its company-scoped forms and formsets continue to filter related
+objects by the resolved tenant.
 The physical `Empresa` model remains in Accounts until a model-migration plan
 is approved.

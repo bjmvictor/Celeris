@@ -8,9 +8,9 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import format_html
 
-from apps.accounts.models import Empresa
 from apps.core.permissions import role_required
 from apps.core.table_utils import paginate_table
+from apps.platform.tenancy import empresa_atual, proteger_contexto_tenant
 
 from .forms import (
     CotaConsumoForm,
@@ -40,10 +40,6 @@ from .models import (
     UnidadeProduto,
     ValorTabelaEstoque,
 )
-
-
-def _empresa_logada(request):
-    return get_object_or_404(Empresa, cd_empresa=request.session.get("cd_empresa") or 1, sn_ativo=True)
 
 
 def _search(request):
@@ -104,8 +100,9 @@ def _prepare_navigation(request, queryset, instance, session_key):
             request.current_last_url = f"{request.path}?id={result_ids[-1]}&origem=consulta"
 
 
+@proteger_contexto_tenant
 def _cadastro_simples(request, *, model, form_class, title, search_fields, template="estoque/cadastro_simples.html", path=None, filtros=None, valores_forcados=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, title, path)
     queryset = model.objects.filter(cd_empresa=empresa)
     if filtros:
@@ -155,6 +152,7 @@ def _widget_tabela(campo, nome, valor):
     return widget.render(nome, valor, attrs=attrs)
 
 
+@proteger_contexto_tenant
 def _tabela_editavel(
     request,
     *,
@@ -167,7 +165,7 @@ def _tabela_editavel(
     filtros=None,
     valores_forcados=None,
 ):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, title, path)
     request.current_can_remove = True
     queryset = model.objects.filter(cd_empresa=empresa, **(filtros or {}))
@@ -329,8 +327,9 @@ TABELAS_GERAIS = {
 
 @login_required
 @role_required("Almoxarifado")
+@proteger_contexto_tenant
 def tabela_estoque(request, chave):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     nome = TABELAS_GERAIS.get(chave, chave.replace("-", " ").title())
     tabela, _ = TabelaEstoque.objects.get_or_create(cd_empresa=empresa, ds_chave=chave, defaults={"ds_nome": nome})
     return _tabela_editavel(
@@ -367,8 +366,9 @@ def _filtrar_produtos_formset(formset, empresa):
 
 @login_required
 @role_required("Almoxarifado")
+@proteger_contexto_tenant
 def solicitacoes_produto(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Solicitar produtos", "Almoxarifado > Solicitações > Solicitar")
     queryset = SolicitacaoProduto.objects.filter(cd_empresa=empresa).prefetch_related("itens__cd_produto")
     session_key = _query_session_key(request, SolicitacaoProduto)
@@ -407,8 +407,9 @@ def solicitacoes_produto(request):
 
 @login_required
 @role_required("Almoxarifado")
+@proteger_contexto_tenant
 def atender_solicitacoes_produto(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _toolbar_context(request, "Atender solicitações de produtos", "Almoxarifado > Solicitações > Atender")
     registros = SolicitacaoProduto.objects.filter(cd_empresa=empresa).prefetch_related("itens__cd_produto").order_by("-created_at")
     if request.method == "POST":
@@ -430,8 +431,9 @@ def atender_solicitacoes_produto(request):
 
 @login_required
 @role_required("Almoxarifado")
+@proteger_contexto_tenant
 def movimentacoes(request, tipo=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     movement_titles = {
         "entrada": "Entrada",
         "saida": "Saída",
