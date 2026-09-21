@@ -8,9 +8,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.accounts.models import Empresa
 from apps.core.permissions import role_required
 from apps.core.table_utils import paginate_table
+from apps.platform.tenancy import empresa_atual, proteger_contexto_tenant
 
 from .forms import FaixaResultadoPesquisaForm, OpcaoRespostaPesquisaForm, PerguntaPesquisaForm, PesquisaForm
 from .models import (
@@ -23,14 +23,6 @@ from .models import (
 )
 
 
-def _empresa_logada(request):
-    return get_object_or_404(Empresa, cd_empresa=request.session.get("cd_empresa") or 1, sn_ativo=True)
-
-
-def _pesquisa_empresa(request, pk):
-    return get_object_or_404(Pesquisa, pk=pk, cd_empresa=_empresa_logada(request))
-
-
 def _cabecalho(request, titulo):
     request.current_tab_title = f"Pesquisas > {titulo}"
     request.current_tab_root_title = titulo
@@ -39,8 +31,9 @@ def _cabecalho(request, titulo):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def configuracao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _cabecalho(request, "Pesquisas")
     request.current_can_query = False
     request.current_can_save = True
@@ -61,8 +54,9 @@ def configuracao(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def perguntas_parametros(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _cabecalho(request, "Perguntas e parâmetros")
     request.current_can_query = False
     request.current_can_save = False
@@ -127,8 +121,9 @@ def perguntas_parametros(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def calculos_resultados(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _cabecalho(request, "Cálculos e mensagens")
     request.current_can_query = False
     request.current_can_save = False
@@ -168,12 +163,13 @@ def calculos_resultados(request):
 
 @login_required
 @role_required("Recepcionista", "Enfermeiro", "Médico")
+@proteger_contexto_tenant
 def disponiveis(request):
     _cabecalho(request, "Pesquisas disponíveis")
     request.current_can_query = False
     request.current_can_save = False
     agora = timezone.now()
-    pesquisas = Pesquisa.objects.filter(cd_empresa=_empresa_logada(request), sn_ativo=True).filter(
+    pesquisas = Pesquisa.objects.filter(cd_empresa=empresa_atual(request), sn_ativo=True).filter(
         (Q(dh_inicio__isnull=True) | Q(dh_inicio__lte=agora)),
         (Q(dh_fim__isnull=True) | Q(dh_fim__gte=agora)),
     )
@@ -182,8 +178,9 @@ def disponiveis(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def resultados(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     _cabecalho(request, "Resultados")
     request.current_can_query = True
     request.current_can_save = False

@@ -173,5 +173,9 @@ against an active link and bootstrap company `1` cannot be used as fallback.
 Estoque uses the same canonical resolution for catalog reads, stock requests
 and movements; its company-scoped forms and formsets continue to filter related
 objects by the resolved tenant.
+Pesquisas uses the canonical tenant for its authenticated configuration,
+availability and result flows. Its public response flow is intentionally
+separate: the tenant is determined by the unique public token of the parent
+Pesquisa, without a session-company fallback.
 The physical `Empresa` model remains in Accounts until a model-migration plan
 is approved.
