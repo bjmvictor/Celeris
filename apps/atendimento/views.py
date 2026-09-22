@@ -54,6 +54,7 @@ from apps.core.permissions import role_required
 from apps.core.services.assinatura_pdf import ErroAssinaturaPdf, assinar_pdf_pades
 from apps.core.services.certificados_digitais import ErroCertificadoDigital, certificado_ativo_para
 from apps.core.table_utils import paginate_table
+from apps.platform.tenancy import empresa_atual, proteger_contexto_tenant
 
 from .forms import AgendamentoForm, AlteracaoAtendimentoForm, AtendimentoForm, CadastroAtendimentoForm, ClasseItemPrescricaoForm, EscalaForm, EvolucaoAtendimentoForm, ItemPrescricaoDocumentoForm, ItemPrescricaoForm, PacienteForm, PacienteSearchForm, PainelChamadaForm, PreAtendimentoForm, PrescricaoForm, PrestadorForm, RegraSubdivisaoSenhaForm, ResponsavelAtendimentoForm, ResultadoExameForm, SolicitacaoExameForm, TipoSenhaAtendimentoForm, ViaAplicacaoPrescricaoForm
 from .models import (
@@ -7610,8 +7611,9 @@ def pep_chamar(request, cd_atendimento):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def paineis_chamada(request, cd_painel=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Chamadas > Painéis"
     request.current_tab_root_title = "Painéis de chamada"
     request.current_module_title = "Atendimento"
@@ -7679,10 +7681,11 @@ def paineis_chamada(request, cd_painel=None):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def alternar_status_painel_chamada(request, cd_painel):
     if request.method != "POST":
         raise PermissionDenied
-    painel = get_object_or_404(PainelChamada, cd_empresa=_empresa_logada(request), pk=cd_painel)
+    painel = get_object_or_404(PainelChamada, cd_empresa=empresa_atual(request), pk=cd_painel)
     painel.sn_ativo = not painel.sn_ativo
     _apply_audit(painel, request.user)
     painel.save(update_fields=["sn_ativo", "dh_atualizacao", "cd_usuario_atualizacao"])
@@ -7692,8 +7695,9 @@ def alternar_status_painel_chamada(request, cd_painel):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def configurar_senhas(request, cd_tipo=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     class_standalone = bool(getattr(request, "class_standalone", False))
     rota_lista = "class_senhas" if class_standalone else "atendimento:configurar-senhas"
     rota_edicao = "class_senha_editar" if class_standalone else "atendimento:editar-configuracao-senha"
@@ -7833,9 +7837,17 @@ def configurar_senhas(request, cd_tipo=None):
                 regra.nr_idade_minima = request.POST.get(f"rule_min_age_{regra.pk}") or None
                 regra.nr_idade_maxima = request.POST.get(f"rule_max_age_{regra.pk}") or None
                 icon_id = request.POST.get(f"rule_icon_{regra.pk}", "").strip()
-                regra.cd_icone_chamada_id = int(icon_id) if icon_id.isdigit() else None
                 protocol_id = request.POST.get(f"rule_protocol_{regra.pk}", "").strip()
-                regra.cd_protocolo_id = int(protocol_id) if protocol_id.isdigit() else None
+                regra.cd_icone_chamada = (
+                    IconeChamada.objects.filter(cd_empresa=empresa, pk=int(icon_id)).first()
+                    if icon_id.isdigit()
+                    else None
+                )
+                regra.cd_protocolo = (
+                    ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, pk=int(protocol_id)).first()
+                    if protocol_id.isdigit()
+                    else None
+                )
                 regra.nr_tempo_limite = max(int(request.POST.get(f"rule_timeout_{regra.pk}") or 30), 1)
                 regra.sn_ativo = request.POST.get(f"rule_active_{regra.pk}") == "true"
                 classe_regra = regra.cd_classe_senha
@@ -7871,8 +7883,8 @@ def configurar_senhas(request, cd_tipo=None):
                 prioridade_regra = max(int(novas_prioridades[indice] or saved.nr_prioridade), 1) if indice < len(novas_prioridades) else saved.nr_prioridade
                 idade_minima = (novas_idades_minimas[indice] or None) if indice < len(novas_idades_minimas) else None
                 idade_maxima = (novas_idades_maximas[indice] or None) if indice < len(novas_idades_maximas) else None
-                icone_id = int(novos_icones[indice]) if indice < len(novos_icones) and novos_icones[indice].isdigit() else None
-                protocolo_id = int(novos_protocolos[indice]) if indice < len(novos_protocolos) and novos_protocolos[indice].isdigit() else None
+                icone_id = novos_icones[indice] if indice < len(novos_icones) else ""
+                protocolo_id = novos_protocolos[indice] if indice < len(novos_protocolos) else ""
                 tempo_limite = max(int(novos_tempos[indice] or 30), 1) if indice < len(novos_tempos) else 30
                 ativo = indice >= len(novos_status) or novos_status[indice] == "true"
                 classe_regra = ClasseSenhaAtendimento(
@@ -7883,7 +7895,11 @@ def configurar_senhas(request, cd_tipo=None):
                     nr_prioridade=prioridade_regra,
                     nr_idade_minima=idade_minima,
                     nr_idade_maxima=idade_maxima,
-                    cd_icone_chamada_id=icone_id,
+                    cd_icone_chamada=(
+                        IconeChamada.objects.filter(cd_empresa=empresa, pk=int(icone_id)).first()
+                        if icone_id.isdigit()
+                        else None
+                    ),
                     sn_ativo=ativo,
                 )
                 _apply_audit(classe_regra, request.user)
@@ -7896,8 +7912,16 @@ def configurar_senhas(request, cd_tipo=None):
                     nr_prioridade=prioridade_regra,
                     nr_idade_minima=idade_minima,
                     nr_idade_maxima=idade_maxima,
-                    cd_icone_chamada_id=icone_id,
-                    cd_protocolo_id=protocolo_id,
+                    cd_icone_chamada=(
+                        IconeChamada.objects.filter(cd_empresa=empresa, pk=int(icone_id)).first()
+                        if icone_id.isdigit()
+                        else None
+                    ),
+                    cd_protocolo=(
+                        ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, pk=int(protocol_id)).first()
+                        if protocol_id.isdigit()
+                        else None
+                    ),
                     nr_tempo_limite=tempo_limite,
                     sn_ativo=ativo,
                 )
@@ -7921,12 +7945,13 @@ def configurar_senhas(request, cd_tipo=None):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def alternar_status_configuracao_senha(request, cd_tipo):
     if request.method != "POST":
         raise PermissionDenied
     tipo = get_object_or_404(
         TipoSenhaAtendimento,
-        cd_empresa=_empresa_logada(request),
+        cd_empresa=empresa_atual(request),
         pk=cd_tipo,
     )
     tipo.sn_ativo = not tipo.sn_ativo
@@ -8084,8 +8109,9 @@ def protocolos_senha(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def cores_classificacao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Tabelas > Cores"
     request.current_tab_root_title = "Cores"
     request.current_module_title = "Atendimento"
@@ -8195,8 +8221,9 @@ def _escala_possui_perguntas(escala):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def perguntas_classificacao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Configuração > Perguntas"
     request.current_tab_root_title = "Perguntas"
     request.current_module_title = "Atendimento"
@@ -8265,8 +8292,9 @@ def perguntas_classificacao(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def fluxos_classificacao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Configuração > Fluxos e sintomas"
     request.current_tab_root_title = "Fluxos e sintomas"
     request.current_module_title = "Atendimento"
@@ -8357,7 +8385,11 @@ def fluxos_classificacao(request):
                 item.nm_grupo = grupo.nm_grupo
                 item.nm_fluxo = nome
                 item.ds_orientacao = str(dados.get("orientacao") or "").strip()
-                item.cd_cor_recomendada_id = int(cor_id) if cor_id.isdigit() else None
+                item.cd_cor_recomendada = (
+                    CorClassificacaoRisco.objects.filter(cd_empresa=empresa, pk=int(cor_id)).first()
+                    if cor_id.isdigit()
+                    else None
+                )
                 item.nr_ordem = _inteiro_positivo(dados.get("ordem"), indice * 10)
                 item.sn_ativo = dados.get("ativo") is not False
                 _apply_audit(item, request.user)
@@ -8424,8 +8456,9 @@ def fluxos_classificacao(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def fluxo_escalas_classificacao(request, cd_fluxo):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     class_standalone = bool(getattr(request, "class_standalone", False))
     rota_edicao = "class_fluxo_escalas" if class_standalone else "atendimento:fluxo-escalas-classificacao"
     rota_voltar = "class_fluxos" if class_standalone else "atendimento:fluxos-classificacao"
@@ -8613,8 +8646,9 @@ def _sanitize_call_icon_svg(value):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def icones_chamada(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Tabelas > Ícones"
     request.current_tab_root_title = "Ícones"
     request.current_module_title = "Atendimento"
@@ -8672,8 +8706,9 @@ def icones_chamada(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def maquinas_chamada(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Chamadas > Máquinas"
     request.current_tab_root_title = "Máquinas"
     request.current_module_title = "Atendimento"
@@ -8691,7 +8726,11 @@ def maquinas_chamada(request):
                 setor_id = request.POST.get(f"sector_{item.pk}", "").strip()
                 item.nm_maquina = request.POST.get(f"machine_{item.pk}", "").strip().upper()
                 item.tp_maquina = request.POST.get(f"machine_type_{item.pk}", "ESTACAO")
-                item.cd_setor_id = int(setor_id) if setor_id.isdigit() else None
+                item.cd_setor = (
+                    Setor.objects.filter(cd_empresa=empresa, pk=int(setor_id)).first()
+                    if setor_id.isdigit()
+                    else None
+                )
                 item.nm_sala = request.POST.get(f"room_name_{item.pk}", "").strip()
                 item.tp_sala = request.POST.get(f"room_type_{item.pk}", "CONSULTORIO")
                 item.nr_sala = request.POST.get(f"room_number_{item.pk}", "").strip()
@@ -8713,7 +8752,11 @@ def maquinas_chamada(request):
                     cd_empresa=empresa,
                     nm_maquina=machine.strip().upper(),
                     tp_maquina=(new_machine_types[index] if index < len(new_machine_types) else "ESTACAO") or "ESTACAO",
-                    cd_setor_id=int(setor_id) if setor_id.isdigit() else None,
+                    cd_setor=(
+                        Setor.objects.filter(cd_empresa=empresa, pk=int(setor_id)).first()
+                        if setor_id.isdigit()
+                        else None
+                    ),
                     nm_sala=(new_room_names[index] if index < len(new_room_names) else "").strip(),
                     tp_sala=(new_room_types[index] if index < len(new_room_types) else "CONSULTORIO") or "CONSULTORIO",
                     nr_sala=(new_room_numbers[index] if index < len(new_room_numbers) else "").strip(),

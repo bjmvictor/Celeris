@@ -16,7 +16,7 @@ from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.accounts.models import Empresa, Setor, User, UsuarioEmpresa
+from apps.accounts.models import Empresa, Papel, Setor, User, UsuarioEmpresa
 from apps.core.catalogos import modelo_catalogo
 from apps.core.models import Cep, Especialidade, Feriado, Module, MotivoAlteracao, ScreenDefinition, TipoPrestador
 from apps.core.services.assinatura_pdf import ErroAssinaturaPdf, validar_pdf_pades
@@ -24,7 +24,7 @@ from apps.core.services.certificados_digitais import cadastrar_certificado
 from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs12_teste
 
 from .forms import EscalaForm, PacienteForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
+from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, GrupoFluxoClassificacao, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
 from .services.prescricoes import contexto_acao_prescricao, registrar_itens_prescricao
 from apps.estoque.models import Produto
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
@@ -4805,3 +4805,266 @@ class FluxoHomologacaoTests(TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("data-confirmation-review", patient_template)
         self.assertIn("data-disable-state-persistence", patient_template)
+
+
+class AtendimentoTenantAdministrativeConfigurationTests(TestCase):
+    """Characterization of the first canonical-tenant migration batch."""
+
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1,
+            defaults={"nm_empresa": "Empresa Tenant A", "sn_ativo": True},
+        )
+        self.empresa_b = Empresa.objects.create(
+            cd_empresa=9912,
+            nm_empresa="Empresa Tenant B",
+            sn_ativo=True,
+        )
+        grupo, _ = Group.objects.get_or_create(name="TI")
+        papel, _ = Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+        if not papel.sn_ativo:
+            papel.sn_ativo = True
+            papel.save(update_fields=["sn_ativo"])
+        self.usuario = User.objects.create_user("ti-tenant-atendimento", password="senha-forte")
+        self.usuario.groups.add(grupo)
+        self.vinculo_a = UsuarioEmpresa.objects.create(
+            usuario=self.usuario,
+            empresa=self.empresa_a,
+            sn_ativo=True,
+        )
+        self.client.force_login(self.usuario)
+
+        self.painel_a = PainelChamada.objects.create(
+            cd_empresa=self.empresa_a,
+            nm_painel="Painel A",
+            nm_maquina="TENANT-A",
+        )
+        self.painel_b = PainelChamada.objects.create(
+            cd_empresa=self.empresa_b,
+            nm_painel="Painel B",
+            nm_maquina="TENANT-B",
+        )
+        self.tipo_a = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa_a,
+            nm_tipo_senha="Senha A",
+            sg_tipo_senha="A",
+        )
+        self.tipo_b = TipoSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa_b,
+            nm_tipo_senha="Senha B",
+            sg_tipo_senha="B",
+        )
+        CorClassificacaoRisco.objects.create(cd_empresa=self.empresa_a, cd_cor="A", nm_cor="Cor A")
+        self.cor_b = CorClassificacaoRisco.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_cor="B",
+            nm_cor="Cor B",
+        )
+        PerguntaClassificacao.objects.create(cd_empresa=self.empresa_a, nm_pergunta="Pergunta A")
+        PerguntaClassificacao.objects.create(cd_empresa=self.empresa_b, nm_pergunta="Pergunta B")
+        self.grupo_a = GrupoFluxoClassificacao.objects.create(cd_empresa=self.empresa_a, nm_grupo="Grupo A")
+        grupo_b = GrupoFluxoClassificacao.objects.create(cd_empresa=self.empresa_b, nm_grupo="Grupo B")
+        self.fluxo_a = FluxoClassificacao.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_grupo=self.grupo_a,
+            nm_grupo=self.grupo_a.nm_grupo,
+            nm_fluxo="Fluxo A",
+        )
+        self.fluxo_b = FluxoClassificacao.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_grupo=grupo_b,
+            nm_grupo=grupo_b.nm_grupo,
+            nm_fluxo="Fluxo B",
+        )
+        IconeChamada.objects.create(cd_empresa=self.empresa_a, nm_icone="Icone A")
+        IconeChamada.objects.create(cd_empresa=self.empresa_b, nm_icone="Icone B")
+        self.maquina_a = MaquinaChamada.objects.create(cd_empresa=self.empresa_a, nm_maquina="MAQUINA-A")
+        MaquinaChamada.objects.create(cd_empresa=self.empresa_b, nm_maquina="MAQUINA-B")
+        self.setor_b = Setor.objects.create(
+            cd_empresa=self.empresa_b,
+            nm_setor="Setor B",
+            tp_setor=Setor.TipoSetor.ATENDIMENTO,
+        )
+
+    def selecionar_empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def test_empresa_1_explicita_lista_somente_dados_da_empresa_autorizada(self):
+        self.selecionar_empresa(self.empresa_a)
+
+        for nome_url, exclusivo in (
+            ("atendimento:cores-classificacao", "Cor B"),
+            ("atendimento:perguntas-classificacao", "Pergunta B"),
+            ("atendimento:fluxos-classificacao", "Fluxo B"),
+            ("atendimento:icones-chamada", "Icone B"),
+            ("atendimento:maquinas-chamada", "MAQUINA-B"),
+        ):
+            with self.subTest(nome_url=nome_url):
+                response = self.client.get(reverse(nome_url))
+                self.assertEqual(response.status_code, 200)
+                self.assertNotContains(response, exclusivo)
+
+    def test_configuracoes_com_id_de_outra_empresa_retornam_404(self):
+        self.selecionar_empresa(self.empresa_a)
+
+        for nome_url, objeto_a, objeto_b in (
+            ("atendimento:cadastro-painel-chamada", self.painel_a, self.painel_b),
+            ("atendimento:editar-configuracao-senha", self.tipo_a, self.tipo_b),
+            ("atendimento:fluxo-escalas-classificacao", self.fluxo_a, self.fluxo_b),
+        ):
+            with self.subTest(nome_url=nome_url):
+                response = self.client.get(reverse(nome_url, args=[objeto_a.pk]))
+                self.assertEqual(response.status_code, 200)
+                response = self.client.get(reverse(nome_url, args=[objeto_b.pk]))
+                self.assertEqual(response.status_code, 404)
+
+    def test_escritas_usam_empresa_atual_e_status_de_outra_empresa_nao_muda(self):
+        self.selecionar_empresa(self.empresa_a)
+
+        response = self.client.post(
+            reverse("atendimento:cores-classificacao"),
+            {
+                "new_code": "NOVA_A",
+                "new_name": "Nova cor A",
+                "new_hex": "#123456",
+                "new_priority": "3",
+                "new_active": "true",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            CorClassificacaoRisco.objects.filter(cd_empresa=self.empresa_a, cd_cor="NOVA_A").exists()
+        )
+        self.assertFalse(
+            CorClassificacaoRisco.objects.filter(cd_empresa=self.empresa_b, cd_cor="NOVA_A").exists()
+        )
+
+        response = self.client.post(
+            reverse("atendimento:alternar-status-painel-chamada", args=[self.painel_a.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.painel_a.refresh_from_db()
+        self.assertFalse(self.painel_a.sn_ativo)
+
+        response = self.client.post(
+            reverse("atendimento:alternar-status-configuracao-senha", args=[self.tipo_a.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.tipo_a.refresh_from_db()
+        self.assertFalse(self.tipo_a.sn_ativo)
+
+        response = self.client.post(
+            reverse("atendimento:alternar-status-painel-chamada", args=[self.painel_b.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+        self.painel_b.refresh_from_db()
+        self.assertTrue(self.painel_b.sn_ativo)
+
+    def test_ids_relacionados_de_outra_empresa_nao_sao_vinculados_por_post(self):
+        self.selecionar_empresa(self.empresa_a)
+
+        response = self.client.post(
+            reverse("atendimento:fluxos-classificacao"),
+            {
+                "grupos_json": json.dumps([{
+                    "id": self.grupo_a.pk,
+                    "chave": str(self.grupo_a.pk),
+                    "nome": self.grupo_a.nm_grupo,
+                    "ativo": True,
+                }]),
+                "sintomas_json": json.dumps([{
+                    "id": self.fluxo_a.pk,
+                    "grupo_chave": str(self.grupo_a.pk),
+                    "nome": self.fluxo_a.nm_fluxo,
+                    "cor_id": self.cor_b.pk,
+                    "ativo": True,
+                }]),
+                "grupos_excluidos_json": "[]",
+                "sintomas_excluidos_json": "[]",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.fluxo_a.refresh_from_db()
+        self.assertIsNone(self.fluxo_a.cd_cor_recomendada)
+
+        response = self.client.post(
+            reverse("atendimento:maquinas-chamada"),
+            {
+                f"machine_{self.maquina_a.pk}": self.maquina_a.nm_maquina,
+                f"machine_type_{self.maquina_a.pk}": "ESTACAO",
+                f"sector_{self.maquina_a.pk}": self.setor_b.pk,
+                f"room_name_{self.maquina_a.pk}": "",
+                f"room_type_{self.maquina_a.pk}": "CONSULTORIO",
+                f"room_number_{self.maquina_a.pk}": "",
+                f"active_{self.maquina_a.pk}": "true",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.maquina_a.refresh_from_db()
+        self.assertIsNone(self.maquina_a.cd_setor)
+
+        icone_b = IconeChamada.objects.create(cd_empresa=self.empresa_b, nm_icone="Icone externo")
+        protocolo_b = ProtocoloSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa_b,
+            nm_protocolo="Protocolo externo",
+        )
+        classe_a = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_tipo_senha=self.tipo_a,
+            nm_classe_senha="Classe A",
+            sg_classe_senha="CA",
+        )
+        regra_a = RegraSubdivisaoSenha.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_tipo_senha=self.tipo_a,
+            cd_classe_senha=classe_a,
+            sg_regra="CA",
+        )
+        response = self.client.post(
+            reverse("atendimento:editar-configuracao-senha", args=[self.tipo_a.pk]),
+            {
+                "nm_tipo_senha": self.tipo_a.nm_tipo_senha,
+                "sg_tipo_senha": self.tipo_a.sg_tipo_senha,
+                "cd_setor_atendimento": "",
+                f"rule_name_{regra_a.pk}": classe_a.nm_classe_senha,
+                f"rule_acronym_{regra_a.pk}": classe_a.sg_classe_senha,
+                f"rule_priority_{regra_a.pk}": "5",
+                f"rule_min_age_{regra_a.pk}": "",
+                f"rule_max_age_{regra_a.pk}": "",
+                f"rule_icon_{regra_a.pk}": str(icone_b.pk),
+                f"rule_protocol_{regra_a.pk}": str(protocolo_b.pk),
+                f"rule_timeout_{regra_a.pk}": "30",
+                f"rule_active_{regra_a.pk}": "true",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        regra_a.refresh_from_db()
+        self.assertIsNone(regra_a.cd_icone_chamada)
+        self.assertIsNone(regra_a.cd_protocolo)
+
+    def test_tenant_ausente_vinculo_invalido_ou_empresa_inativa_falha_fechado(self):
+        response = self.client.get(reverse("atendimento:cores-classificacao"))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(f"{reverse('login')}?next="))
+
+        self.client.force_login(self.usuario)
+        self.selecionar_empresa(self.empresa_b)
+        response = self.client.get(reverse("atendimento:maquinas-chamada"))
+        self.assertEqual(response.status_code, 302)
+
+        self.client.force_login(self.usuario)
+        self.vinculo_a.sn_ativo = False
+        self.vinculo_a.save(update_fields=["sn_ativo"])
+        self.selecionar_empresa(self.empresa_a)
+        response = self.client.get(reverse("atendimento:perguntas-classificacao"))
+        self.assertEqual(response.status_code, 302)
+
+        self.client.force_login(self.usuario)
+        self.vinculo_a.sn_ativo = True
+        self.vinculo_a.save(update_fields=["sn_ativo"])
+        self.empresa_a.sn_ativo = False
+        self.empresa_a.save(update_fields=["sn_ativo"])
+        response = self.client.get(reverse("atendimento:fluxos-classificacao"))
+        self.assertEqual(response.status_code, 302)

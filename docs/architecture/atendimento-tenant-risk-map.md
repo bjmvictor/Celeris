@@ -16,10 +16,12 @@ return get_object_or_404(Empresa, cd_empresa=cd_empresa, sn_ativo=True)
 
 Ele recebe somente `request`, lê a sessão e faz fallback para a empresa `1`; confirma
 apenas que a empresa está ativa, não verifica autenticação nem `UsuarioEmpresa`, e
-converte ausência/inatividade em 404. Há **86 chamadas em 85 funções consumidoras**.
-Todas as linhas que dependem dele são R4: o fallback torna insegura uma troca mecânica,
-mesmo onde os querysets posteriores já filtram por empresa. Não há uso de
-`empresa_atual`, `proteger_contexto_tenant` ou `TenantContextError` em Atendimento.
+converte ausência/inatividade em 404. No inventário inicial havia **86 chamadas em
+85 funções consumidoras**. Após o Lote A de configurações administrativas, restam
+**76 chamadas em 75 funções consumidoras**. As linhas ainda dependentes dele são R4:
+o fallback torna insegura uma troca mecânica, mesmo onde os querysets posteriores já
+filtram por empresa. Dez consumidores usam agora `empresa_atual` com
+`proteger_contexto_tenant`; Atendimento ainda não trata `TenantContextError` localmente.
 
 Abreviações: `H` = `_empresa_logada`; `login/role` descreve os decoradores efetivos;
 `delegado` é helper interno alcançado por uma view autenticada. O motivo `H: fallback 1`
@@ -85,17 +87,17 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 53 | `alteracao_atendimento` | views.py | atendimento | login/Recepcionista,Enfermeiro,Médico | H | L/E | Atendimento, Paciente | atendimento por empresa | R4 | H: fallback 1; ID URL/POST | lote atendimento |
 | 54 | `atendimentos` | views.py | atendimento | login/Recepcionista,Enfermeiro,Médico | H | L | Atendimento | queryset por empresa | R4 | H: fallback 1 | lote atendimento |
 | 55 | `pep_chamar` | views.py | painel | login/TI,Médico,Enfermeiro | H | E | Atendimento, Máquina, Painel | atendimento/setor/máquina por empresa | R4 | H: fallback 1; POST IDs | lote painel/chamada |
-| 56 | `paineis_chamada` | views.py | painel | login/TI | H | L/E | PainelChamada, Setor | painel por empresa | R4 | H: fallback 1; ID URL/POST | lote painel/chamada |
-| 57 | `alternar_status_painel_chamada` | views.py | painel | login/TI | H | E | PainelChamada | painel por empresa | R4 | H: fallback 1; ID URL | lote painel/chamada |
-| 58 | `configurar_senhas` | views.py | configuração | login/TI | H | L/E | TipoSenha, classe, protocolo | filtros por empresa | R4 | H: fallback 1; ID URL/POST | lote painel/chamada |
-| 59 | `alternar_status_configuracao_senha` | views.py | configuração | login/TI | H | E | TipoSenhaAtendimento | tipo por empresa | R4 | H: fallback 1; ID URL | lote painel/chamada |
+| 56 | `paineis_chamada` | views.py | painel | login/TI | `empresa_atual` | L/E | PainelChamada, Setor | painel, ID URL e form por empresa canônica | R2 | tratado no Lote A | concluído: painel/chamada admin |
+| 57 | `alternar_status_painel_chamada` | views.py | painel | login/TI | `empresa_atual` | E | PainelChamada | busca por empresa canônica | R2 | tratado no Lote A; ID URL scoped | concluído: painel/chamada admin |
+| 58 | `configurar_senhas` | views.py | configuração | login/TI | `empresa_atual` | L/E | TipoSenha, classe, protocolo | filtros e referências POST por empresa canônica | R2 | tratado no Lote A; ícone/protocolo POST scoped | concluído: painel/chamada admin |
+| 59 | `alternar_status_configuracao_senha` | views.py | configuração | login/TI | `empresa_atual` | E | TipoSenhaAtendimento | busca por empresa canônica | R2 | tratado no Lote A; ID URL scoped | concluído: painel/chamada admin |
 | 60 | `_tabela_totem` | views.py | cadastro | delegado | H | L/E | classes/protocolos | queryset por empresa | R4 | H: fallback 1 | lote painel/chamada |
-| 61 | `cores_classificacao` | views.py | classificação | login/TI | H | L/E | CorClassificacaoRisco | queryset por empresa | R4 | H: fallback 1 | lote classificação |
-| 62 | `perguntas_classificacao` | views.py | classificação | login/TI | H | L/E | PerguntaClassificacao | queryset por empresa | R4 | H: fallback 1; POST | lote classificação |
-| 63 | `fluxos_classificacao` | views.py | classificação | login/TI | H | L/E | FluxoClassificacao | queryset por empresa | R4 | H: fallback 1; POST | lote classificação |
-| 64 | `fluxo_escalas_classificacao` | views.py | classificação | login/TI | H | L/E | Fluxo, Escala | fluxo por empresa | R4 | H: fallback 1; ID URL/POST | lote classificação |
-| 65 | `icones_chamada` | views.py | painel | login/TI | H | L/E | IconeChamada | queryset por empresa | R4 | H: fallback 1 | lote painel/chamada |
-| 66 | `maquinas_chamada` | views.py | painel | login/TI | H | L/E | MaquinaChamada | queryset por empresa | R4 | H: fallback 1; POST | lote painel/chamada |
+| 61 | `cores_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | CorClassificacaoRisco | queryset e escrita por empresa canônica | R2 | tratado no Lote A | concluído: classificação admin |
+| 62 | `perguntas_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | PerguntaClassificacao | queryset e escrita por empresa canônica | R2 | tratado no Lote A | concluído: classificação admin |
+| 63 | `fluxos_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | FluxoClassificacao | IDs e cor recomendada POST scoped por empresa | R2 | tratado no Lote A; cor POST scoped | concluído: classificação admin |
+| 64 | `fluxo_escalas_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | Fluxo, Escala | fluxo URL e escalas POST por empresa canônica | R2 | tratado no Lote A | concluído: classificação admin |
+| 65 | `icones_chamada` | views.py | painel | login/TI | `empresa_atual` | L/E | IconeChamada | queryset e escrita por empresa canônica | R2 | tratado no Lote A | concluído: painel/chamada admin |
+| 66 | `maquinas_chamada` | views.py | painel | login/TI | `empresa_atual` | L/E | MaquinaChamada | queryset e setor POST por empresa canônica | R2 | tratado no Lote A; setor POST scoped | concluído: painel/chamada admin |
 | 67 | `imprimir_senha_totem` | views.py | impressão | login/TI,Recepcionista,Enfermeiro | H | L | SenhaAtendimento | senha por empresa | R4 | H: fallback 1; ID URL | lote painel/chamada |
 | 68 | `acao_senha_classificacao` | views.py | classificação | login/Enfermeiro | H | E | SenhaAtendimento | senha por empresa | R4 | H: fallback 1; ID URL | lote classificação |
 | 69 | `chamar_agendamento_classificacao` | views.py | classificação | login/Enfermeiro | H | E | Agendamento, Senha | agendamento por empresa | R4 | H: fallback 1; ID URL | lote classificação |
@@ -174,12 +176,13 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Métrica | Total |
 | - | -: |
 | Consumidores de resolução/delegação | 89 |
-| Chamadas a `_empresa_logada` | 86 |
-| Funções consumidoras diretas de `_empresa_logada` | 85 |
+| Chamadas a `_empresa_logada` no inventário inicial | 86 |
+| Chamadas a `_empresa_logada` após Lote A | 76 |
+| Funções consumidoras diretas de `_empresa_logada` após Lote A | 75 |
 | R1 | 0 |
-| R2 | 0 |
+| R2 | 10 |
 | R3 | 0 |
-| R4 | 86 |
+| R4 | 76 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
@@ -188,17 +191,18 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Leitura/escrita | 32 |
 | Fallback empresa 1 | 1 helper / 86 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 0 |
-| Acessos que exigem investigação cross-tenant | 89 (86 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 10 |
+| Acessos que exigem investigação cross-tenant | 79 (76 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 
-1. **Lote A — agenda e cadastro de pacientes (12 consumidores; R4).** `agendamentos_operacionais`, consulta/cadastro/seleção/confirmação/cancelamento e comprovante. Depende somente de `empresa_atual` e forms já parametrizados. Testar sessão ausente, vínculo inválido, duas empresas, IDs URL e POST.
-2. **Lote B — recepção e atendimento base (12; R4).** pré-atendimento, recepção, cadastro/alteração/listagem, fila e consulta. Depende do lote A para pais Agendamento/Paciente. Testar transições de status e isolamento de todos os IDs.
-3. **Lote C — profissionais, perfis e roteamento de cadastros (10; R4).** prestadores, locks, convênios, perfis e `screen`. Testar locks, APIs JSON, formsets e dupla empresa.
-4. **Lote D — classificação, senha, painéis e escalas autenticadas (23; R4).** catálogos, fila, escalas, senhas, painéis administrativos e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
-5. **Lote E — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
-6. **Lote F — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
+1. **Lote A — configurações administrativas de classificação/chamada (10; R2, concluído).** Painéis, tipos de senha, cores, perguntas, fluxos, escalas de fluxo, ícones e máquinas. Além do tenant canônico, IDs POST de cor, setor, ícone e protocolo foram scoped localmente.
+2. **Lote B — agenda e cadastro de pacientes (12 consumidores; R4).** `agendamentos_operacionais`, consulta/cadastro/seleção/confirmação/cancelamento e comprovante. Depende somente de `empresa_atual` e forms já parametrizados. Testar sessão ausente, vínculo inválido, duas empresas, IDs URL e POST.
+3. **Lote C — recepção e atendimento base (12; R4).** pré-atendimento, recepção, cadastro/alteração/listagem, fila e consulta. Depende do lote B para pais Agendamento/Paciente. Testar transições de status e isolamento de todos os IDs.
+4. **Lote D — profissionais, perfis e roteamento de cadastros (10; R4).** prestadores, locks, convênios, perfis e `screen`. Testar locks, APIs JSON, formsets e dupla empresa.
+5. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
+6. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
+7. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
 
 Essa ordem mantém lotes entre 3 e 29 apenas onde o acoplamento clínico exige; o
 Lote E deve ser quebrado em sublotes de até 10–15 consumidores após a
