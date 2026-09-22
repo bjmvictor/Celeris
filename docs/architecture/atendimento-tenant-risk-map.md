@@ -17,10 +17,10 @@ return get_object_or_404(Empresa, cd_empresa=cd_empresa, sn_ativo=True)
 Ele recebe somente `request`, lê a sessão e faz fallback para a empresa `1`; confirma
 apenas que a empresa está ativa, não verifica autenticação nem `UsuarioEmpresa`, e
 converte ausência/inatividade em 404. No inventário inicial havia **86 chamadas em
-85 funções consumidoras**. Após os Lotes A, B e C, restam
-**54 chamadas em 53 funções consumidoras**. As linhas ainda dependentes dele são R4:
+85 funções consumidoras**. Após os Lotes A, B, C e D, restam
+**45 chamadas em 44 funções consumidoras**. As linhas ainda dependentes dele são R4:
 o fallback torna insegura uma troca mecânica, mesmo onde os querysets posteriores já
-filtram por empresa. Trinta e dois consumidores usam agora `empresa_atual` com
+filtram por empresa. Quarenta e um consumidores usam agora `empresa_atual` com
 `proteger_contexto_tenant`; Atendimento ainda não trata `TenantContextError` localmente.
 
 Abreviações: `H` = `_empresa_logada`; `login/role` descreve os decoradores efetivos;
@@ -32,12 +32,12 @@ escopo observado por `cd_empresa` ou pelo pai.
 
 | # | Consumidor | Arquivo | Tipo | Auth | Origem tenant | L/E | Objetos afetados | Isolamento atual | Risco | Motivo | Migração sugerida |
 | - | - | - | - | - | - | - | - | - | - | - | - |
-| 1 | `_editable_convenios` | views.py | cadastro | delegado | H | L/E | Convenio | queryset e escrita por empresa | R4 | H: fallback 1 | migrar junto de `screen` |
-| 2 | `_editable_prestadores` | views.py | cadastro | delegado | H | L/E | Prestador | queryset e escrita por empresa | R4 | H: fallback 1 | lote profissionais |
-| 3 | `cadastro_profissional` | views.py | cadastro | login/TI | H | L/E | Prestador, tipos | pai/queryset por empresa | R4 | H: fallback 1; ID URL | lote profissionais |
-| 4 | `alternar_status_prestador` | views.py | cadastro | login/TI | H | E | Prestador | busca por empresa | R4 | H: fallback 1; ID URL | lote profissionais |
-| 5 | `liberar_trava_prestador` | views.py | cadastro | login/TI | H | E | Prestador | busca por empresa | R4 | H: fallback 1; ID URL | lote profissionais |
-| 6 | `adquirir_trava_prestador` | views.py | cadastro | login/TI | H | E | Prestador | busca por empresa | R4 | H: fallback 1; ID URL | lote profissionais |
+| 1 | `_editable_convenios` | views.py | cadastro | delegado | `empresa_atual` | L/E | Convenio | queryset e criação/escrita por empresa canônica | R2 | Lote D; rota delegada validada | tenant canônico |
+| 2 | `_editable_prestadores` | views.py | cadastro | delegado | `empresa_atual` | L/E | Prestador | queryset e criação/escrita por empresa canônica | R2 | Lote D; helper permanece sem URL própria | tenant canônico |
+| 3 | `cadastro_profissional` | views.py | cadastro | login/TI | `empresa_atual` | L/E | Prestador, PrestadorTipo | prestador URL/GET/POST e relação por empresa canônica | R2 | Lote D; tipos são catálogo global, vínculo é T | tenant canônico |
+| 4 | `alternar_status_prestador` | views.py | cadastro | login/TI | `empresa_atual` | E | Prestador | busca URL por empresa canônica | R2 | Lote D; ID URL scoped | tenant canônico |
+| 5 | `liberar_trava_prestador` | views.py | cadastro | login/TI | `empresa_atual` | E | Prestador | busca URL por empresa canônica | R2 | Lote D; ID URL scoped | tenant canônico |
+| 6 | `adquirir_trava_prestador` | views.py | cadastro | login/TI | `empresa_atual` | E | Prestador | busca URL por empresa canônica | R2 | Lote D; ID URL scoped | tenant canônico |
 | 7 | `iniciar_pre_atendimento` | views.py | triagem | login/Enfermeiro | `empresa_atual` | E | Agendamento, PreAtendimento | agendamento e paciente por empresa canônica | R2 | Lote C; ID URL e invariante agendamento→paciente | tenant canônico |
 | 8 | `iniciar_pre_atendimento_atendimento` | views.py | triagem | login/Enfermeiro | `empresa_atual` | E | Atendimento, PreAtendimento | atendimento e paciente por empresa canônica | R2 | Lote C; ID URL e invariante atendimento→paciente | tenant canônico |
 | 9 | `iniciar_atendimento` | views.py | atendimento | login/Recepcionista,Médico | `empresa_atual` | E | Agendamento, Atendimento | agendamento, paciente e agenda por empresa canônica | R2 | Lote C; ID URL e FKs derivados protegidos | tenant canônico |
@@ -49,9 +49,9 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 15 | `cadastro_atendimento` | views.py | atendimento | login/Recepcionista | `empresa_atual` | L/E | Atendimento, Paciente, Agendamento, Senha | IDs URL/GET e forms por empresa canônica | R2 | Lote C; paciente, agenda, senha, prestador e convênio protegidos | tenant canônico |
 | 16 | `ficha_atendimento` | views.py | atendimento | login | H | L | Atendimento, itens | atendimento por empresa | R4 | H: fallback 1; ID URL | lote ficha clínica |
 | 17 | `abrir_modelo_assistencial` | views.py | atendimento | login | H | L/E | Atendimento, ItemMenu | atendimento/pai por empresa | R4 | H: fallback 1; IDs URL | lote ficha clínica |
-| 18 | `perfis_assistenciais` | views.py | configuração | login/TI | H | L/E | PerfilAssistencial | filtros por empresa | R4 | H: fallback 1 | lote perfis |
-| 19 | `perfil_assistencial_itens_api` | views.py | API | login/TI | H | L/E | Perfil, ItemMenu | perfil por empresa | R4 | H: fallback 1; ID URL | lote perfis |
-| 20 | `publicar_perfil_assistencial_api` | views.py | API | login/TI | H | E | PerfilAssistencial | perfil por empresa | R4 | H: fallback 1; ID URL | lote perfis |
+| 18 | `perfis_assistenciais` | views.py | configuração | login/TI | `empresa_atual` | L/E | Perfil, versão, itens, escala, modelo | perfil e relações T por empresa canônica; modelo G/T | R2 | Lote D; POST de escala/modelo externo rejeitado | tenant canônico |
+| 19 | `perfil_assistencial_itens_api` | views.py | API | login/TI | `empresa_atual` | L/E | Perfil, versão, ItemMenu | perfil URL e itens derivados por empresa canônica | R2 | Lote D; modelo G/T já validado pela API | tenant canônico |
+| 20 | `publicar_perfil_assistencial_api` | views.py | API | login/TI | `empresa_atual` | E | Perfil, versão | perfil URL e versão derivada por empresa canônica | R2 | Lote D; ID URL scoped | tenant canônico |
 | 21 | `solicitar_exame` | views.py | exames | login/Médico | H | E | Atendimento, SolicitaçãoExame | atendimento por empresa; serviço recebe empresa | R4 | H: fallback 1; ID URL | lote prescrição/exames |
 | 22 | `resultado_exame` | views.py | exames | login/TI | H | E | SolicitaçãoExame, Resultado | solicitação por empresa | R4 | H: fallback 1; ID URL | lote prescrição/exames |
 | 23 | `prescrever` | views.py | prescrição | login/Médico | H | E | Atendimento, Prescrição | atendimento por empresa; serviço recebe empresa | R4 | H: fallback 1; ID URL | lote prescrição/exames |
@@ -183,27 +183,29 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Funções consumidoras diretas de `_empresa_logada` após Lote B | 65 |
 | Chamadas a `_empresa_logada` após Lote C | 54 |
 | Funções consumidoras diretas de `_empresa_logada` após Lote C | 53 |
+| Chamadas a `_empresa_logada` após Lote D | 45 |
+| Funções consumidoras diretas de `_empresa_logada` após Lote D | 44 |
 | R1 | 0 |
-| R2 | 32 |
+| R2 | 41 |
 | R3 | 0 |
-| R4 | 54 |
+| R4 | 45 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
 | Leitura | 22 |
 | Escrita | 35 |
 | Leitura/escrita | 32 |
-| Fallback empresa 1 | 1 helper / 54 call sites |
+| Fallback empresa 1 | 1 helper / 45 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 32 |
-| Acessos que exigem investigação cross-tenant | 57 (54 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 41 |
+| Acessos que exigem investigação cross-tenant | 48 (45 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 
 1. **Lote A — configurações administrativas de classificação/chamada (10; R2, concluído).** Painéis, tipos de senha, cores, perguntas, fluxos, escalas de fluxo, ícones e máquinas. Além do tenant canônico, IDs POST de cor, setor, ícone e protocolo foram scoped localmente.
 2. **Lote B — agenda e cadastro de pacientes (10 consumidores; R2, concluído).** `agendamentos_operacionais`, consulta/cadastro/seleção/confirmação/cancelamento, comprovante e validação de unicidade passaram a usar `empresa_atual`. Paciente é diretamente tenant-scoped por `cd_empresa`; foram verificados sessão ausente, empresa/vínculo inativos, duas empresas e IDs URL/POST.
 3. **Lote C — recepção e atendimento base (12; R2, concluído).** Pré-atendimento, recepção, cadastro/alteração/listagem, fila e consulta usam `empresa_atual`. Atendimento e Agendamento agora são resolvidos também pela empresa do Paciente, impedindo relações B→Paciente A que o banco legado ainda consegue representar.
-4. **Lote D — profissionais, perfis e roteamento de cadastros (10; R4).** prestadores, locks, convênios, perfis e `screen`. Testar locks, APIs JSON, formsets e dupla empresa.
+4. **Lote D — profissionais, perfis e roteamento de cadastros (9; R2, concluído).** Convênios, prestadores, locks e perfis usam `empresa_atual`; o POST HTML de perfil valida escala T e modelo G/T como a API JSON. `screen` foi caracterizado como roteador para consumidores de outros lotes e permaneceu R4, sem alteração funcional.
 5. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
 6. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
 7. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.

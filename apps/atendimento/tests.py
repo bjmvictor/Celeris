@@ -5276,3 +5276,115 @@ class AtendimentoTenantRecepcaoBaseTests(TestCase):
         self.empresa_a.sn_ativo = False
         self.empresa_a.save(update_fields=["sn_ativo"])
         self.assertEqual(self.client.get(reverse("atendimento:recepcao")).status_code, 302)
+
+
+class AtendimentoTenantProfissionaisPerfisTests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "Profissionais A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9915, nm_empresa="Profissionais B", sn_ativo=True)
+        self.usuario_a = self._criar_usuario("ti-profissionais-a", self.empresa_a)
+        self.usuario_b = self._criar_usuario("ti-profissionais-b", self.empresa_b)
+        self.prestador_a = Prestador.objects.create(cd_empresa=self.empresa_a, nm_prestador="Prestador A")
+        self.prestador_b = Prestador.objects.create(cd_empresa=self.empresa_b, nm_prestador="Prestador B")
+        self.convenio_a = Convenio.objects.create(cd_empresa=self.empresa_a, nm_convenio="Convenio A")
+        self.perfil_a = PerfilAssistencial.objects.create(cd_empresa=self.empresa_a, nm_perfil="Perfil A")
+        self.perfil_b = PerfilAssistencial.objects.create(cd_empresa=self.empresa_b, nm_perfil="Perfil B")
+        self.modelo_a = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_a, nm_modelo="Modelo A", tp_elemento="DOCUMENTO"
+        )
+        self.escala_a = EscalaClinica.objects.create(cd_empresa=self.empresa_a, nm_escala="Escala A")
+        self.client.force_login(self.usuario_b)
+
+    def _criar_usuario(self, username, empresa):
+        usuario = User.objects.create_user(username, password="senha-forte")
+        grupo, _ = Group.objects.get_or_create(name="TI")
+        papel, _ = Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+        if not papel.sn_ativo:
+            papel.sn_ativo = True
+            papel.save(update_fields=["sn_ativo"])
+        usuario.groups.add(grupo)
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def selecionar_empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def test_contextos_invalidos_falham_fechados_e_empresa_1_autorizada_funciona(self):
+        self.assertEqual(self.client.get(reverse("atendimento:convenios")).status_code, 302)
+        self.client.force_login(self.usuario_b)
+        self.selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:convenios")).status_code, 302)
+        self.client.force_login(self.usuario_a)
+        self.selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:convenios")).status_code, 200)
+        vinculo = UsuarioEmpresa.objects.get(usuario=self.usuario_a, empresa=self.empresa_a)
+        vinculo.sn_ativo = False
+        vinculo.save(update_fields=["sn_ativo"])
+        self.assertEqual(self.client.get(reverse("atendimento:convenios")).status_code, 302)
+        vinculo.sn_ativo = True
+        vinculo.save(update_fields=["sn_ativo"])
+        self.empresa_a.sn_ativo = False
+        self.empresa_a.save(update_fields=["sn_ativo"])
+        self.assertEqual(self.client.get(reverse("atendimento:convenios")).status_code, 302)
+
+    def test_prestador_externo_nao_pode_ser_consultado_alterado_ou_bloqueado(self):
+        self.selecionar_empresa(self.empresa_b)
+        self.assertEqual(
+            self.client.get(reverse("atendimento:cadastro-profissional", args=[self.prestador_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(reverse("atendimento:alternar-status-prestador", args=[self.prestador_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(reverse("atendimento:adquirir-trava-prestador", args=[self.prestador_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:cadastro-profissional", args=[self.prestador_b.pk])).status_code,
+            200,
+        )
+
+    def test_convenio_externo_nao_e_alterado_e_novo_registro_recebe_empresa_atual(self):
+        self.selecionar_empresa(self.empresa_b)
+        response = self.client.post(
+            reverse("atendimento:convenios"),
+            {f"name_{self.convenio_a.pk}": "Alteracao externa", "new_name": ["Convenio B"], "new_active": ["true"]},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.convenio_a.refresh_from_db()
+        self.assertEqual(self.convenio_a.nm_convenio, "Convenio A")
+        self.assertTrue(Convenio.objects.filter(cd_empresa=self.empresa_b, nm_convenio="Convenio B").exists())
+
+    def test_perfil_e_referencias_externas_sao_rejeitados(self):
+        self.selecionar_empresa(self.empresa_b)
+        self.assertEqual(
+            self.client.get(reverse("atendimento:perfil-assistencial-itens-api", args=[self.perfil_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:publicar-perfil-assistencial-api", args=[self.perfil_a.pk]),
+                data=json.dumps({"description": "Externo"}),
+                content_type="application/json",
+            ).status_code,
+            404,
+        )
+        url = f"{reverse('atendimento:perfis-assistenciais')}?perfil={self.perfil_b.pk}"
+        resposta_modelo = self.client.post(
+            url,
+            {"perfil": self.perfil_b.pk, "acao": "adicionar_item", "nm_item": "Documento", "tp_item": "DOCUMENTO", "cd_modelo_documento": self.modelo_a.pk},
+        )
+        self.assertEqual(resposta_modelo.status_code, 302)
+        self.assertFalse(ItemMenuAssistencial.objects.filter(cd_perfil_assistencial=self.perfil_b).exists())
+        resposta_escala = self.client.post(
+            url,
+            {"perfil": self.perfil_b.pk, "acao": "adicionar_item", "nm_item": "Escala", "tp_item": "ESCALA", "cd_escala_clinica": self.escala_a.pk},
+        )
+        self.assertEqual(resposta_escala.status_code, 302)
+        self.assertFalse(ItemMenuAssistencial.objects.filter(cd_perfil_assistencial=self.perfil_b).exists())

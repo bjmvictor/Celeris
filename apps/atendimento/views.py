@@ -1388,13 +1388,14 @@ def screen(request, screen):
     return render(request, template, {"title": title, "rows": []})
 
 
+@proteger_contexto_tenant
 def _editable_convenios(request, title):
     request.current_tab_title = "Atendimento > Cadastros > Convênios"
     request.current_tab_root_title = "Convênios"
     request.current_module_title = "Atendimento"
     request.current_can_query = True
     request.current_can_remove = True
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     registros = Convenio.objects.filter(cd_empresa=empresa)
     query = _query_text(request)
     if query:
@@ -1435,12 +1436,13 @@ def _editable_convenios(request, title):
     return render(request, "atendimento/editable_convenios.html", {"title": title, "registros": registros})
 
 
+@proteger_contexto_tenant
 def _editable_prestadores(request, title):
     request.current_tab_title = title
     request.current_module_title = "Atendimento"
     request.current_can_query = True
     request.current_can_remove = False
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     registros = Prestador.objects.filter(cd_empresa=empresa)
     query = _query_text(request)
     if query:
@@ -1482,13 +1484,14 @@ def profissionais(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def cadastro_profissional(request, cd_prestador=None):
     request.current_tab_title = "Atendimento > Cadastros > Prestadores"
     request.current_tab_root_title = "Cadastro de prestador"
     request.current_module_title = "Atendimento"
     request.current_can_query = True
     request.current_return_url = _safe_return_url(request)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     if request.GET.get("consultar") == "1":
         logger.info(
             "Consulta de prestadores iniciada usuario=%s empresa=%s filtros=%s",
@@ -1756,10 +1759,11 @@ def cadastro_profissional(request, cd_prestador=None):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def alternar_status_prestador(request, cd_prestador):
     if request.method != "POST":
         raise PermissionDenied
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     provider = get_object_or_404(Prestador, cd_empresa=empresa, cd_prestador=cd_prestador)
     provider.sn_ativo = not provider.sn_ativo
     _apply_audit(provider, request.user)
@@ -1770,10 +1774,11 @@ def alternar_status_prestador(request, cd_prestador):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def liberar_trava_prestador(request, cd_prestador):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     prestador = Prestador.objects.filter(cd_empresa=empresa, pk=cd_prestador).first()
     if not prestador:
         return JsonResponse({"ok": False, "error": "Prestador não encontrado."}, status=404)
@@ -1789,10 +1794,11 @@ def liberar_trava_prestador(request, cd_prestador):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def adquirir_trava_prestador(request, cd_prestador):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "MÃ©todo nÃ£o permitido."}, status=405)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     prestador = Prestador.objects.filter(cd_empresa=empresa, pk=cd_prestador).first()
     if not prestador:
         return JsonResponse({"ok": False, "error": "Prestador nÃ£o encontrado."}, status=404)
@@ -2701,8 +2707,9 @@ def _obter_versao_edicao_perfil(perfil, empresa, usuario):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def perfis_assistenciais(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Perfis assistenciais"
     request.current_tab_root_title = "Perfis assistenciais"
     request.current_module_title = "Atendimento"
@@ -2960,14 +2967,29 @@ def perfis_assistenciais(request):
             )
             escala_id = str(escala_criada.pk)
         if escala_id.isdigit():
+            if not EscalaClinica.objects.filter(cd_empresa=empresa, pk=int(escala_id)).exists():
+                messages.error(request, "Selecione somente uma escala clínica desta empresa.")
+                return redirect(f"{reverse('atendimento:perfis-assistenciais')}?perfil={perfil.pk}")
             configuracao["escala"] = int(escala_id)
+        modelo_id = str(request.POST.get("cd_modelo_documento") or "").strip()
+        modelo_documento = None
+        if modelo_id:
+            modelo_documento = ModeloDocumento.objects.filter(
+                Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
+                pk=int(modelo_id) if modelo_id.isdigit() else 0,
+                tp_elemento="DOCUMENTO",
+                sn_ativo=True,
+            ).first()
+            if not modelo_documento:
+                messages.error(request, "Modelo de documento inválido para esta empresa.")
+                return redirect(f"{reverse('atendimento:perfis-assistenciais')}?perfil={perfil.pk}")
         item = item_edicao or ItemMenuAssistencial(
             cd_empresa=empresa,
             cd_perfil_assistencial=perfil,
             cd_versao_perfil=versao,
         )
         item.cd_item_pai_id = pai_id
-        item.cd_modelo_documento_id = request.POST.get("cd_modelo_documento") or None
+        item.cd_modelo_documento = modelo_documento
         item.cd_item_tecnico = _normalizar_chave_tecnica_assistencial(request.POST.get("cd_item_tecnico", ""))
         item.nm_item = request.POST.get("nm_item", "").strip()
         item.ds_icone = request.POST.get("ds_icone", "").strip()
@@ -3194,8 +3216,9 @@ def _serializar_item_assistencial(item):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def perfil_assistencial_itens_api(request, cd_perfil):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     perfil = get_object_or_404(PerfilAssistencial, cd_empresa=empresa, pk=cd_perfil)
     if request.method == "GET":
         versao = (
@@ -3317,10 +3340,11 @@ def perfil_assistencial_itens_api(request, cd_perfil):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def publicar_perfil_assistencial_api(request, cd_perfil):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     perfil = get_object_or_404(PerfilAssistencial, cd_empresa=empresa, pk=cd_perfil)
     try:
         payload = json.loads(request.body or "{}")
