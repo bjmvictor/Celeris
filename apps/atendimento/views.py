@@ -1811,11 +1811,13 @@ def adquirir_trava_prestador(request, cd_prestador):
 
 @login_required
 @role_required("Enfermeiro")
+@proteger_contexto_tenant
 def iniciar_pre_atendimento(request, cd_agendamento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     agendamento = get_object_or_404(
         Agendamento.objects.select_related("cd_paciente"),
         cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
         cd_agendamento=cd_agendamento,
     )
     request.current_tab_title = "Atendimento > Pré-atendimento"
@@ -1850,11 +1852,13 @@ def iniciar_pre_atendimento(request, cd_agendamento):
 
 @login_required
 @role_required("Enfermeiro")
+@proteger_contexto_tenant
 def iniciar_pre_atendimento_atendimento(request, cd_atendimento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     atendimento = get_object_or_404(
         Atendimento.objects.select_related("cd_paciente", "cd_agendamento"),
         cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
         cd_atendimento=cd_atendimento,
     )
     request.current_tab_title = "Atendimento > Pré-atendimento"
@@ -1884,11 +1888,15 @@ def iniciar_pre_atendimento_atendimento(request, cd_atendimento):
 
 @login_required
 @role_required("Recepcionista", "Médico")
+@proteger_contexto_tenant
 def iniciar_atendimento(request, cd_agendamento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     agendamento = get_object_or_404(
-        Agendamento.objects.select_related("cd_paciente", "cd_agenda_profissional__cd_prestador"),
+        Agendamento.objects.select_related("cd_paciente", "cd_agenda_profissional__cd_prestador").filter(
+            Q(cd_agenda_profissional__isnull=True) | Q(cd_agenda_profissional__cd_empresa=empresa)
+        ),
         cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
         cd_agendamento=cd_agendamento,
     )
     atendimento, created = Atendimento.objects.get_or_create(
@@ -1919,8 +1927,9 @@ def iniciar_atendimento(request, cd_agendamento):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def recepcao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Recepção"
     request.current_tab_root_title = "Recepção"
     request.current_module_title = "Atendimento"
@@ -1965,6 +1974,8 @@ def recepcao(request):
             cd_empresa=empresa,
             dt_senha=timezone.localdate(),
             ds_status="CLASSIFICADA",
+        ).filter(
+            Q(cd_paciente__isnull=True) | Q(cd_paciente__cd_empresa=empresa)
         ).order_by("dh_classificacao", "dh_criacao")[:30]
     )
     agora = timezone.now()
@@ -2007,8 +2018,9 @@ def recepcao(request):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def recepcao_revisar_paciente(request, cd_paciente):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     paciente = get_object_or_404(Paciente, cd_empresa=empresa, pk=cd_paciente)
     atendimento_aberto = (
         Atendimento.objects.filter(cd_empresa=empresa, cd_paciente=paciente)
@@ -2140,11 +2152,13 @@ def agendamentos_operacionais(request):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def recepcionar_agendamento(request, cd_agendamento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     agendamento = get_object_or_404(
         Agendamento.objects.select_related("cd_paciente"),
         cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
         cd_agendamento=cd_agendamento,
     )
     atendimento_existente = Atendimento.objects.filter(cd_empresa=empresa, cd_agendamento=agendamento).first()
@@ -2299,12 +2313,14 @@ def documentos_telas_impressao(request):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None, cd_paciente=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     atendimento = (
         get_object_or_404(
             Atendimento.objects.select_related("cd_paciente", "cd_agendamento", "cd_prestador", "cd_convenio"),
             cd_empresa=empresa,
+            cd_paciente__cd_empresa=empresa,
             pk=cd_atendimento,
         )
         if cd_atendimento else None
@@ -2316,8 +2332,9 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None, cd_p
                 "cd_agenda_profissional__cd_prestador",
                 "cd_agenda_profissional__cd_setor_atendimento",
                 "pre_atendimento",
-            ),
+            ).filter(Q(cd_agenda_profissional__isnull=True) | Q(cd_agenda_profissional__cd_empresa=empresa)),
             cd_empresa=empresa,
+            cd_paciente__cd_empresa=empresa,
             pk=cd_agendamento,
         )
         if cd_agendamento else getattr(atendimento, "cd_agendamento", None)
@@ -7173,15 +7190,17 @@ def _agenda_dashboard(request):
     )
 
 
+@proteger_contexto_tenant
 def _fila_atendimento(request):
     request.current_tab_title = "Atendimento > Fila de atendimento"
     request.current_tab_root_title = "Atender"
     request.current_module_title = "Atendimento"
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     fila = (
         Agendamento.objects.select_related("cd_paciente", "cd_agenda_profissional__cd_prestador", "pre_atendimento")
         .filter(
             cd_empresa=empresa,
+            cd_paciente__cd_empresa=empresa,
             ds_status__in=["AGENDADO", "AGUARDANDO_PRE_ATENDIMENTO", "AGUARDANDO_ATENDIMENTO"],
         )
         .order_by("pre_atendimento__nr_prioridade", "dh_agendamento", "dh_criacao")
@@ -7198,7 +7217,7 @@ def _filtrar_atendimentos(request, empresa):
         "cd_usuario_criacao",
         "cd_usuario_atualizacao",
         "responsavel",
-    ).filter(cd_empresa=empresa)
+    ).filter(cd_empresa=empresa, cd_paciente__cd_empresa=empresa)
     nr_atendimento = request.GET.get("nr_atendimento", "").strip()
     nr_prontuario = request.GET.get("nr_prontuario", "").strip()
     nm_paciente = request.GET.get("nm_paciente", "").strip().replace("%", "")
@@ -7269,8 +7288,9 @@ def _valor_historico(value):
 
 @login_required
 @role_required("Recepcionista", "Enfermeiro", "Médico")
+@proteger_contexto_tenant
 def alteracao_atendimento(request, cd_atendimento=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Alteração de atendimento"
     request.current_tab_root_title = "Alteração de atendimento"
     request.current_module_title = "Atendimento"
@@ -7298,6 +7318,7 @@ def alteracao_atendimento(request, cd_atendimento=None):
         atendimento = get_object_or_404(
             Atendimento.objects.select_related("cd_paciente", "cd_agendamento", "responsavel"),
             cd_empresa=empresa,
+            cd_paciente__cd_empresa=empresa,
             pk=cd_atendimento,
         )
 
@@ -7322,6 +7343,7 @@ def alteracao_atendimento(request, cd_atendimento=None):
         with transaction.atomic():
             atual = Atendimento.objects.select_for_update().select_related("cd_paciente", "cd_agendamento").get(
                 cd_empresa=empresa,
+                cd_paciente__cd_empresa=empresa,
                 pk=atendimento.pk,
             )
             resultado_trava = usuario_tem_trava_ou_livre(empresa, request.user, "atendimento", atual.pk)
@@ -7425,8 +7447,9 @@ def alteracao_atendimento(request, cd_atendimento=None):
 
 @login_required
 @role_required("Recepcionista", "Enfermeiro", "Médico")
+@proteger_contexto_tenant
 def atendimentos(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Consulta de atendimentos"
     request.current_tab_root_title = "Consulta de atendimentos"
     request.current_module_title = "Atendimento"
@@ -10135,13 +10158,15 @@ def icones_chamada_standalone(request):
 
 @login_required
 @role_required("Médico")
+@proteger_contexto_tenant
 def fila_medica(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Consultas Médicas"
     request.current_tab_root_title = "Consultas Médicas"
     request.current_module_title = "Atendimento"
     registros = Atendimento.objects.select_related("cd_paciente", "cd_pre_atendimento", "cd_prestador").filter(
         cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
         ds_status__in=["AGUARDANDO_CONSULTA", "EM_ATENDIMENTO", "ALTA"],
     ).order_by("cd_pre_atendimento__nr_prioridade", "dh_inicio")
     return render(request, "atendimento/fila_medica.html", {"registros": registros})
@@ -10149,8 +10174,15 @@ def fila_medica(request):
 
 @login_required
 @role_required("Médico")
+@proteger_contexto_tenant
 def abrir_consulta(request, cd_atendimento):
-    atendimento = get_object_or_404(Atendimento, cd_empresa=_empresa_logada(request), cd_atendimento=cd_atendimento)
+    empresa = empresa_atual(request)
+    atendimento = get_object_or_404(
+        Atendimento,
+        cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
+        cd_atendimento=cd_atendimento,
+    )
     if atendimento.ds_status == "AGUARDANDO_CONSULTA":
         _mudar_status_atendimento(atendimento, "EM_ATENDIMENTO", request.user, origem="consulta_medica")
         _vincular_prestador_atendimento(atendimento, atendimento.cd_prestador, request.user, principal=True)
