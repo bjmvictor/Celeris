@@ -43,7 +43,7 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 9 | `iniciar_atendimento` | views.py | atendimento | login/Recepcionista,Médico | H | E | Agendamento, Atendimento | agendamento por empresa | R4 | H: fallback 1; ID URL | lote recepção/triagem |
 | 10 | `recepcao` | views.py | atendimento | login/Recepcionista | H | L | Agendamento, Paciente | filtros por empresa | R4 | H: fallback 1 | lote recepção/triagem |
 | 11 | `recepcao_revisar_paciente` | views.py | cadastro | login/Recepcionista | H | L/E | Paciente | paciente por empresa | R4 | H: fallback 1; ID URL | lote recepção/triagem |
-| 12 | `agendamentos_operacionais` | views.py | agenda | login/Recepcionista | H | L | Agendamento | queryset por empresa | R4 | H: fallback 1 | lote agenda |
+| 12 | `agendamentos_operacionais` | views.py | agenda | login/Recepcionista | `empresa_atual` | L | Agendamento | queryset por empresa canônica | R2 | Lote B concluído | tenant canônico |
 | 13 | `recepcionar_agendamento` | views.py | agenda | login/Recepcionista | H | E | Agendamento | agendamento por empresa | R4 | H: fallback 1; ID URL | lote recepção/triagem |
 | 14 | `documentos_telas_impressao` | views.py | configuração | login/TI | H | L/E | ModeloDocumento, Tela | filtros por empresa | R4 | H: fallback 1 | lote documentos |
 | 15 | `cadastro_atendimento` | views.py | atendimento | login/Recepcionista | H | L/E | Atendimento, Paciente, Agendamento | pai/queries por empresa | R4 | H: fallback 1; IDs URL | lote recepção/triagem |
@@ -107,16 +107,16 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 73 | `fila_medica` | views.py | atendimento | login/Médico | H | L | Atendimento | queryset por empresa | R4 | H: fallback 1 | lote atendimento |
 | 74 | `abrir_consulta` | views.py | atendimento | login/Médico | H | E | Atendimento | atendimento por empresa | R4 | H: fallback 1; ID URL | lote atendimento |
 | 75 | `gerar_agenda` | views.py | agenda | login/TI,Recepcionista | H | E | AgendaProfissional, Agendamento | entidades por empresa | R4 | H: fallback 1; POST | lote agenda |
-| 76 | `agendar_consultar_paciente` | views.py | agenda | login/Recepcionista | H | L | Paciente, Agendamento | querysets por empresa | R4 | H: fallback 1; GET | lote agenda |
-| 77 | `cadastro_paciente` | views.py | cadastro | login/Recepcionista | H | L/E | Paciente | paciente por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 78 | `alternar_status_paciente` | views.py | cadastro | login/TI | H | E | Paciente | paciente por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 79 | `selecionar_agenda` | views.py | agenda | login/Recepcionista | H | L | Paciente, Agenda | paciente/agenda por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 80 | `confirmar_horario_agenda` | views.py | agenda | login/Recepcionista | H | E | Paciente, Horário | paciente/slot por empresa | R4 | H: fallback 1; IDs URL | lote agenda |
-| 81 | `comprovante_agendamento` | views.py | impressão | login/Recepcionista | H | L | Agendamento | agendamento por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 82 | `cancelar_agendamento` | views.py | agenda | login/TI,Recepcionista | H | E | Agendamento | agendamento por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 83 | `confirmar_agendamento` | views.py | agenda | login/Recepcionista | H | E | Paciente, Agendamento | paciente por empresa | R4 | H: fallback 1; ID URL/POST | lote agenda |
+| 76 | `agendar_consultar_paciente` | views.py | agenda | login/Recepcionista | `empresa_atual` | L | Paciente, Agendamento | querysets por empresa canônica | R2 | Lote B; GET scoped | tenant canônico |
+| 77 | `cadastro_paciente` | views.py | cadastro | login/Recepcionista | `empresa_atual` | L/E | Paciente | Paciente diretamente tenant-scoped | R2 | Lote B; URL/GET scoped | tenant canônico |
+| 78 | `alternar_status_paciente` | views.py | cadastro | login/TI | `empresa_atual` | E | Paciente | busca por empresa canônica | R2 | Lote B; ID URL scoped | tenant canônico |
+| 79 | `selecionar_agenda` | views.py | agenda | login/Recepcionista | `empresa_atual` | L | Paciente, Agenda | paciente e slots por empresa canônica | R2 | Lote B; IDs URL/GET scoped | tenant canônico |
+| 80 | `confirmar_horario_agenda` | views.py | agenda | login/Recepcionista | `empresa_atual` | E | Paciente, Horário | paciente e slot por empresa canônica | R2 | Lote B; IDs URL/POST scoped | tenant canônico |
+| 81 | `comprovante_agendamento` | views.py | impressão | login/Recepcionista | `empresa_atual` | L | Agendamento | agendamento por empresa canônica | R2 | Lote B; ID URL scoped | tenant canônico |
+| 82 | `cancelar_agendamento` | views.py | agenda | login/TI,Recepcionista | `empresa_atual` | E | Agendamento | agendamento por empresa canônica | R2 | Lote B; ID URL scoped | tenant canônico |
+| 83 | `confirmar_agendamento` | views.py | agenda | login/Recepcionista | `empresa_atual` | E | Paciente, Agendamento | paciente URL e criação por empresa canônica | R2 | Lote B; POST não escolhe empresa | tenant canônico |
 | 84 | `demanda_espontanea` | views.py | atendimento | login/Recepcionista | H | E | Paciente, Atendimento | paciente por empresa | R4 | H: fallback 1; POST | lote recepção/triagem |
-| 85 | `verificar_paciente_unico` | views.py | AJAX | login | H | L | Paciente | queryset por empresa | R4 | H: fallback 1; GET | lote agenda |
+| 85 | `verificar_paciente_unico` | views.py | AJAX | login | `empresa_atual` | L | Paciente | unicidade preservada por empresa canônica | R2 | Lote B; GET scoped | tenant canônico |
 | 86 | `screen` | views.py | roteamento | login; papéis por tela | delegado para H | L/E | cadastros, agenda, fila | despacha para helpers 1, 48, 51, 52, 60 | R4 | rotas herdando H | migrar com cada lote delegado |
 | 87 | `painel_chamada_publico` | views_painel.py | painel | público/dispositivo | máquina, sessão opcional, POST empresa | L/E | Máquina, Painel, Chamada | empresa pode vir de POST; máquina pode migrar | R5 | contrato público de dispositivo; `Empresa.objects` global e POST `empresa` | definir contrato de máquina/autorização |
 | 88 | `midia_painel_publica` | views_painel.py | integração | público | painel por PK | L | PainelChamada, arquivo | `get_object_or_404(...pk...)` sem empresa | R5 | endpoint público de mídia por ID | preservar URL assinada/escopo de painel |
@@ -179,10 +179,12 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Chamadas a `_empresa_logada` no inventário inicial | 86 |
 | Chamadas a `_empresa_logada` após Lote A | 76 |
 | Funções consumidoras diretas de `_empresa_logada` após Lote A | 75 |
+| Chamadas a `_empresa_logada` após Lote B | 66 |
+| Funções consumidoras diretas de `_empresa_logada` após Lote B | 65 |
 | R1 | 0 |
-| R2 | 10 |
+| R2 | 20 |
 | R3 | 0 |
-| R4 | 76 |
+| R4 | 66 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
@@ -191,13 +193,13 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Leitura/escrita | 32 |
 | Fallback empresa 1 | 1 helper / 86 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 10 |
-| Acessos que exigem investigação cross-tenant | 79 (76 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 20 |
+| Acessos que exigem investigação cross-tenant | 69 (66 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 
 1. **Lote A — configurações administrativas de classificação/chamada (10; R2, concluído).** Painéis, tipos de senha, cores, perguntas, fluxos, escalas de fluxo, ícones e máquinas. Além do tenant canônico, IDs POST de cor, setor, ícone e protocolo foram scoped localmente.
-2. **Lote B — agenda e cadastro de pacientes (12 consumidores; R4).** `agendamentos_operacionais`, consulta/cadastro/seleção/confirmação/cancelamento e comprovante. Depende somente de `empresa_atual` e forms já parametrizados. Testar sessão ausente, vínculo inválido, duas empresas, IDs URL e POST.
+2. **Lote B — agenda e cadastro de pacientes (10 consumidores; R2, concluído).** `agendamentos_operacionais`, consulta/cadastro/seleção/confirmação/cancelamento, comprovante e validação de unicidade passaram a usar `empresa_atual`. Paciente é diretamente tenant-scoped por `cd_empresa`; foram verificados sessão ausente, empresa/vínculo inativos, duas empresas e IDs URL/POST.
 3. **Lote C — recepção e atendimento base (12; R4).** pré-atendimento, recepção, cadastro/alteração/listagem, fila e consulta. Depende do lote B para pais Agendamento/Paciente. Testar transições de status e isolamento de todos os IDs.
 4. **Lote D — profissionais, perfis e roteamento de cadastros (10; R4).** prestadores, locks, convênios, perfis e `screen`. Testar locks, APIs JSON, formsets e dupla empresa.
 5. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.

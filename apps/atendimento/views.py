@@ -2061,8 +2061,9 @@ def recepcao_revisar_paciente(request, cd_paciente):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def agendamentos_operacionais(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Agendamentos"
     request.current_tab_root_title = "Agendamentos"
     request.current_module_title = "Atendimento"
@@ -10306,13 +10307,14 @@ def _empresa_logada(request):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def agendar_consultar_paciente(request):
     request.current_tab_title = "Atendimento > Agendamento > Agendar"
     request.current_module_title = "Atendimento"
     parametros_consulta = request.GET.copy()
     parametros_consulta.pop("comprovante", None)
     request.current_start_query = not bool(parametros_consulta)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     comprovante_id = request.GET.get("comprovante", "").strip()
     comprovante = (
         Agendamento.objects.select_related("cd_paciente").filter(
@@ -10361,6 +10363,7 @@ def agendar_consultar_paciente(request):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
     request.current_tab_title = (
         "Atendimento > Agendamento > Agendar > Cadastro de paciente"
@@ -10369,7 +10372,7 @@ def cadastro_paciente(request, cd_paciente=None, fluxo_agendamento=True):
     )
     request.current_module_title = "Atendimento"
     request.current_tab_root_title = "Cadastro de paciente" if fluxo_agendamento else "Cadastro de pacientes"
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     recepcao_direta = request.GET.get("recepcao_direta") == "1"
     senha_recepcao_id = request.GET.get("senha", "")
     senha_recepcao = (
@@ -10584,10 +10587,11 @@ def cadastro_paciente_geral(request, cd_paciente=None):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def alternar_status_paciente(request, cd_paciente):
     if request.method != "POST":
         raise PermissionDenied
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     patient = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=cd_paciente)
     patient.sn_ativo = not patient.sn_ativo
     _apply_audit(patient, request.user)
@@ -10598,11 +10602,12 @@ def alternar_status_paciente(request, cd_paciente):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def selecionar_agenda(request, cd_paciente):
     request.current_tab_title = "Atendimento > Agendamento > Agendar > Selecionar agenda"
     request.current_tab_root_title = "Selecionar agenda"
     request.current_module_title = "Atendimento"
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     paciente = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=cd_paciente)
     comprovante_id = request.GET.get("comprovante", "").strip()
     comprovante = (
@@ -10680,11 +10685,12 @@ def _validar_horario_para_paciente(slot, paciente):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def confirmar_horario_agenda(request, cd_paciente, cd_horario):
     request.current_tab_title = "Atendimento > Agendamento > Agendar > Confirmar horário"
     request.current_tab_root_title = "Agendar"
     request.current_module_title = "Atendimento"
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     paciente = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=cd_paciente)
     return_to = _safe_return_url(request) or reverse(
         "atendimento:selecionar-agenda",
@@ -10760,8 +10766,9 @@ def confirmar_horario_agenda(request, cd_paciente, cd_horario):
 @login_required
 @role_required("Recepcionista")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def comprovante_agendamento(request, cd_agendamento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     agendamento = get_object_or_404(
         Agendamento.objects.select_related("cd_paciente", "cd_paciente__cd_convenio", "cd_agenda_profissional__cd_prestador"),
         cd_empresa=empresa,
@@ -10858,10 +10865,11 @@ def comprovante_agendamento(request, cd_agendamento):
 
 @login_required
 @role_required("TI", "Recepcionista")
+@proteger_contexto_tenant
 def cancelar_agendamento(request, cd_agendamento):
     if request.method != "POST":
         raise PermissionDenied
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     return_to = _safe_return_url(request)
     with transaction.atomic():
         agendamento = get_object_or_404(
@@ -10908,10 +10916,11 @@ def _horarios_disponiveis(empresa, dias=21, inicio=None, fim=None):
 
 @login_required
 @role_required("Recepcionista")
+@proteger_contexto_tenant
 def confirmar_agendamento(request, cd_paciente):
     request.current_tab_title = "Atendimento > Agendamento > Agendar > Confirmar agendamento"
     request.current_module_title = "Atendimento"
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     paciente = get_object_or_404(Paciente, cd_empresa=empresa, cd_paciente=cd_paciente)
     form = AgendamentoForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -10971,8 +10980,9 @@ def demanda_espontanea(request):
 
 
 @login_required
+@proteger_contexto_tenant
 def verificar_paciente_unico(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     field = request.GET.get("field")
     value = request.GET.get("value")
     paciente_atual = request.GET.get("paciente")

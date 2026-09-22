@@ -5068,3 +5068,107 @@ class AtendimentoTenantAdministrativeConfigurationTests(TestCase):
         self.empresa_a.save(update_fields=["sn_ativo"])
         response = self.client.get(reverse("atendimento:fluxos-classificacao"))
         self.assertEqual(response.status_code, 302)
+
+
+class AtendimentoTenantAgendaPacientesTests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "Agenda A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9913, nm_empresa="Agenda B", sn_ativo=True)
+        grupo, _ = Group.objects.get_or_create(name="Recepcionista")
+        papel, _ = Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+        if not papel.sn_ativo:
+            papel.sn_ativo = True
+            papel.save(update_fields=["sn_ativo"])
+        self.usuario_a = User.objects.create_user("recepcao-agenda-a", password="senha-forte")
+        self.usuario_b = User.objects.create_user("recepcao-agenda-b", password="senha-forte")
+        self.usuario_a.groups.add(grupo)
+        self.usuario_b.groups.add(grupo)
+        grupo_ti, _ = Group.objects.get_or_create(name="TI")
+        papel_ti, _ = Papel.objects.get_or_create(grupo=grupo_ti, defaults={"sn_ativo": True})
+        if not papel_ti.sn_ativo:
+            papel_ti.sn_ativo = True
+            papel_ti.save(update_fields=["sn_ativo"])
+        self.usuario_b.groups.add(grupo_ti)
+        self.vinculo_a = UsuarioEmpresa.objects.create(usuario=self.usuario_a, empresa=self.empresa_a, sn_ativo=True)
+        UsuarioEmpresa.objects.create(usuario=self.usuario_b, empresa=self.empresa_b, sn_ativo=True)
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente Agenda A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente Agenda B")
+        self.slot_a = self._criar_slot(self.empresa_a, "A")
+        self.slot_b = self._criar_slot(self.empresa_b, "B")
+        self.agendamento_a = Agendamento.objects.create(
+            cd_empresa=self.empresa_a, cd_paciente=self.paciente_a, cd_agenda_profissional=self.slot_a.cd_escala,
+            dh_agendamento=self.slot_a.dh_inicio + timedelta(hours=1),
+        )
+        self.agendamento_b = Agendamento.objects.create(
+            cd_empresa=self.empresa_b, cd_paciente=self.paciente_b, cd_agenda_profissional=self.slot_b.cd_escala,
+            dh_agendamento=self.slot_b.dh_inicio + timedelta(hours=1),
+        )
+        self.client.force_login(self.usuario_a)
+
+    def _criar_slot(self, empresa, sufixo):
+        prestador = Prestador.objects.create(cd_empresa=empresa, nm_prestador=f"Prestador {sufixo}")
+        escala = AgendaProfissional.objects.create(
+            cd_empresa=empresa, cd_prestador=prestador, ds_agenda=f"Agenda {sufixo}", nr_dia_semana=0,
+            hr_inicio="08:00", hr_fim="09:00", ds_dias_semana=[0],
+        )
+        agenda = AgendaGerada.objects.create(cd_empresa=empresa, cd_escala=escala, dt_inicio=timezone.localdate(), dt_fim=timezone.localdate())
+        inicio = timezone.make_aware(datetime.combine(timezone.localdate(), time(8, 0)))
+        return HorarioAgenda.objects.create(cd_empresa=empresa, cd_agenda_gerada=agenda, cd_escala=escala, cd_prestador=prestador, dh_inicio=inicio, dh_fim=inicio + timedelta(minutes=30))
+
+    def selecionar_empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def test_empresa_1_e_ids_operacionais_sao_isolados(self):
+        self.selecionar_empresa(self.empresa_a)
+        for url in (
+            reverse("atendimento:agendamentos-operacionais"),
+            reverse("atendimento:agendar",) + "?termo=Agenda",
+            reverse("atendimento:selecionar-agenda", args=[self.paciente_a.pk]),
+        ):
+            self.assertEqual(self.client.get(url).status_code, 200)
+        for url in (
+            reverse("atendimento:revisar-paciente-agendamento", args=[self.paciente_b.pk]),
+            reverse("atendimento:selecionar-agenda", args=[self.paciente_b.pk]),
+            reverse("atendimento:confirmar-horario-agenda", args=[self.paciente_a.pk, self.slot_b.pk]),
+            reverse("atendimento:comprovante-agendamento", args=[self.agendamento_b.pk]),
+        ):
+            self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_post_cria_agendamento_na_empresa_atual_e_rejeita_slot_externo(self):
+        self.selecionar_empresa(self.empresa_a)
+        response = self.client.post(reverse("atendimento:confirmar-horario-agenda", args=[self.paciente_a.pk, self.slot_a.pk]))
+        self.assertEqual(response.status_code, 302)
+        criado = Agendamento.objects.exclude(pk=self.agendamento_a.pk).get(cd_horario_agenda=self.slot_a)
+        self.assertEqual(criado.cd_empresa, self.empresa_a)
+        self.assertEqual(criado.cd_paciente, self.paciente_a)
+        response = self.client.post(reverse("atendimento:cancelar-agendamento", args=[self.agendamento_b.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_usuario_da_empresa_b_nao_altera_paciente_da_empresa_a(self):
+        self.client.force_login(self.usuario_b)
+        self.selecionar_empresa(self.empresa_b)
+        response = self.client.post(
+            reverse("atendimento:alternar-status-paciente", args=[self.paciente_a.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_contextos_invalidos_falham_fechados(self):
+        self.assertEqual(self.client.get(reverse("atendimento:agendamentos-operacionais")).status_code, 302)
+        self.client.force_login(self.usuario_a)
+        self.selecionar_empresa(self.empresa_b)
+        self.assertEqual(self.client.get(reverse("atendimento:verificar-paciente-unico"), {"field": "nr_cpf", "value": "1"}).status_code, 302)
+        self.client.force_login(self.usuario_a)
+        self.vinculo_a.sn_ativo = False
+        self.vinculo_a.save(update_fields=["sn_ativo"])
+        self.selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:cadastro-paciente-novo")).status_code, 302)
+        self.vinculo_a.sn_ativo = True
+        self.vinculo_a.save(update_fields=["sn_ativo"])
+        self.empresa_a.sn_ativo = False
+        self.empresa_a.save(update_fields=["sn_ativo"])
+        self.selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:cadastro-paciente-novo")).status_code, 302)
