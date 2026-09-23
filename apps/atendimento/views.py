@@ -2209,8 +2209,9 @@ def _modelos_documento_por_tela(empresa, chaves_tela, tipos=None):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def documentos_telas_impressao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Configuração > Documentos × telas de impressão"
     request.current_tab_root_title = "Documentos × telas de impressão"
     request.current_module_title = "Atendimento"
@@ -2224,7 +2225,7 @@ def documentos_telas_impressao(request):
         sn_ativo=True,
     ).order_by("nm_modelo")
     modelo_id = (request.POST.get("modelo") or request.GET.get("modelo") or "").strip()
-    modelo = modelos.filter(pk=int(modelo_id)).first() if modelo_id.isdigit() else None
+    modelo = get_object_or_404(modelos, pk=int(modelo_id)) if modelo_id.isdigit() else None
     modelo_ids = list(modelos.values_list("pk", flat=True))
     if modelo and modelo.pk in modelo_ids:
         indice_modelo = modelo_ids.index(modelo.pk)
@@ -3997,31 +3998,32 @@ def imprimir_atendimento(request, cd_atendimento):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def modelos_documento(request, cd_modelo=None):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Editor de documentos"
     request.current_tab_root_title = "Editor de documentos"
     request.current_module_title = "Atendimento"
     request.current_can_query = False
     _pastas_documento_padrao(empresa, request.user)
-    modelo = (
-        ModeloDocumento.objects.filter(Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True), pk=cd_modelo).first()
-        if cd_modelo
-        else None
-    )
+    modelo = get_object_or_404(
+        ModeloDocumento.objects.filter(Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True)),
+        pk=cd_modelo,
+    ) if cd_modelo else None
     return _resposta_modelos_documento(request, empresa, modelo)
 
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def testar_variavel_documento(request):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     atendimento_id = str(request.POST.get("atendimento") or "").strip()
     atendimento = (
         Atendimento.objects.select_related("cd_paciente", "cd_prestador", "cd_convenio", "cd_setor_atual")
-        .filter(cd_empresa=empresa, pk=int(atendimento_id))
+        .filter(cd_empresa=empresa, cd_paciente__cd_empresa=empresa, pk=int(atendimento_id))
         .first()
         if atendimento_id.isdigit()
         else None
@@ -4053,8 +4055,9 @@ def testar_variavel_documento(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def rascunho_editor_documento(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     RascunhoEditorDocumento.objects.filter(
         cd_empresa=empresa,
         cd_usuario=request.user,
@@ -4066,14 +4069,10 @@ def rascunho_editor_documento(request):
         or request.POST.get("guia")
         or "editor-documentos"
     ).strip()[:180]
-    modelo = (
-        ModeloDocumento.objects.filter(
-            Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True),
-            pk=int(modelo_id),
-        ).first()
-        if modelo_id.isdigit()
-        else None
-    )
+    modelo = get_object_or_404(
+        ModeloDocumento.objects.filter(Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True)),
+        pk=int(modelo_id),
+    ) if modelo_id.isdigit() else None
     filtros = {
         "cd_empresa": empresa,
         "cd_usuario": request.user,
@@ -5779,6 +5778,7 @@ def _versoes_cadeia_documento(documento, empresa):
 
 @login_required
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def preview_pdf_modelo_documento(request):
     if request.method != "POST":
         return JsonResponse({"erro": "Método não permitido."}, status=405)
@@ -5787,7 +5787,13 @@ def preview_pdf_modelo_documento(request):
     except json.JSONDecodeError:
         return JsonResponse({"erro": "Payload inválido."}, status=400)
 
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
+    modelo_id = str(payload.get("codigo") or "").strip()
+    if modelo_id.isdigit():
+        get_object_or_404(
+            ModeloDocumento.objects.filter(Q(cd_empresa=empresa) | Q(cd_empresa__isnull=True)),
+            pk=int(modelo_id),
+        )
     tipo_layout = str(payload.get("elemento") or "DOCUMENTO").upper()
     apresentacao = {
         "cabecalho": payload.get("cabecalho") or "",

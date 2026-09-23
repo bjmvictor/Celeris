@@ -373,10 +373,12 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Funções consumidoras diretas de `_empresa_logada` após E1 | 39 |
 | Chamadas a `_empresa_logada` após E2 | 33 |
 | Funções consumidoras diretas de `_empresa_logada` após E2 | 32 |
+| Chamadas a `_empresa_logada` após E3 | 28 |
+| Funções consumidoras diretas de `_empresa_logada` após E3 | 27 |
 | R1 | 1 |
 | R2 | 46 |
-| R3 | 6 |
-| R4 | 33 |
+| R3 | 11 |
+| R4 | 28 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
@@ -385,8 +387,8 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Leitura/escrita | 32 |
 | Fallback empresa 1 | 1 helper / 45 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 53 |
-| Acessos que exigem investigação cross-tenant | 36 (33 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 58 |
+| Acessos que exigem investigação cross-tenant | 31 (28 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 
@@ -396,9 +398,10 @@ explicitamente foram excluídos como falsos positivos de resolução.
 4. **Lote D — profissionais, perfis e roteamento de cadastros (9; R2, concluído).** Convênios, prestadores, locks e perfis usam `empresa_atual`; o POST HTML de perfil valida escala T e modelo G/T como a API JSON. `screen` foi caracterizado como roteador para consumidores de outros lotes e permaneceu R4, sem alteração funcional.
 5. **E1 — agenda residual e destinos de `screen` (5; R1–R3, concluído).** `_editable_escalas`, `cadastro_escala`, `alternar_status_escala`, `_agenda_dashboard` e `gerar_agenda` usam `empresa_atual` com `proteger_contexto_tenant`. Escala URL/POST, Prestador, Setor e Convênio T são scoped antes da escrita; AgendaGerada e HorarioAgenda recebem a mesma empresa da Escala. `screen` permanece dispatcher, mas seus destinos `escalas` e `agendas` já são canônicos.
 6. **E2 — fila e chamada de classificação (7; R2–R3, concluído).** `_tabela_totem`, impressão, chamada, fila e escalas standalone usam tenant canônico. Senha, Agendamento e seus pais tenant-local são resolvidos coerentemente antes de imprimir, mudar estado, chamar ou listar; relações inconsistentes legadas são recusadas. `standalone` foi confirmado como autenticado e session-based, não R5. `screen` não possui destino E2 direto adicional.
-7. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
-8. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
-9. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
+7. **E3 — documentos, telas e impressão (5; R3, concluído).** `documentos_telas_impressao`, `modelos_documento`, `testar_variavel_documento`, `rascunho_editor_documento` e `preview_pdf_modelo_documento` usam tenant canônico. ModeloDocumento/Pasta seguem global-ou-empresa; vínculos de tela, rascunhos e Atendimento/Paciente são tenant-local. O preview agora valida o ID de modelo enviado pelo editor antes de gerar PDF. O Editor continua sendo consumido pelas APIs públicas de família/versão; não houve mudança de `screen`.
+8. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
+9. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
+10. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
 
 Essa ordem mantém lotes entre 3 e 29 apenas onde o acoplamento clínico exige; o
 Lote E deve ser quebrado em sublotes de até 10–15 consumidores após a

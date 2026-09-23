@@ -5420,6 +5420,129 @@ class AtendimentoTenantFilaClassificacaoTests(TestCase):
         self.assertEqual(self.client.get(reverse("atendimento:fila-classificacao")).status_code, 200)
 
 
+class AtendimentoTenantDocumentosE3Tests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "Documentos A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9923, nm_empresa="Documentos B", sn_ativo=True)
+        self.usuario_a = self._criar_usuario("ti-documentos-a", self.empresa_a)
+        self.usuario_b = self._criar_usuario("ti-documentos-b", self.empresa_b)
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente documentos A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente documentos B")
+        self.atendimento_a = Atendimento.objects.create(cd_empresa=self.empresa_a, cd_paciente=self.paciente_a)
+        self.atendimento_b = Atendimento.objects.create(cd_empresa=self.empresa_b, cd_paciente=self.paciente_b)
+        self.modelo_global = ModeloDocumento.objects.create(
+            nm_modelo="Modelo global E3", tp_documento="ADMINISTRATIVO"
+        )
+        self.modelo_a = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_a, nm_modelo="Modelo A E3", tp_documento="ADMINISTRATIVO"
+        )
+        self.modelo_b = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_b, nm_modelo="Modelo B E3", tp_documento="ADMINISTRATIVO"
+        )
+        self.client.force_login(self.usuario_b)
+
+    def _criar_usuario(self, username, empresa):
+        usuario = User.objects.create_user(username, password="senha-forte")
+        grupo, _ = Group.objects.get_or_create(name="TI")
+        papel, _ = Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+        if not papel.sn_ativo:
+            papel.sn_ativo = True
+            papel.save(update_fields=["sn_ativo"])
+        usuario.groups.add(grupo)
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def _selecionar_empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def test_contexto_invalido_falha_fechado_e_empresa_1_autorizada_funciona(self):
+        self.assertEqual(self.client.get(reverse("atendimento:modelos-documento")).status_code, 302)
+        self._selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:modelos-documento")).status_code, 302)
+        vinculo_b = UsuarioEmpresa.objects.get(usuario=self.usuario_b, empresa=self.empresa_b)
+        vinculo_b.sn_ativo = False
+        vinculo_b.save(update_fields=["sn_ativo"])
+        self._selecionar_empresa(self.empresa_b)
+        self.assertEqual(self.client.get(reverse("atendimento:modelos-documento")).status_code, 302)
+        vinculo_b.sn_ativo = True
+        vinculo_b.save(update_fields=["sn_ativo"])
+        self.empresa_b.sn_ativo = False
+        self.empresa_b.save(update_fields=["sn_ativo"])
+        self.assertEqual(self.client.get(reverse("atendimento:modelos-documento")).status_code, 302)
+        self.client.force_login(self.usuario_a)
+        self._selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:modelos-documento")).status_code, 200)
+
+    def test_modelos_e_telas_respeitam_global_ou_empresa_atual(self):
+        self._selecionar_empresa(self.empresa_b)
+        for modelo in (self.modelo_global, self.modelo_b):
+            with self.subTest(modelo=modelo.pk):
+                self.assertEqual(
+                    self.client.get(reverse("atendimento:editar-modelo-documento", args=[modelo.pk])).status_code,
+                    200,
+                )
+                self.assertEqual(
+                    self.client.get(reverse("atendimento:documentos-telas-impressao"), {"modelo": modelo.pk}).status_code,
+                    200,
+                )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:editar-modelo-documento", args=[self.modelo_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:documentos-telas-impressao"), {"modelo": self.modelo_a.pk}
+            ).status_code,
+            404,
+        )
+        self.assertFalse(ModeloDocumentoTelaImpressao.objects.filter(cd_modelo_documento=self.modelo_a).exists())
+
+    def test_variaveis_e_rascunhos_rejeitam_referencias_externas(self):
+        self._selecionar_empresa(self.empresa_b)
+        externo = self.client.post(
+            reverse("atendimento:testar-variavel-documento"),
+            {"atendimento": self.atendimento_a.pk, "expressao": "paciente.nome"},
+        )
+        self.assertEqual(externo.status_code, 400)
+        valido = self.client.post(
+            reverse("atendimento:testar-variavel-documento"),
+            {"atendimento": self.atendimento_b.pk, "expressao": "paciente.nome"},
+        )
+        self.assertEqual(valido.status_code, 200)
+        self.assertEqual(valido.json()["result"], self.paciente_b.nm_paciente)
+        url = reverse("atendimento:rascunho-editor-documento")
+        self.assertEqual(self.client.get(url, {"modelo": self.modelo_a.pk}).status_code, 404)
+        resposta = self.client.post(
+            f"{url}?modelo={self.modelo_b.pk}",
+            data=json.dumps({"state": {"editorState": {"activeTab": "impressao"}}}),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(RascunhoEditorDocumento.objects.filter(
+            cd_empresa=self.empresa_b, cd_usuario=self.usuario_b, cd_modelo_documento=self.modelo_b
+        ).exists())
+
+    def test_preview_pdf_valida_modelo_global_ou_da_empresa(self):
+        self._selecionar_empresa(self.empresa_b)
+        url = reverse("atendimento:preview-pdf-modelo-documento")
+        payload = {"codigo": self.modelo_b.pk, "titulo": "Preview B", "conteudo": "Conteúdo B"}
+        resposta = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"].split(";", 1)[0], "application/pdf")
+        for modelo in (self.modelo_global, self.modelo_a):
+            with self.subTest(modelo=modelo.pk):
+                resposta = self.client.post(
+                    url,
+                    data=json.dumps({"codigo": modelo.pk, "titulo": "Preview", "conteudo": "Teste"}),
+                    content_type="application/json",
+                )
+                self.assertEqual(resposta.status_code, 200 if modelo == self.modelo_global else 404)
+
+
 class AtendimentoTenantRecepcaoBaseTests(TestCase):
     def setUp(self):
         self.empresa_a, _ = Empresa.objects.update_or_create(
