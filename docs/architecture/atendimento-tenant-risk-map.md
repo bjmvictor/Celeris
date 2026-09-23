@@ -375,10 +375,12 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Funções consumidoras diretas de `_empresa_logada` após E2 | 32 |
 | Chamadas a `_empresa_logada` após E3 | 28 |
 | Funções consumidoras diretas de `_empresa_logada` após E3 | 27 |
+| Chamadas a `_empresa_logada` após E4 | 19 |
+| Funções consumidoras diretas de `_empresa_logada` após E4 | 18 |
 | R1 | 1 |
 | R2 | 46 |
-| R3 | 11 |
-| R4 | 28 |
+| R3 | 20 |
+| R4 | 19 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
@@ -387,8 +389,8 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Leitura/escrita | 32 |
 | Fallback empresa 1 | 1 helper / 45 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 58 |
-| Acessos que exigem investigação cross-tenant | 31 (28 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 69 |
+| Acessos que exigem investigação cross-tenant | 22 (19 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 

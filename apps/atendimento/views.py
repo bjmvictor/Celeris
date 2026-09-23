@@ -2489,8 +2489,9 @@ def cadastro_atendimento(request, cd_agendamento=None, cd_atendimento=None, cd_p
 
 
 @login_required
+@proteger_contexto_tenant
 def ficha_atendimento(request, cd_atendimento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     atendimento = get_object_or_404(
         Atendimento.objects.select_related(
             "cd_paciente",
@@ -2499,6 +2500,7 @@ def ficha_atendimento(request, cd_atendimento):
             "cd_prestador",
         ),
         cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
         cd_atendimento=cd_atendimento,
     )
     request.current_tab_title = "Atendimento > Ficha de atendimento"
@@ -2606,9 +2608,10 @@ def ficha_atendimento(request, cd_atendimento):
 
 
 @login_required
+@proteger_contexto_tenant
 def abrir_modelo_assistencial(request, cd_atendimento, cd_item):
-    empresa = _empresa_logada(request)
-    atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, pk=cd_atendimento)
+    empresa = empresa_atual(request)
+    atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_paciente__cd_empresa=empresa, pk=cd_atendimento)
     item = get_object_or_404(
         ItemMenuAssistencial.objects.select_related("cd_modelo_documento", "cd_perfil_assistencial"),
         cd_empresa=empresa,
@@ -2620,6 +2623,8 @@ def abrir_modelo_assistencial(request, cd_atendimento, cd_item):
     if not request.user.is_superuser and not perfis_permitidos.filter(pk=item.cd_perfil_assistencial_id).exists():
         raise PermissionDenied
     modelo = item.cd_modelo_documento
+    if not modelo or modelo.cd_empresa_id not in {None, empresa.pk}:
+        raise Http404
     documento = DocumentoClinico.objects.filter(
         cd_empresa=empresa,
         cd_atendimento=atendimento,
@@ -3863,6 +3868,7 @@ def conceder_alta(request, cd_atendimento):
 @login_required
 @role_required("Médico")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def documento_assistencial(request, cd_atendimento, tipo):
     tipos = {
         "admissao": ("ADMISSAO_ANAMNESE", "Admissão / Anamnese"),
@@ -3873,7 +3879,8 @@ def documento_assistencial(request, cd_atendimento, tipo):
         raise PermissionDenied
     atendimento = get_object_or_404(
         Atendimento.objects.select_related("cd_paciente", "cd_prestador"),
-        cd_empresa=_empresa_logada(request),
+        cd_empresa=empresa_atual(request),
+        cd_paciente__cd_empresa=empresa_atual(request),
         pk=cd_atendimento,
     )
     codigo, titulo = tipos[tipo]
@@ -6082,15 +6089,16 @@ def _campos_obrigatorios_documento_preenchidos(documento):
 
 
 @login_required
+@proteger_contexto_tenant
 def assumir_documento_clinico(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     motivo = request.POST.get("motivo", "").strip()
     if not motivo:
         return JsonResponse({"ok": False, "error": "Informe o motivo da assunção."}, status=400)
     with transaction.atomic():
-        documento = DocumentoClinico.objects.select_for_update().filter(cd_empresa=empresa, pk=cd_documento).first()
+        documento = DocumentoClinico.objects.select_for_update().filter(cd_empresa=empresa, cd_atendimento__cd_paciente__cd_empresa=empresa, pk=cd_documento).first()
         if not documento:
             messages.error(request, "Documento não encontrado ou não pertence à empresa atual.")
             return redirect(_safe_return_url(request) or "atendimento:pep")
@@ -6129,10 +6137,11 @@ def assumir_documento_clinico(request, cd_documento):
 
 
 @login_required
+@proteger_contexto_tenant
 def fechar_documento_clinico(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     with transaction.atomic():
         documento = (
             DocumentoClinico.objects.select_for_update()
@@ -6146,7 +6155,7 @@ def fechar_documento_clinico(request, cd_documento):
                 "cd_atendimento__cd_prestador",
                 "cd_atendimento__cd_convenio",
             )
-            .filter(cd_empresa=empresa, pk=cd_documento)
+            .filter(cd_empresa=empresa, cd_atendimento__cd_paciente__cd_empresa=empresa, pk=cd_documento)
             .first()
         )
         if not documento:
@@ -6387,13 +6396,14 @@ def fechar_documento_clinico(request, cd_documento):
 
 
 @login_required
+@proteger_contexto_tenant
 def abandonar_documento_clinico(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
     motivo = request.POST.get("motivo", "").strip() or "Exclusão de documento aberto confirmada pelo usuário."
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     with transaction.atomic():
-        documento = DocumentoClinico.objects.select_for_update().filter(cd_empresa=empresa, pk=cd_documento).first()
+        documento = DocumentoClinico.objects.select_for_update().filter(cd_empresa=empresa, cd_atendimento__cd_paciente__cd_empresa=empresa, pk=cd_documento).first()
         if not documento:
             messages.error(request, "Documento não encontrado ou não pertence à empresa atual.")
             return redirect(_safe_return_url(request) or "atendimento:pep")
@@ -6421,6 +6431,7 @@ def abandonar_documento_clinico(request, cd_documento):
 
 
 @login_required
+@proteger_contexto_tenant
 def cancelar_documento_clinico(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
@@ -6428,11 +6439,12 @@ def cancelar_documento_clinico(request, cd_documento):
     if not motivo:
         messages.error(request, "Informe o motivo do cancelamento.")
         return redirect("atendimento:imprimir-documento-clinico", cd_documento=cd_documento)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     with transaction.atomic():
         documento = get_object_or_404(
             DocumentoClinico.objects.select_for_update(),
             cd_empresa=empresa,
+            cd_atendimento__cd_paciente__cd_empresa=empresa,
             pk=cd_documento,
             ds_status__in={"FECHADO", "FINALIZADO", "ASSINADO"},
         )
@@ -6459,11 +6471,12 @@ def cancelar_documento_clinico(request, cd_documento):
 
 
 @login_required
+@proteger_contexto_tenant
 def liberar_trava_documento_clinico(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
-    empresa = _empresa_logada(request)
-    documento = DocumentoClinico.objects.filter(cd_empresa=empresa, pk=cd_documento).first()
+    empresa = empresa_atual(request)
+    documento = DocumentoClinico.objects.filter(cd_empresa=empresa, cd_atendimento__cd_paciente__cd_empresa=empresa, pk=cd_documento).first()
     if not documento:
         return JsonResponse({"ok": False, "error": "Documento não encontrado."}, status=404)
     liberar_lock_documento(documento, request.user, motivo="Liberada ao sair do prontuário.")
@@ -6471,6 +6484,7 @@ def liberar_trava_documento_clinico(request, cd_documento):
 
 
 @login_required
+@proteger_contexto_tenant
 def liberar_acesso_excepcional_documento(request, cd_documento):
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método não permitido."}, status=405)
@@ -6482,7 +6496,8 @@ def liberar_acesso_excepcional_documento(request, cd_documento):
         return JsonResponse({"ok": False, "error": "Informe o motivo do acesso."}, status=400)
     documento = get_object_or_404(
         DocumentoClinico,
-        cd_empresa=_empresa_logada(request),
+        cd_empresa=empresa_atual(request),
+        cd_atendimento__cd_paciente__cd_empresa=empresa_atual(request),
         pk=cd_documento,
     )
     request.session[f"acesso_documento_excepcional_{documento.pk}"] = True
