@@ -5290,6 +5290,136 @@ class AtendimentoTenantAgendaResidualTests(TestCase):
         self.assertEqual(self.client.get(reverse("atendimento:escalas")).status_code, 200)
 
 
+class AtendimentoTenantFilaClassificacaoTests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "Classificacao A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9922, nm_empresa="Classificacao B", sn_ativo=True)
+        self.usuario_a = self._criar_usuario("enfermeiro-class-a", self.empresa_a)
+        self.usuario_b = self._criar_usuario("enfermeiro-class-b", self.empresa_b)
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente Classificacao A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente Classificacao B")
+        self.tipo_a, self.classe_a, self.cor_a = self._configurar_senha(self.empresa_a, "A")
+        self.tipo_b, self.classe_b, self.cor_b = self._configurar_senha(self.empresa_b, "B")
+        self.senha_a = self._criar_senha(self.empresa_a, self.tipo_a, self.classe_a, self.cor_a, self.paciente_a, "A-01")
+        self.senha_b = self._criar_senha(self.empresa_b, self.tipo_b, self.classe_b, self.cor_b, self.paciente_b, "B-01")
+        self.senha_inconsistente = self._criar_senha(
+            self.empresa_b, self.tipo_b, self.classe_b, self.cor_b, self.paciente_a, "B-INVALIDA"
+        )
+        self.agendamento_a = Agendamento.objects.create(
+            cd_empresa=self.empresa_a, cd_paciente=self.paciente_a, dh_agendamento=timezone.now()
+        )
+        self.agendamento_b = Agendamento.objects.create(
+            cd_empresa=self.empresa_b, cd_paciente=self.paciente_b, dh_agendamento=timezone.now()
+        )
+        self.agendamento_inconsistente = Agendamento.objects.create(
+            cd_empresa=self.empresa_b, cd_paciente=self.paciente_a, dh_agendamento=timezone.now()
+        )
+        self.escala_a = EscalaClinica.objects.create(cd_empresa=self.empresa_a, nm_escala="Escala A")
+        self.escala_b = EscalaClinica.objects.create(cd_empresa=self.empresa_b, nm_escala="Escala B")
+        self.client.force_login(self.usuario_b)
+
+    def _criar_usuario(self, username, empresa):
+        usuario = User.objects.create_user(username, password="senha-forte")
+        for nome in ("Enfermeiro", "TI"):
+            grupo, _ = Group.objects.get_or_create(name=nome)
+            papel, _ = Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+            if not papel.sn_ativo:
+                papel.sn_ativo = True
+                papel.save(update_fields=["sn_ativo"])
+            usuario.groups.add(grupo)
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def _configurar_senha(self, empresa, sufixo):
+        cor = CorClassificacaoRisco.objects.create(
+            cd_empresa=empresa, cd_cor=f"COR-{sufixo}", nm_cor=f"Cor {sufixo}"
+        )
+        tipo = TipoSenhaAtendimento.objects.create(
+            cd_empresa=empresa, nm_tipo_senha=f"Tipo {sufixo}", sg_tipo_senha=sufixo
+        )
+        classe = ClasseSenhaAtendimento.objects.create(
+            cd_empresa=empresa, cd_tipo_senha=tipo, nm_classe_senha=f"Classe {sufixo}",
+            sg_classe_senha=sufixo, cd_cor_classificacao=cor,
+        )
+        return tipo, classe, cor
+
+    def _criar_senha(self, empresa, tipo, classe, cor, paciente, codigo):
+        return SenhaAtendimento.objects.create(
+            cd_empresa=empresa, cd_tipo_senha=tipo, cd_classe_senha=classe,
+            cd_cor_classificacao=cor, cd_paciente=paciente, nr_senha=1, ds_senha=codigo,
+        )
+
+    def _selecionar_empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def test_fila_e_escalas_excluem_dados_e_relacoes_externas(self):
+        self._selecionar_empresa(self.empresa_b)
+        response = self.client.get(reverse("atendimento:fila-classificacao"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([senha.pk for senha in response.context["senhas"]], [self.senha_b.pk])
+        self.assertEqual([agendamento.pk for agendamento in response.context["agendamentos"]], [self.agendamento_b.pk])
+        self.assertNotContains(response, "Paciente Classificacao A")
+        self.assertEqual(
+            self.client.get(reverse("class_escala_editar", args=[self.escala_a.pk])).status_code,
+            404,
+        )
+        response_escalas = self.client.get(reverse("class_escalas"), {"consultar": "1"})
+        self.assertEqual(response_escalas.status_code, 302)
+        self.assertEqual(self.client.session["consulta_escalas_classificacao"], [self.escala_b.pk])
+
+    def test_ids_externos_e_relacoes_inconsistentes_falham_fechados(self):
+        self._selecionar_empresa(self.empresa_b)
+        for senha in (self.senha_a, self.senha_inconsistente):
+            self.assertEqual(self.client.get(reverse("atendimento:imprimir-senha-totem", args=[senha.pk])).status_code, 404)
+            self.assertEqual(
+                self.client.post(reverse("atendimento:acao-senha-classificacao", args=[senha.pk, "chamar"])).status_code,
+                404,
+            )
+            self.assertEqual(
+                self.client.get(reverse("atendimento:imprimir-classificacao"), {"senha": senha.pk}).status_code,
+                404,
+            )
+        for agendamento in (self.agendamento_a, self.agendamento_inconsistente):
+            self.assertEqual(
+                self.client.post(reverse("atendimento:chamar-agendamento-classificacao", args=[agendamento.pk])).status_code,
+                404,
+            )
+            self.assertEqual(
+                self.client.get(reverse("atendimento:imprimir-classificacao"), {"agendamento": agendamento.pk}).status_code,
+                404,
+            )
+
+    def test_tabela_classes_rejeita_cor_externa_antes_da_escrita(self):
+        self._selecionar_empresa(self.empresa_b)
+        response = self.client.post(
+            reverse("atendimento:classes-senha"),
+            {
+                f"name_{self.classe_b.pk}": "Classe B alterada",
+                f"acronym_{self.classe_b.pk}": "B",
+                f"priority_{self.classe_b.pk}": "1",
+                f"color_{self.classe_b.pk}": self.cor_a.pk,
+                f"active_{self.classe_b.pk}": "true",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+        self.classe_b.refresh_from_db()
+        self.assertEqual(self.classe_b.nm_classe_senha, "Classe B")
+        self.assertEqual(self.classe_b.cd_cor_classificacao, self.cor_b)
+
+    def test_contexto_invalido_falha_fechado_e_empresa_1_autorizada_funciona(self):
+        self.assertEqual(self.client.get(reverse("atendimento:fila-classificacao")).status_code, 302)
+        self.client.force_login(self.usuario_b)
+        self._selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:fila-classificacao")).status_code, 302)
+        self.client.force_login(self.usuario_a)
+        self._selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:fila-classificacao")).status_code, 200)
+
+
 class AtendimentoTenantRecepcaoBaseTests(TestCase):
     def setUp(self):
         self.empresa_a, _ = Empresa.objects.update_or_create(

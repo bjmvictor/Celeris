@@ -91,19 +91,19 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 57 | `alternar_status_painel_chamada` | views.py | painel | login/TI | `empresa_atual` | E | PainelChamada | busca por empresa canônica | R2 | tratado no Lote A; ID URL scoped | concluído: painel/chamada admin |
 | 58 | `configurar_senhas` | views.py | configuração | login/TI | `empresa_atual` | L/E | TipoSenha, classe, protocolo | filtros e referências POST por empresa canônica | R2 | tratado no Lote A; ícone/protocolo POST scoped | concluído: painel/chamada admin |
 | 59 | `alternar_status_configuracao_senha` | views.py | configuração | login/TI | `empresa_atual` | E | TipoSenhaAtendimento | busca por empresa canônica | R2 | tratado no Lote A; ID URL scoped | concluído: painel/chamada admin |
-| 60 | `_tabela_totem` | views.py | cadastro | delegado | H | L/E | classes/protocolos | queryset por empresa | R4 | H: fallback 1 | lote painel/chamada |
+| 60 | `_tabela_totem` | views.py | cadastro | delegado | `empresa_atual` | L/E | ClasseSenhaAtendimento, ProtocoloSenhaAtendimento, Icone, Cor | queryset e IDs POST por empresa canônica | R2 | E2; ícone/cor POST scoped antes da escrita | tenant canônico |
 | 61 | `cores_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | CorClassificacaoRisco | queryset e escrita por empresa canônica | R2 | tratado no Lote A | concluído: classificação admin |
 | 62 | `perguntas_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | PerguntaClassificacao | queryset e escrita por empresa canônica | R2 | tratado no Lote A | concluído: classificação admin |
 | 63 | `fluxos_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | FluxoClassificacao | IDs e cor recomendada POST scoped por empresa | R2 | tratado no Lote A; cor POST scoped | concluído: classificação admin |
 | 64 | `fluxo_escalas_classificacao` | views.py | classificação | login/TI | `empresa_atual` | L/E | Fluxo, Escala | fluxo URL e escalas POST por empresa canônica | R2 | tratado no Lote A | concluído: classificação admin |
 | 65 | `icones_chamada` | views.py | painel | login/TI | `empresa_atual` | L/E | IconeChamada | queryset e escrita por empresa canônica | R2 | tratado no Lote A | concluído: painel/chamada admin |
 | 66 | `maquinas_chamada` | views.py | painel | login/TI | `empresa_atual` | L/E | MaquinaChamada | queryset e setor POST por empresa canônica | R2 | tratado no Lote A; setor POST scoped | concluído: painel/chamada admin |
-| 67 | `imprimir_senha_totem` | views.py | impressão | login/TI,Recepcionista,Enfermeiro | H | L | SenhaAtendimento | senha por empresa | R4 | H: fallback 1; ID URL | lote painel/chamada |
-| 68 | `acao_senha_classificacao` | views.py | classificação | login/Enfermeiro | H | E | SenhaAtendimento | senha por empresa | R4 | H: fallback 1; ID URL | lote classificação |
-| 69 | `chamar_agendamento_classificacao` | views.py | classificação | login/Enfermeiro | H | E | Agendamento, Senha | agendamento por empresa | R4 | H: fallback 1; ID URL | lote classificação |
-| 70 | `imprimir_classificacao` | views.py | impressão | login/Enfermeiro | H | L | Senha, classificação | senha por empresa | R4 | H: fallback 1; GET | lote classificação |
-| 71 | `fila_classificacao` | views.py | classificação | login/Enfermeiro | H | L/E | Senha, Agendamento, PreAtendimento | filtros por empresa | R4 | H: fallback 1; POST | lote classificação |
-| 72 | `escalas_classificacao_standalone` | views.py | classificação | login/TI | H | L/E | EscalaClinica | queryset por empresa | R4 | H: fallback 1; ID URL/POST | lote classificação |
+| 67 | `imprimir_senha_totem` | views.py | impressão | login/TI,Recepcionista,Enfermeiro | `empresa_atual` | L | SenhaAtendimento | senha e pais T por empresa canônica | R2 | E2; ID URL e cadeia Senha→pais scoped | tenant canônico |
+| 68 | `acao_senha_classificacao` | views.py | classificação | login/Enfermeiro | `empresa_atual` | E | SenhaAtendimento, ChamadaPainel | senha e pais T resolvidos antes da transição | R3 | E2; estado e painel preservados após escopo | tenant canônico |
+| 69 | `chamar_agendamento_classificacao` | views.py | classificação | login/Enfermeiro | `empresa_atual` | E | Agendamento, Paciente, ChamadaPainel | agendamento e pais T por empresa canônica | R3 | E2; ID URL e relações inconsistentes retornam 404 | tenant canônico |
+| 70 | `imprimir_classificacao` | views.py | impressão | login/Enfermeiro | `empresa_atual` | L | Senha, Agendamento, DocumentoClinico | IDs GET e pais T por empresa canônica | R3 | E2; impressão não aceita referência externa | tenant canônico |
+| 71 | `fila_classificacao` | views.py | classificação | login/Enfermeiro | `empresa_atual` | L/E | Senha, Agendamento, PreAtendimento | filas/agregados e pais T por empresa canônica | R3 | E2; itens estruturalmente inconsistentes são omitidos/404 | tenant canônico |
+| 72 | `escalas_classificacao_standalone` | views.py | classificação | login/TI | `empresa_atual` | L/E | EscalaClinica | escala URL/POST por empresa canônica | R3 | E2; standalone é autenticado e session-based | tenant canônico |
 | 73 | `fila_medica` | views.py | atendimento | login/Médico | `empresa_atual` | L | Atendimento, Paciente | queryset por empresa canônica | R2 | Lote C; invariante atendimento→paciente | tenant canônico |
 | 74 | `abrir_consulta` | views.py | atendimento | login/Médico | `empresa_atual` | E | Atendimento, Paciente | atendimento URL por empresa canônica | R2 | Lote C; ID URL e invariante atendimento→paciente | tenant canônico |
 | 75 | `gerar_agenda` | views.py | agenda | login/TI,Recepcionista | `empresa_atual` | E | AgendaProfissional, AgendaGerada, HorarioAgenda | escala POST, agenda gerada e horários por empresa canônica | R3 | E1; escala e todos os registros criados mantêm a mesma empresa | tenant canônico |
@@ -371,10 +371,12 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Funções consumidoras diretas de `_empresa_logada` após Lote D | 44 |
 | Chamadas a `_empresa_logada` após E1 | 40 |
 | Funções consumidoras diretas de `_empresa_logada` após E1 | 39 |
+| Chamadas a `_empresa_logada` após E2 | 33 |
+| Funções consumidoras diretas de `_empresa_logada` após E2 | 32 |
 | R1 | 1 |
-| R2 | 44 |
-| R3 | 1 |
-| R4 | 40 |
+| R2 | 46 |
+| R3 | 6 |
+| R4 | 33 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
@@ -383,8 +385,8 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Leitura/escrita | 32 |
 | Fallback empresa 1 | 1 helper / 45 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 46 |
-| Acessos que exigem investigação cross-tenant | 43 (40 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 53 |
+| Acessos que exigem investigação cross-tenant | 36 (33 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 
@@ -393,9 +395,10 @@ explicitamente foram excluídos como falsos positivos de resolução.
 3. **Lote C — recepção e atendimento base (12; R2, concluído).** Pré-atendimento, recepção, cadastro/alteração/listagem, fila e consulta usam `empresa_atual`. Atendimento e Agendamento agora são resolvidos também pela empresa do Paciente, impedindo relações B→Paciente A que o banco legado ainda consegue representar.
 4. **Lote D — profissionais, perfis e roteamento de cadastros (9; R2, concluído).** Convênios, prestadores, locks e perfis usam `empresa_atual`; o POST HTML de perfil valida escala T e modelo G/T como a API JSON. `screen` foi caracterizado como roteador para consumidores de outros lotes e permaneceu R4, sem alteração funcional.
 5. **E1 — agenda residual e destinos de `screen` (5; R1–R3, concluído).** `_editable_escalas`, `cadastro_escala`, `alternar_status_escala`, `_agenda_dashboard` e `gerar_agenda` usam `empresa_atual` com `proteger_contexto_tenant`. Escala URL/POST, Prestador, Setor e Convênio T são scoped antes da escrita; AgendaGerada e HorarioAgenda recebem a mesma empresa da Escala. `screen` permanece dispatcher, mas seus destinos `escalas` e `agendas` já são canônicos.
-5. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
-6. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
-7. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
+6. **E2 — fila e chamada de classificação (7; R2–R3, concluído).** `_tabela_totem`, impressão, chamada, fila e escalas standalone usam tenant canônico. Senha, Agendamento e seus pais tenant-local são resolvidos coerentemente antes de imprimir, mudar estado, chamar ou listar; relações inconsistentes legadas são recusadas. `standalone` foi confirmado como autenticado e session-based, não R5. `screen` não possui destino E2 direto adicional.
+7. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
+8. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
+9. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
 
 Essa ordem mantém lotes entre 3 e 29 apenas onde o acoplamento clínico exige; o
 Lote E deve ser quebrado em sublotes de até 10–15 consumidores após a

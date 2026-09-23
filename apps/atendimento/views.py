@@ -8017,8 +8017,9 @@ def alternar_status_configuracao_senha(request, cd_tipo):
     return redirect("atendimento:editar-configuracao-senha", cd_tipo=tipo.pk)
 
 
+@proteger_contexto_tenant
 def _tabela_totem(request, *, modelo, titulo, template):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = f"Atendimento > Classificação > Tabelas > {titulo}"
     request.current_tab_root_title = titulo
     request.current_module_title = "Atendimento"
@@ -8041,9 +8042,17 @@ def _tabela_totem(request, *, modelo, titulo, template):
                     item.sg_classe_senha = request.POST.get(f"acronym_{item.pk}", "").strip().upper()
                     item.nr_prioridade = max(1, int(request.POST.get(f"priority_{item.pk}") or 5))
                     icon_id = request.POST.get(f"icon_{item.pk}", "").strip()
-                    item.cd_icone_chamada_id = int(icon_id) if icon_id.isdigit() else None
+                    item.cd_icone_chamada = (
+                        get_object_or_404(IconeChamada, cd_empresa=empresa, pk=int(icon_id))
+                        if icon_id.isdigit()
+                        else None
+                    )
                     color_id = request.POST.get(f"color_{item.pk}", "").strip()
-                    item.cd_cor_classificacao_id = int(color_id) if color_id.isdigit() else None
+                    item.cd_cor_classificacao = (
+                        get_object_or_404(CorClassificacaoRisco, cd_empresa=empresa, pk=int(color_id))
+                        if color_id.isdigit()
+                        else None
+                    )
                 else:
                     item.sg_protocolo = re.sub(r"[^A-Z0-9]", "", request.POST.get(f"acronym_{item.pk}", "").upper())[:8]
                     item.nm_protocolo = request.POST.get(f"name_{item.pk}", "").strip().upper()
@@ -8068,9 +8077,13 @@ def _tabela_totem(request, *, modelo, titulo, template):
                         nm_classe_senha=name.strip(),
                         sg_classe_senha=(new_acronyms[index] if index < len(new_acronyms) else "").strip().upper(),
                         nr_prioridade=max(1, int(new_priorities[index] or 5)) if index < len(new_priorities) else 5,
-                        cd_icone_chamada_id=int(icon_id) if icon_id.isdigit() else None,
-                        cd_cor_classificacao_id=(
-                            int(new_colors[index])
+                        cd_icone_chamada=(
+                            get_object_or_404(IconeChamada, cd_empresa=empresa, pk=int(icon_id))
+                            if icon_id.isdigit()
+                            else None
+                        ),
+                        cd_cor_classificacao=(
+                            get_object_or_404(CorClassificacaoRisco, cd_empresa=empresa, pk=int(new_colors[index]))
                             if index < len(new_colors) and new_colors[index].isdigit()
                             else None
                         ),
@@ -8861,10 +8874,18 @@ def gerar_senha_totem(request):
 @login_required
 @role_required("TI", "Recepcionista", "Enfermeiro")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def imprimir_senha_totem(request, cd_senha):
+    empresa = empresa_atual(request)
     senha = get_object_or_404(
         SenhaAtendimento.objects.select_related("cd_empresa", "cd_tipo_senha", "cd_classe_senha"),
-        cd_empresa=_empresa_logada(request),
+        Q(cd_paciente__isnull=True) | Q(cd_paciente__cd_empresa=empresa),
+        Q(cd_pre_atendimento__isnull=True) | Q(cd_pre_atendimento__cd_empresa=empresa),
+        Q(cd_atendimento__isnull=True) | Q(cd_atendimento__cd_empresa=empresa),
+        Q(cd_cor_classificacao__isnull=True) | Q(cd_cor_classificacao__cd_empresa=empresa),
+        cd_empresa=empresa,
+        cd_tipo_senha__cd_empresa=empresa,
+        cd_classe_senha__cd_empresa=empresa,
         pk=cd_senha,
     )
     return render(request, "atendimento/imprimir_senha_totem.html", {"senha": senha})
@@ -8872,16 +8893,24 @@ def imprimir_senha_totem(request, cd_senha):
 
 @login_required
 @role_required("Enfermeiro")
+@proteger_contexto_tenant
 def acao_senha_classificacao(request, cd_senha, acao):
     if request.method != "POST":
         raise PermissionDenied
+    empresa = empresa_atual(request)
     senha = get_object_or_404(
         SenhaAtendimento.objects.select_related(
             "cd_tipo_senha__cd_setor_atendimento",
             "cd_classe_senha__cd_cor_classificacao",
             "cd_cor_classificacao",
         ),
-        cd_empresa=_empresa_logada(request),
+        Q(cd_paciente__isnull=True) | Q(cd_paciente__cd_empresa=empresa),
+        Q(cd_pre_atendimento__isnull=True) | Q(cd_pre_atendimento__cd_empresa=empresa),
+        Q(cd_atendimento__isnull=True) | Q(cd_atendimento__cd_empresa=empresa),
+        Q(cd_cor_classificacao__isnull=True) | Q(cd_cor_classificacao__cd_empresa=empresa),
+        cd_empresa=empresa,
+        cd_tipo_senha__cd_empresa=empresa,
+        cd_classe_senha__cd_empresa=empresa,
         pk=cd_senha,
     )
     agora = timezone.now()
@@ -8927,16 +8956,21 @@ def acao_senha_classificacao(request, cd_senha, acao):
 
 @login_required
 @role_required("Enfermeiro")
+@proteger_contexto_tenant
 def chamar_agendamento_classificacao(request, cd_agendamento):
     if request.method != "POST":
         raise PermissionDenied
+    empresa = empresa_atual(request)
     agendamento = get_object_or_404(
         Agendamento.objects.select_related(
             "cd_paciente",
             "cd_agenda_profissional__cd_setor_atendimento",
             "pre_atendimento",
         ),
-        cd_empresa=_empresa_logada(request),
+        Q(cd_paciente__cd_empresa=empresa),
+        Q(cd_agenda_profissional__isnull=True) | Q(cd_agenda_profissional__cd_empresa=empresa),
+        Q(pre_atendimento__isnull=True) | Q(pre_atendimento__cd_empresa=empresa),
+        cd_empresa=empresa,
         pk=cd_agendamento,
     )
     destino = _safe_return_url(request)
@@ -9269,8 +9303,9 @@ def _variaveis_classificacao_documento(empresa, senha=None, agendamento=None):
 @login_required
 @role_required("Enfermeiro")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def imprimir_classificacao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     senha_id = request.GET.get("senha", "")
     agendamento_id = request.GET.get("agendamento", "")
     senha = None
@@ -9281,7 +9316,13 @@ def imprimir_classificacao(request):
                 "cd_tipo_senha", "cd_classe_senha", "cd_cor_classificacao", "cd_paciente",
                 "cd_pre_atendimento__cd_prestador_responsavel", "cd_atendimento",
             ),
+            Q(cd_paciente__isnull=True) | Q(cd_paciente__cd_empresa=empresa),
+            Q(cd_pre_atendimento__isnull=True) | Q(cd_pre_atendimento__cd_empresa=empresa),
+            Q(cd_atendimento__isnull=True) | Q(cd_atendimento__cd_empresa=empresa),
+            Q(cd_cor_classificacao__isnull=True) | Q(cd_cor_classificacao__cd_empresa=empresa),
             cd_empresa=empresa,
+            cd_tipo_senha__cd_empresa=empresa,
+            cd_classe_senha__cd_empresa=empresa,
             pk=int(senha_id),
         )
     elif agendamento_id.isdigit():
@@ -9290,6 +9331,9 @@ def imprimir_classificacao(request):
                 "cd_paciente", "pre_atendimento__cd_prestador_responsavel",
                 "cd_agenda_profissional__cd_prestador",
             ),
+            Q(cd_paciente__cd_empresa=empresa),
+            Q(pre_atendimento__isnull=True) | Q(pre_atendimento__cd_empresa=empresa),
+            Q(cd_agenda_profissional__isnull=True) | Q(cd_agenda_profissional__cd_empresa=empresa),
             cd_empresa=empresa,
             pk=int(agendamento_id),
         )
@@ -9345,8 +9389,9 @@ def imprimir_classificacao(request):
 
 @login_required
 @role_required("Enfermeiro")
+@proteger_contexto_tenant
 def fila_classificacao(request):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = "Atendimento > Classificação > Classificação de Risco"
     request.current_tab_root_title = "Classificação de Risco"
     request.current_module_title = "Atendimento"
@@ -9404,7 +9449,15 @@ def fila_classificacao(request):
             "cd_agenda_profissional__cd_prestador",
             "pre_atendimento",
         )
-        .filter(cd_empresa=empresa, dh_agendamento__date=data_selecionada)
+        .filter(
+            cd_empresa=empresa,
+            cd_paciente__cd_empresa=empresa,
+            dh_agendamento__date=data_selecionada,
+        )
+        .filter(
+            Q(cd_agenda_profissional__isnull=True) | Q(cd_agenda_profissional__cd_empresa=empresa),
+            Q(pre_atendimento__isnull=True) | Q(pre_atendimento__cd_empresa=empresa),
+        )
         .exclude(ds_status__in={"CANCELADO", "FINALIZADO", "FALTOU"})
         .annotate(
             ordem_classificacao=Case(
@@ -9425,6 +9478,13 @@ def fila_classificacao(request):
         "cd_atendimento",
     ).filter(
         cd_empresa=empresa,
+        cd_tipo_senha__cd_empresa=empresa,
+        cd_classe_senha__cd_empresa=empresa,
+    ).filter(
+        Q(cd_paciente__isnull=True) | Q(cd_paciente__cd_empresa=empresa),
+        Q(cd_pre_atendimento__isnull=True) | Q(cd_pre_atendimento__cd_empresa=empresa),
+        Q(cd_atendimento__isnull=True) | Q(cd_atendimento__cd_empresa=empresa),
+        Q(cd_cor_classificacao__isnull=True) | Q(cd_cor_classificacao__cd_empresa=empresa),
     ).exclude(ds_status="CANCELADA")
     filtros_validos = {"todos", "classificados", "nao_classificados"}
     if class_standalone:
@@ -9620,7 +9680,13 @@ def fila_classificacao(request):
             SenhaAtendimento.objects.select_related(
                 "cd_tipo_senha", "cd_classe_senha", "cd_cor_classificacao", "cd_pre_atendimento", "cd_paciente"
             ),
+            Q(cd_paciente__isnull=True) | Q(cd_paciente__cd_empresa=empresa),
+            Q(cd_pre_atendimento__isnull=True) | Q(cd_pre_atendimento__cd_empresa=empresa),
+            Q(cd_atendimento__isnull=True) | Q(cd_atendimento__cd_empresa=empresa),
+            Q(cd_cor_classificacao__isnull=True) | Q(cd_cor_classificacao__cd_empresa=empresa),
             cd_empresa=empresa,
+            cd_tipo_senha__cd_empresa=empresa,
+            cd_classe_senha__cd_empresa=empresa,
             pk=int(senha_id),
         )
         paciente_selecionado = senha_selecionada.cd_paciente
@@ -9629,6 +9695,8 @@ def fila_classificacao(request):
     elif agendamento_id and str(agendamento_id).isdigit():
         agendamento_selecionado = get_object_or_404(
             Agendamento.objects.select_related("cd_paciente", "pre_atendimento"),
+            Q(cd_paciente__cd_empresa=empresa),
+            Q(pre_atendimento__isnull=True) | Q(pre_atendimento__cd_empresa=empresa),
             cd_empresa=empresa,
             pk=int(agendamento_id),
         )
@@ -10023,12 +10091,13 @@ def _normalizar_escala_post(request):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def escalas_classificacao_standalone(request, cd_escala=None):
     class_standalone = not bool(getattr(request.resolver_match, "namespace", ""))
     request.class_standalone = class_standalone
     list_route = "class_escalas" if class_standalone else "atendimento:escalas-classificacao"
     edit_route = "class_escala_editar" if class_standalone else "atendimento:editar-escala-classificacao"
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = (
         "Celeris Class > Configuração > Escalas"
         if class_standalone
@@ -10134,6 +10203,7 @@ def escalas_classificacao_standalone(request, cd_escala=None):
 
 @login_required
 @role_required("Enfermeiro", "TI")
+@proteger_contexto_tenant
 def classificacao_standalone(request):
     request.class_standalone = True
     return _view_sem_decoradores(fila_classificacao)(request)
