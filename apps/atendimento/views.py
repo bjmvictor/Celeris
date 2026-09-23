@@ -7974,8 +7974,8 @@ def configurar_senhas(request, cd_tipo=None):
                         else None
                     ),
                     cd_protocolo=(
-                        ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, pk=int(protocol_id)).first()
-                        if protocol_id.isdigit()
+                        ProtocoloSenhaAtendimento.objects.filter(cd_empresa=empresa, pk=int(protocolo_id)).first()
+                        if protocolo_id.isdigit()
                         else None
                     ),
                     nr_tempo_limite=tempo_limite,
