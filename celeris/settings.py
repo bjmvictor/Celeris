@@ -118,11 +118,11 @@ INSTALLED_APPS = [
     # Application packages contain manifests and URL adapters; legacy Django
     # apps remain installed so their app labels, migrations and tables stay
     # unchanged during the incremental migration.
-    "applications.pep.apps.PepConfig",
-    "applications.classificacao.apps.ClassificacaoConfig",
-    "applications.painel.apps.PainelConfig",
-    "applications.totem.apps.TotemConfig",
-    "applications.editor.apps.EditorConfig",
+    "apps.applications.pep.apps.PepConfig",
+    "apps.applications.classificacao.apps.ClassificacaoConfig",
+    "apps.applications.painel.apps.PainelConfig",
+    "apps.applications.totem.apps.TotemConfig",
+    "apps.applications.editor.apps.EditorConfig",
 ]
 
 MIDDLEWARE = [

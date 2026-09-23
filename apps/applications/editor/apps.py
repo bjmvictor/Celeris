@@ -1,9 +1,9 @@
-from applications.base import CelerisApplicationConfig
+from apps.applications.base import CelerisApplicationConfig
 from apps.platform.registry import ApplicationManifest, MenuRegistration
 
 
 class EditorConfig(CelerisApplicationConfig):
-    name = "applications.editor"
+    name = "apps.applications.editor"
     verbose_name = "Editor de Documentos"
     application_manifest = ApplicationManifest(
         code="EDITOR", name="Editor de Documentos", version="1.0.0", dependencies=("DOCUMENTS",),

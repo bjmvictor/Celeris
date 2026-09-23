@@ -23,11 +23,8 @@ import unicodedata
 import bleach
 
 from apps.accounts.models import Empresa, Setor
-from .form_registry import (
-    FORMULARIOS_CONFIGURAVEIS,
-    consultar_campos_formularios,
-    opcoes_formularios,
-)
+from apps.platform.form_registry import form_registry
+from .form_registry import consultar_campos_formularios, opcoes_formularios
 from .catalogos import (
     ROTULOS_CATALOGO,
     atualizar_item_catalogo,
@@ -257,7 +254,7 @@ def configurar_formularios(request):
         else request.GET.get("formulario", "")
     )
     nome_campo = request.POST.get("nome_campo", "") if request.method == "POST" else request.GET.get("nome_campo", "")
-    if codigo_formulario not in FORMULARIOS_CONFIGURAVEIS:
+    if not form_registry.get(codigo_formulario):
         codigo_formulario = ""
     consultando = request.method == "POST" or request.GET.get("consultar") == "1"
     campos = consultar_campos_formularios(empresa, codigo_formulario, nome_campo) if consultando else []
@@ -307,7 +304,11 @@ def configurar_formularios(request):
             "formularios": opcoes_formularios(),
             "formulario_selecionado": codigo_formulario,
             "nome_campo": nome_campo,
-            "nome_formulario": FORMULARIOS_CONFIGURAVEIS.get(codigo_formulario, {}).get("nome", "Campos encontrados"),
+            "nome_formulario": (
+                form_registry.get(codigo_formulario).name
+                if form_registry.get(codigo_formulario)
+                else "Campos encontrados"
+            ),
             "campos": campos,
         },
     )

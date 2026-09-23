@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.core.catalogos import opcoes_catalogo
 from apps.core.models import Module, ScreenDefinition
-from domain.profissionais import active_professionals
+from apps.domain.profissionais import active_professionals
 
 from .models import Empresa, Papel, PapelModulo, PapelTela, Setor, User, UsuarioEmpresa, normalize_identifier
 

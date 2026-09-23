@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.accounts.models import Setor
+from apps.applications.pep import views as pep_views
 from apps.core import views as core_views
 
 from . import views
@@ -33,8 +34,8 @@ urlpatterns = [
     path("atendimentos/alteracao/", views.alteracao_atendimento, name="alteracao-atendimento"),
     path("atendimentos/alteracao/<int:cd_atendimento>/", views.alteracao_atendimento, name="editar-atendimento"),
     path("atendimentos/", views.atendimentos, name="atendimentos"),
-    path("pep/", views.pep, name="pep"),
-    path("pep/pacientes/<int:cd_paciente>/", views.pep_prontuario_paciente, name="pep-prontuario-paciente"),
+    path("pep/", pep_views.pep, name="pep"),
+    path("pep/pacientes/<int:cd_paciente>/", pep_views.pep_prontuario_paciente, name="pep-prontuario-paciente"),
     path("pep/<int:cd_atendimento>/chamar/", views.pep_chamar, name="pep-chamar"),
     path("paineis-chamada/", views.paineis_chamada, name="paineis-chamada"),
     path("paineis-chamada/<int:cd_painel>/", views.paineis_chamada, name="cadastro-painel-chamada"),

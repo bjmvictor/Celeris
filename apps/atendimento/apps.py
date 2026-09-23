@@ -8,3 +8,8 @@ class AtendimentoConfig(AppConfig):
 
     def ready(self):
         from . import signals  # noqa: F401
+        from .form_definitions import register_forms
+        from .demo_seed import register_seed_provider
+
+        register_forms()
+        register_seed_provider()
