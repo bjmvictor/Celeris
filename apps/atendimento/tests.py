@@ -28,6 +28,7 @@ from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs
 from .forms import EscalaForm, PacienteForm, PrestadorForm
 from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, GrupoFluxoClassificacao, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
 from .services.prescricoes import contexto_acao_prescricao, registrar_itens_prescricao
+from apps.applications.editor.locking import adquirir_lock_documento, consultar_lock_documento
 from apps.estoque.models import Produto
 from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador, _editable_escalas
 
@@ -5541,6 +5542,131 @@ class AtendimentoTenantDocumentosE3Tests(TestCase):
                     content_type="application/json",
                 )
                 self.assertEqual(resposta.status_code, 200 if modelo == self.modelo_global else 404)
+
+
+class AtendimentoTenantDocumentosClinicosE4Tests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(cd_empresa=1, defaults={"nm_empresa": "E4 A", "sn_ativo": True})
+        self.empresa_b = Empresa.objects.create(cd_empresa=9924, nm_empresa="E4 B", sn_ativo=True)
+        self.usuario_a = self._usuario("e4-a", self.empresa_a, ["TI"])
+        self.usuario_b1 = self._usuario("e4-b1", self.empresa_b, ["TI"])
+        self.usuario_b2 = self._usuario("e4-b2", self.empresa_b, ["TI"])
+        self.usuario_b_sem_permissao = self._usuario("e4-b-sem-permissao", self.empresa_b, [])
+        self.auditor_b = self._usuario("e4-auditor", self.empresa_b, ["Auditor Clínico"])
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente E4 A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente E4 B")
+        self.atendimento_a = Atendimento.objects.create(cd_empresa=self.empresa_a, cd_paciente=self.paciente_a)
+        self.atendimento_b = Atendimento.objects.create(cd_empresa=self.empresa_b, cd_paciente=self.paciente_b)
+        self.modelo_global = ModeloDocumento.objects.create(nm_modelo="Global E4", tp_documento="EVOLUCAO")
+        self.modelo_a = ModeloDocumento.objects.create(cd_empresa=self.empresa_a, nm_modelo="A E4", tp_documento="EVOLUCAO")
+        self.modelo_b = ModeloDocumento.objects.create(cd_empresa=self.empresa_b, nm_modelo="B E4", tp_documento="EVOLUCAO")
+        self.documento_a = self._documento(self.empresa_a, self.atendimento_a, self.modelo_a, "Documento A")
+        self.documento_b = self._documento(self.empresa_b, self.atendimento_b, self.modelo_b, "Documento B")
+        self.documento_inconsistente = self._documento(self.empresa_b, self.atendimento_a, self.modelo_b, "Documento inconsistente")
+        self.client.force_login(self.usuario_b1)
+        self._empresa(self.empresa_b)
+
+    def _usuario(self, username, empresa, grupos):
+        usuario = User.objects.create_user(username, password="senha-forte")
+        for nome in grupos:
+            grupo, _ = Group.objects.get_or_create(name=nome)
+            Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+            usuario.groups.add(grupo)
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def _empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def _documento(self, empresa, atendimento, modelo, titulo):
+        return DocumentoClinico.objects.create(
+            cd_empresa=empresa, cd_atendimento=atendimento, cd_modelo_documento=modelo,
+            tp_documento="EVOLUCAO", ds_titulo=titulo, ds_status="ABERTO", cd_usuario_responsavel=self.usuario_a,
+        )
+
+    def test_empresa_b_nao_altera_documento_ou_atendimento_a(self):
+        self.assertEqual(self.client.get(reverse("atendimento:ficha-atendimento", args=[self.atendimento_a.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("atendimento:abrir-modelo-assistencial", args=[self.atendimento_a.pk, 999])).status_code, 404)
+        for nome in ("assumir-documento-clinico", "fechar-documento-clinico", "abandonar-documento-clinico", "cancelar-documento-clinico", "liberar-trava-documento-clinico", "acesso-excepcional-documento"):
+            dados = {"motivo": "teste"}
+            resposta = self.client.post(reverse(f"atendimento:{nome}", args=[self.documento_a.pk]), dados)
+            self.assertIn(resposta.status_code, {302, 403, 404})
+        self.documento_a.refresh_from_db()
+        self.assertEqual(self.documento_a.ds_status, "ABERTO")
+        self.assertEqual(self.documento_a.cd_usuario_responsavel, self.usuario_a)
+        self.assertFalse(EventoDocumentoClinico.objects.filter(cd_documento_clinico=self.documento_a).exists())
+
+    def test_cadeia_documental_inconsistente_falha_fechada(self):
+        resposta = self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_inconsistente.pk]), {"motivo": "teste"})
+        self.assertEqual(resposta.status_code, 302)
+        self.documento_inconsistente.refresh_from_db()
+        self.assertEqual(self.documento_inconsistente.cd_usuario_responsavel, self.usuario_a)
+
+    def test_autorizacao_e_lock_sao_independentes_do_tenant(self):
+        self.client.force_login(self.usuario_b_sem_permissao)
+        self._empresa(self.empresa_b)
+        self.assertEqual(self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_b.pk]), {"motivo": "teste"}).status_code, 403)
+        self.client.force_login(self.usuario_b1)
+        self._empresa(self.empresa_b)
+        self.assertEqual(self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_b.pk]), {"motivo": "teste"}).status_code, 302)
+        self.client.force_login(self.usuario_b2)
+        self._empresa(self.empresa_b)
+        self.assertEqual(self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_b.pk]), {"motivo": "teste"}).status_code, 302)
+        self.documento_b.refresh_from_db()
+        self.assertEqual(self.documento_b.cd_usuario_responsavel, self.usuario_b1)
+
+    def test_contexto_invalido_e_empresa_1_autorizada_respeitam_documentos(self):
+        session = self.client.session
+        del session["cd_empresa"]
+        session.save()
+        self.assertEqual(
+            self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_b.pk])).status_code,
+            302,
+        )
+        vinculo_b = UsuarioEmpresa.objects.get(usuario=self.usuario_b1, empresa=self.empresa_b)
+        vinculo_b.sn_ativo = False
+        vinculo_b.save(update_fields=["sn_ativo"])
+        self._empresa(self.empresa_b)
+        self.assertEqual(
+            self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_b.pk])).status_code,
+            302,
+        )
+        vinculo_b.sn_ativo = True
+        vinculo_b.save(update_fields=["sn_ativo"])
+        self.empresa_b.sn_ativo = False
+        self.empresa_b.save(update_fields=["sn_ativo"])
+        self.assertEqual(
+            self.client.post(reverse("atendimento:assumir-documento-clinico", args=[self.documento_b.pk])).status_code,
+            302,
+        )
+        self.client.force_login(self.usuario_a)
+        self._empresa(self.empresa_a)
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:assumir-documento-clinico", args=[self.documento_a.pk]), {"motivo": "teste"}
+            ).status_code,
+            302,
+        )
+
+    def test_lock_cross_tenant_permanece_com_o_dono_original(self):
+        adquirir_lock_documento(self.documento_a, self.usuario_a)
+        resposta = self.client.post(
+            reverse("atendimento:liberar-trava-documento-clinico", args=[self.documento_a.pk]),
+            {"motivo": "teste"},
+        )
+        self.assertEqual(resposta.status_code, 404)
+        trava = consultar_lock_documento(self.documento_a)
+        self.assertIsNotNone(trava)
+        self.assertEqual(trava.cd_usuario, self.usuario_a)
+
+    def test_acesso_excepcional_mesmo_tenant_e_cross_tenant(self):
+        self.client.force_login(self.auditor_b)
+        self._empresa(self.empresa_b)
+        self.assertEqual(self.client.post(reverse("atendimento:acesso-excepcional-documento", args=[self.documento_b.pk]), {"motivo": "auditoria"}).status_code, 302)
+        self.assertTrue(EventoDocumentoClinico.objects.filter(cd_documento_clinico=self.documento_b, tp_evento="ACESSO_EXCEPCIONAL").exists())
+        self.assertEqual(self.client.post(reverse("atendimento:acesso-excepcional-documento", args=[self.documento_a.pk]), {"motivo": "auditoria"}).status_code, 404)
 
 
 class AtendimentoTenantRecepcaoBaseTests(TestCase):
