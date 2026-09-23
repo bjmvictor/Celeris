@@ -11,7 +11,9 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
+from django.contrib.messages.storage.fallback import FallbackStorage
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -27,7 +29,7 @@ from .forms import EscalaForm, PacienteForm, PrestadorForm
 from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, GrupoFluxoClassificacao, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
 from .services.prescricoes import contexto_acao_prescricao, registrar_itens_prescricao
 from apps.estoque.models import Produto
-from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador
+from .views import _avaliar_expressao_variavel, _configurar_assinatura_prestador, _editable_escalas
 
 
 class PrescricaoEstruturadaTests(TestCase):
@@ -5172,6 +5174,120 @@ class AtendimentoTenantAgendaPacientesTests(TestCase):
         self.empresa_a.save(update_fields=["sn_ativo"])
         self.selecionar_empresa(self.empresa_a)
         self.assertEqual(self.client.get(reverse("atendimento:cadastro-paciente-novo")).status_code, 302)
+
+
+class AtendimentoTenantAgendaResidualTests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "Escala A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9920, nm_empresa="Escala B", sn_ativo=True)
+        self.usuario_a = self._criar_usuario("ti-escala-a", self.empresa_a)
+        self.usuario_b = self._criar_usuario("ti-escala-b", self.empresa_b)
+        self.prestador_a = Prestador.objects.create(
+            cd_empresa=self.empresa_a, nm_prestador="Prestador Escala A", sn_permite_agenda=True
+        )
+        self.prestador_b = Prestador.objects.create(
+            cd_empresa=self.empresa_b, nm_prestador="Prestador Escala B", sn_permite_agenda=True
+        )
+        hoje = timezone.localdate()
+        self.escala_a = AgendaProfissional.objects.create(
+            cd_empresa=self.empresa_a, cd_prestador=self.prestador_a, ds_agenda="Escala A",
+            nr_dia_semana=hoje.weekday(), ds_dias_semana=[hoje.weekday()], hr_inicio="08:00", hr_fim="10:00",
+        )
+        self.escala_b = AgendaProfissional.objects.create(
+            cd_empresa=self.empresa_b, cd_prestador=self.prestador_b, ds_agenda="Escala B",
+            nr_dia_semana=hoje.weekday(), ds_dias_semana=[hoje.weekday()], hr_inicio="08:00", hr_fim="10:00",
+        )
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente Escala A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente Escala B")
+        Agendamento.objects.create(
+            cd_empresa=self.empresa_a, cd_paciente=self.paciente_a, ds_especialidade="A", dh_agendamento=timezone.now()
+        )
+        Agendamento.objects.create(
+            cd_empresa=self.empresa_b, cd_paciente=self.paciente_b, ds_especialidade="B", dh_agendamento=timezone.now()
+        )
+        self.client.force_login(self.usuario_b)
+
+    def _criar_usuario(self, username, empresa):
+        for nome in ("TI", "Recepcionista"):
+            grupo, _ = Group.objects.get_or_create(name=nome)
+            papel, _ = Papel.objects.get_or_create(grupo=grupo, defaults={"sn_ativo": True})
+            if not papel.sn_ativo:
+                papel.sn_ativo = True
+                papel.save(update_fields=["sn_ativo"])
+        usuario = User.objects.create_user(username, password="senha-forte")
+        usuario.groups.add(Group.objects.get(name="TI"), Group.objects.get(name="Recepcionista"))
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def _selecionar_empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def _editable_request(self, data):
+        request = RequestFactory().post("/interno/escalas/", data)
+        request.user = self.usuario_b
+        SessionMiddleware(lambda _request: None).process_request(request)
+        request.session["cd_empresa"] = self.empresa_b.pk
+        request.session.save()
+        request._messages = FallbackStorage(request)
+        return request
+
+    def test_escala_externa_nao_e_lida_alterada_ou_usada_para_gerar_agenda(self):
+        self._selecionar_empresa(self.empresa_b)
+        self.assertEqual(self.client.get(reverse("atendimento:cadastro-escala", args=[self.escala_b.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("atendimento:cadastro-escala", args=[self.escala_a.pk])).status_code, 404)
+        self.assertEqual(self.client.post(reverse("atendimento:alternar-status-escala", args=[self.escala_a.pk])).status_code, 404)
+        hoje = timezone.localdate().isoformat()
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:gerar-agenda"),
+                {"acao": "gerar", "escala": self.escala_a.pk, "data_inicio": hoje, "data_fim": hoje},
+            ).status_code,
+            404,
+        )
+
+    def test_editor_rapido_rejeita_prestador_externo_antes_da_escrita(self):
+        request = self._editable_request(
+            {f"name_{self.escala_b.pk}": "Tentativa externa", f"provider_{self.escala_b.pk}": self.prestador_a.pk}
+        )
+        with self.assertRaises(Http404):
+            _editable_escalas(request, "Escalas")
+        self.escala_b.refresh_from_db()
+        self.assertEqual(self.escala_b.cd_prestador, self.prestador_b)
+        self.assertEqual(self.escala_b.ds_agenda, "Escala B")
+
+    def test_dashboard_nao_agrega_agendamentos_de_outra_empresa(self):
+        self._selecionar_empresa(self.empresa_b)
+        response = self.client.get(reverse("atendimento:agendas"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_agendado"], 1)
+        self.assertEqual(response.context["total_confirmado"], 0)
+        self.assertContains(response, "Paciente Escala B")
+        self.assertNotContains(response, "Paciente Escala A")
+
+    def test_geracao_cria_agenda_e_horarios_na_empresa_canonica(self):
+        self._selecionar_empresa(self.empresa_b)
+        hoje = timezone.localdate().isoformat()
+        response = self.client.post(
+            reverse("atendimento:gerar-agenda"),
+            {"acao": "gerar", "escala": self.escala_b.pk, "data_inicio": hoje, "data_fim": hoje},
+        )
+        self.assertEqual(response.status_code, 302)
+        agenda = AgendaGerada.objects.get(cd_empresa=self.empresa_b, cd_escala=self.escala_b)
+        self.assertTrue(agenda.horarios.exists())
+        self.assertFalse(agenda.horarios.exclude(cd_empresa=self.empresa_b, cd_escala=self.escala_b, cd_prestador=self.prestador_b).exists())
+
+    def test_contexto_invalido_falha_fechado_e_empresa_1_autorizada_funciona(self):
+        self.assertEqual(self.client.get(reverse("atendimento:escalas")).status_code, 302)
+        self.client.force_login(self.usuario_b)
+        self._selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:escalas")).status_code, 302)
+        self.client.force_login(self.usuario_a)
+        self._selecionar_empresa(self.empresa_a)
+        self.assertEqual(self.client.get(reverse("atendimento:escalas")).status_code, 200)
 
 
 class AtendimentoTenantRecepcaoBaseTests(TestCase):

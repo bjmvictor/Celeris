@@ -18,9 +18,9 @@ Ele recebe somente `request`, lê a sessão e faz fallback para a empresa `1`; c
 apenas que a empresa está ativa, não verifica autenticação nem `UsuarioEmpresa`, e
 converte ausência/inatividade em 404. No inventário inicial havia **86 chamadas em
 85 funções consumidoras**. Após os Lotes A, B, C e D, restam
-**45 chamadas em 44 funções consumidoras**. As linhas ainda dependentes dele são R4:
+**40 chamadas em 39 funções consumidoras**. As linhas ainda dependentes dele são R4:
 o fallback torna insegura uma troca mecânica, mesmo onde os querysets posteriores já
-filtram por empresa. Quarenta e um consumidores usam agora `empresa_atual` com
+filtram por empresa. Quarenta e seis consumidores usam agora `empresa_atual` com
 `proteger_contexto_tenant`; Atendimento ainda não trata `TenantContextError` localmente.
 
 Abreviações: `H` = `_empresa_logada`; `login/role` descreve os decoradores efetivos;
@@ -79,10 +79,10 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 45 | `baixar_anexo_clinico` | views.py | documentos | login | H | L | AnexoClinico | anexo por empresa | R4 | H: fallback 1; ID URL | lote documentos clínicos |
 | 46 | `historico_documentos_assistencial` | views.py | documentos | login | H | L | Atendimento, DocumentoClinico | atendimento/item por empresa | R4 | H: fallback 1; IDs URL | lote documentos clínicos |
 | 47 | `copiar_documento_clinico` | views.py | documentos | login | H | E | DocumentoClinico | documento por empresa | R4 | H: fallback 1; ID URL | lote documentos clínicos |
-| 48 | `_editable_escalas` | views.py | cadastro | delegado | H | L/E | EscalaClinica | queryset e escrita por empresa | R4 | H: fallback 1 | lote agenda |
-| 49 | `cadastro_escala` | views.py | agenda | login/TI | H | L/E | AgendaProfissional | escala por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 50 | `alternar_status_escala` | views.py | agenda | login/TI | H | E | AgendaProfissional | escala por empresa | R4 | H: fallback 1; ID URL | lote agenda |
-| 51 | `_agenda_dashboard` | views.py | agenda | delegado | H | L | AgendaProfissional, Agendamento | querysets por empresa | R4 | H: fallback 1 | lote agenda |
+| 48 | `_editable_escalas` | views.py | cadastro | delegado | `empresa_atual` | L/E | AgendaProfissional, Prestador | queryset, criação e prestador POST por empresa canônica | R2 | E1; prestador POST scoped antes da escrita | tenant canônico |
+| 49 | `cadastro_escala` | views.py | agenda | login/TI | `empresa_atual` | L/E | AgendaProfissional, Prestador, Setor, Convenio | escala URL e form FKs T por empresa canônica; especialidade G | R2 | E1; EscalaForm já restringe FKs T | tenant canônico |
+| 50 | `alternar_status_escala` | views.py | agenda | login/TI | `empresa_atual` | E | AgendaProfissional | escala URL por empresa canônica antes da escrita | R2 | E1; ID externo retorna 404 | tenant canônico |
+| 51 | `_agenda_dashboard` | views.py | agenda | delegado | `empresa_atual` | L | Agendamento, AgendaProfissional, Prestador | contagens, especialidades, horários e lista por empresa canônica | R1 | E1; agregações não atravessam empresa | tenant canônico |
 | 52 | `_fila_atendimento` | views.py | triagem | delegado | `empresa_atual` | L | Agendamento, Paciente | queryset e pai por empresa canônica | R2 | Lote C; rota delegada validada | tenant canônico |
 | 53 | `alteracao_atendimento` | views.py | atendimento | login/Recepcionista,Enfermeiro,Médico | `empresa_atual` | L/E | Atendimento, Paciente, Responsável | ID URL/GET/POST e pai por empresa canônica | R2 | Lote C; reselect `select_for_update` scoped | tenant canônico |
 | 54 | `atendimentos` | views.py | atendimento | login/Recepcionista,Enfermeiro,Médico | `empresa_atual` | L | Atendimento, Paciente | queryset e GET por empresa canônica | R2 | Lote C; registros inconsistentes ocultos | tenant canônico |
@@ -106,7 +106,7 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 72 | `escalas_classificacao_standalone` | views.py | classificação | login/TI | H | L/E | EscalaClinica | queryset por empresa | R4 | H: fallback 1; ID URL/POST | lote classificação |
 | 73 | `fila_medica` | views.py | atendimento | login/Médico | `empresa_atual` | L | Atendimento, Paciente | queryset por empresa canônica | R2 | Lote C; invariante atendimento→paciente | tenant canônico |
 | 74 | `abrir_consulta` | views.py | atendimento | login/Médico | `empresa_atual` | E | Atendimento, Paciente | atendimento URL por empresa canônica | R2 | Lote C; ID URL e invariante atendimento→paciente | tenant canônico |
-| 75 | `gerar_agenda` | views.py | agenda | login/TI,Recepcionista | H | E | AgendaProfissional, Agendamento | entidades por empresa | R4 | H: fallback 1; POST | lote agenda |
+| 75 | `gerar_agenda` | views.py | agenda | login/TI,Recepcionista | `empresa_atual` | E | AgendaProfissional, AgendaGerada, HorarioAgenda | escala POST, agenda gerada e horários por empresa canônica | R3 | E1; escala e todos os registros criados mantêm a mesma empresa | tenant canônico |
 | 76 | `agendar_consultar_paciente` | views.py | agenda | login/Recepcionista | `empresa_atual` | L | Paciente, Agendamento | querysets por empresa canônica | R2 | Lote B; GET scoped | tenant canônico |
 | 77 | `cadastro_paciente` | views.py | cadastro | login/Recepcionista | `empresa_atual` | L/E | Paciente | Paciente diretamente tenant-scoped | R2 | Lote B; URL/GET scoped | tenant canônico |
 | 78 | `alternar_status_paciente` | views.py | cadastro | login/TI | `empresa_atual` | E | Paciente | busca por empresa canônica | R2 | Lote B; ID URL scoped | tenant canônico |
@@ -117,7 +117,7 @@ escopo observado por `cd_empresa` ou pelo pai.
 | 83 | `confirmar_agendamento` | views.py | agenda | login/Recepcionista | `empresa_atual` | E | Paciente, Agendamento | paciente URL e criação por empresa canônica | R2 | Lote B; POST não escolhe empresa | tenant canônico |
 | 84 | `demanda_espontanea` | views.py | atendimento | login/Recepcionista | H | E | Paciente, Atendimento | paciente por empresa | R4 | H: fallback 1; POST | lote recepção/triagem |
 | 85 | `verificar_paciente_unico` | views.py | AJAX | login | `empresa_atual` | L | Paciente | unicidade preservada por empresa canônica | R2 | Lote B; GET scoped | tenant canônico |
-| 86 | `screen` | views.py | roteamento | login; papéis por tela | delegado para H | L/E | cadastros, agenda, fila | despacha para helpers 1, 48, 51, 52, 60 | R4 | rotas herdando H | migrar com cada lote delegado |
+| 86 | `screen` | views.py | roteamento | login; papéis por tela | dispatcher separado | L/E | cadastros, agenda, fila | destinos E1 (`escalas`, `agendas`) agora canônicos; convênios, profissionais e fila já canônicos; auxiliares são G | fora da contagem | permanece dispatcher; não alterar até contrato de todos os destinos estar explícito | fora do E1 |
 | 87 | `painel_chamada_publico` | views_painel.py | painel | público/dispositivo | máquina, sessão opcional, POST empresa | L/E | Máquina, Painel, Chamada | empresa pode vir de POST; máquina pode migrar | R5 | contrato público de dispositivo; `Empresa.objects` global e POST `empresa` | definir contrato de máquina/autorização |
 | 88 | `midia_painel_publica` | views_painel.py | integração | público | painel por PK | L | PainelChamada, arquivo | `get_object_or_404(...pk...)` sem empresa | R5 | endpoint público de mídia por ID | preservar URL assinada/escopo de painel |
 | 89 | `AtendimentoDemoSeedProvider.handle` | demo_seed.py | comando | sessionless | `empresa_codigo` explícito | L/E | Empresa e dados demo | valida slot e cria tudo para a empresa | R5 | comando/seed não possui request | manter contrato explícito de comando |
@@ -154,6 +154,190 @@ prescrição, exames, documentos e alta são também **B**, ações clínicas ai
 pertencentes temporariamente a Atendimento. Não foi identificado código morto
 por esta busca de tenant.
 
+## Planejamento pós-Lote D — consumidores legados
+
+### Recontagem confirmada
+
+No código atual, `_empresa_logada` é definido uma vez em `views.py` e resolve
+`request.session["cd_empresa"] or 1`. A busca estrutural confirma **45 chamadas**
+em **44 funções consumidoras diretas** (a segunda chamada está em
+`testar_escala_clinica`) e **41 chamadas** a `empresa_atual`. A tabela abaixo
+contém somente as 44 funções diretas; `screen` e os contratos R5 estão em
+seções separadas porque não são consumidores diretos do helper.
+
+`Risco antigo` é a classificação herdada do mapa (R4 pelo fallback). `Risco
+intrínseco` ignora esse fallback: R1 é leitura autenticada sem ID perigoso, R2
+é escrita simples com pai já scoped, R3 requer validação coordenada, R4 exige
+evidência concreta independente e R5 exige contrato que não é HTTP autenticado.
+Não há evidência suficiente, nesta etapa documental, para classificar algum dos
+44 consumidores diretos como R4 ou R5.
+
+| Consumidor | Categoria | L/E | Auth | Objetos | IDs externos | Contrato tenant | Risco antigo | Risco intrínseco | Motivo | Lote sugerido |
+| - | - | - | - | - | - | - | - | - | - | - |
+| `documentos_telas_impressao` | configuração documental | L/E | TI | tela, modelo, impressão | tela/modelo POST | tela T; modelo G/T | R4 | R3 | formulário e relações mistas | E3 |
+| `ficha_atendimento` | consulta/navegação | L | médico | Atendimento, Paciente, Prestador | atendimento URL | Atendimento e Paciente T | R4 | R3 | abre o agregado clínico e suas ações | E4 |
+| `abrir_modelo_assistencial` | documento clínico | E | médico | Atendimento, modelo, Documento | atendimento/modelo | atendimento T; modelo G/T | R4 | R3 | cria/abre documento a partir de dois pais | E4 |
+| `solicitar_exame` | exames | L/E | médico | Atendimento, solicitação, item | atendimento/POST | Atendimento T e itens válidos | R4 | R3 | criação clínica e itens POST | E6 |
+| `resultado_exame` | exames | L/E | médico | solicitação, resultado | solicitação URL | solicitação derivada de Atendimento T | R4 | R3 | ID clínico e transição de estado | E6 |
+| `prescrever` | prescrição | L/E | médico | Atendimento, prescrição, itens | atendimento/POST | empresa deve igualar atendimento | R4 | R3 | formset e serviço com empresa explícita | E6 |
+| `evoluir` | evolução | E | médico | Atendimento, Documento/Evolução | atendimento/POST | Atendimento T e permissões Editor | R4 | R3 | escrita clínica/documental | E7 |
+| `_cadastro_configuracao_prescricao` | configuração prescrição | L/E | TI | configuração, itens, produto | GET/POST | catálogos e configuração T | R4 | R3 | múltiplos catálogos e formulário | E6 |
+| `conceder_alta` | alta | E | médico | Atendimento, alta, eventos | atendimento URL/POST | Atendimento T | R4 | R3 | estado terminal e efeitos secundários | E8 |
+| `documento_assistencial` | documento clínico | L/E | médico | Atendimento, Documento, Editor | atendimento URL/tipo | Atendimento T; política Editor | R4 | R3 | fronteira Atendimento–Editor | E4 |
+| `finalizar_atendimento` | alta/finalização | E | médico | Atendimento, estado, eventos | atendimento URL/POST | Atendimento T | R4 | R3 | transição terminal distinta da alta | E8 |
+| `imprimir_atendimento` | impressão | L | autenticado | Atendimento, Paciente, PDF | atendimento URL | Atendimento e Paciente T | R4 | R3 | impressão recebe ID clínico | E8 |
+| `modelos_documento` | configuração documental | L/E | TI | modelo, campos, telas | modelo URL/POST | modelo G/T e tela T | R4 | R3 | relações de configuração cruzadas | E3 |
+| `testar_variavel_documento` | API/AJAX documental | L | TI | modelo, contexto de teste | parâmetros POST | modelo/contexto autorizados | R4 | R3 | endpoint auxiliar expõe renderização | E3 |
+| `rascunho_editor_documento` | API/AJAX documental | L/E | médico | Documento, rascunho | documento/POST | Documento via Atendimento T | R4 | R3 | estado concorrente de documento | E3 |
+| `preview_pdf_modelo_documento` | impressão/API | L | TI | modelo, PDF | modelo/POST | modelo G/T autorizado | R4 | R3 | preview recebe identificador de modelo | E3 |
+| `imprimir_documento_clinico` | impressão documental | L | médico | Documento, PDF | documento URL | Documento → Atendimento T | R4 | R3 | PDF por ID clínico | E5 |
+| `assumir_documento_clinico` | lock documental | E | médico | Documento, lock, evento | documento URL | Documento → Atendimento T | R4 | R3 | lock e auditoria compartilhados | E4 |
+| `fechar_documento_clinico` | lock documental | E | médico | Documento, assinatura, evento | documento URL/POST | Documento → Atendimento T | R4 | R3 | assinatura, hash e lock | E4 |
+| `abandonar_documento_clinico` | lock documental | E | médico | Documento, lock | documento URL | Documento → Atendimento T | R4 | R3 | mudança de posse do lock | E4 |
+| `cancelar_documento_clinico` | lock documental | E | médico | Documento, evento | documento URL | Documento → Atendimento T | R4 | R3 | cancelamento auditável | E4 |
+| `liberar_trava_documento_clinico` | lock documental | E | médico | Documento, lock | documento URL | Documento → Atendimento T | R4 | R3 | bypass de lock precisa de autorização | E4 |
+| `liberar_acesso_excepcional_documento` | lock documental | E | médico | Documento, acesso excepcional | documento URL | Documento → Atendimento T | R4 | R3 | autorização excepcional e auditoria | E4 |
+| `link_externo_assistencial` | consulta/navegação | L | autenticado | Atendimento, link | atendimento URL | Atendimento T | R4 | R3 | navegação depende do agregado clínico | E5 |
+| `executar_escala_clinica` | escala clínica | L/E | médico | Atendimento, item, respostas | atendimento/item/POST | pais e item da escala T | R4 | R3 | respostas e classificação clínica | E7 |
+| `testar_escala_clinica` | API/AJAX escala | L | TI | escala, item, respostas | POST | escala e itens T | R4 | R3 | duas chamadas ao helper; simulação POST | E7 |
+| `anexos_clinicos` | anexos documentais | L/E | médico | Atendimento, item, anexo | atendimento/item | pais T e arquivo derivado | R4 | R3 | upload/listagem de arquivo clínico | E5 |
+| `baixar_anexo_clinico` | anexo/impressão | L | médico | anexo, Documento/Atendimento | anexo URL | anexo → pai T | R4 | R3 | download por PK exige cadeia de posse | E5 |
+| `historico_documentos_assistencial` | histórico documental | L | médico | Atendimento, item, Documento, evento | atendimento/item | pais e eventos T | R4 | R3 | histórico clínico por IDs | E5 |
+| `copiar_documento_clinico` | documento clínico | E | médico | Documento origem/destino, evento | documento URL | origem e destino no Atendimento T | R4 | R3 | cópia preserva contexto e eventos | E5 |
+| `_editable_escalas` | agenda/configuração | L/E | TI | Escala, Agenda | GET/POST | Escala/Agenda T | R4 | R2 | CRUD relacional simples já delimitável | E1 |
+| `cadastro_escala` | agenda/configuração | L/E | TI | Escala, Agenda | escala URL/POST | Escala/Agenda T | R4 | R2 | escrita simples com ID scoped | E1 |
+| `alternar_status_escala` | agenda/configuração | E | TI | Escala | escala URL | Escala T | R4 | R2 | transição simples por objeto T | E1 |
+| `_agenda_dashboard` | agenda/leitura | L | autenticado | Agenda, Prestador, Setor | sem ID de objeto | queries por empresa | R4 | R1 | painel autenticado sem objeto cliente | E1 |
+| `pep_chamar` | PEP/chamada | E | médico | Atendimento, Máquina, Setor, ChamadaPainel | atendimento/máquina | todos T e máquina vinculada | R4 | R3 | ponte para painel/dispositivo | E9 |
+| `_tabela_totem` | classificação/leitura | L | autenticado | Senha, TipoSenha, fila | filtros de tela | Senha e configurações T | R4 | R1 | tabela sem escrita clínica | E2 |
+| `imprimir_senha_totem` | classificação/impressão | L | autenticado | Senha, PDF | senha URL | Senha T | R4 | R2 | impressão por ID scoped | E2 |
+| `acao_senha_classificacao` | classificação | E | autenticado | Senha, Atendimento, estado | senha URL/ação | Senha e Atendimento T | R4 | R3 | muda estado de senha clínica | E2 |
+| `chamar_agendamento_classificacao` | classificação | E | autenticado | Agendamento, Senha, Atendimento | agendamento URL | Agendamento/Paciente T | R4 | R3 | cria/associa objetos clínicos | E2 |
+| `imprimir_classificacao` | classificação/impressão | L | autenticado | Classificação, Atendimento, PDF | classificação/atendimento | agregado de classificação T | R4 | R3 | PDF usa agregado clínico | E2 |
+| `fila_classificacao` | classificação/fila | L/E | autenticado | PreAtendimento, Atendimento, Senha | filtros/POST | fila e paciente T | R4 | R3 | entrada e transições da triagem | E2 |
+| `escalas_classificacao_standalone` | classificação/configuração | L/E | TI | Escala, respostas, protocolos | escala/POST | Escala e relações T | R4 | R3 | catálogo assistencial e relações | E2 |
+| `gerar_agenda` | agenda | E | TI | Agenda, Escala, Agendamento | POST | Agenda/Escala/Prestador T | R4 | R3 | criação transacional de agenda | E1 |
+| `demanda_espontanea` | recepção/triagem | L/E | autenticado | Paciente, Atendimento, PreAtendimento | POST | Paciente e novo Atendimento T | R4 | R3 | cria entrada clínica com múltiplos pais | E10 |
+
+**Reclassificação dos 44 diretos:** R1 = 2, R2 = 4, R3 = 38, R4 = 0, R5 = 0.
+R3 não é prova de vulnerabilidade: é a prioridade de caracterização e testes de
+cadeias pai-filho, permissões e efeitos clínicos antes da troca do helper.
+
+### Categorias, dependências e fronteiras
+
+Dependências que determinam a ordem (e não apenas a proximidade no arquivo):
+
+- `screen -> _editable_escalas / _agenda_dashboard`; os demais destinos são
+  migrações A–D, catálogos globais ou rotas próprias.
+- `fila_classificacao -> PreAtendimento -> Atendimento -> Paciente`;
+  `acao_senha_classificacao -> Senha -> Atendimento`; e
+  `chamar_agendamento_classificacao -> Agendamento -> Paciente -> Atendimento/Senha`.
+- `prescrever -> contexto_acao_prescricao(atendimento.cd_empresa) ->
+  registrar_itens_prescricao(empresa, atendimento, ...)`.
+- `documento_assistencial` e `abrir_modelo_assistencial -> selectors/permissões
+  públicos do Editor -> DocumentoClinico`; lifecycle/locks ->
+  `EventoDocumentoClinico` e responsabilidade compartilhada de lock.
+- `evoluir -> Atendimento -> DocumentoClinico/Editor`; `conceder_alta` e
+  `finalizar_atendimento -> Atendimento -> eventos/impressão`; e
+  `pep_chamar -> Atendimento + Máquina + Setor -> ChamadaPainel`.
+
+Consulta médica separa navegação (`ficha_atendimento`, `link_externo_assistencial`)
+de escrita clínica (documentos/locks, evolução, prescrição, exames, escalas e
+alta). A navegação depende da cadeia `Atendimento -> Paciente`; as escritas
+devem preservar APIs do Editor, eventos, assinatura e locks, portanto não formam
+um lote único.
+
+Na classificação/triagem, testar que Atendimento e Paciente pertencem à empresa
+canônica; que PreAtendimento, Senha, Agendamento e Classificação só referenciam
+esse agregado; e que Escala, protocolo, itens/respostas e TipoSenha pertencem à
+empresa da fila. Relações históricas incoerentes no banco não autorizam a view a
+atravessar a fronteira.
+
+O serviço de prescrição deriva `empresa` de `atendimento.cd_empresa` em
+`contexto_acao_prescricao` e filtra classes/itens/vias pela empresa. Em contraste,
+`registrar_itens_prescricao(empresa, atendimento, ...)` recebe empresa
+explicitamente. Antes de E6, cada chamador deve provar
+`empresa == atendimento.cd_empresa` e a mesma empresa para documento, itens,
+vias e produtos; não há alteração de serviço neste lote de planejamento.
+
+Documentos, evolução e anexos dependem dos selectors/permissões públicos do
+Editor e dos locks compartilhados. A ordem é lifecycle/locks antes de leitura,
+impressão, anexos e cópia; evolução apenas após essas fronteiras. Alta é coesa
+para lote próprio: transição terminal de Atendimento, eventos/efeitos secundários
+e sua impressão, sem criação documental.
+
+### APIs/AJAX e impressões
+
+| Endpoint | Auth/parâmetros | Retorno e objetos | Condição de migração |
+| - | - | - | - |
+| `testar_variavel_documento` | TI; POST modelo/contexto | preview de variável | não revelar modelo/contexto de outra empresa |
+| `rascunho_editor_documento` | médico; POST/Documento | rascunho Editor | Documento derivado de Atendimento T |
+| `preview_pdf_modelo_documento` | TI; modelo/POST | PDF de modelo | autorização explícita de modelo G/T |
+| `testar_escala_clinica` | TI; POST escala/respostas | simulação | escala/itens T |
+
+Impressões restantes: `imprimir_atendimento` (Atendimento URL),
+`preview_pdf_modelo_documento` (modelo), `imprimir_documento_clinico`
+(Documento), `imprimir_senha_totem` (Senha) e `imprimir_classificacao`
+(Classificação/Atendimento). PDF não reduz risco: todo ID deve ser resolvido pela
+cadeia tenant-local.
+
+### R5, `screen` e seed/demo (fora dos 44 diretos)
+
+| Fronteira | Tenant hoje | Por que `empresa_atual` não serve | Próxima arquitetura, sem implementar |
+| - | - | - | - |
+| `painel_chamada_publico` | sessão opcional/máquina e POST empresa | rota pública de dispositivo, sem principal | identidade de máquina ou token vinculado, rotação e auditoria; POST não pode escolher empresa livremente |
+| `midia_painel_publica` | PK de `PainelChamada` na URL | mídia pública, sem sessão | identificador público não enumerável ou token assinado e regra de publicação |
+| `AtendimentoDemoSeedProvider.handle` | `empresa_codigo` explícito do comando | bootstrap/sessionless | command privilegiado, validação de empresa/slot e contrato explícito |
+
+Os três permanecem R5. `pep_chamar` é autenticado; é R3, não R5, mas só migra
+depois de provar vínculo Máquina/Setor/Atendimento/empresa.
+
+Em `screen`, `convenios`, `profissionais` e `atender-agendamento` já estão
+migrados/delegados; `escalas` e `agendas` dependem de E1; tipos, especialidades
+e salas são catálogos globais; telas estáticas têm contratos próprios. Ele só
+poderá ser migrado/removido quando E1 eliminar os dois destinos legados e todos
+os demais forem canônicos, explicitamente globais ou adaptadores sem resolução
+de tenant. Remoção exige URLs diretas e nenhuma chamada produtiva ao dispatcher;
+não aplicar `empresa_atual` somente para zerar contagem.
+
+O provider demo é bootstrap por comando, não runtime HTTP/UI. Seu
+`empresa_codigo` é entrada administrativa e deve validar empresa/slot; não deve
+ser artificialmente convertido em contrato de sessão.
+
+### Plano de execução
+
+| Ordem | Lote | Consumidores | Qtd | Risco | Pré-requisito |
+| -: | - | - | -: | - | - |
+| 1 | E1 — agenda residual e destinos de `screen` | `_editable_escalas`, `cadastro_escala`, `alternar_status_escala`, `_agenda_dashboard`, `gerar_agenda` | 5 | R1–R3 | modelos Agenda/Escala e rotas do dispatcher caracterizados |
+| 2 | E2 — fila e chamada de classificação | `_tabela_totem`, `imprimir_senha_totem`, `acao_senha_classificacao`, `chamar_agendamento_classificacao`, `imprimir_classificacao`, `fila_classificacao`, `escalas_classificacao_standalone` | 7 | R1–R3 | invariantes PreAtendimento/Agendamento/Senha/Atendimento |
+| 3 | E3 — configuração e APIs de modelo documental | `documentos_telas_impressao`, `modelos_documento`, `testar_variavel_documento`, `rascunho_editor_documento`, `preview_pdf_modelo_documento` | 5 | R3 | contrato modelo G/T e APIs Editor |
+| 4 | E4 — abertura, lifecycle e locks documentais | `ficha_atendimento`, `abrir_modelo_assistencial`, `documento_assistencial`, `assumir_documento_clinico`, `fechar_documento_clinico`, `abandonar_documento_clinico`, `cancelar_documento_clinico`, `liberar_trava_documento_clinico`, `liberar_acesso_excepcional_documento` | 9 | R3 | E3, selectors/permissões Editor e locks públicos |
+| 5 | E5 — leitura, anexos e cópia documental | `imprimir_documento_clinico`, `link_externo_assistencial`, `anexos_clinicos`, `baixar_anexo_clinico`, `historico_documentos_assistencial`, `copiar_documento_clinico` | 6 | R3 | E4 e cadeia Documento → Atendimento |
+| 6 | E6 — prescrições, exames e configuração | `solicitar_exame`, `resultado_exame`, `prescrever`, `_cadastro_configuracao_prescricao` | 4 | R3 | prova `empresa == atendimento.cd_empresa` nos chamadores/serviço |
+| 7 | E7 — evolução e escalas clínicas | `evoluir`, `executar_escala_clinica`, `testar_escala_clinica` | 3 | R3 | E4 e invariantes Escala/Item/Resposta |
+| 8 | E8 — alta, finalização e impressão | `conceder_alta`, `finalizar_atendimento`, `imprimir_atendimento` | 3 | R3 | eventos e efeitos de estado terminal caracterizados |
+| 9 | E9 — chamada PEP residual | `pep_chamar` | 1 | R3 | vínculo Máquina/Setor/Atendimento e ChamadaPainel |
+| 10 | E10 — demanda espontânea | `demanda_espontanea` | 1 | R3 | cadeia Paciente → PreAtendimento → Atendimento |
+| 11 | E11 — especiais/dispatcher | `screen`, `painel_chamada_publico`, `midia_painel_publica`, provider demo | 4 | R5 | E1 canônico e contratos próprios definidos |
+
+Lotes menores de cinco são deliberadamente isolados por uma única transição
+clínica/contrato. Em todos: usar `empresa_atual` e `proteger_contexto_tenant`
+somente em endpoints autenticados; resolver IDs URL/GET/POST pela empresa e
+cadeia de pais; testar empresa ausente/inativa, duas empresas, ID estrangeiro,
+permissões, GET/POST, efeitos clínicos, URLs reversas e `git diff --check`.
+
+O primeiro sublote é **E1 — agenda residual e destinos de `screen`**: cinco
+consumidores coesos, sem documentos ou estado clínico terminal, e remove os dois
+últimos destinos legados do dispatcher. Este lote não o executa.
+
+### Condição objetiva para excluir `_empresa_logada`
+
+Só excluir quando a busca produtiva não retornar chamada autenticada, destino de
+dispatcher ou adaptador legado; quando R5 tiver resolução própria de
+dispositivo/token/publicação/comando; e quando não houver sessão direta ou
+fallback `cd_empresa ... or 1` fora de contrato explicitamente documentado e
+testado. A definição permanece intacta até então.
+
 ## TOP HOTSPOTS
 
 1. `painel_chamada_publico` — R5: POST escolhe empresa e pode reatribuir máquina; preservar contrato de dispositivo e auditoria.
@@ -185,10 +369,12 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Funções consumidoras diretas de `_empresa_logada` após Lote C | 53 |
 | Chamadas a `_empresa_logada` após Lote D | 45 |
 | Funções consumidoras diretas de `_empresa_logada` após Lote D | 44 |
-| R1 | 0 |
-| R2 | 41 |
-| R3 | 0 |
-| R4 | 45 |
+| Chamadas a `_empresa_logada` após E1 | 40 |
+| Funções consumidoras diretas de `_empresa_logada` após E1 | 39 |
+| R1 | 1 |
+| R2 | 44 |
+| R3 | 1 |
+| R4 | 40 |
 | R5 | 3 |
 | Autenticados (diretos ou delegados) | 86 |
 | Públicos/sessionless | 3 |
@@ -197,8 +383,8 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Leitura/escrita | 32 |
 | Fallback empresa 1 | 1 helper / 45 call sites |
 | Sessão direta | 2 pontos (`_empresa_logada`, `painel_chamada_publico`) |
-| Já usando tenant canônico | 41 |
-| Acessos que exigem investigação cross-tenant | 48 (45 pelo fallback; 3 por contrato especial) |
+| Já usando tenant canônico | 46 |
+| Acessos que exigem investigação cross-tenant | 43 (40 pelo fallback; 3 por contrato especial) |
 
 ## Lotes futuros sugeridos
 
@@ -206,6 +392,7 @@ explicitamente foram excluídos como falsos positivos de resolução.
 2. **Lote B — agenda e cadastro de pacientes (10 consumidores; R2, concluído).** `agendamentos_operacionais`, consulta/cadastro/seleção/confirmação/cancelamento, comprovante e validação de unicidade passaram a usar `empresa_atual`. Paciente é diretamente tenant-scoped por `cd_empresa`; foram verificados sessão ausente, empresa/vínculo inativos, duas empresas e IDs URL/POST.
 3. **Lote C — recepção e atendimento base (12; R2, concluído).** Pré-atendimento, recepção, cadastro/alteração/listagem, fila e consulta usam `empresa_atual`. Atendimento e Agendamento agora são resolvidos também pela empresa do Paciente, impedindo relações B→Paciente A que o banco legado ainda consegue representar.
 4. **Lote D — profissionais, perfis e roteamento de cadastros (9; R2, concluído).** Convênios, prestadores, locks e perfis usam `empresa_atual`; o POST HTML de perfil valida escala T e modelo G/T como a API JSON. `screen` foi caracterizado como roteador para consumidores de outros lotes e permaneceu R4, sem alteração funcional.
+5. **E1 — agenda residual e destinos de `screen` (5; R1–R3, concluído).** `_editable_escalas`, `cadastro_escala`, `alternar_status_escala`, `_agenda_dashboard` e `gerar_agenda` usam `empresa_atual` com `proteger_contexto_tenant`. Escala URL/POST, Prestador, Setor e Convênio T são scoped antes da escrita; AgendaGerada e HorarioAgenda recebem a mesma empresa da Escala. `screen` permanece dispatcher, mas seus destinos `escalas` e `agendas` já são canônicos.
 5. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
 6. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
 7. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.

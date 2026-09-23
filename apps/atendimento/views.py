@@ -6949,12 +6949,13 @@ def _editable_auxiliary(request, table_name, title):
     return render(request, "atendimento/editable_auxiliary.html", {"title": title, "tabela": tabela, "valores": valores})
 
 
+@proteger_contexto_tenant
 def _editable_escalas(request, title):
     request.current_tab_title = title
     request.current_module_title = "Atendimento"
     request.current_can_query = True
     request.current_can_remove = True
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     registros = AgendaProfissional.objects.select_related("cd_prestador").filter(cd_empresa=empresa)
     query = _query_text(request)
     if query:
@@ -6987,7 +6988,9 @@ def _editable_escalas(request, title):
                 continue
             if f"name_{escala.pk}" not in request.POST:
                 continue
-            escala.cd_prestador_id = request.POST.get(f"provider_{escala.pk}") or escala.cd_prestador_id
+            prestador_id = request.POST.get(f"provider_{escala.pk}")
+            if prestador_id:
+                escala.cd_prestador = get_object_or_404(Prestador, cd_empresa=empresa, pk=prestador_id)
             escala.ds_agenda = request.POST.get(f"name_{escala.pk}", escala.ds_agenda)
             dias_semana = request.POST.getlist(f"weekdays_{escala.pk}")
             escala.ds_dias_semana = [int(dia) for dia in dias_semana]
@@ -7004,9 +7007,10 @@ def _editable_escalas(request, title):
         for index, provider_id in enumerate(new_providers):
             if not provider_id:
                 continue
+            prestador = get_object_or_404(Prestador, cd_empresa=empresa, pk=provider_id)
             escala = AgendaProfissional(
                 cd_empresa=empresa,
-                cd_prestador_id=provider_id,
+                cd_prestador=prestador,
                 ds_agenda=request.POST.getlist("new_name")[index].strip() if index < len(request.POST.getlist("new_name")) else "ESCALA",
                 nr_dia_semana=request.POST.getlist("new_weekday")[index] if index < len(request.POST.getlist("new_weekday")) else 0,
                 ds_dias_semana=[int(dia) for dia in request.POST.getlist("new_weekdays")],
@@ -7032,13 +7036,14 @@ def _editable_escalas(request, title):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def cadastro_escala(request, cd_escala=None):
     request.current_tab_title = "Atendimento > Agendamento > Cadastro de escala"
     request.current_tab_root_title = "Cadastro de escala"
     request.current_module_title = "Atendimento"
     request.current_can_query = True
     request.current_can_remove = bool(cd_escala)
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     if request.GET.get("consultar") == "1":
         registros = AgendaProfissional.objects.filter(cd_empresa=empresa).prefetch_related("convenios")
         codigo = request.GET.get("cd_agenda_profissional", "").strip()
@@ -7175,10 +7180,12 @@ def cadastro_escala(request, cd_escala=None):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def alternar_status_escala(request, cd_escala):
     if request.method != "POST":
         raise PermissionDenied
-    escala = get_object_or_404(AgendaProfissional, cd_empresa=_empresa_logada(request), pk=cd_escala)
+    empresa = empresa_atual(request)
+    escala = get_object_or_404(AgendaProfissional, cd_empresa=empresa, pk=cd_escala)
     escala.sn_ativo = not escala.sn_ativo
     _apply_audit(escala, request.user)
     escala.save(update_fields=["sn_ativo", "dh_atualizacao", "cd_usuario_atualizacao"])
@@ -7186,12 +7193,13 @@ def alternar_status_escala(request, cd_escala):
     return redirect("atendimento:cadastro-escala", cd_escala=escala.pk)
 
 
+@proteger_contexto_tenant
 def _agenda_dashboard(request):
     request.current_tab_title = "Agendas"
     request.current_module_title = "Atendimento"
     request.current_can_query = True
     request.current_can_remove = False
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     hoje = timezone.localdate()
     agendamentos_hoje = Agendamento.objects.filter(cd_empresa=empresa, dh_agendamento__date=hoje)
     total_agendado = agendamentos_hoje.count()
@@ -10216,12 +10224,13 @@ def abrir_consulta(request, cd_atendimento):
 @login_required
 @role_required("TI", "Recepcionista")
 @transaction.atomic
+@proteger_contexto_tenant
 def gerar_agenda(request):
     request.current_tab_title = "Atendimento > Agendamento > Geração de agendas"
     request.current_tab_root_title = "Geração de agendas"
     request.current_module_title = "Atendimento"
     request.current_can_query = True
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     data_inicio = request.POST.get("data_inicio") or request.GET.get("data_inicio") or timezone.localdate().isoformat()
     data_fim = request.POST.get("data_fim") or request.GET.get("data_fim") or ""
     try:
