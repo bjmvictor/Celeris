@@ -3394,9 +3394,15 @@ def _renderizar_acao_prescricao(request, atendimento, tipo):
 @login_required
 @role_required("Médico")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def solicitar_exame(request, cd_atendimento):
-    empresa = _empresa_logada(request)
-    atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
+    empresa = empresa_atual(request)
+    atendimento = get_object_or_404(
+        Atendimento,
+        cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
+        cd_atendimento=cd_atendimento,
+    )
     documento_id = (request.POST.get("documento") or request.GET.get("documento") or "").strip()
     documento = None
     if documento_id.isdigit():
@@ -3465,9 +3471,16 @@ def solicitar_exame(request, cd_atendimento):
 
 @login_required
 @role_required("TI")
+@proteger_contexto_tenant
 def resultado_exame(request, cd_solicitacao):
-    empresa = _empresa_logada(request)
-    solicitacao = get_object_or_404(SolicitacaoExame, cd_empresa=empresa, cd_solicitacao_exame=cd_solicitacao)
+    empresa = empresa_atual(request)
+    solicitacao = get_object_or_404(
+        SolicitacaoExame.objects.select_related("cd_atendimento__cd_paciente"),
+        cd_empresa=empresa,
+        cd_atendimento__cd_empresa=empresa,
+        cd_atendimento__cd_paciente__cd_empresa=empresa,
+        cd_solicitacao_exame=cd_solicitacao,
+    )
     resultado = getattr(solicitacao, "resultado", None)
     form = ResultadoExameForm(request.POST or None, request.FILES or None, instance=resultado)
     if request.method == "POST" and form.is_valid():
@@ -3489,9 +3502,15 @@ def resultado_exame(request, cd_solicitacao):
 @login_required
 @role_required("Médico")
 @xframe_options_sameorigin
+@proteger_contexto_tenant
 def prescrever(request, cd_atendimento):
-    empresa = _empresa_logada(request)
-    atendimento = get_object_or_404(Atendimento, cd_empresa=empresa, cd_atendimento=cd_atendimento)
+    empresa = empresa_atual(request)
+    atendimento = get_object_or_404(
+        Atendimento,
+        cd_empresa=empresa,
+        cd_paciente__cd_empresa=empresa,
+        cd_atendimento=cd_atendimento,
+    )
     documento_id = (request.POST.get("documento") or request.GET.get("documento") or "").strip()
     documento = None
     if documento_id.isdigit():
@@ -3593,7 +3612,7 @@ def evoluir(request, cd_atendimento):
 
 
 def _cadastro_configuracao_prescricao(request, *, modelo, formulario, titulo, caminho):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     request.current_tab_title = caminho
     request.current_tab_root_title = titulo
     request.current_module_title = "Atendimento"
@@ -3651,6 +3670,7 @@ def _cadastro_configuracao_prescricao(request, *, modelo, formulario, titulo, ca
 
 @login_required
 @role_required("TI", "Médico")
+@proteger_contexto_tenant
 def classes_itens_prescricao(request):
     return _cadastro_configuracao_prescricao(
         request,
@@ -3663,6 +3683,7 @@ def classes_itens_prescricao(request):
 
 @login_required
 @role_required("TI", "Médico")
+@proteger_contexto_tenant
 def vias_aplicacao_prescricao(request):
     return _cadastro_configuracao_prescricao(
         request,
@@ -3675,6 +3696,7 @@ def vias_aplicacao_prescricao(request):
 
 @login_required
 @role_required("TI", "Médico")
+@proteger_contexto_tenant
 def itens_prescricao(request):
     return _cadastro_configuracao_prescricao(
         request,

@@ -153,6 +153,8 @@ def registrar_itens_prescricao(
 ) -> ResultadoRegistroPrescricao:
     if tipo not in {"MEDICAMENTO", "EXAME"}:
         raise ValidationError("Tipo de prescrição inválido.")
+    if atendimento.cd_empresa_id != empresa.pk:
+        raise ValidationError("Atendimento não pertence à empresa informada.")
     if documento and (
         documento.cd_empresa_id != empresa.pk
         or documento.cd_atendimento_id != atendimento.pk

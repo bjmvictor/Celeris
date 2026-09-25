@@ -39,6 +39,7 @@ class PrescricaoEstruturadaTests(TestCase):
         self.empresa = Empresa.objects.create(cd_empresa=7098, nm_empresa="Empresa Prescrição", sn_ativo=True)
         self.usuario = User.objects.create_user("medico-prescricao", password="senha-forte")
         self.usuario.groups.add(Group.objects.get_or_create(name="Médico")[0])
+        UsuarioEmpresa.objects.create(usuario=self.usuario, empresa=self.empresa, sn_ativo=True)
         self.paciente = Paciente.objects.create(cd_empresa=self.empresa, nm_paciente="PACIENTE PRESCRIÇÃO")
         self.atendimento = Atendimento.objects.create(
             cd_empresa=self.empresa,
@@ -5879,6 +5880,370 @@ class AtendimentoTenantLeituraAnexosCopiaE5Tests(TestCase):
         self.assertIn(
             self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_a.pk])).status_code,
             {200, 501},
+        )
+
+
+class AtendimentoTenantPrescricoesExamesE6Tests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "E6 A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9926, nm_empresa="E6 B", sn_ativo=True)
+        self.usuario_a = self._usuario("e6-a", self.empresa_a, ["Médico", "TI"])
+        self.usuario_b = self._usuario("e6-b", self.empresa_b, ["Médico", "TI"])
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente E6 A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente E6 B")
+        self.atendimento_a = Atendimento.objects.create(
+            cd_empresa=self.empresa_a, cd_paciente=self.paciente_a, ds_status="EM_ATENDIMENTO"
+        )
+        self.atendimento_b = Atendimento.objects.create(
+            cd_empresa=self.empresa_b, cd_paciente=self.paciente_b, ds_status="EM_ATENDIMENTO"
+        )
+        self.atendimento_inconsistente = Atendimento.objects.create(
+            cd_empresa=self.empresa_b, cd_paciente=self.paciente_a, ds_status="EM_ATENDIMENTO"
+        )
+        self.classe_a = ClasseItemPrescricao.objects.create(
+            cd_empresa=self.empresa_a, sg_classe="MDA", ds_classe="Medicamentos A", tp_classe="MEDICAMENTO"
+        )
+        self.classe_b = ClasseItemPrescricao.objects.create(
+            cd_empresa=self.empresa_b, sg_classe="MDB", ds_classe="Medicamentos B", tp_classe="MEDICAMENTO"
+        )
+        self.classe_exame_a = ClasseItemPrescricao.objects.create(
+            cd_empresa=self.empresa_a, sg_classe="EXM", ds_classe="Exames A", tp_classe="EXAME"
+        )
+        self.classe_exame_b = ClasseItemPrescricao.objects.create(
+            cd_empresa=self.empresa_b, sg_classe="EXB", ds_classe="Exames B", tp_classe="EXAME"
+        )
+        self.via_a = ViaAplicacaoPrescricao.objects.create(cd_empresa=self.empresa_a, sg_via="VOA", ds_via="Via oral A")
+        self.via_b = ViaAplicacaoPrescricao.objects.create(cd_empresa=self.empresa_b, sg_via="VOB", ds_via="Via oral B")
+        self.produto_a = Produto.objects.create(
+            cd_empresa=self.empresa_a, nm_produto="MEDICAMENTO E6 A", tp_produto="MEDICAMENTO"
+        )
+        self.produto_b = Produto.objects.create(
+            cd_empresa=self.empresa_b, nm_produto="MEDICAMENTO E6 B", tp_produto="MEDICAMENTO"
+        )
+        self.item_a = ItemPrescricao.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_classe=self.classe_a,
+            cd_produto=self.produto_a,
+            nm_item=self.produto_a.nm_produto,
+            cd_via_padrao=self.via_a,
+        )
+        self.item_b = ItemPrescricao.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_classe=self.classe_b,
+            cd_produto=self.produto_b,
+            nm_item=self.produto_b.nm_produto,
+            cd_via_padrao=self.via_b,
+        )
+        self.item_exame_a = ItemPrescricao.objects.create(
+            cd_empresa=self.empresa_a, cd_classe=self.classe_exame_a, nm_item="Exame E6 A"
+        )
+        self.item_exame_b = ItemPrescricao.objects.create(
+            cd_empresa=self.empresa_b, cd_classe=self.classe_exame_b, nm_item="Exame E6 B"
+        )
+        self.modelo_prescricao_a = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_a, nm_modelo="Prescrição E6 A", tp_documento="PRESCRICAO", tp_elemento="DOCUMENTO"
+        )
+        self.modelo_prescricao_b = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_b, nm_modelo="Prescrição E6 B", tp_documento="PRESCRICAO", tp_elemento="DOCUMENTO"
+        )
+        self.modelo_exame_a = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_a, nm_modelo="Solicitação E6 A", tp_documento="SOLICITACAO_EXAME", tp_elemento="DOCUMENTO"
+        )
+        self.modelo_exame_b = ModeloDocumento.objects.create(
+            cd_empresa=self.empresa_b, nm_modelo="Solicitação E6 B", tp_documento="SOLICITACAO_EXAME", tp_elemento="DOCUMENTO"
+        )
+        self.documento_prescricao_b = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_atendimento=self.atendimento_b,
+            cd_modelo_documento=self.modelo_prescricao_b,
+            tp_documento="PRESCRICAO",
+            ds_titulo="Prescrição E6 B",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.usuario_b,
+            cd_usuario_responsavel=self.usuario_b,
+        )
+        self.documento_exame_b = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_atendimento=self.atendimento_b,
+            cd_modelo_documento=self.modelo_exame_b,
+            tp_documento="SOLICITACAO_EXAME",
+            ds_titulo="Solicitação E6 B",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.usuario_b,
+            cd_usuario_responsavel=self.usuario_b,
+        )
+        self.documento_exame_inconsistente = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_atendimento=self.atendimento_b,
+            cd_modelo_documento=self.modelo_exame_a,
+            tp_documento="SOLICITACAO_EXAME",
+            ds_titulo="Solicitação inconsistente",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.usuario_b,
+            cd_usuario_responsavel=self.usuario_b,
+        )
+        self.solicitacao_b = SolicitacaoExame.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_atendimento=self.atendimento_b,
+            ds_exame="Exame E6 B",
+            cd_usuario_criacao=self.usuario_b,
+            cd_usuario_atualizacao=self.usuario_b,
+        )
+        self.solicitacao_inconsistente = SolicitacaoExame.objects.create(
+            cd_empresa=self.empresa_b,
+            cd_atendimento=self.atendimento_inconsistente,
+            ds_exame="Exame inconsistente",
+            cd_usuario_criacao=self.usuario_b,
+            cd_usuario_atualizacao=self.usuario_b,
+        )
+        self.client.force_login(self.usuario_b)
+        self._empresa(self.empresa_b)
+
+    def _usuario(self, username, empresa, grupos):
+        usuario = User.objects.create_user(username, password="senha-forte")
+        usuario.is_staff = True
+        usuario.is_superuser = True
+        usuario.save(update_fields=["is_staff", "is_superuser"])
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def _empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def test_prescricao_e_exame_nao_aceitam_atendimento_externo(self):
+        self.assertEqual(
+            self.client.get(reverse("atendimento:prescrever", args=[self.atendimento_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:solicitar-exame", args=[self.atendimento_a.pk])).status_code,
+            404,
+        )
+        total_prescricoes_a = Prescricao.objects.filter(cd_atendimento=self.atendimento_a).count()
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:prescrever", args=[self.atendimento_a.pk]),
+                {"documento": self.documento_prescricao_b.pk, "itens_json": json.dumps([{"item_id": self.item_a.pk}])},
+            ).status_code,
+            404,
+        )
+        self.assertEqual(Prescricao.objects.filter(cd_atendimento=self.atendimento_a).count(), total_prescricoes_a)
+        total_solicitacoes_a = SolicitacaoExame.objects.filter(cd_atendimento=self.atendimento_a).count()
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:solicitar-exame", args=[self.atendimento_a.pk]),
+                {"documento": self.documento_exame_b.pk, "itens_json": json.dumps([{"item_id": self.item_exame_a.pk}])},
+            ).status_code,
+            404,
+        )
+        self.assertEqual(SolicitacaoExame.objects.filter(cd_atendimento=self.atendimento_a).count(), total_solicitacoes_a)
+
+    def test_prescricao_e_exame_rejeitam_item_e_documento_de_outra_empresa(self):
+        resposta = self.client.post(
+            reverse("atendimento:prescrever", args=[self.atendimento_b.pk]),
+            {"documento": self.documento_prescricao_b.pk, "itens_json": json.dumps([{"item_id": self.item_a.pk}])},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Selecione ao menos um item de prescrição válido.")
+        self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento_b).exists())
+        resposta = self.client.post(
+            reverse("atendimento:solicitar-exame", args=[self.atendimento_b.pk]),
+            {"documento": self.documento_exame_b.pk, "itens_json": json.dumps([{"item_id": self.item_exame_a.pk}])},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Selecione ao menos um item de prescrição válido.")
+        self.assertFalse(
+            SolicitacaoExame.objects.filter(
+                cd_atendimento=self.atendimento_b, ds_exame="Exame E6 A"
+            ).exists()
+        )
+
+    def test_documento_de_outra_empresa_nao_e_aceito_na_prescricao(self):
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:prescrever", args=[self.atendimento_b.pk]),
+                {"documento": self.documento_exame_b.pk, "itens_json": json.dumps([{"item_id": self.item_b.pk}])},
+            ).status_code,
+            404,
+        )
+        self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento_b).exists())
+        documento_exame_de_outra_empresa = DocumentoClinico.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_atendimento=self.atendimento_a,
+            cd_modelo_documento=self.modelo_prescricao_a,
+            tp_documento="PRESCRICAO",
+            ds_titulo="Prescrição E6 A",
+            ds_status="ABERTO",
+            cd_usuario_emissor=self.usuario_a,
+            cd_usuario_responsavel=self.usuario_a,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:prescrever", args=[self.atendimento_b.pk]),
+                {
+                    "documento": documento_exame_de_outra_empresa.pk,
+                    "itens_json": json.dumps([{"item_id": self.item_b.pk}]),
+                },
+            ).status_code,
+            404,
+        )
+        self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento_b).exists())
+
+    def test_prescricao_e_exame_da_propria_empresa_funcionam(self):
+        resposta = self.client.post(
+            reverse("atendimento:prescrever", args=[self.atendimento_b.pk]),
+            {
+                "documento": self.documento_prescricao_b.pk,
+                "itens_json": json.dumps([{"item_id": self.item_b.pk, "via_id": self.via_b.pk}]),
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        prescricao = Prescricao.objects.get(cd_atendimento=self.atendimento_b)
+        self.assertEqual(prescricao.cd_empresa, self.empresa_b)
+        self.assertEqual(prescricao.itens.get().cd_item_prescricao, self.item_b)
+        resposta = self.client.post(
+            reverse("atendimento:solicitar-exame", args=[self.atendimento_b.pk]),
+            {
+                "documento": self.documento_exame_b.pk,
+                "itens_json": json.dumps([{"item_id": self.item_exame_b.pk}]),
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(
+            SolicitacaoExame.objects.filter(
+                cd_atendimento=self.atendimento_b, ds_exame="Exame E6 B"
+            ).exists()
+        )
+
+    def test_resultado_exame_resolve_cadeia_pai_por_empresa(self):
+        resultado = self.client.get(reverse("atendimento:resultado-exame", args=[self.solicitacao_b.pk]))
+        self.assertEqual(resultado.status_code, 200)
+        self.assertContains(resultado, "Exame E6 B")
+        solicitacao_externa = SolicitacaoExame.objects.create(
+            cd_empresa=self.empresa_a,
+            cd_atendimento=self.atendimento_a,
+            ds_exame="Exame externo E6",
+            cd_usuario_criacao=self.usuario_a,
+            cd_usuario_atualizacao=self.usuario_a,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:resultado-exame", args=[solicitacao_externa.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:resultado-exame", args=[self.solicitacao_inconsistente.pk])).status_code,
+            404,
+        )
+        resposta = self.client.post(
+            reverse("atendimento:resultado-exame", args=[self.solicitacao_b.pk]),
+            {"ds_resultado": "Resultado dentro do esperado", "sn_liberado": ""},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.solicitacao_b.refresh_from_db()
+        self.assertEqual(self.solicitacao_b.resultado.ds_resultado, "Resultado dentro do esperado")
+
+    def test_cadastros_de_prescricao_somente_da_empresa_atual(self):
+        resposta = self.client.get(reverse("atendimento:classes-itens-prescricao"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Medicamentos B")
+        self.assertNotContains(resposta, "Medicamentos A")
+        resposta = self.client.get(reverse("atendimento:vias-aplicacao-prescricao"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Via oral B")
+        self.assertNotContains(resposta, "Via oral A")
+        resposta = self.client.get(reverse("atendimento:itens-prescricao"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "MEDICAMENTO E6 B")
+        self.assertNotContains(resposta, "MEDICAMENTO E6 A")
+
+    def test_cadastro_de_item_de_prescricao_respeita_empresa(self):
+        resposta = self.client.post(
+            reverse("atendimento:itens-prescricao"),
+            {
+                "nm_item": "ITEM NOVO E6 B",
+                "cd_classe": self.classe_b.pk,
+                "cd_via_padrao": self.via_b.pk,
+                "sn_ativo": "on",
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        item = ItemPrescricao.objects.get(nm_item="ITEM NOVO E6 B")
+        self.assertEqual(item.cd_empresa, self.empresa_b)
+        resposta = self.client.post(
+            reverse("atendimento:itens-prescricao"),
+            {
+                "nm_item": "ITEM CLASSE EXTERNA",
+                "cd_classe": self.classe_a.pk,
+                "cd_via_padrao": self.via_b.pk,
+                "sn_ativo": "on",
+            },
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(ItemPrescricao.objects.filter(nm_item="ITEM CLASSE EXTERNA").exists())
+
+    def test_servico_rejeita_atendimento_de_outra_empresa(self):
+        with self.assertRaisesMessage(ValidationError, "não pertence à empresa"):
+            registrar_itens_prescricao(
+                empresa=self.empresa_b,
+                atendimento=self.atendimento_a,
+                usuario=self.usuario_b,
+                tipo="MEDICAMENTO",
+                itens=[{"item_id": self.item_b.pk}],
+            )
+        self.assertFalse(Prescricao.objects.filter(cd_atendimento=self.atendimento_a).exists())
+
+    def test_contexto_invalido_falha_fechado_e_empresa_1_autorizada(self):
+        session = self.client.session
+        del session["cd_empresa"]
+        session.save()
+        self.assertEqual(
+            self.client.get(reverse("atendimento:prescrever", args=[self.atendimento_b.pk])).status_code,
+            302,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:solicitar-exame", args=[self.atendimento_b.pk])).status_code,
+            302,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:resultado-exame", args=[self.solicitacao_b.pk])).status_code,
+            302,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:classes-itens-prescricao")).status_code,
+            302,
+        )
+        self.client.force_login(self.usuario_a)
+        self._empresa(self.empresa_a)
+        resposta = self.client.post(
+            reverse("atendimento:prescrever", args=[self.atendimento_a.pk]),
+            {
+                "documento": DocumentoClinico.objects.create(
+                    cd_empresa=self.empresa_a,
+                    cd_atendimento=self.atendimento_a,
+                    cd_modelo_documento=self.modelo_prescricao_a,
+                    tp_documento="PRESCRICAO",
+                    ds_titulo="Prescrição E6 A",
+                    ds_status="ABERTO",
+                    cd_usuario_emissor=self.usuario_a,
+                    cd_usuario_responsavel=self.usuario_a,
+                ).pk,
+                "itens_json": json.dumps([{"item_id": self.item_a.pk, "via_id": self.via_a.pk}]),
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(Prescricao.objects.filter(cd_atendimento=self.atendimento_a).exists())
+
+    def test_vinculo_inativo_bloqueia_prescricao(self):
+        vinculo = UsuarioEmpresa.objects.get(usuario=self.usuario_b, empresa=self.empresa_b)
+        vinculo.sn_ativo = False
+        vinculo.save(update_fields=["sn_ativo"])
+        self.assertEqual(
+            self.client.get(reverse("atendimento:prescrever", args=[self.atendimento_b.pk])).status_code,
+            302,
         )
 
 
