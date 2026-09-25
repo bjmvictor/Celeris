@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 import gzip
+import hashlib
 import json
 import sys
 import tempfile
@@ -26,7 +27,7 @@ from apps.core.services.certificados_digitais import cadastrar_certificado
 from apps.core.tests_certificados_digitais import CHAVE_MESTRA_TESTE, gerar_pkcs12_teste
 
 from .forms import EscalaForm, PacienteForm, PrestadorForm
-from .models import AgendaGerada, AgendaProfissional, Agendamento, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, GrupoFluxoClassificacao, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
+from .models import AgendaGerada, AgendaProfissional, Agendamento, AnexoClinico, AssinaturaDigitalDocumento, Atendimento, AtendimentoFluxo, AuditoriaAssinaturaDigital, ChamadaPainel, ClasseItemPrescricao, ClasseSenhaAtendimento, Convenio, CorClassificacaoRisco, DocumentoClinico, DominioExternoPermitido, EscalaClinica, EventoDocumentoClinico, EvolucaoAtendimento, FluxoClassificacao, FluxoClassificacaoEscala, GrupoFluxoClassificacao, HistoricoAlteracaoAtendimento, HorarioAgenda, IconeChamada, ItemMenuAssistencial, ItemPrescricao, ItemPrescricaoDocumento, MaquinaChamada, ModeloDocumento, ModeloDocumentoTelaImpressao, Paciente, PainelChamada, PainelChamadaSetor, PastaDocumento, PerfilAssistencial, PerfilAssistencialTipo, PerfilAssistencialVersao, PerguntaClassificacao, PreAtendimento, Prescricao, PrescricaoItem, Prestador, PrestadorTipo, ProtocoloSenhaAtendimento, RascunhoEditorDocumento, RegraSubdivisaoSenha, ResponsavelAtendimento, ResultadoEscalaClinica, SenhaAtendimento, SolicitacaoExame, TipoSenhaAtendimento, VersaoDocumentoClinico, ViaAplicacaoPrescricao
 from .services.prescricoes import contexto_acao_prescricao, registrar_itens_prescricao
 from apps.applications.editor.locking import adquirir_lock_documento, consultar_lock_documento
 from apps.estoque.models import Produto
@@ -5667,6 +5668,217 @@ class AtendimentoTenantDocumentosClinicosE4Tests(TestCase):
         self.assertEqual(self.client.post(reverse("atendimento:acesso-excepcional-documento", args=[self.documento_b.pk]), {"motivo": "auditoria"}).status_code, 302)
         self.assertTrue(EventoDocumentoClinico.objects.filter(cd_documento_clinico=self.documento_b, tp_evento="ACESSO_EXCEPCIONAL").exists())
         self.assertEqual(self.client.post(reverse("atendimento:acesso-excepcional-documento", args=[self.documento_a.pk]), {"motivo": "auditoria"}).status_code, 404)
+
+
+class AtendimentoTenantLeituraAnexosCopiaE5Tests(TestCase):
+    def setUp(self):
+        self.empresa_a, _ = Empresa.objects.update_or_create(
+            cd_empresa=1, defaults={"nm_empresa": "E5 A", "sn_ativo": True}
+        )
+        self.empresa_b = Empresa.objects.create(cd_empresa=9925, nm_empresa="E5 B", sn_ativo=True)
+        self.usuario_a = self._usuario("e5-a", self.empresa_a, superuser=True)
+        self.usuario_b = self._usuario("e5-b", self.empresa_b, superuser=True)
+        self.usuario_b_sem_permissao = self._usuario("e5-b-sem-permissao", self.empresa_b)
+        self.paciente_a = Paciente.objects.create(cd_empresa=self.empresa_a, nm_paciente="Paciente E5 A")
+        self.paciente_b = Paciente.objects.create(cd_empresa=self.empresa_b, nm_paciente="Paciente E5 B")
+        self.atendimento_a = Atendimento.objects.create(cd_empresa=self.empresa_a, cd_paciente=self.paciente_a)
+        self.atendimento_b = Atendimento.objects.create(cd_empresa=self.empresa_b, cd_paciente=self.paciente_b)
+        self.modelo_a = ModeloDocumento.objects.create(cd_empresa=self.empresa_a, nm_modelo="Modelo E5 A", tp_documento="EVOLUCAO")
+        self.modelo_b = ModeloDocumento.objects.create(cd_empresa=self.empresa_b, nm_modelo="Modelo E5 B", tp_documento="EVOLUCAO")
+        self.documento_a = self._documento(self.empresa_a, self.atendimento_a, self.modelo_a, "Documento E5 A")
+        self.documento_b = self._documento(self.empresa_b, self.atendimento_b, self.modelo_b, "Documento E5 B")
+        self.documento_inconsistente = self._documento(
+            self.empresa_b, self.atendimento_a, self.modelo_b, "Documento E5 inconsistente"
+        )
+        self.item_link_a = self._item(self.empresa_a, "LINK_EXTERNO", "Link A", "https://externo.e5.test/a/<<cd_atendimento>>")
+        self.item_link_b = self._item(self.empresa_b, "LINK_EXTERNO", "Link B", "https://externo.e5.test/b/<<cd_atendimento>>")
+        self.item_anexo_a = self._item(self.empresa_a, "ANEXO", "Anexo A")
+        self.item_anexo_b = self._item(self.empresa_b, "ANEXO", "Anexo B")
+        self.item_historico_a = self._item(self.empresa_a, "HISTORICO", "Histórico A")
+        self.item_historico_b = self._item(self.empresa_b, "HISTORICO", "Histórico B")
+        DominioExternoPermitido.objects.create(cd_empresa=self.empresa_a, ds_dominio="externo.e5.test")
+        DominioExternoPermitido.objects.create(cd_empresa=self.empresa_b, ds_dominio="externo.e5.test")
+        self.anexo_a = self._anexo(self.empresa_a, self.atendimento_a, self.item_anexo_a, "anexo-a.pdf")
+        self.anexo_b = self._anexo(self.empresa_b, self.atendimento_b, self.item_anexo_b, "anexo-b.pdf")
+        self.anexo_inconsistente = self._anexo(
+            self.empresa_b, self.atendimento_b, self.item_anexo_b, "anexo-inconsistente.pdf", self.documento_a
+        )
+        self.client.force_login(self.usuario_b)
+        self._empresa(self.empresa_b)
+
+    def tearDown(self):
+        for anexo in (self.anexo_a, self.anexo_b, self.anexo_inconsistente):
+            anexo.ds_arquivo.delete(save=False)
+        super().tearDown()
+
+    def _usuario(self, username, empresa, superuser=False):
+        usuario = User.objects.create_user(username, password="senha-forte")
+        if superuser:
+            usuario.is_staff = True
+            usuario.is_superuser = True
+            usuario.save(update_fields=["is_staff", "is_superuser"])
+        UsuarioEmpresa.objects.create(usuario=usuario, empresa=empresa, sn_ativo=True)
+        return usuario
+
+    def _empresa(self, empresa):
+        session = self.client.session
+        session["cd_empresa"] = empresa.pk
+        session.save()
+
+    def _documento(self, empresa, atendimento, modelo, titulo):
+        usuario = self.usuario_a if empresa == self.empresa_a else self.usuario_b
+        return DocumentoClinico.objects.create(
+            cd_empresa=empresa,
+            cd_atendimento=atendimento,
+            cd_modelo_documento=modelo,
+            tp_documento="EVOLUCAO",
+            ds_titulo=titulo,
+            ds_conteudo="conteúdo clínico",
+            ds_status="FECHADO",
+            cd_usuario_emissor=usuario,
+            cd_usuario_responsavel=usuario,
+        )
+
+    def _item(self, empresa, tipo, nome, url=""):
+        perfil = PerfilAssistencial.objects.create(cd_empresa=empresa, nm_perfil=f"Perfil {nome}")
+        return ItemMenuAssistencial.objects.create(
+            cd_empresa=empresa,
+            cd_perfil_assistencial=perfil,
+            nm_item=nome,
+            tp_item=tipo,
+            ds_url=url,
+        )
+
+    def _anexo(self, empresa, atendimento, item, nome, documento=None):
+        arquivo = SimpleUploadedFile(nome, b"conteudo-e5", content_type="application/pdf")
+        return AnexoClinico.objects.create(
+            cd_empresa=empresa,
+            cd_atendimento=atendimento,
+            cd_documento_clinico=documento,
+            cd_item_menu_assistencial=item,
+            nm_arquivo=nome,
+            ds_tipo_mime="application/pdf",
+            nr_tamanho=arquivo.size,
+            ds_checksum_sha256=hashlib.sha256(b"conteudo-e5").hexdigest(),
+            ds_arquivo=arquivo,
+        )
+
+    def test_impressao_cross_tenant_e_autorizacao_independente(self):
+        self.assertEqual(
+            self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_a.pk])).status_code,
+            404,
+        )
+        resposta = self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_b.pk]))
+        self.assertIn(resposta.status_code, {200, 501})
+        if resposta.status_code == 200:
+            self.assertEqual(resposta["Content-Type"].split(";", 1)[0], "text/html")
+        pdf = self.client.get(
+            reverse("atendimento:imprimir-documento-clinico", args=[self.documento_b.pk]), {"modo": "impressao"}
+        )
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"].split(";", 1)[0], "application/pdf")
+        self.client.force_login(self.usuario_b_sem_permissao)
+        self._empresa(self.empresa_b)
+        self.assertEqual(
+            self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_b.pk])).status_code,
+            403,
+        )
+
+    def test_link_anexos_e_historico_nao_aceitam_atendimento_externo(self):
+        self.assertEqual(
+            self.client.get(reverse("atendimento:link-externo-assistencial", args=[self.atendimento_a.pk, self.item_link_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:anexos-clinicos", args=[self.atendimento_a.pk, self.item_anexo_a.pk])).status_code,
+            404,
+        )
+        total_anexos_a = AnexoClinico.objects.filter(cd_atendimento=self.atendimento_a).count()
+        self.assertEqual(
+            self.client.post(
+                reverse("atendimento:anexos-clinicos", args=[self.atendimento_a.pk, self.item_anexo_a.pk]),
+                {"arquivo": SimpleUploadedFile("externo.pdf", b"externo", content_type="application/pdf")},
+            ).status_code,
+            404,
+        )
+        self.assertEqual(AnexoClinico.objects.filter(cd_atendimento=self.atendimento_a).count(), total_anexos_a)
+        self.assertEqual(
+            self.client.get(reverse("atendimento:historico-documentos-assistencial", args=[self.atendimento_a.pk, self.item_historico_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:link-externo-assistencial", args=[self.atendimento_b.pk, self.item_link_b.pk])).status_code,
+            302,
+        )
+        self.assertEqual(
+            self.client.get(reverse("atendimento:anexos-clinicos", args=[self.atendimento_b.pk, self.item_anexo_b.pk])).status_code,
+            200,
+        )
+        historico = self.client.get(
+            reverse("atendimento:historico-documentos-assistencial", args=[self.atendimento_b.pk, self.item_historico_b.pk])
+        )
+        self.assertEqual(historico.status_code, 200)
+        self.assertContains(historico, self.documento_b.ds_titulo)
+        self.assertNotContains(historico, self.documento_a.ds_titulo)
+
+    def test_download_direto_valida_anexo_e_cadeia_pai(self):
+        self.assertEqual(
+            self.client.get(reverse("atendimento:baixar-anexo-clinico", args=[self.anexo_a.pk])).status_code,
+            404,
+        )
+        resposta = self.client.get(reverse("atendimento:baixar-anexo-clinico", args=[self.anexo_b.pk]))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+        self.assertEqual(b"".join(resposta.streaming_content), b"conteudo-e5")
+        self.assertEqual(
+            self.client.get(reverse("atendimento:baixar-anexo-clinico", args=[self.anexo_inconsistente.pk])).status_code,
+            404,
+        )
+
+    def test_copia_valida_origem_e_cadeia_estrutural(self):
+        total_antes = DocumentoClinico.objects.count()
+        eventos_antes = EventoDocumentoClinico.objects.count()
+        self.assertEqual(
+            self.client.post(reverse("atendimento:copiar-documento-clinico", args=[self.documento_a.pk])).status_code,
+            404,
+        )
+        self.assertEqual(DocumentoClinico.objects.count(), total_antes)
+        self.assertEqual(EventoDocumentoClinico.objects.count(), eventos_antes)
+        self.assertEqual(
+            self.client.post(reverse("atendimento:copiar-documento-clinico", args=[self.documento_inconsistente.pk])).status_code,
+            404,
+        )
+        self.assertEqual(DocumentoClinico.objects.count(), total_antes)
+        self.assertEqual(EventoDocumentoClinico.objects.count(), eventos_antes)
+        self.assertEqual(
+            self.client.post(reverse("atendimento:copiar-documento-clinico", args=[self.documento_b.pk])).status_code,
+            302,
+        )
+        copia = DocumentoClinico.objects.exclude(pk__in=[self.documento_a.pk, self.documento_b.pk, self.documento_inconsistente.pk]).get()
+        self.assertEqual(copia.cd_empresa, self.empresa_b)
+        self.assertEqual(copia.cd_atendimento, self.atendimento_b)
+        self.assertEqual(copia.ds_status, "ABERTO")
+
+    def test_documento_inconsistente_nao_e_impresso(self):
+        self.assertEqual(
+            self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_inconsistente.pk])).status_code,
+            404,
+        )
+
+    def test_contexto_invalido_e_empresa_1_autorizada(self):
+        session = self.client.session
+        del session["cd_empresa"]
+        session.save()
+        self.assertEqual(
+            self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_b.pk])).status_code,
+            302,
+        )
+        self.client.force_login(self.usuario_a)
+        self._empresa(self.empresa_a)
+        self.assertIn(
+            self.client.get(reverse("atendimento:imprimir-documento-clinico", args=[self.documento_a.pk])).status_code,
+            {200, 501},
+        )
 
 
 class AtendimentoTenantRecepcaoBaseTests(TestCase):

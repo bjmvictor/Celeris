@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied, RequestDataTooBig, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Case, IntegerField, Max, Prefetch, Q, Value, When
+from django.db.models import Case, F, IntegerField, Max, Prefetch, Q, Value, When
 from django import forms
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -5912,9 +5912,10 @@ def preview_pdf_modelo_documento(request):
 
 
 @login_required
+@proteger_contexto_tenant
 @xframe_options_sameorigin
 def imprimir_documento_clinico(request, cd_documento):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
     documento = get_object_or_404(
         DocumentoClinico.objects.select_related(
             "cd_atendimento__cd_paciente",
@@ -5925,6 +5926,8 @@ def imprimir_documento_clinico(request, cd_documento):
             "cd_item_menu_assistencial__cd_perfil_assistencial",
         ),
         cd_empresa=empresa,
+        cd_atendimento__cd_empresa=empresa,
+        cd_atendimento__cd_paciente__cd_empresa=empresa,
         cd_documento_clinico=cd_documento,
     )
     somente_consulta = request.GET.get("somente_consulta") == "1"
@@ -6534,10 +6537,12 @@ def _item_assistencial_permitido(request, atendimento, cd_item, tipo=None):
 
 
 @login_required
+@proteger_contexto_tenant
 def link_externo_assistencial(request, cd_atendimento, cd_item):
     atendimento = get_object_or_404(
-        Atendimento,
-        cd_empresa=_empresa_logada(request),
+        Atendimento.objects.select_related("cd_paciente"),
+        cd_empresa=empresa_atual(request),
+        cd_paciente__cd_empresa=empresa_atual(request),
         pk=cd_atendimento,
     )
     item = _item_assistencial_permitido(request, atendimento, cd_item, "LINK_EXTERNO")
@@ -6725,10 +6730,12 @@ def testar_escala_clinica(request):
 
 
 @login_required
+@proteger_contexto_tenant
 def anexos_clinicos(request, cd_atendimento, cd_item):
     atendimento = get_object_or_404(
         Atendimento.objects.select_related("cd_paciente"),
-        cd_empresa=_empresa_logada(request),
+        cd_empresa=empresa_atual(request),
+        cd_paciente__cd_empresa=empresa_atual(request),
         pk=cd_atendimento,
     )
     item = _item_assistencial_permitido(request, atendimento, cd_item, "ANEXO")
@@ -6786,15 +6793,29 @@ def anexos_clinicos(request, cd_atendimento, cd_item):
 
 
 @login_required
+@proteger_contexto_tenant
 def baixar_anexo_clinico(request, cd_anexo):
-    empresa = _empresa_logada(request)
+    empresa = empresa_atual(request)
+    anexos = AnexoClinico.objects.select_related(
+        "cd_atendimento",
+        "cd_documento_clinico__cd_atendimento__cd_paciente",
+        "cd_item_menu_assistencial__cd_perfil_assistencial",
+    )
     anexo = get_object_or_404(
-        AnexoClinico.objects.select_related(
-            "cd_atendimento",
-            "cd_documento_clinico",
-            "cd_item_menu_assistencial__cd_perfil_assistencial",
+        anexos.filter(
+            Q(cd_documento_clinico__isnull=True)
+            | Q(
+                cd_documento_clinico__cd_empresa=empresa,
+                cd_documento_clinico__cd_atendimento__cd_empresa=empresa,
+                cd_documento_clinico__cd_atendimento__cd_paciente__cd_empresa=empresa,
+                cd_documento_clinico__cd_atendimento_id=F("cd_atendimento_id"),
+            ),
+            Q(cd_item_menu_assistencial__isnull=True)
+            | Q(cd_item_menu_assistencial__cd_empresa=empresa),
         ),
         cd_empresa=empresa,
+        cd_atendimento__cd_empresa=empresa,
+        cd_atendimento__cd_paciente__cd_empresa=empresa,
         pk=cd_anexo,
         sn_ativo=True,
     )
@@ -6822,16 +6843,20 @@ def baixar_anexo_clinico(request, cd_anexo):
 
 
 @login_required
+@proteger_contexto_tenant
 def historico_documentos_assistencial(request, cd_atendimento, cd_item):
     atendimento = get_object_or_404(
         Atendimento.objects.select_related("cd_paciente"),
-        cd_empresa=_empresa_logada(request),
+        cd_empresa=empresa_atual(request),
+        cd_paciente__cd_empresa=empresa_atual(request),
         pk=cd_atendimento,
     )
     item = _item_assistencial_permitido(request, atendimento, cd_item, "HISTORICO")
     configuracao = item.ds_configuracao or {}
     documentos = DocumentoClinico.objects.filter(
         cd_empresa=atendimento.cd_empresa,
+        cd_atendimento__cd_empresa=atendimento.cd_empresa,
+        cd_atendimento__cd_paciente__cd_empresa=atendimento.cd_empresa,
         cd_atendimento__cd_paciente=atendimento.cd_paciente,
     ).select_related(
         "cd_atendimento",
@@ -6869,9 +6894,16 @@ def historico_documentos_assistencial(request, cd_atendimento, cd_item):
 
 
 @login_required
+@proteger_contexto_tenant
 def copiar_documento_clinico(request, cd_documento):
-    empresa = _empresa_logada(request)
-    origem = get_object_or_404(DocumentoClinico, cd_empresa=empresa, cd_documento_clinico=cd_documento)
+    empresa = empresa_atual(request)
+    origem = get_object_or_404(
+        DocumentoClinico,
+        cd_empresa=empresa,
+        cd_atendimento__cd_empresa=empresa,
+        cd_atendimento__cd_paciente__cd_empresa=empresa,
+        cd_documento_clinico=cd_documento,
+    )
     if origem.ds_status not in {"FECHADO", "FINALIZADO", "ASSINADO", "CANCELADO"}:
         raise PermissionDenied("Somente documentos fechados ou cancelados podem ser copiados.")
     if not usuario_pode_visualizar_documento(request.user, origem):

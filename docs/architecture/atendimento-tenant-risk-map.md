@@ -377,6 +377,10 @@ explicitamente foram excluídos como falsos positivos de resolução.
 | Funções consumidoras diretas de `_empresa_logada` após E3 | 27 |
 | Chamadas a `_empresa_logada` após E4 | 19 |
 | Funções consumidoras diretas de `_empresa_logada` após E4 | 18 |
+| Chamadas a `_empresa_logada` após E5 | 13 |
+| Funções consumidoras diretas de `_empresa_logada` após E5 | 12 |
+| Chamadas a `empresa_atual` após E5 | 78 |
+| Funções consumidoras de `empresa_atual` após E5 | 73 |
 | R1 | 1 |
 | R2 | 46 |
 | R3 | 20 |
@@ -402,9 +406,10 @@ explicitamente foram excluídos como falsos positivos de resolução.
 6. **E2 — fila e chamada de classificação (7; R2–R3, concluído).** `_tabela_totem`, impressão, chamada, fila e escalas standalone usam tenant canônico. Senha, Agendamento e seus pais tenant-local são resolvidos coerentemente antes de imprimir, mudar estado, chamar ou listar; relações inconsistentes legadas são recusadas. `standalone` foi confirmado como autenticado e session-based, não R5. `screen` não possui destino E2 direto adicional.
 7. **E3 — documentos, telas e impressão (5; R3, concluído).** `documentos_telas_impressao`, `modelos_documento`, `testar_variavel_documento`, `rascunho_editor_documento` e `preview_pdf_modelo_documento` usam tenant canônico. ModeloDocumento/Pasta seguem global-ou-empresa; vínculos de tela, rascunhos e Atendimento/Paciente são tenant-local. O preview agora valida o ID de modelo enviado pelo editor antes de gerar PDF. O Editor continua sendo consumido pelas APIs públicas de família/versão; não houve mudança de `screen`.
 8. **E4 — documentos clínicos, lifecycle e locks (9; R3, concluído).** `ficha_atendimento`, abertura/documento assistencial e as seis ações documentais usam `empresa_atual` com `proteger_contexto_tenant`. Documento, Atendimento e Paciente são resolvidos pela mesma empresa; o modelo continua global-ou-empresa. A suíte A/B cobre isolamento cruzado, cadeia documental inconsistente, autorização independente do tenant, propriedade de lock e acesso excepcional sem alterar lifecycle, serviços Editor, URLs ou `screen`.
-9. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
-10. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
-11. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
+9. **E5 — leitura, anexos e cópia documental (6; R3, concluído).** `imprimir_documento_clinico`, `link_externo_assistencial`, `anexos_clinicos`, `baixar_anexo_clinico`, `historico_documentos_assistencial` e `copiar_documento_clinico` usam tenant canônico com `proteger_contexto_tenant`. Toda leitura deriva da cadeia Documento → Atendimento → Paciente; download valida também Anexo, item e documento pai antes de abrir o storage. `link_externo_assistencial` é rota autenticada/session-based, sem token público: gera somente navegação/iframe para domínio permitido. A cópia valida a origem e usa o atendimento de origem já validado como destino; estados estruturais inconsistentes são recusados.
+10. **Lote E — classificação, senha, painéis e escalas remanescentes (13; R4).** catálogos/filas restantes, tabelas de senha, escalas e `pep_chamar`. Testar POSTs, máquinas vinculadas e histórico de chamadas.
+11. **Lote F — documentos, prescrição, exames e alta (29; R4/R3).** imprimir/preview, lifecycle e locks de documentos, anexos, exames, prescrição e alta. Executar caracterização de assinatura, eventos, arquivos e coerência `atendimento.cd_empresa` no serviço.
+12. **Lote G — contratos especiais (3; R5).** painel público, mídia pública e seed demo. Não usar `empresa_atual`; primeiro definir contrato explícito de dispositivo/URL pública/comando.
 
 Essa ordem mantém lotes entre 3 e 29 apenas onde o acoplamento clínico exige; o
 Lote E deve ser quebrado em sublotes de até 10–15 consumidores após a
