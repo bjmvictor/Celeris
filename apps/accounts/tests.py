@@ -647,6 +647,9 @@ class PapelAcessoTests(TestCase):
     def test_backend_libera_url_com_modulo_e_tela(self):
         user, _role = self._user_with_role("LIBERADO", [self.agendamento])
         self.client.force_login(user)
+        session = self.client.session
+        session["cd_empresa"] = self.empresa.pk
+        session.save()
         response = self.client.get(reverse("atendimento:agendar"))
         self.assertEqual(response.status_code, 200)
 

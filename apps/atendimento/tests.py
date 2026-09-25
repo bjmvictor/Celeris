@@ -205,6 +205,7 @@ class ConsultaAtendimentosTests(TestCase):
     def setUp(self):
         self.empresa = Empresa.objects.create(cd_empresa=7000, nm_empresa="Empresa Consulta", sn_ativo=True)
         self.user = User.objects.create_superuser("consulta-atendimentos", "consulta@example.com", "senha-forte")
+        UsuarioEmpresa.objects.create(usuario=self.user, empresa=self.empresa, sn_ativo=True)
         self.client.force_login(self.user)
         session = self.client.session
         session["cd_empresa"] = self.empresa.pk
@@ -5964,7 +5965,9 @@ class AtendimentoTenantRecepcaoBaseTests(TestCase):
         response = self.client.get(
             reverse("atendimento:atendimentos"), {"consultar": "1", "nr_atendimento": inconsistente.pk}
         )
-        self.assertNotContains(response, str(inconsistente.pk))
+        self.assertEqual(response.context["atendimento_selecionado"], None)
+        self.assertEqual(list(response.context["registros"]), [])
+        self.assertNotContains(response, "Paciente Recepcao A")
 
     def test_contextos_invalidos_falham_fechados_e_empresa_1_autorizada_funciona(self):
         self.assertEqual(self.client.get(reverse("atendimento:recepcao")).status_code, 302)
